@@ -3,7 +3,18 @@ project('ListTalk', 'c',
 
 bdwgc = dependency('bdw-gc')
 
-vm_lib = library('ListTalkVM', 'vm/eval.c', install : true, dependencies : [bdwgc])
+vm_lib = library(
+        'ListTalkVM', 
+        [
+                'vm/eval.c',
+                'vm/OOP.c',
+                'vm/NativeClass.c',
+                'vm/utils.c',
+                'vm/init.c',
+                'vm/reader.c',
+                'vm/printer.c',
+        ], 
+        install : true, dependencies : [bdwgc])
 
 executable('listtalk', 'tools/repl.c', link_with: [vm_lib], install : true)
 

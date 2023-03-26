@@ -1,28 +1,21 @@
 #ifndef H__ListTalk__ListTalk__
 #define H__ListTalk__ListTalk__
 
-#ifndef _REENTRANT
-#  define _REENTRANT
-#endif
-#ifndef GC_THREADS
-#  define GC_THREADS
-#endif
-
-#include <stdint.h>
-#include <pthread.h>
-#include <gc/gc.h>
+#include <ListTalk/env_macros.h>
 
 #include <ListTalk/OOP.h>
+#include <ListTalk/NativeClass.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+LT__CXX_GUARD_BEGIN
+
+typedef struct LT_VMInstanceState LT_VMInstanceState;
+typedef struct LT_VMThreadState LT_VMThreadState;
+typedef struct LT_VMTailCallState LT_VMTailCallState;
+
+extern void LT_init(void);
 
 extern LT_Object* LT_eval(LT_Object* expression);
 
-#ifdef __cplusplus
-}
-#endif
-
+LT__CXX_GUARD_END
 
 #endif
