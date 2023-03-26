@@ -5,7 +5,7 @@
 
 #include <stdint.h>
 
-LT__CXX_GUARD_BEGIN
+LT__BEGIN_DECLS
 
     extern uint32_t LT_fnv_hash(char* string);
     extern uint32_t LT_pointer_hash(void* pointer);
@@ -41,6 +41,6 @@ LT__CXX_GUARD_BEGIN
                             void* key);
 
 
-LT__CXX_GUARD_END
+LT__END_DECLS
 
 #endif

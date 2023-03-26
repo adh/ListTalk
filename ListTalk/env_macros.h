@@ -13,11 +13,11 @@
 #include <gc/gc.h>
 
 #ifdef __cplusplus
-#define LT__CXX_GUARD_BEGIN extern "C" {
-#define LT__CXX_GUARD_END   }
+#define LT__BEGIN_DECLS extern "C" {
+#define LT__END_DECLS   }
 #else
-#define LT__CXX_GUARD_BEGIN
-#define LT__CXX_GUARD_END
+#define LT__BEGIN_DECLS
+#define LT__END_DECLS
 #endif
 
 #endif

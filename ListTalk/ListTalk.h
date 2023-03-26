@@ -6,7 +6,7 @@
 #include <ListTalk/OOP.h>
 #include <ListTalk/NativeClass.h>
 
-LT__CXX_GUARD_BEGIN
+LT__BEGIN_DECLS
 
 typedef struct LT_VMInstanceState LT_VMInstanceState;
 typedef struct LT_VMThreadState LT_VMThreadState;
@@ -16,6 +16,6 @@ extern void LT_init(void);
 
 extern LT_Object* LT_eval(LT_Object* expression);
 
-LT__CXX_GUARD_END
+LT__END_DECLS
 
 #endif

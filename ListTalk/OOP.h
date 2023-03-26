@@ -5,7 +5,7 @@
 
 #include <stdlib.h>
 
-LT__CXX_GUARD_BEGIN
+LT__BEGIN_DECLS
 
 typedef struct LT_Object LT_Object;
 
@@ -35,8 +35,8 @@ inline LT_Class* LT_OOP_class(LT_Object* object){
 
 extern LT_Object* LT_Class_alloc(LT_Class* klass);
 
-#define LT_Class_ALLOC(type) (type*)(LT_Class_alloc(&type##_class))
+#define LT_Class_ALLOC(type) (type*)(LT_Class_alloc(type##_class))
 
-LT__CXX_GUARD_END
+LT__END_DECLS
 
 #endif

@@ -7,7 +7,7 @@ struct LT_Symbol {
     char* name;
 };
 
-LT_Class LT_Symbol_class = {
+LT_DEFINE_CLASS(LT_Symbol) {
     .name = "Symbol",
     .instance_size = sizeof(LT_Symbol)
 };
