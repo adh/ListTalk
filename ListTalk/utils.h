@@ -30,9 +30,6 @@ LT__CXX_GUARD_BEGIN
 
     void LT_InlineHash_init(LT_InlineHash* h);
 
-    typedef struct LT_StringHash {
-        LT_InlineHash impl;
-    } LT_StringHash;
 
     void LT_StringHash_at_put(LT_InlineHash* sh,
                               char* key, void* value);

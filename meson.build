@@ -13,6 +13,7 @@ vm_lib = library(
                 'vm/init.c',
                 'vm/reader.c',
                 'vm/printer.c',
+                'vm/Symbol.c',
         ], 
         install : true, dependencies : [bdwgc])
 

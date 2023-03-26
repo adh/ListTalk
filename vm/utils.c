@@ -86,7 +86,7 @@ static void add_hash_entry(LT_InlineHash* h,
                            char* value){
   LT_InlineHash_Entry* e;
 
-  if ((h->count / 2) > h->mask){
+  if (h->count > h->mask){
     grow_table(h);
   }
   
