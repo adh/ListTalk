@@ -18,13 +18,18 @@ struct LT_Object{
 };
 
 typedef struct LT_Symbol LT_Symbol;
+
+typedef struct LT_Class_CoreMethods LT_Class_CoreMethods;
+
 struct LT_Class {
     LT_Object base;
     LT_Class* superclass;
     char* name;
     size_t instance_size;
     unsigned int class_flags;
+    LT_Class_CoreMethods* core_methods;
 };
+
 
 #define LT_OOP_NIL NULL
 #define LT_OOP_INVALID (LT_Object*)(~((size_t)NULL))

@@ -3,6 +3,8 @@
 
 #include <ListTalk/OOP.h>
 
+#include <ListTalk/Printer.h>
+
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -27,6 +29,12 @@ typedef struct LT_NativeClass_Descriptor {
     int class_flags;
     LT_NativeSlot_Descriptor* slots;
 } LT_NativeClass_Descriptor;
+
+struct LT_Class_CoreMethods {
+    uint32_t (*hash)(LT_Object* object);
+    int (*equal)(LT_Object* object);
+    void (*print)(LT_Object* objcect, LT_Printer* printer);
+};
 
 extern LT_Class* LT_init_native_class(LT_NativeClass* klass, LT_NativeClass_Descriptor* desc);
 
