@@ -11,9 +11,10 @@ vm_lib = library(
                 'vm/NativeClass.c',
                 'vm/utils.c',
                 'vm/init.c',
-                'vm/reader.c',
-                'vm/printer.c',
+                'vm/Reader.c',
+                'vm/Printer.c',
                 'vm/Symbol.c',
+                'vm/Array.c',
         ], 
         install : true, dependencies : [bdwgc])
 
