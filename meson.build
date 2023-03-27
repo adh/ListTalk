@@ -17,6 +17,16 @@ vm_lib = library(
         ], 
         install : true, dependencies : [bdwgc])
 
-executable('listtalk', 'tools/repl.c', link_with: [vm_lib], install : true)
+executable(
+        'listtalk', 
+        'tools/repl.c', 
+        link_with: [vm_lib], 
+        dependencies : [bdwgc], 
+        install : true
+)
 
-install_headers('ListTalk/ListTalk.h', 'ListTalk/OOP.h', subdir: 'ListTalk')
+install_headers(
+        'ListTalk/ListTalk.h', 
+        'ListTalk/OOP.h', 
+        subdir: 'ListTalk'
+)
