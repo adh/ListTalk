@@ -12,20 +12,30 @@ LT__BEGIN_DECLS
 
     extern char* LT_strdup(char*);
 
+    typedef struct LT_StringBuilder LT_StringBuilder;
+
+    LT_StringBuilder* LT_StringBuilder_new();
+    void LT_StringBuilder_append_str(LT_StringBuilder* builder, char*str);
+    void LT_StringBuilder_append_char(LT_StringBuilder* builder, char ch);
+    char* LT_StringBuilder_value(LT_StringBuilder* builder);
+    size_t LT_StringBuilder_length(LT_StringBuilder* builder);
+
+
     typedef struct LT_InlineHash LT_InlineHash;
     typedef struct LT_InlineHash_Entry LT_InlineHash_Entry;
 
+
     struct LT_InlineHash {
-      LT_InlineHash_Entry** vector;
-      size_t mask;
-      size_t count;
+        LT_InlineHash_Entry** vector;
+        size_t mask;
+        size_t count;
     };
 
     struct LT_InlineHash_Entry {
-      size_t hash;
-      void* key;
-      void* value;
-      LT_InlineHash_Entry* next;
+        size_t hash;
+        void* key;
+        void* value;
+        LT_InlineHash_Entry* next;
     };
 
     void LT_InlineHash_init(LT_InlineHash* h);
