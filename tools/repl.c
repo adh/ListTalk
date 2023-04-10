@@ -1,6 +1,6 @@
 #include <ListTalk/ListTalk.h>
-#include <ListTalk/reader.h>
-#include <ListTalk/printer.h>
+#include <ListTalk/Reader.h>
+#include <ListTalk/Printer.h>
 #include <stdio.h>
 
 
