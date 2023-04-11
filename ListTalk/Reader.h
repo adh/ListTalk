@@ -3,6 +3,9 @@
 
 #include <ListTalk/OOP.h>
 
-extern LT_Object* LT_reader_read_object();
+LT_DECLARE_CLASS(LT_Reader);
+
+extern LT_Reader* LT_Reader_newForStream(FILE* stream);
+extern LT_Object* LT_Reader_readObject(LT_Reader* reader);
 
 #endif

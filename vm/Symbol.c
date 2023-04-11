@@ -32,6 +32,7 @@ static LT_InlineHash* get_symbol_table(void){
 
 LT_Symbol* LT_Symbol_new(char *name)
 {
+    fprintf(stderr, ";; Symbol>>:new: %s\n", name);
     LT_Symbol* sym = LT_StringHash_at(get_symbol_table(), name);
     if (sym){
         return sym;

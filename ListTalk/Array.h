@@ -29,7 +29,7 @@ extern LT_Object* LT_ImmutableTuple_at(
 
 LT_DECLARE_CLASS(LT_ImmutableTupleBuilder);
 
-extern LT_ImmutableTupleBuilder* LT_ImmutableBuilder_new();
+extern LT_ImmutableTupleBuilder* LT_ImmutableTupleBuilder_new();
 
 extern void LT_ImmutableTupleBuilder_add(
     LT_ImmutableTupleBuilder* builder, 

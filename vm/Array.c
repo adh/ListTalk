@@ -22,8 +22,10 @@ struct LT_ImmutableTuple {
 static void ImmutableTuple_print(LT_Object* obj, FILE* stream){
     LT_ImmutableTuple* tuple = obj;
     fputs("(", stream);
-    for (int i=0; i < tuple->length; i++){
-        fputs(" ", stream);
+    for (int i = 0; i < tuple->length; i++){
+        if (i != 0){
+            fputs(" ", stream);
+        }
         LT_Object_printOn(tuple->items[i], stream);
     }
     fputs(")", stream);
@@ -59,7 +61,7 @@ LT_DEFINE_CLASS(LT_ImmutableTupleBuilder){
     .instance_size = sizeof(LT_ImmutableTupleBuilder),
 };
 
-LT_ImmutableTupleBuilder* LT_ImmutableBuilder_new()
+LT_ImmutableTupleBuilder* LT_ImmutableTupleBuilder_new()
 {
     LT_ImmutableTupleBuilder* builder = LT_Class_ALLOC(
         LT_ImmutableTupleBuilder
@@ -95,6 +97,7 @@ LT_ImmutableTuple* LT_ImmutableTupleBuilder_value(
         LT_ImmutableTuple, 
         sizeof(LT_Object*) * builder->length
     );
+    tuple->length = builder->length;
     memcpy(tuple->items, builder->buf, sizeof(LT_Object*) * builder->length);
     return tuple;
 }

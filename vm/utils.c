@@ -9,6 +9,7 @@ uint32_t LT_fnv_hash(char* string){
     while(*string){
         res += (unsigned char)*string;
         res *= 0x01000193;
+        string++;
     }
     return res;
 }
