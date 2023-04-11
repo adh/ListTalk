@@ -9,7 +9,7 @@ LT__BEGIN_DECLS
 
 typedef struct LT_Object LT_Object;
 
-#define LT_CLASS_FLAG_VAR_SIZE 1
+#define LT_CLASS_FLAG_FLEXIBLE 1
 #define LT_CLASS_FLAG_SCALAR   2
 
 typedef struct LT_Class LT_Class;
@@ -41,6 +41,11 @@ inline LT_Class* LT_OOP_class(LT_Object* object){
 extern LT_Object* LT_Class_alloc(LT_Class* klass);
 
 #define LT_Class_ALLOC(type) (type*)(LT_Class_alloc(type##_class))
+
+extern LT_Object* LT_Class_alloc_flexible(LT_Class* klass, size_t flex);
+
+#define LT_Class_ALLOC_FLEXIBLE(type, flex) \
+    (type*)(LT_Class_alloc_flexible(type##_class, flex))
 
 LT__END_DECLS
 

@@ -9,3 +9,9 @@ LT_Object* LT_Class_alloc(LT_Class *klass)
     obj->klass = klass;
     return obj;
 }
+LT_Object* LT_Class_alloc_flexible(LT_Class *klass, size_t flex)
+{
+    LT_Object* obj = GC_MALLOC(klass->instance_size + flex);
+    obj->klass = klass;
+    return obj;
+}

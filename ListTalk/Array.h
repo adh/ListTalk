@@ -19,7 +19,7 @@ extern void LT_Array_at_put(
     LT_Object* object
 );
 
-extern LT_Class * const LT_ImmutableTuple_class; typedef struct LT_ImmutableTuple LT_ImmutableTuple;
+LT_DECLARE_CLASS(LT_ImmutableTuple);
 
 extern size_t LT_ImmutableTuple_length(LT_ImmutableTuple* tuple);
 extern LT_Object* LT_ImmutableTuple_at(
@@ -29,7 +29,9 @@ extern LT_Object* LT_ImmutableTuple_at(
 
 LT_DECLARE_CLASS(LT_ImmutableTupleBuilder);
 
-extern void LT_ImmutableTupleBuilder_put(
+extern LT_ImmutableTupleBuilder* LT_ImmutableBuilder_new();
+
+extern void LT_ImmutableTupleBuilder_add(
     LT_ImmutableTupleBuilder* builder, 
     LT_Object* object
 );
