@@ -147,6 +147,88 @@ static LT_Object* dispatch_tuple(LT_Reader* reader){
 
 }
 
+static int is_selector_component(LT_Reader_Tokenizer* tok, int first){
+    if (tok->cur_token.type != TOKEN_ATOM){
+        return 0;
+    }
+    char* value = tok->cur_token.value;
+    if (first) {
+        char* colon = strchr(value, ':');
+        if (colon == NULL){
+            return 1;
+        }
+        return colon[1] == '\0';
+    }
+    return (value[strlen(value) - 1] == ':');
+}
+
+static LT_Object* dispatch_send(LT_Reader* reader){
+    enum {
+        SELECTOR,
+        ARGUMENT,
+        TRAILING
+    } state;
+    LT_ImmutableTupleBuilder* builder = LT_ImmutableTupleBuilder_new();   
+    LT_StringBuilder* selector_builder = NULL;
+
+    LT_ImmutableTupleBuilder_add(builder, LT_OOP_NIL);
+
+    /* receiver */
+
+    read_token(reader->tokenizer);
+    LT_ImmutableTupleBuilder_add(builder, dispatch_object(reader));
+
+    /* first selector (special cased for unary and binary selectors) */
+
+    read_token(reader->tokenizer);
+    if (is_selector_component(reader->tokenizer, 1)){
+        fprintf(stderr, ";; initial selector component: %s\n", reader->tokenizer->cur_token.value);
+        selector_builder = LT_StringBuilder_new();
+        LT_StringBuilder_append_char(selector_builder, ':');
+        LT_StringBuilder_append_str(
+            selector_builder, reader->tokenizer->cur_token.value
+        );
+        state = ARGUMENT;
+    } else {
+        LT_ImmutableTupleBuilder_atPut(builder, 0, dispatch_object(reader));
+
+        state = TRAILING;
+    }
+
+
+    for(;;){
+        read_token(reader->tokenizer);
+        if (reader->tokenizer->cur_token.type == ']'){
+            if (selector_builder){
+                LT_ImmutableTupleBuilder_atPut(
+                    builder, 0, 
+                    LT_Symbol_new(LT_StringBuilder_value(selector_builder))
+                );
+            }
+            LT_Object* obj = LT_ImmutableTupleBuilder_value(builder);
+            fprintf(stderr, ";; dispatch_send result: ");
+            LT_Object_printOn(obj, stderr);
+            fprintf(stderr, "\n");
+            return obj;
+        }
+        if (state == SELECTOR){
+            if (!is_selector_component(reader->tokenizer, 0)){
+                state = TRAILING;
+                continue;
+            } else {
+                LT_StringBuilder_append_str(selector_builder, reader->tokenizer->cur_token.value);
+                state = ARGUMENT;
+                continue;
+            }
+        }
+        LT_ImmutableTupleBuilder_add(builder, dispatch_object(reader));
+        if (state == ARGUMENT){
+            state = SELECTOR;
+        }
+    }
+
+}
+
 static LT_Object* dispatch_object(LT_Reader* reader){
     assert(reader->tokenizer->cur_token.type != TOKEN_EOF);
 
@@ -157,6 +239,8 @@ static LT_Object* dispatch_object(LT_Reader* reader){
             return LT_Symbol_new(reader->tokenizer->cur_token.value);    
         case '(':
             return dispatch_tuple(reader);
+        case '[':
+            return dispatch_send(reader);
         default:
             assert(0);
     }

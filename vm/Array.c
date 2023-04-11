@@ -2,6 +2,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 
 struct LT_Array {
     LT_Object base;
@@ -87,6 +88,15 @@ void LT_ImmutableTupleBuilder_add(
     }
     builder->buf[builder->length] = object;
     builder->length++;
+}
+
+extern void LT_ImmutableTupleBuilder_atPut(
+    LT_ImmutableTupleBuilder* builder, 
+    size_t position,
+    LT_Object* object
+){
+    assert(position < builder->length);
+    builder->buf[position] = object;
 }
 
 

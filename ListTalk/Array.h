@@ -35,6 +35,11 @@ extern void LT_ImmutableTupleBuilder_add(
     LT_ImmutableTupleBuilder* builder, 
     LT_Object* object
 );
+extern void LT_ImmutableTupleBuilder_atPut(
+    LT_ImmutableTupleBuilder* builder, 
+    size_t pos,
+    LT_Object* object
+);
 extern LT_ImmutableTuple* LT_ImmutableTupleBuilder_value(
     LT_ImmutableTupleBuilder* builder
 );
