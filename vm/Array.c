@@ -1,6 +1,7 @@
 #include <ListTalk/Array.h>
 
 #include <string.h>
+#include <stdio.h>
 
 struct LT_Array {
     LT_Object base;
@@ -18,8 +19,19 @@ struct LT_ImmutableTuple {
     LT_Object* items[];
 };
 
+static void ImmutableTuple_print(LT_Object* obj, FILE* stream){
+    LT_ImmutableTuple* tuple = obj;
+    fputs("(", stream);
+    for (int i=0; i < tuple->length; i++){
+        fputs(" ", stream);
+        LT_Object_printOn(tuple->items[i], stream);
+    }
+    fputs(")", stream);
+}
+
 LT_DEFINE_CLASS(LT_ImmutableTuple){
     .instance_size = sizeof(LT_ImmutableTuple),
+    .printOn = ImmutableTuple_print,
 };
 
 size_t LT_ImmutableTuple_length(LT_ImmutableTuple* tuple){

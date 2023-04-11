@@ -3,8 +3,6 @@
 
 #include <ListTalk/env_macros.h>
 
-#include <ListTalk/OOP.h>
-
 #define LT_DECLARE_CLASS(name)\
     extern LT_Class * const name##_class; \
     typedef struct name name

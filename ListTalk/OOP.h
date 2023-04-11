@@ -2,8 +2,10 @@
 #define H__ListTalk__OOP__
 
 #include <ListTalk/env_macros.h>
+#include <ListTalk/decl_macros.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 LT__BEGIN_DECLS
 
@@ -27,6 +29,7 @@ struct LT_Class {
     char* name;
     size_t instance_size;
     unsigned int class_flags;
+    void (*printOn)(LT_Object* obj, FILE* stream); /* TODO: temporary */
     LT_Class_CoreMethods* core_methods;
 };
 
@@ -34,8 +37,17 @@ struct LT_Class {
 #define LT_OOP_NIL NULL
 #define LT_OOP_INVALID (LT_Object*)(~((size_t)NULL))
 
-inline LT_Class* LT_OOP_class(LT_Object* object){
+LT_DECLARE_CLASS(LT_Nil);
+
+inline LT_Class* LT_Object_class(LT_Object* object){
+    if (object == LT_OOP_NIL){
+        return LT_Nil_class;
+    }
     return object->klass;
+}
+
+inline void LT_Object_printOn(LT_Object* obj, FILE* stream){
+    LT_Object_class(obj)->printOn(obj, stream);
 }
 
 extern LT_Object* LT_Class_alloc(LT_Class* klass);

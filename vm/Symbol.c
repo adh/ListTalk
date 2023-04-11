@@ -7,9 +7,14 @@ struct LT_Symbol {
     char* name;
 };
 
+static void Symbol_printOn(LT_Object* obj, FILE* stream){
+    fputs(LT_Symbol_name(obj), stream);
+}
+
 LT_DEFINE_CLASS(LT_Symbol) {
     .name = "Symbol",
-    .instance_size = sizeof(LT_Symbol)
+    .instance_size = sizeof(LT_Symbol),
+    .printOn = Symbol_printOn,
 };
 
 
