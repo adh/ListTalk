@@ -214,7 +214,6 @@ static LT_Object* dispatch_send(LT_Reader* reader){
         if (state == SELECTOR){
             if (!is_selector_component(reader->tokenizer, 0)){
                 state = TRAILING;
-                continue;
             } else {
                 LT_StringBuilder_append_str(selector_builder, reader->tokenizer->cur_token.value);
                 state = ARGUMENT;
