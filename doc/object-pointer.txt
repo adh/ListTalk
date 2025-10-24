@@ -28,8 +28,9 @@ Upper byte of immediate objects:
 0x8a - SignedInt16
 0x8b - SignedInt32
 0x8c - SmallFraction
-0x90-0x97 - ShortString 
+0x90-0x97 - ShortString
 
+0xbf - invalid object with flags (ie. ImmutableList footer)
 0xc0-0xff - shifted FloNum
 
 
