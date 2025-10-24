@@ -1,0 +1,59 @@
+Only 64b platforms.
+
+MSB:
+0 - GC-visible pointer
+1 - immediate value
+
+Lower 3 bits are pointer tag:
+000 - normal object
+001 - ImmutableList
+010 - Pair
+011 - 
+100 - Closure
+101 - Primitive
+110 - Macro
+111 - SpecialForm
+
+Upper byte of immediate objects:
+0x80 - Nil
+0x81 - Symbol
+0x82 - Boolean
+0x83 - FixNum
+0x84 - Character
+0x85 - UnsignedByte
+0x86 - UnsignedInt16
+0x87 - UnsignedInt32
+0x88 - Float32
+0x89 - SignedByte
+0x8a - SignedInt16
+0x8b - SignedInt32
+0x8c - SmallFraction
+0x90-0x97 - ShortString 
+
+0xc0-0xff - shifted FloNum
+
+
+Symbol:
+- 1 bits type
+ - 0 - symbol
+ - 1 - gensym
+- 23 bits package index (keyword = 0)
+- 32 bits symbol index
+  (for gensyms 52bits of serial number)
+
+SmallFraction:
+- 1 bit sign
+- 25 bits numerator
+- 26 bits denominator
+
+Boolean:
+0 - false
+1 - true
+
+Nil:
+0 - nil
+
+
+reserved values:
+0xffff ffff ffff ffff
+0x0000 0000 0000 0000 (ie. C NULL)
