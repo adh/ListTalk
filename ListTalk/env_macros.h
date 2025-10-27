@@ -1,6 +1,10 @@
 #ifndef H__ListTalk__env_macros__
 #define H__ListTalk__env_macros__
 
+#if __STDC_VERSION__ < 201112L
+#error "ListTalk requires a C11-compliant compiler"
+#endif
+
 #ifndef _REENTRANT
 #  define _REENTRANT
 #endif

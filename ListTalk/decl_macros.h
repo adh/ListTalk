@@ -5,7 +5,11 @@
 
 #define LT_DECLARE_CLASS(name)\
     extern LT_Class * const name##_class; \
-    typedef struct name name
+    typedef struct name name; \
+    inline name* name##_from_object(LT_Object obj){ \
+        if (LT_Object_class(obj) != &name##_class) return NULL; \
+        return (name*)LT_OBJECT_POINTER_VALUE(obj); \
+    } \
 
 #define LT_DEFINE_CLASS(c_name) \
     static LT_Class c_name##__class; \

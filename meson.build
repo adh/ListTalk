@@ -7,7 +7,7 @@ vm_lib = library(
         'ListTalkVM', 
         [
                 'vm/eval.c',
-                'vm/OOP.c',
+                'vm/Object.c',
                 'vm/NativeClass.c',
                 'vm/utils.c',
                 'vm/init.c',
@@ -15,6 +15,8 @@ vm_lib = library(
                 'vm/Printer.c',
                 'vm/Symbol.c',
                 'vm/Array.c',
+                'vm/String.c',
+                'vm/Number.c'
         ], 
         install : true, dependencies : [bdwgc])
 
@@ -28,6 +30,6 @@ executable(
 
 install_headers(
         'ListTalk/ListTalk.h', 
-        'ListTalk/OOP.h', 
+        'ListTalk/Object.h', 
         subdir: 'ListTalk'
 )
