@@ -1,0 +1,31 @@
+each class has its metaclass (Smalltalk-style)
+
+Classes defined in C code are described by Descriptor structure that it
+converted into materialized classes during module intialization. Before
+the first call to LT_init() these are accumulated in linked list on C
+malloc heap and batch initialized during LT_init(), intialization is
+no-op for already initialized classes and follows the inheritance
+dependencies (this contains a bit of wasted effort by revisiting already 
+initialized classes, but there is no other way to do it).
+
+MyClass
+ .type = MyClass class
+ .superclasses = [A, B]
+ .mro = [A, B, ..., Object]
+
+MyClass class
+  .type = Metaclass
+  .superclasses = [A class, B class]
+  .mro = [A class, B class, ..., Class, Behavior, Object]
+
+Objects in superclasses and mro slots are VM-side heap instances of 
+ImmutableList in contrast to NULL-terminated arrays in class descriptor.
+
+Method dispatch follows the MRO of the original receiver.
+
+Each class has list of methods and slots. Slots are publicly accessible
+and have type. Slot type determines the actual in-memory layout of the value.
+
+TBD:
+- does it make sense to track list of sub-classes?
+
