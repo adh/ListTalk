@@ -29,3 +29,19 @@ and have type. Slot type determines the actual in-memory layout of the value.
 TBD:
 - does it make sense to track list of sub-classes?
 
+Multiple inheritance:
+- classes that do not contain native slots can form arbitrary DAG
+- when inheriting from class with native slots there can be only one such
+  class
+
+when intializing class with multiple superclasses the superclasses slots
+are unified and new instance memory layout is created by repacking the 
+slots. Native slots cannot be moved. Algorithm is thus two-pass:
+- gather all native slots from inheritance hierarchy and check for conflicts
+- append all non-native slots with suitable alignment, slots with same name
+  get coalesced
+The algorithm should try to preserve the ordering as much as possible.
+
+=> there cannot be fixed accessors for non-native slots, the performance
+   loss should be offset by in-line caching of slot accesses
+
