@@ -22,6 +22,8 @@ Objects in superclasses and mro slots are VM-side heap instances of
 ImmutableList in contrast to NULL-terminated arrays in class descriptor.
 
 Method dispatch follows the MRO of the original receiver.
+=> MRO is the hidden context of methods invoked by message dispatch, 
+   super-send uses (cdr MRO)
 
 Each class has list of methods and slots. Slots are publicly accessible
 and have type. Slot type determines the actual in-memory layout of the value.
