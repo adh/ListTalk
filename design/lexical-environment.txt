@@ -1,0 +1,32 @@
+Environment frame (conceptually):
+- hashmap from symbol to value and flags
+- parent frame
+- recyclable flag
+- invocation context
+
+Flags:
+- constant
+
+First implementation with hashmaps everywhere, then:
+
+environment frame indexable by offset:
+- object header
+- parent frame
+- shape (eg hashmap from symbol to object)
+- flags
+  - recyclable (= can be returned to freelist on activation frame return)
+  - shape shared (= COW for shape)
+  - constant flags for first 8 slots
+- size (32bit)
+- page_directory
+- page_constant flags
+- invocation context kind
+- invocation context data
+- slots[8]
+
+If 8 > size >= 72 then page_directory points directly to page of at most 64 slots
+- allocation of the page follows progression 8, 16, 32, 64
+If 72 > size then:
+  - page_directory points to vector of page pointers
+    - pages are always allocated for 64 slots
+  - page_constant points to vector of constant flags bitfields
