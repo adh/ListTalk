@@ -24,6 +24,8 @@ typedef struct LT_Class_Slot {
 #define LT_CLASS_FLAG_IMMUTABLE 16
 #define LT_CLASS_FLAG_SCALAR    32
 
+typedef struct LT_NativeClass_Descriptor_s LT_NativeClass_Descriptor;
+
 struct LT_Class_s {
     LT_Object base;
     LT_Class** superclasses; /* NULL terminated */
@@ -37,6 +39,7 @@ struct LT_Class_s {
     LT_Value name;
     LT_Class_debugPrintOn_Func debugPrintOn;
     LT_Value documentation;
+    LT_NativeClass_Descriptor* native_descriptor;
 };
 
 /* Inlined here in order to resolve circular dependencies */
