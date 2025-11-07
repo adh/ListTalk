@@ -29,7 +29,7 @@
 #define LT_DEFINE_CLASS(c_name) \
     static LT_Class c_name##__class; \
     static LT_Class c_name##__class_class; \
-    static LT_NativeClass_Descriptor c_name##__class_descriptor; \
+    static LT_Class_Descriptor c_name##__class_descriptor; \
     static LT_Class c_name##__class = { \
         .base = { \
             .klass = &c_name##__class_class, \
@@ -37,6 +37,6 @@
         .native_descriptor = &c_name##__class_descriptor, \
     }; \
     LT_INITIALIZE_CLASS(c_name) \
-    static LT_NativeClass_Descriptor c_name##__class_descriptor = 
+    static LT_Class_Descriptor c_name##__class_descriptor = /* ... */
 
 #endif

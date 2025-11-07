@@ -47,6 +47,9 @@ typedef uintptr_t LT_Value;
     | ((uintptr_t)(value) & 0x00ffffffffffffffULL) \
     | 0x8000000000000000ULL))
 
+#define LT_VALUE_NIL \
+    LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_NIL, 0)
+
 typedef struct LT_Class_s LT_Class;
 
 typedef struct LT_Object_s {

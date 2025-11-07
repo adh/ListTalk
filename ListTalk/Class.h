@@ -24,7 +24,7 @@ typedef struct LT_Class_Slot {
 #define LT_CLASS_FLAG_IMMUTABLE 16
 #define LT_CLASS_FLAG_SCALAR    32
 
-typedef struct LT_NativeClass_Descriptor_s LT_NativeClass_Descriptor;
+typedef struct LT_Class_Descriptor_s LT_Class_Descriptor;
 
 struct LT_Class_s {
     LT_Object base;
@@ -39,7 +39,7 @@ struct LT_Class_s {
     LT_Value name;
     LT_Class_debugPrintOn_Func debugPrintOn;
     LT_Value documentation;
-    LT_NativeClass_Descriptor* native_descriptor;
+    LT_Class_Descriptor* native_descriptor; /* Native class descriptor */
 };
 
 /* Inlined here in order to resolve circular dependencies */
@@ -61,5 +61,31 @@ extern void* LT_Class_alloc_flexible(LT_Class* klass, size_t flex);
 
 #define LT_Class_ALLOC_FLEXIBLE(type, flex) \
     (type*)(LT_Class_alloc_flexible(type##_class, flex))
+
+typedef struct LT_Slot_Descriptor {
+    char* name;
+    size_t offset;
+    LT_SlotType* type;
+} LT_Slot_Descriptor;
+
+#define LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR {NULL, 0, NULL}
+typedef struct LT_Method_Descriptor {
+    char* selector;
+    LT_Value function; /* function, no special case for native code */
+} LT_Method_Descriptor;
+
+#define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, LT_VALUE_NIL}
+typedef struct LT_Class_Descriptor {
+    LT_Class* superclass;
+    char* package;
+    char* name;
+    size_t instance_size;
+    int class_flags;
+    LT_Slot_Descriptor* slots;
+    LT_Method_Descriptor* methods;
+    LT_Method_Descriptor* class_methods;
+} LT_Class_Descriptor;
+
+
 
 LT__END_DECLS
