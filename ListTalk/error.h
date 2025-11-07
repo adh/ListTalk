@@ -3,6 +3,8 @@
 
 #include <ListTalk/env_macros.h>
 
+#include <ListTalk/value.h>
+
 LT_BEGIN_DECLS
 
 /* This gets included pretty much everywhere, so it cannot use VM types in 
@@ -13,6 +15,7 @@ LT_BEGIN_DECLS
  */
 void LT_error(const char* message, ...);
 
+void LT_type_error(LT_Value value, LT_Class* expected_class);
 
 LT_END_DECLS
 

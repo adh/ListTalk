@@ -1,7 +1,10 @@
 #ifndef H__ListTalk__String__
 #define H__ListTalk__String__
 
-#include <ListTalk/OOP.h>
+#include <ListTalk/env_macros.h>
+
+#include <ListTalk/value.h>
+#include <ListTalk/decl_macros.h>
 
 LT__BEGIN_DECLS
 

@@ -36,6 +36,12 @@ struct LT_Class_CoreMethods {
     void (*print)(LT_Object* objcect, LT_Printer* printer);
 };
 
+typedef struct LT_NativeClass_DescriptorLink {
+    LT_NativeClass_Descriptor* descriptor;
+    LT_Class* klass;
+    LT_Class* klass_class;
+} LT_NativeClass_DescriptorLink;
+
 extern LT_Class* LT_init_native_class(LT_NativeClass* klass, LT_NativeClass_Descriptor* desc);
 
 #endif
