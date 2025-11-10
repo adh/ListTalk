@@ -30,7 +30,7 @@ Upper byte of immediate objects:
 0x8c - SmallFraction
 0x90-0x97 - ShortString
 
-0xbf - invalid object with flags (ie. ImmutableList footer)
+0xbf - invalid object with flags (ie. ImmutableList header/footer)
 0xc0-0xff - shifted FloNum
 
 
