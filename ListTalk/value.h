@@ -37,10 +37,10 @@ typedef uintptr_t LT_Value;
 #define LT_VALUE_IMMEDIATE_TAG_INT16 0x8a
 #define LT_VALUE_IMMEDIATE_TAG_INT32 0x8b
 #define LT_VALUE_IMMEDIATE_TAG_SMALL_FRACTION 0x8c
-#define LT_VALUE_IMMEDIATE_TAG_IS_SHORT_STRING(tag) ((tag) & 0xf8 == 0x90)
+#define LT_VALUE_IMMEDIATE_TAG_IS_SHORT_STRING(tag) (((tag) & 0xf8) == 0x90)
 #define LT_VALUE_IMMEDIATE_TAG_SHORT_STRING_LENGTH(tag) ((tag) & 0x7)
 #define LT_VALUE_IMMEDIATE_TAG_INVALID 0xbf
-#define LT_VALUE_IMMEDIATE_TAG_IS_FLONUM(tag) ((tag) & 0xc0 == 0xc0)
+#define LT_VALUE_IMMEDIATE_TAG_IS_FLONUM(tag) (((tag) & 0xc0) == 0xc0)
 
 #define LT_VALUE_MAKE_IMMEDIATE(tag, value) \
     ((LT_Value)((((uintptr_t)(tag) & 0xff) << 56) \

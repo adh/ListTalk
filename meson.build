@@ -7,14 +7,12 @@ vm_lib = library(
         'ListTalkVM', 
         [
                 'vm/eval.c',
-                'vm/Object.c',
-                'vm/NativeClass.c',
+                'vm/value.c',
+                'vm/Class.c',
                 'vm/utils.c',
                 'vm/init.c',
-                'vm/Reader.c',
                 'vm/Printer.c',
                 'vm/Symbol.c',
-                'vm/Array.c',
                 'vm/String.c',
                 'vm/Number.c'
         ], 
@@ -30,6 +28,6 @@ executable(
 
 install_headers(
         'ListTalk/ListTalk.h', 
-        'ListTalk/Object.h', 
+        'ListTalk/value.h', 
         subdir: 'ListTalk'
 )

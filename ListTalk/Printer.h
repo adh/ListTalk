@@ -3,13 +3,13 @@
 
 #include <ListTalk/env_macros.h>
 #include <ListTalk/decl_macros.h>
-#include <ListTalk/OOP.h>
+#include <ListTalk/value.h>
 
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_Printer);
 
-extern void LT_printer_print_object(LT_Object* object);
+extern void LT_printer_print_object(LT_Value object);
 
 LT__END_DECLS
 

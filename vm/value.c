@@ -1,4 +1,4 @@
-#include <ListTalk/Object.h>
+#include <ListTalk/value.h>
 
 
 void Nil_printOn(LT_Object* obj, FILE* stream){
@@ -11,13 +11,13 @@ LT_DEFINE_CLASS(LT_Nil){
 
 void* LT_Class_alloc(LT_Class *klass)
 {
-    LT_ObjectHeader* obj = GC_MALLOC(klass->instance_size);
+    LT_Object* obj = GC_MALLOC(klass->instance_size);
     obj->klass = klass;
     return obj;
 }
 void* LT_Class_alloc_flexible(LT_Class *klass, size_t flex)
 {
-    LT_ObjectHeader* obj = GC_MALLOC(klass->instance_size + flex);
+    LT_Object* obj = GC_MALLOC(klass->instance_size + flex);
     obj->klass = klass;
     return obj;
 }

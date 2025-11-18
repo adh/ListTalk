@@ -5,7 +5,6 @@
 #include <ListTalk/value.h>
 #include <ListTalk/error.h>
 #include <ListTalk/Class.h>
-#include <ListTalk/NativeClass.h>
 
 #define LT_DECLARE_CLASS(name)\
     extern LT_Class name##_class; \

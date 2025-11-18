@@ -11,7 +11,7 @@ int main(int argc, char**argv){
         printf("]=> ");
         LT_Object* expr = LT_Reader_readObject(reader);
         LT_Object* res = LT_eval(expr);
-        LT_Object_printOn(res, stdout);
+        // LT_Object_printOn(res, stdout);
         printf("\n");
     }
     return 0;

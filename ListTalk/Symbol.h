@@ -3,12 +3,12 @@
 
 #include <ListTalk/env_macros.h>
 
-#include <ListTalk/OOP.h>
+#include <ListTalk/value.h>
 #include <ListTalk/decl_macros.h>
 
 LT__BEGIN_DECLS
 
-LT_DECLARE_CLASS(LT_Symbol);
+typedef struct LT_Symbol_s LT_Symbol;
 
 extern LT_Symbol* LT_Symbol_new(char* name);
 extern char* LT_Symbol_name(LT_Symbol* symbol);

@@ -45,7 +45,7 @@ struct LT_Class_s {
 /* Inlined here in order to resolve circular dependencies */
 extern LT_Class LT_Class_class;
 extern LT_Class LT_Class_class_class;
-inline LT_Class* LT_Class_from_object(LT_Object obj){
+inline LT_Class* LT_Class_from_object(LT_Value obj){
     if (LT_value_class(obj) != &LT_Class_class){ 
         LT_type_error(obj, &LT_Class_class);
     }
@@ -60,7 +60,7 @@ extern void* LT_Class_alloc(LT_Class* klass);
 extern void* LT_Class_alloc_flexible(LT_Class* klass, size_t flex);
 
 #define LT_Class_ALLOC_FLEXIBLE(type, flex) \
-    (type*)(LT_Class_alloc_flexible(type##_class, flex))
+    (type*)(LT_Class_alloc_flexible(&type##_class, flex))
 
 typedef struct LT_Slot_Descriptor {
     char* name;
@@ -75,7 +75,7 @@ typedef struct LT_Method_Descriptor {
 } LT_Method_Descriptor;
 
 #define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, LT_VALUE_NIL}
-typedef struct LT_Class_Descriptor {
+struct LT_Class_Descriptor_s {
     LT_Class* superclass;
     char* package;
     char* name;
@@ -84,8 +84,9 @@ typedef struct LT_Class_Descriptor {
     LT_Slot_Descriptor* slots;
     LT_Method_Descriptor* methods;
     LT_Method_Descriptor* class_methods;
-} LT_Class_Descriptor;
+};
 
-
+void LT_init_native_class(LT_Class* klass);
 
 LT__END_DECLS
+#endif

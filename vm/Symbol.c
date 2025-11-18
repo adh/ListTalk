@@ -2,7 +2,7 @@
 
 #include <ListTalk/utils.h>
 
-struct LT_Symbol {
+struct LT_Symbol_s {
     LT_Object base;
     char* name;
 };
@@ -32,16 +32,7 @@ static LT_InlineHash* get_symbol_table(void){
 
 LT_Symbol* LT_Symbol_new(char *name)
 {
-    fprintf(stderr, ";; Symbol>>:new: %s\n", name);
-    LT_Symbol* sym = LT_StringHash_at(get_symbol_table(), name);
-    if (sym){
-        return sym;
-    }
-    
-    sym = LT_Class_ALLOC(LT_Symbol);
-    sym->name = name;
-    LT_StringHash_at_put(get_symbol_table(), name, sym);
-    return sym;
+    // TODO
 }
 
 char *LT_Symbol_name(LT_Symbol * symbol)

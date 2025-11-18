@@ -3,8 +3,8 @@
 
 #include <ListTalk/env_macros.h>
 
-#include <ListTalk/OOP.h>
-#include <ListTalk/NativeClass.h>
+#include <ListTalk/value.h>
+#include <ListTalk/Class.h>
 
 LT__BEGIN_DECLS
 
