@@ -4,6 +4,9 @@ LT_Class LT_Class_class = {0};
 LT_Class LT_Class_class_class = {0};
 
 static LT_Class** make_single_superclass_list(LT_Class* superclass){
+    if (superclass == NULL){
+        return NULL;
+    }
     LT_Class** superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
     superclasses[0] = superclass;
     superclasses[1] = NULL;
@@ -12,43 +15,34 @@ static LT_Class** make_single_superclass_list(LT_Class* superclass){
 
 void LT_init_native_class(LT_Class* klass){
     LT_Class_Descriptor* descriptor = klass->native_descriptor;
-    LT_Class* metaclass = klass->base.klass;
+    LT_Class* metaclass;
+
+    if (descriptor == NULL){
+        return;
+    }
+
+    if (descriptor->superclass != NULL){
+        LT_init_native_class(descriptor->superclass);
+    }
+    if (descriptor->metaclass_superclass != NULL){
+        LT_init_native_class(descriptor->metaclass_superclass);
+    }
+
+    metaclass = klass->base.klass;
+
+    klass->instance_size = descriptor->instance_size;
+    klass->class_flags = (unsigned int)descriptor->class_flags;
+    klass->debugPrintOn = descriptor->debugPrintOn;
+    klass->superclasses = make_single_superclass_list(descriptor->superclass);
 
     if (metaclass != NULL){
-        if (metaclass->base.klass == NULL){
-            metaclass->base.klass = &LT_Class_class_class;
-        }
+        metaclass->base.klass = &LT_Class_class_class;
         if (metaclass->instance_size == 0){
             metaclass->instance_size = sizeof(LT_Class);
         }
-        if (metaclass->superclasses == NULL){
-            LT_Class* superclass = &LT_Class_class;
-            if (descriptor != NULL && descriptor->metaclass_superclass != NULL){
-                superclass = descriptor->metaclass_superclass;
-            }
-            metaclass->superclasses = make_single_superclass_list(superclass);
-        }
+        metaclass->superclasses =
+            make_single_superclass_list(descriptor->metaclass_superclass);
     }
 
-    if (klass->base.klass == NULL){
-        klass->base.klass = &LT_Class_class;
-    }
-    if (descriptor != NULL){
-        if (klass->instance_size == 0){
-            klass->instance_size = descriptor->instance_size;
-        }
-        if (klass->class_flags == 0){
-            klass->class_flags = descriptor->class_flags;
-        }
-        if (klass->debugPrintOn == NULL){
-            klass->debugPrintOn = descriptor->debugPrintOn;
-        }
-    }
-    if (klass->superclasses == NULL){
-        LT_Class* superclass = &LT_Class_class;
-        if (descriptor != NULL && descriptor->superclass != NULL){
-            superclass = descriptor->superclass;
-        }
-        klass->superclasses = make_single_superclass_list(superclass);
-    }
+    klass->native_descriptor = NULL;
 }
