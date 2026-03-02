@@ -11,10 +11,10 @@ vm_lib = library(
                 'vm/Class.c',
                 'vm/utils.c',
                 'vm/init.c',
-                'vm/Printer.c',
-                'vm/Symbol.c',
-                'vm/String.c',
-                'vm/Number.c'
+                'classes/Printer.c',
+                'classes/Symbol.c',
+                'classes/String.c',
+                'classes/Number.c'
         ], 
         install : true, dependencies : [bdwgc])
 
@@ -26,8 +26,7 @@ executable(
         install : true
 )
 
-install_headers(
-        'ListTalk/ListTalk.h', 
-        'ListTalk/value.h', 
-        subdir: 'ListTalk'
+install_subdir(
+        'ListTalk',
+        install_dir: get_option('includedir')
 )

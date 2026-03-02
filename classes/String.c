@@ -1,5 +1,5 @@
-#include <ListTalk/String.h>
-#include <ListTalk/Class.h>
+#include <ListTalk/classes/String.h>
+#include <ListTalk/vm/Class.h>
 #include <string.h>
 
 struct LT_String_s {

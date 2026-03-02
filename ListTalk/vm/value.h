@@ -1,7 +1,7 @@
 #ifndef H__ListTalk__value__
 #define H__ListTalk__value__
 
-#include <ListTalk/env_macros.h>
+#include <ListTalk/macros/env_macros.h>
 
 LT__BEGIN_DECLS
 

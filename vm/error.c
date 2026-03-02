@@ -1,4 +1,4 @@
-#include <ListTalk/error.h>
+#include <ListTalk/vm/error.h>
 
 #include <stdio.h>
 #include <stdlib.h>

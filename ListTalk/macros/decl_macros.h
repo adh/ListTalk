@@ -1,10 +1,10 @@
 #ifndef H__ListTalk__decl_macros__
 #define H__ListTalk__decl_macros__
 
-#include <ListTalk/env_macros.h>
-#include <ListTalk/value.h>
-#include <ListTalk/error.h>
-#include <ListTalk/Class.h>
+#include <ListTalk/macros/env_macros.h>
+#include <ListTalk/vm/value.h>
+#include <ListTalk/vm/error.h>
+#include <ListTalk/vm/Class.h>
 
 #define LT_DECLARE_CLASS(name) \
     typedef struct name##_s name; \

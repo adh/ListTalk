@@ -1,5 +1,5 @@
-#include <ListTalk/Symbol.h>
-#include <ListTalk/Class.h>
+#include <ListTalk/classes/Symbol.h>
+#include <ListTalk/vm/Class.h>
 
 #include <ListTalk/utils.h>
 

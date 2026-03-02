@@ -1,4 +1,5 @@
-#include <ListTalk/Class.h>
+#include <ListTalk/vm/value.h>
+#include <ListTalk/vm/Class.h>
 
 LT_Class LT_Float_class = {0};
 LT_Class* const LT__Immediate_classes[64] = {&LT_Class_class};

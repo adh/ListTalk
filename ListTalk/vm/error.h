@@ -1,9 +1,9 @@
 #ifndef H__ListTalk__error__
 #define H__ListTalk__error__
 
-#include <ListTalk/env_macros.h>
+#include <ListTalk/macros/env_macros.h>
 
-#include <ListTalk/value.h>
+#include <ListTalk/vm/value.h>
 
 LT__BEGIN_DECLS
 

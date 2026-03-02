@@ -1,4 +1,4 @@
-#include <ListTalk/Class.h>
+#include <ListTalk/vm/Class.h>
 
 LT_Class LT_Class_class = {0};
 LT_Class LT_Class_class_class = {0};

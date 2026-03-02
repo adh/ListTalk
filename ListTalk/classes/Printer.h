@@ -1,9 +1,9 @@
 #ifndef H__ListTalk__printer__
 #define H__ListTalk__printer__
 
-#include <ListTalk/env_macros.h>
-#include <ListTalk/decl_macros.h>
-#include <ListTalk/value.h>
+#include <ListTalk/macros/env_macros.h>
+#include <ListTalk/macros/decl_macros.h>
+#include <ListTalk/vm/value.h>
 
 LT__BEGIN_DECLS
 
