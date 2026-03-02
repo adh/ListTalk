@@ -1,13 +1,8 @@
-#include <ListTalk/value.h>
+#include <ListTalk/Class.h>
 
-
-void Nil_printOn(LT_Object* obj, FILE* stream){
-    fputs("#n", stream);
-}
-
-LT_DEFINE_CLASS(LT_Nil){
-    .printOn = Nil_printOn,
-};
+LT_Class LT_Float_class = {0};
+LT_Class* const LT__Immediate_classes[64] = {&LT_Class_class};
+LT_Class* const LT__Pointer_classes[8] = {&LT_Class_class};
 
 void* LT_Class_alloc(LT_Class *klass)
 {

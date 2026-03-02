@@ -8,9 +8,9 @@
 
 LT__BEGIN_DECLS
 
-typedef struct LT_VMInstanceState LT_VMInstanceState;
-typedef struct LT_VMThreadState LT_VMThreadState;
-typedef struct LT_VMTailCallState LT_VMTailCallState;
+typedef struct LT_VMInstanceState_s LT_VMInstanceState;
+typedef struct LT_VMThreadState_s LT_VMThreadState;
+typedef struct LT_VMTailCallState_s LT_VMTailCallState;
 
 extern void LT_init(void);
 

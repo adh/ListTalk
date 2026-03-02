@@ -14,7 +14,7 @@ typedef struct LT_SlotType_s LT_SlotType;
 typedef struct LT_Class_Slot {
     LT_Value name;
     size_t offset;
-    LT_SlotType type;
+    LT_SlotType* type;
 } LT_Class_Slot;
 
 #define LT_CLASS_FLAG_FLEXIBLE   1
@@ -32,7 +32,7 @@ struct LT_Class_s {
     size_t instance_size;
     unsigned int class_flags;
     size_t slot_count;
-    LT_Class_Slot slots[];
+    LT_Class_Slot* slots;
     LT_Value methods;
     LT_Value method_cache;
     uintptr_t cache_version;
@@ -46,7 +46,7 @@ struct LT_Class_s {
 extern LT_Class LT_Class_class;
 extern LT_Class LT_Class_class_class;
 inline LT_Class* LT_Class_from_object(LT_Value obj){
-    if (LT_value_class(obj) != &LT_Class_class){ 
+    if (LT_Value_class(obj) != &LT_Class_class){
         LT_type_error(obj, &LT_Class_class);
     }
     return (LT_Class*)LT_VALUE_POINTER_VALUE(obj);
@@ -55,7 +55,7 @@ inline LT_Class* LT_Class_from_object(LT_Value obj){
 
 extern void* LT_Class_alloc(LT_Class* klass);
 
-#define LT_Class_ALLOC(type) (type*)(LT_Class_alloc(type##_class))
+#define LT_Class_ALLOC(type) (type*)(LT_Class_alloc(&type##_class))
 
 extern void* LT_Class_alloc_flexible(LT_Class* klass, size_t flex);
 
@@ -77,10 +77,12 @@ typedef struct LT_Method_Descriptor {
 #define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, LT_VALUE_NIL}
 struct LT_Class_Descriptor_s {
     LT_Class* superclass;
+    LT_Class* metaclass_superclass;
     char* package;
     char* name;
     size_t instance_size;
     int class_flags;
+    LT_Class_debugPrintOn_Func debugPrintOn;
     LT_Slot_Descriptor* slots;
     LT_Method_Descriptor* methods;
     LT_Method_Descriptor* class_methods;

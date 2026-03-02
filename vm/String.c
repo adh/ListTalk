@@ -1,13 +1,16 @@
 #include <ListTalk/String.h>
+#include <ListTalk/Class.h>
 #include <string.h>
 
 struct LT_String_s {
-    LT_ObjectHeader base;
+    LT_Object base;
     size_t length;
     char str[];
 };
 
-LT_DEFINE_CLASS(LT_String){
+LT_DEFINE_CLASS(LT_String) {
+    .superclass = &LT_Class_class,
+    .metaclass_superclass = &LT_Class_class,
     .instance_size = sizeof(LT_String),
 };
 

@@ -1,4 +1,5 @@
 #include <ListTalk/Symbol.h>
+#include <ListTalk/Class.h>
 
 #include <ListTalk/utils.h>
 
@@ -7,14 +8,15 @@ struct LT_Symbol_s {
     char* name;
 };
 
-static void Symbol_printOn(LT_Object* obj, FILE* stream){
-    fputs(LT_Symbol_name(obj), stream);
+static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
+    fputs(LT_Symbol_name((LT_Symbol*)LT_VALUE_POINTER_VALUE(obj)), stream);
 }
 
 LT_DEFINE_CLASS(LT_Symbol) {
-    .name = "Symbol",
+    .superclass = &LT_Class_class,
+    .metaclass_superclass = &LT_Class_class,
     .instance_size = sizeof(LT_Symbol),
-    .printOn = Symbol_printOn,
+    .debugPrintOn = Symbol_debugPrintOn,
 };
 
 
@@ -32,7 +34,16 @@ static LT_InlineHash* get_symbol_table(void){
 
 LT_Symbol* LT_Symbol_new(char *name)
 {
-    // TODO
+    LT_InlineHash* symbol_table = get_symbol_table();
+    LT_Symbol* symbol = LT_StringHash_at(symbol_table, name);
+    if (symbol != NULL){
+        return symbol;
+    }
+
+    symbol = LT_Class_ALLOC(LT_Symbol);
+    symbol->name = LT_strdup(name);
+    LT_StringHash_at_put(symbol_table, symbol->name, symbol);
+    return symbol;
 }
 
 char *LT_Symbol_name(LT_Symbol * symbol)

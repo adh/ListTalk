@@ -4,6 +4,7 @@
 #include <ListTalk/env_macros.h>
 
 #include <ListTalk/value.h>
+#include <ListTalk/decl_macros.h>
 
 LT__BEGIN_DECLS
 

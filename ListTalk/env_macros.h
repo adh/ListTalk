@@ -1,6 +1,9 @@
 #ifndef H__ListTalk__env_macros__
 #define H__ListTalk__env_macros__
 
+#include <stddef.h>
+#include <stdio.h>
+
 #if __STDC_VERSION__ < 201112L
 #error "ListTalk requires a C11-compliant compiler"
 #endif

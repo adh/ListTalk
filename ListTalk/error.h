@@ -5,7 +5,7 @@
 
 #include <ListTalk/value.h>
 
-LT_BEGIN_DECLS
+LT__BEGIN_DECLS
 
 /* This gets included pretty much everywhere, so it cannot use VM types in 
    declarations */
@@ -17,6 +17,6 @@ void LT_error(const char* message, ...);
 
 void LT_type_error(LT_Value value, LT_Class* expected_class);
 
-LT_END_DECLS
+LT__END_DECLS
 
 #endif

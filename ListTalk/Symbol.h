@@ -8,7 +8,7 @@
 
 LT__BEGIN_DECLS
 
-typedef struct LT_Symbol_s LT_Symbol;
+LT_DECLARE_CLASS(LT_Symbol);
 
 extern LT_Symbol* LT_Symbol_new(char* name);
 extern char* LT_Symbol_name(LT_Symbol* symbol);
