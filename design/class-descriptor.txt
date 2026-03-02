@@ -1,0 +1,80 @@
+LT_Class_Descriptor mechanism
+=============================
+
+Purpose
+-------
+`LT_Class_Descriptor` is the native-side declaration format for classes
+implemented in C. It stores metadata needed to materialize both:
+- the class object (`Foo_class`)
+- its metaclass object (`Foo_class_class`)
+
+Descriptors are attached through `LT_Class.native_descriptor`.
+
+
+Declaring a native class
+------------------------
+Use `LT_DEFINE_CLASS(Foo)` from `ListTalk/macros/decl_macros.h`.
+
+The macro expands into:
+- `LT_Class Foo_class_class`
+- `LT_Class Foo_class`
+- `LT_Class_Descriptor Foo_class_descriptor`
+- a constructor that calls `LT_init_native_class(&Foo_class)`
+
+`Foo_class_descriptor` is initialized by the trailing brace-delimited
+initializer block after `LT_DEFINE_CLASS(Foo)`.
+
+
+Descriptor fields
+-----------------
+Current descriptor structure (`ListTalk/vm/Class.h`):
+- `superclass`: class-side direct superclass
+- `metaclass_superclass`: metaclass-side direct superclass
+- `package`, `name`: symbolic metadata (currently not materialized by init)
+- `instance_size`: copied to `klass->instance_size`
+- `class_flags`: copied to `klass->class_flags`
+- `debugPrintOn`: copied to `klass->debugPrintOn`
+- `slots`, `methods`, `class_methods`: reserved for later materialization
+
+
+Initialization contract (`LT_init_native_class`)
+------------------------------------------------
+1. If `klass->native_descriptor == NULL`, return immediately.
+   - This makes the function a no-op for:
+     - already initialized native classes
+     - non-native classes
+
+2. Recursively initialize descriptor references:
+   - `descriptor->superclass`
+   - `descriptor->metaclass_superclass`
+
+3. Materialize class-side fields from descriptor:
+   - `klass->instance_size`
+   - `klass->class_flags`
+   - `klass->debugPrintOn`
+   - `klass->superclasses` as a NULL-terminated list containing only
+     `descriptor->superclass` (or `NULL` if not set)
+
+4. Materialize metaclass-side topology:
+   - `klass->base.klass->base.klass = &LT_Class_class_class`
+   - `klass->base.klass->instance_size` defaults to `sizeof(LT_Class)`
+   - `klass->base.klass->superclasses` as a NULL-terminated list containing
+     `descriptor->metaclass_superclass` (or `NULL` if not set)
+
+5. Mark initialization complete:
+   - `klass->native_descriptor = NULL`
+
+
+Important properties
+--------------------
+- Re-entrant/idempotent behavior is driven by `native_descriptor == NULL`.
+- Cycles in superclass descriptors are invalid and will recurse indefinitely.
+- The current implementation intentionally ignores multithreading concerns.
+
+
+Current limitations / TODO
+--------------------------
+- `package`, `name` are not yet copied into runtime class objects.
+- `slots`, `methods`, and `class_methods` are not yet materialized.
+- Superclass handling currently assumes one direct superclass per side.
+- MRO / precedence-list construction is not yet implemented here.
