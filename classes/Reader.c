@@ -161,7 +161,7 @@ static LT_String* read_string_literal(LT_ReaderStream* stream){
     );
 }
 
-static LT_Symbol* read_symbol(int first, LT_ReaderStream* stream){
+static LT_Value read_symbol(int first, LT_ReaderStream* stream){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     int ch = first;
 
@@ -257,7 +257,7 @@ static LT_Value read_object_from_first(
         LT_error("Bracket list syntax is not implemented in reader yet");
     }
 
-    return LT_Value_from_object((LT_Object*)read_symbol(first, stream));
+    return read_symbol(first, stream);
 }
 
 LT_DEFINE_CLASS(LT_Reader) {

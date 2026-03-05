@@ -2,6 +2,7 @@
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/classes/Nil.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Symbol.h>
 
 LT_Class LT_Float_class = {0};
 LT_Class* const LT__Immediate_classes[64] = {&LT_Nil_class};
@@ -9,7 +10,7 @@ LT_Class* const LT__Pointer_classes[8] = {
     &LT_Class_class,
     &LT_Class_class,
     &LT_Pair_class,
-    &LT_Class_class,
+    &LT_Symbol_class,
     &LT_Class_class,
     &LT_Class_class,
     &LT_Class_class,

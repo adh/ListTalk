@@ -29,6 +29,9 @@ static int test_symbol(void){
     LT_Value value = read_one("alpha");
     LT_Symbol* symbol;
 
+    if (expect(LT_Value_is_symbol(value), "symbol tag")){
+        return 1;
+    }
     if (expect(LT_Value_class(value) == &LT_Symbol_class, "symbol class")){
         return 1;
     }

@@ -15,6 +15,7 @@ static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
 LT_DEFINE_CLASS(LT_Symbol) {
     .superclass = &LT_Class_class,
     .metaclass_superclass = &LT_Class_class,
+    .class_flags = LT_CLASS_FLAG_SPECIAL,
     .instance_size = sizeof(LT_Symbol),
     .debugPrintOn = Symbol_debugPrintOn,
 };
@@ -32,18 +33,18 @@ static LT_InlineHash* get_symbol_table(void){
 }
 
 
-LT_Symbol* LT_Symbol_new(char *name)
+LT_Value LT_Symbol_new(char *name)
 {
     LT_InlineHash* symbol_table = get_symbol_table();
     LT_Symbol* symbol = LT_StringHash_at(symbol_table, name);
     if (symbol != NULL){
-        return symbol;
+        return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
     }
 
     symbol = LT_Class_ALLOC(LT_Symbol);
     symbol->name = LT_strdup(name);
     LT_StringHash_at_put(symbol_table, symbol->name, symbol);
-    return symbol;
+    return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
 }
 
 char *LT_Symbol_name(LT_Symbol * symbol)
