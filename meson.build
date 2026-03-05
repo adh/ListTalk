@@ -9,6 +9,7 @@ vm_lib = library(
                 'vm/eval.c',
                 'vm/value.c',
                 'vm/Class.c',
+                'vm/Environment.c',
                 'vm/utils.c',
                 'vm/init.c',
                 'vm/error.c',

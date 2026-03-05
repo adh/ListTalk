@@ -9,6 +9,7 @@
 #include <ListTalk/macros/env_macros.h>
 
 #include <ListTalk/vm/value.h>
+#include <ListTalk/vm/Environment.h>
 #include <ListTalk/classes/Nil.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>

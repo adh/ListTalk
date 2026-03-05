@@ -154,14 +154,15 @@ static void grow_table(LT_InlineHash* h){
 
     s = (h->mask + 1) << 1;
     v = GC_MALLOC(sizeof(LT_InlineHash_Entry*) * s);
+    memset(v, 0, sizeof(LT_InlineHash_Entry*) * s);
 
     for (i = 0; i < h->mask + 1; i++){
         j = h->vector[i];
         while (j){
             LT_InlineHash_Entry* n = j->next;
       
-            j->next = v[j->hash && (s - 1)];
-            v[j->hash && (s - 1)] = j;
+            j->next = v[j->hash & (s - 1)];
+            v[j->hash & (s - 1)] = j;
 
             j = n;
         }
@@ -171,9 +172,9 @@ static void grow_table(LT_InlineHash* h){
     h->mask = s - 1;
 }
 
-static void add_hash_entry(LT_InlineHash* h, 
-                           char* key, size_t hash, 
-                           char* value){
+static void add_hash_entry_string(LT_InlineHash* h, 
+                                  char* key, size_t hash, 
+                                  void* value){
     LT_InlineHash_Entry* e;
 
     if (h->count > h->mask){
@@ -187,7 +188,44 @@ static void add_hash_entry(LT_InlineHash* h,
     e->key = LT_strdup(key);
     e->hash = hash;
     e->value = value;
-    e->next = h->vector[hash && h->mask];
+    e->next = h->vector[hash & h->mask];
+    h->vector[hash & h->mask] = e;
+}
+
+static LT_InlineHash_Entry* get_hash_entry_pointer(LT_InlineHash* h,
+                                                   void* key,
+                                                   size_t hash){
+    LT_InlineHash_Entry* i;
+
+    i = h->vector[hash & h->mask];
+
+    while (i){
+        if (i->hash == hash && i->key == key){
+            return i;
+        }
+        i = i->next;
+    }
+    return NULL;
+}
+
+static void add_hash_entry_pointer(LT_InlineHash* h,
+                                   void* key,
+                                   size_t hash,
+                                   void* value){
+    LT_InlineHash_Entry* e;
+
+    if (h->count > h->mask){
+        grow_table(h);
+    }
+
+    e = GC_NEW(LT_InlineHash_Entry);
+
+    h->count++;
+
+    e->key = key;
+    e->hash = hash;
+    e->value = value;
+    e->next = h->vector[hash & h->mask];
     h->vector[hash & h->mask] = e;
 }
 
@@ -201,7 +239,7 @@ void LT_StringHash_at_put(LT_InlineHash* h, char* key, void* value){
     if (e){
         e->value = value;
     } else {
-        add_hash_entry(h, key, hash, value);
+        add_hash_entry_string(h, key, hash, value);
     }
 }
 
@@ -222,19 +260,19 @@ void LT_PointerHash_at_put(LT_InlineHash* h, void* key, void* value){
     size_t hash;
 
     hash = LT_pointer_hash(key);
-    e = get_hash_entry(h, key, hash);
+    e = get_hash_entry_pointer(h, key, hash);
 
     if (e){
         e->value = value;
     } else {
-        add_hash_entry(h, key, hash, value);
+        add_hash_entry_pointer(h, key, hash, value);
     }
 }
 
 void* LT_PointerHash_at(LT_InlineHash* h, void* key){
     LT_InlineHash_Entry* e;
 
-    e = get_hash_entry(h, key, LT_pointer_hash(key));
+    e = get_hash_entry_pointer(h, key, LT_pointer_hash(key));
 
     if (e){
         return e->value;
