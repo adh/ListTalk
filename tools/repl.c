@@ -50,9 +50,11 @@ int main(int argc, char**argv){
 
     while (stream_has_next_form(stdin)){
         LT_Value object;
+        LT_Value result;
 
         object = LT_Reader_readObject(reader, stream);
-        LT_printer_print_object(object);
+        result = LT_eval(object, LT_get_shared_base_environment());
+        LT_printer_print_object(result);
         fputc('\n', stdout);
     }
 

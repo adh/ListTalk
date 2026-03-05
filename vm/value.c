@@ -9,6 +9,7 @@
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/Primitive.h>
 
 LT_Class LT_Float_class = {0};
 LT_Class* const LT__Immediate_classes[64] = {
@@ -21,7 +22,7 @@ LT_Class* const LT__Pointer_classes[8] = {
     &LT_Pair_class,
     &LT_Symbol_class,
     &LT_Class_class,
-    &LT_Class_class,
+    &LT_Primitive_class,
     &LT_Class_class,
     &LT_Class_class
 };
