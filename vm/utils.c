@@ -201,3 +201,8 @@ void* LT_PointerHash_at(LT_InlineHash* h, void* key){
         return NULL;
     }
 }
+
+void LT_register_constructor(void (*ctor)(void)){
+    /* TODO: handle VM initialization internal states */
+    ctor();
+}

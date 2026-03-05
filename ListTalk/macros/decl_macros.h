@@ -5,6 +5,7 @@
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/utils.h>
 
 #define LT_DECLARE_CLASS(name) \
     typedef struct name##_s name; \
@@ -27,10 +28,10 @@
         .base = {.klass = &c_name##_class_class}, \
         .native_descriptor = &c_name##_class_descriptor, \
     }; \
-    static void LT___init_##c_name(void) __attribute__((constructor)); \
     static void LT___init_##c_name(void){ \
         LT_init_native_class(&c_name##_class); \
-    } \
+    }; \
+    LT_REGISTER_CONSTRUCTOR(LT___init_##c_name) \
     static LT_Class_Descriptor c_name##_class_descriptor =
 
 #endif

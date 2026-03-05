@@ -55,7 +55,7 @@ void* LT_PointerHash_at(LT_InlineHash* sh,
 void LT_register_constructor(void (*ctor)(void));
 
 #define LT_REGISTER_CONSTRUCTOR(ctor) \
-    void LT___register_constructor_##ctor(void) __attribute__((constructor)){ \
+    void __attribute__((constructor)) LT___register_constructor_##ctor(void){ \
         LT_register_constructor(ctor); \
     }
 
