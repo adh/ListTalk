@@ -10,8 +10,34 @@ LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_Reader);
 
-extern LT_Reader* LT_Reader_newForStream(FILE* stream);
-extern LT_Object* LT_Reader_readObject(LT_Reader* reader);
+typedef struct LT_ReaderStream_s LT_ReaderStream;
+typedef struct LT_ReaderStreamVTable_s {
+    int (*getc)(void* stream);
+    int (*ungetc)(int c, void* stream);
+} LT_ReaderStreamVTable;
+
+struct LT_ReaderStream_s {
+    LT_ReaderStreamVTable* vtable;
+};
+
+static inline int LT_ReaderStream_getc(LT_ReaderStream* stream){
+    return stream->vtable->getc(stream);
+}
+static inline int LT_ReaderStream_ungetc(LT_ReaderStream* stream, int c){
+    return stream->vtable->ungetc(c, stream);
+}
+
+extern LT_ReaderStream* LT_ReaderStream_newForFile(FILE* file);
+extern LT_ReaderStream* LT_ReaderStream_newForString(const char* str);
+
+extern LT_Reader* LT_Reader_new();
+extern LT_Reader* LT_Reader_clone(LT_Reader* reader);
+extern LT_Object* LT_Reader_readObject(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+);
+
+
 
 LT__END_DECLS
 
