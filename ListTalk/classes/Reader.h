@@ -32,7 +32,7 @@ extern LT_ReaderStream* LT_ReaderStream_newForString(const char* str);
 
 extern LT_Reader* LT_Reader_new();
 extern LT_Reader* LT_Reader_clone(LT_Reader* reader);
-extern LT_Object* LT_Reader_readObject(
+extern LT_Value LT_Reader_readObject(
     LT_Reader* reader,
     LT_ReaderStream* stream
 );

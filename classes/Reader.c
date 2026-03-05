@@ -1,4 +1,5 @@
 #include <ListTalk/classes/Reader.h>
+#include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
@@ -22,6 +23,12 @@ typedef struct LT_StringReaderStream_s {
 struct LT_Reader_s {
     LT_Object base;
 };
+
+static LT_Value read_object_from_first(
+    LT_Reader* reader,
+    LT_ReaderStream* stream,
+    int first
+);
 
 static int file_stream_getc(void* stream){
     LT_FileReaderStream* file_stream = (LT_FileReaderStream*)stream;
@@ -170,6 +177,89 @@ static LT_Symbol* read_symbol(int first, LT_ReaderStream* stream){
     return LT_Symbol_new(LT_StringBuilder_value(builder));
 }
 
+static LT_Value LT_Value_from_object(LT_Object* obj){
+    return (LT_Value)(uintptr_t)obj;
+}
+
+static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
+    LT_Value head = LT_VALUE_NIL;
+    LT_Value tail = LT_VALUE_NIL;
+    int ch = read_non_space_char(stream);
+
+    if (ch == ')'){
+        return LT_VALUE_NIL;
+    }
+
+    while (1){
+        LT_Value item;
+        LT_Value node;
+
+        if (ch == EOF){
+            LT_error("Unterminated list");
+        }
+        if (ch == '.'){
+            LT_error("Unexpected dot in list");
+        }
+
+        item = read_object_from_first(reader, stream, ch);
+        node = LT_cons(item, LT_VALUE_NIL);
+
+        if (head == LT_VALUE_NIL){
+            head = node;
+        } else {
+            LT_Pair_set_cdr(tail, node);
+        }
+        tail = node;
+
+        ch = read_non_space_char(stream);
+
+        if (ch == ')'){
+            return head;
+        }
+        if (ch == '.'){
+            int tail_first = read_non_space_char(stream);
+            LT_Value tail_value;
+            int closing;
+
+            if (tail_first == EOF){
+                LT_error("Unterminated dotted pair");
+            }
+
+            tail_value = read_object_from_first(reader, stream, tail_first);
+            closing = read_non_space_char(stream);
+            if (closing != ')'){
+                LT_error("Expected ')' after dotted pair tail");
+            }
+            LT_Pair_set_cdr(tail, tail_value);
+            return head;
+        }
+    }
+}
+
+static LT_Value read_object_from_first(
+    LT_Reader* reader,
+    LT_ReaderStream* stream,
+    int first
+){
+    if (first == EOF){
+        LT_error("Unexpected end of input");
+    }
+    if (first == '"'){
+        return LT_Value_from_object((LT_Object*)read_string_literal(stream));
+    }
+    if (first == '('){
+        return read_list(reader, stream);
+    }
+    if (first == ')'){
+        LT_error("Unexpected ')'");
+    }
+    if (first == '[' || first == ']'){
+        LT_error("Bracket list syntax is not implemented in reader yet");
+    }
+
+    return LT_Value_from_object((LT_Object*)read_symbol(first, stream));
+}
+
 LT_DEFINE_CLASS(LT_Reader) {
     .superclass = &LT_Class_class,
     .metaclass_superclass = &LT_Class_class,
@@ -202,21 +292,15 @@ LT_Reader* LT_Reader_clone(LT_Reader* reader){
     return LT_Reader_new();
 }
 
-LT_Object* LT_Reader_readObject(LT_Reader* reader, LT_ReaderStream* stream){
+LT_Value LT_Reader_readObject(LT_Reader* reader, LT_ReaderStream* stream){
     int first;
 
     (void)reader;
     first = read_non_space_char(stream);
 
     if (first == EOF){
-        return NULL;
-    }
-    if (first == '"'){
-        return (LT_Object*)read_string_literal(stream);
-    }
-    if (first == '(' || first == ')' || first == '[' || first == ']'){
-        LT_error("List syntax is not implemented in reader yet");
+        LT_error("Unexpected end of input");
     }
 
-    return (LT_Object*)read_symbol(first, stream);
+    return read_object_from_first(reader, stream, first);
 }

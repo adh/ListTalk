@@ -30,6 +30,18 @@ executable(
         install : true
 )
 
+reader_test_exe = executable(
+        'reader_test',
+        'tests/reader_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
+test(
+        'reader_test',
+        reader_test_exe
+)
+
 install_subdir(
         'ListTalk',
         install_dir: get_option('includedir')
