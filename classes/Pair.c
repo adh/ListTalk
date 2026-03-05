@@ -6,22 +6,40 @@ struct LT_Pair_s {
     LT_Value cdr;
 };
 
+static void Pair_print_value(LT_Value value, FILE* stream);
+
 static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Pair* pair = LT_Pair_from_object(obj);
+    fputc('(', stream);
+    while (1){
+        Pair_print_value(pair->car, stream);
 
-    fputs("(pair ", stream);
-    if (LT_Value_class(pair->car)->debugPrintOn != NULL){
-        LT_Value_class(pair->car)->debugPrintOn(pair->car, stream);
-    } else {
-        fputs("<value>", stream);
-    }
-    fputs(" . ", stream);
-    if (LT_Value_class(pair->cdr)->debugPrintOn != NULL){
-        LT_Value_class(pair->cdr)->debugPrintOn(pair->cdr, stream);
-    } else {
-        fputs("<value>", stream);
+        if (pair->cdr == LT_VALUE_NIL){
+            break;
+        }
+        if (LT_Value_is_pair(pair->cdr)){
+            fputc(' ', stream);
+            pair = LT_Pair_from_object(pair->cdr);
+            continue;
+        }
+
+        fputs(" . ", stream);
+        Pair_print_value(pair->cdr, stream);
+        break;
     }
     fputc(')', stream);
+}
+
+static void Pair_print_value(LT_Value value, FILE* stream){
+    LT_Class* klass;
+
+    klass = LT_Value_class(value);
+    if (klass != NULL && klass->debugPrintOn != NULL){
+        klass->debugPrintOn(value, stream);
+        return;
+    }
+
+    fputs("<value>", stream);
 }
 
 LT_DEFINE_CLASS(LT_Pair) {

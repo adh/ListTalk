@@ -16,6 +16,7 @@ vm_lib = library(
                 'classes/Reader.c',
                 'classes/Symbol.c',
                 'classes/String.c',
+                'classes/Nil.c',
                 'classes/Pair.c',
                 'classes/Number.c'
         ], 

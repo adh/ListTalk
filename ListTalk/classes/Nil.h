@@ -1,0 +1,15 @@
+#ifndef H__ListTalk__Nil__
+#define H__ListTalk__Nil__
+
+#include <ListTalk/macros/env_macros.h>
+
+#include <ListTalk/vm/value.h>
+#include <ListTalk/macros/decl_macros.h>
+
+LT__BEGIN_DECLS
+
+LT_DECLARE_CLASS(LT_Nil);
+
+LT__END_DECLS
+
+#endif
