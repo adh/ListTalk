@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2023 - 2026 Ales Hakl
+ */
+
 #include <ListTalk/vm/Class.h>
 
 LT_Class LT_Class_class = {0};

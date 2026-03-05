@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2023 - 2026 Ales Hakl
+ */
+
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/vm/Class.h>
 #include <stdio.h>

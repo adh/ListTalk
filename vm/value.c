@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2023 - 2026 Ales Hakl
+ */
+
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/classes/Nil.h>

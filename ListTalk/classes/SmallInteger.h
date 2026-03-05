@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2023 - 2026 Ales Hakl
+ */
+
 #ifndef H__ListTalk__SmallInteger__
 #define H__ListTalk__SmallInteger__
 

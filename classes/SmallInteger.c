@@ -1,3 +1,8 @@
+/*
+ * SPDX-License-Identifier: MIT
+ * Copyright (c) 2023 - 2026 Ales Hakl
+ */
+
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/Class.h>
