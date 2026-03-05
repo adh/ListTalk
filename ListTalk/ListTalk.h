@@ -7,6 +7,7 @@
 #define H__ListTalk__ListTalk__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/macros/arg_macros.h>
 
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/Environment.h>

@@ -7,36 +7,11 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Closure.h>
-#include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
-
-static LT_Value list_pop_arg(LT_Value* cursor, char* primitive_name){
-    LT_Value arg;
-
-    if (*cursor == LT_VALUE_NIL){
-        LT_error("Not enough arguments to primitive");
-    }
-
-    if (!LT_Value_is_pair(*cursor)){
-        LT_error("Primitive expected a proper list of arguments");
-    }
-
-    arg = LT_car(*cursor);
-    *cursor = LT_cdr(*cursor);
-    (void)primitive_name;
-    return arg;
-}
-
-static LT_Value fixnum_arg(LT_Value value, char* primitive_name){
-    if (!LT_Value_is_fixnum(value)){
-        (void)primitive_name;
-        LT_error("Primitive expected fixnum argument");
-    }
-    return value;
-}
 
 static LT_Value checked_fixnum_from_i128(__int128 result, char* primitive_name){
     (void)primitive_name;
@@ -52,8 +27,9 @@ static LT_Value primitive_add(LT_Value arguments){
     LT_Value cursor = arguments;
 
     while (cursor != LT_VALUE_NIL){
-        LT_Value arg = fixnum_arg(list_pop_arg(&cursor, "+"), "+");
-        sum += LT_Value_fixnum_value(arg);
+        int64_t arg_value;
+        LT_FIXNUM_ARG(cursor, arg_value);
+        sum += arg_value;
     }
 
     return checked_fixnum_from_i128(sum, "+");
@@ -61,8 +37,11 @@ static LT_Value primitive_add(LT_Value arguments){
 
 static LT_Value primitive_subtract(LT_Value arguments){
     LT_Value cursor = arguments;
-    LT_Value first = fixnum_arg(list_pop_arg(&cursor, "-"), "-");
-    __int128 result = LT_Value_fixnum_value(first);
+    int64_t first_value;
+    __int128 result;
+
+    LT_FIXNUM_ARG(cursor, first_value);
+    result = first_value;
 
     if (cursor == LT_VALUE_NIL){
         result = -result;
@@ -70,8 +49,9 @@ static LT_Value primitive_subtract(LT_Value arguments){
     }
 
     while (cursor != LT_VALUE_NIL){
-        LT_Value arg = fixnum_arg(list_pop_arg(&cursor, "-"), "-");
-        result -= LT_Value_fixnum_value(arg);
+        int64_t arg_value;
+        LT_FIXNUM_ARG(cursor, arg_value);
+        result -= arg_value;
     }
 
     return checked_fixnum_from_i128(result, "-");
@@ -82,8 +62,9 @@ static LT_Value primitive_multiply(LT_Value arguments){
     LT_Value cursor = arguments;
 
     while (cursor != LT_VALUE_NIL){
-        LT_Value arg = fixnum_arg(list_pop_arg(&cursor, "*"), "*");
-        product *= LT_Value_fixnum_value(arg);
+        int64_t arg_value;
+        LT_FIXNUM_ARG(cursor, arg_value);
+        product *= arg_value;
         if (product < LT_VALUE_FIXNUM_MIN || product > LT_VALUE_FIXNUM_MAX){
             LT_error("Fixnum arithmetic overflow");
         }
@@ -94,16 +75,19 @@ static LT_Value primitive_multiply(LT_Value arguments){
 
 static LT_Value primitive_divide(LT_Value arguments){
     LT_Value cursor = arguments;
-    LT_Value first = fixnum_arg(list_pop_arg(&cursor, "/"), "/");
-    __int128 result = LT_Value_fixnum_value(first);
+    int64_t first_value;
+    __int128 result;
+
+    LT_FIXNUM_ARG(cursor, first_value);
+    result = first_value;
 
     if (cursor == LT_VALUE_NIL){
         LT_error("Primitive / expects at least two arguments");
     }
 
     while (cursor != LT_VALUE_NIL){
-        LT_Value arg = fixnum_arg(list_pop_arg(&cursor, "/"), "/");
-        int64_t divisor = LT_Value_fixnum_value(arg);
+        int64_t divisor;
+        LT_FIXNUM_ARG(cursor, divisor);
         if (divisor == 0){
             LT_error("Division by zero");
         }
@@ -119,10 +103,8 @@ static LT_Value special_form_quote(LT_Value arguments,
     LT_Value value;
     (void)environment;
 
-    value = list_pop_arg(&cursor, "quote");
-    if (cursor != LT_VALUE_NIL){
-        LT_error("Special form quote expects one argument");
-    }
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
     return value;
 }
 
@@ -133,8 +115,8 @@ static LT_Value special_form_lambda(LT_Value arguments,
     LT_Value body;
     LT_Value parameter_cursor;
 
-    parameters = list_pop_arg(&cursor, "lambda");
-    body = cursor;
+    LT_OBJECT_ARG(cursor, parameters);
+    LT_ARG_REST(cursor, body);
     if (body == LT_VALUE_NIL){
         LT_error("Special form lambda expects body");
     }
@@ -163,15 +145,10 @@ static LT_Value special_form_if(LT_Value arguments,
     LT_Value else_expression = LT_VALUE_NIL;
     LT_Value condition_value;
 
-    condition_expression = list_pop_arg(&cursor, "if");
-    then_expression = list_pop_arg(&cursor, "if");
-
-    if (cursor != LT_VALUE_NIL){
-        else_expression = list_pop_arg(&cursor, "if");
-    }
-    if (cursor != LT_VALUE_NIL){
-        LT_error("Special form if expects two or three arguments");
-    }
+    LT_OBJECT_ARG(cursor, condition_expression);
+    LT_OBJECT_ARG(cursor, then_expression);
+    LT_OBJECT_ARG_OPT(cursor, else_expression, LT_VALUE_NIL);
+    LT_ARG_END(cursor);
 
     condition_value = LT_eval(condition_expression, environment);
     if (condition_value != LT_VALUE_NIL){
@@ -186,16 +163,17 @@ static LT_Value special_form_if(LT_Value arguments,
 static LT_Value special_form_define(LT_Value arguments,
                                     LT_Environment* environment){
     LT_Value cursor = arguments;
-    LT_Value symbol = list_pop_arg(&cursor, "define");
-    LT_Value value_expression = list_pop_arg(&cursor, "define");
+    LT_Value symbol;
+    LT_Value value_expression;
     LT_Value value;
+
+    LT_OBJECT_ARG(cursor, symbol);
+    LT_OBJECT_ARG(cursor, value_expression);
 
     if (!LT_Value_is_symbol(symbol)){
         LT_error("Special form define expects symbol as first argument");
     }
-    if (cursor != LT_VALUE_NIL){
-        LT_error("Special form define expects two arguments");
-    }
+    LT_ARG_END(cursor);
 
     value = LT_eval(value_expression, environment);
     LT_Environment_bind(environment, symbol, value, 0);
@@ -205,16 +183,17 @@ static LT_Value special_form_define(LT_Value arguments,
 static LT_Value special_form_set_bang(LT_Value arguments,
                                       LT_Environment* environment){
     LT_Value cursor = arguments;
-    LT_Value symbol = list_pop_arg(&cursor, "set!");
-    LT_Value value_expression = list_pop_arg(&cursor, "set!");
+    LT_Value symbol;
+    LT_Value value_expression;
     LT_Value value;
+
+    LT_OBJECT_ARG(cursor, symbol);
+    LT_OBJECT_ARG(cursor, value_expression);
 
     if (!LT_Value_is_symbol(symbol)){
         LT_error("Special form set! expects symbol as first argument");
     }
-    if (cursor != LT_VALUE_NIL){
-        LT_error("Special form set! expects two arguments");
-    }
+    LT_ARG_END(cursor);
 
     value = LT_eval(value_expression, environment);
     if (!LT_Environment_set(environment, symbol, value)){
