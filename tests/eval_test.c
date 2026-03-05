@@ -4,9 +4,12 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Reader.h>
+#include <ListTalk/classes/Symbol.h>
 
 #include <stdio.h>
+#include <string.h>
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -27,7 +30,8 @@ static LT_Value read_one(const char* source){
 }
 
 static LT_Value eval_one(const char* source){
-    return LT_eval(read_one(source), LT_get_shared_base_environment());
+    LT_Environment* env = LT_new_base_environment();
+    return LT_eval(read_one(source), env);
 }
 
 static int test_add(void){
@@ -70,6 +74,50 @@ static int test_symbol_lookup(void){
     );
 }
 
+static int test_quote(void){
+    LT_Value value = eval_one("(quote (+ 1 2))");
+
+    if (expect(LT_Value_is_pair(value), "quote returns list")){
+        return 1;
+    }
+    if (expect(LT_Value_is_symbol(LT_car(value)), "quote list first is symbol")){
+        return 1;
+    }
+
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(value))), "+") == 0,
+        "quote does not evaluate"
+    );
+}
+
+static int test_lambda_application(void){
+    LT_Value value = eval_one("((lambda (x y) (+ x y)) 3 4)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 7,
+        "closure application"
+    );
+}
+
+static int test_if_special_form(void){
+    LT_Value value = eval_one("(if () 1 2)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 2,
+        "if false branch"
+    );
+}
+
+static int test_define_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define add1 (lambda (x) (+ x 1)))"), env);
+    result = LT_eval(read_one("(add1 9)"), env);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 10,
+        "define binds value in current environment"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -80,6 +128,10 @@ int main(void){
     failures += test_multiply();
     failures += test_divide();
     failures += test_symbol_lookup();
+    failures += test_quote();
+    failures += test_lambda_application();
+    failures += test_if_special_form();
+    failures += test_define_special_form();
 
     if (failures == 0){
         puts("eval tests passed");

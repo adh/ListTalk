@@ -5,8 +5,11 @@
 
 #include <ListTalk/vm/base_env.h>
 
+#include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/vm/error.h>
 
@@ -110,6 +113,95 @@ static LT_Value primitive_divide(LT_Value arguments){
     return checked_fixnum_from_i128(result, "/");
 }
 
+static LT_Value special_form_quote(LT_Value arguments,
+                                   LT_Environment* environment){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)environment;
+
+    value = list_pop_arg(&cursor, "quote");
+    if (cursor != LT_VALUE_NIL){
+        LT_error("Special form quote expects one argument");
+    }
+    return value;
+}
+
+static LT_Value special_form_lambda(LT_Value arguments,
+                                    LT_Environment* environment){
+    LT_Value cursor = arguments;
+    LT_Value parameters;
+    LT_Value body;
+    LT_Value parameter_cursor;
+
+    parameters = list_pop_arg(&cursor, "lambda");
+    body = cursor;
+    if (body == LT_VALUE_NIL){
+        LT_error("Special form lambda expects body");
+    }
+
+    parameter_cursor = parameters;
+    while (parameter_cursor != LT_VALUE_NIL){
+        LT_Value parameter;
+        if (!LT_Value_is_pair(parameter_cursor)){
+            LT_error("Lambda parameters must be proper list");
+        }
+        parameter = LT_car(parameter_cursor);
+        if (!LT_Value_is_symbol(parameter)){
+            LT_error("Lambda parameter must be symbol");
+        }
+        parameter_cursor = LT_cdr(parameter_cursor);
+    }
+
+    return LT_Closure_new(parameters, body, environment);
+}
+
+static LT_Value special_form_if(LT_Value arguments,
+                                LT_Environment* environment){
+    LT_Value cursor = arguments;
+    LT_Value condition_expression;
+    LT_Value then_expression;
+    LT_Value else_expression = LT_VALUE_NIL;
+    LT_Value condition_value;
+
+    condition_expression = list_pop_arg(&cursor, "if");
+    then_expression = list_pop_arg(&cursor, "if");
+
+    if (cursor != LT_VALUE_NIL){
+        else_expression = list_pop_arg(&cursor, "if");
+    }
+    if (cursor != LT_VALUE_NIL){
+        LT_error("Special form if expects two or three arguments");
+    }
+
+    condition_value = LT_eval(condition_expression, environment);
+    if (condition_value != LT_VALUE_NIL){
+        return LT_eval(then_expression, environment);
+    }
+    if (else_expression == LT_VALUE_NIL){
+        return LT_VALUE_NIL;
+    }
+    return LT_eval(else_expression, environment);
+}
+
+static LT_Value special_form_define(LT_Value arguments,
+                                    LT_Environment* environment){
+    LT_Value cursor = arguments;
+    LT_Value symbol = list_pop_arg(&cursor, "define");
+    LT_Value value_expression = list_pop_arg(&cursor, "define");
+    LT_Value value;
+
+    if (!LT_Value_is_symbol(symbol)){
+        LT_error("Special form define expects symbol as first argument");
+    }
+    if (cursor != LT_VALUE_NIL){
+        LT_error("Special form define expects two arguments");
+    }
+
+    value = LT_eval(value_expression, environment);
+    LT_Environment_bind(environment, symbol, value, 0);
+    return value;
+}
+
 static void bind_primitive(LT_Environment* environment,
                            char* name,
                            LT_Primitive_Func function){
@@ -121,12 +213,27 @@ static void bind_primitive(LT_Environment* environment,
     );
 }
 
+static void bind_special_form(LT_Environment* environment,
+                              char* name,
+                              LT_SpecialForm_Func function){
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new(name),
+        LT_SpecialForm_new(name, function),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+}
+
 LT_Environment* LT_new_base_environment(void){
     LT_Environment* environment = LT_Environment_new(NULL);
     bind_primitive(environment, "+", primitive_add);
     bind_primitive(environment, "-", primitive_subtract);
     bind_primitive(environment, "*", primitive_multiply);
     bind_primitive(environment, "/", primitive_divide);
+    bind_special_form(environment, "quote", special_form_quote);
+    bind_special_form(environment, "lambda", special_form_lambda);
+    bind_special_form(environment, "if", special_form_if);
+    bind_special_form(environment, "define", special_form_define);
     return environment;
 }
 

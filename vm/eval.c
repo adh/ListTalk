@@ -6,7 +6,9 @@
 #include <ListTalk/ListTalk.h>
 
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
@@ -31,18 +33,95 @@ static LT_Value eval_list_items(LT_Value list, LT_Environment* environment){
     return LT_ListBuilder_value(builder);
 }
 
+static void bind_closure_parameters(LT_Value parameters,
+                                    LT_Value arguments,
+                                    LT_Environment* target_environment){
+    LT_Value parameter_cursor = parameters;
+    LT_Value argument_cursor = arguments;
+
+    while (parameter_cursor != LT_VALUE_NIL && argument_cursor != LT_VALUE_NIL){
+        LT_Value parameter;
+
+        if (!LT_Value_is_pair(parameter_cursor)
+            || !LT_Value_is_pair(argument_cursor)){
+            LT_error("Closure application expects proper argument lists");
+        }
+
+        parameter = LT_car(parameter_cursor);
+        if (!LT_Value_is_symbol(parameter)){
+            LT_error("Closure parameter must be symbol");
+        }
+
+        LT_Environment_bind(
+            target_environment,
+            parameter,
+            LT_car(argument_cursor),
+            0
+        );
+
+        parameter_cursor = LT_cdr(parameter_cursor);
+        argument_cursor = LT_cdr(argument_cursor);
+    }
+
+    if (parameter_cursor != LT_VALUE_NIL || argument_cursor != LT_VALUE_NIL){
+        LT_error("Closure arity mismatch");
+    }
+}
+
+static LT_Value eval_sequence(LT_Value body, LT_Environment* environment){
+    LT_Value cursor = body;
+    LT_Value result = LT_VALUE_NIL;
+
+    while (cursor != LT_VALUE_NIL){
+        if (!LT_Value_is_pair(cursor)){
+            LT_error("Closure body expects proper list of forms");
+        }
+        result = eval_form(LT_car(cursor), environment);
+        cursor = LT_cdr(cursor);
+    }
+
+    return result;
+}
+
+static LT_Value apply_closure(LT_Value closure_value, LT_Value evaluated_arguments){
+    LT_Closure* closure = LT_Closure_from_object(closure_value);
+    LT_Environment* application_environment = LT_Environment_new(
+        LT_Closure_environment(closure)
+    );
+
+    bind_closure_parameters(
+        LT_Closure_parameters(closure),
+        evaluated_arguments,
+        application_environment
+    );
+
+    return eval_sequence(LT_Closure_body(closure), application_environment);
+}
+
 static LT_Value apply_form(LT_Value operator,
                            LT_Value argument_expressions,
                            LT_Environment* environment){
     LT_Value evaluated_operator = eval_form(operator, environment);
     LT_Value evaluated_arguments;
 
-    if (!LT_Value_is_primitive(evaluated_operator)){
-        LT_error("Tried to apply non-primitive value");
+    if (LT_Value_is_special_form(evaluated_operator)){
+        return LT_SpecialForm_apply(
+            evaluated_operator,
+            argument_expressions,
+            environment
+        );
     }
 
     evaluated_arguments = eval_list_items(argument_expressions, environment);
-    return LT_Primitive_call(evaluated_operator, evaluated_arguments);
+    if (LT_Value_is_primitive(evaluated_operator)){
+        return LT_Primitive_call(evaluated_operator, evaluated_arguments);
+    }
+    if (LT_Value_is_closure(evaluated_operator)){
+        return apply_closure(evaluated_operator, evaluated_arguments);
+    }
+
+    LT_error("Tried to apply non-callable value");
+    return LT_VALUE_NIL;
 }
 
 static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
