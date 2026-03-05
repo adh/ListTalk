@@ -118,6 +118,32 @@ static int test_define_special_form(void){
     );
 }
 
+static int test_set_bang_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define x 10)"), env);
+    (void)LT_eval(read_one("(set! x 42)"), env);
+    result = LT_eval(read_one("x"), env);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 42,
+        "set! updates existing binding"
+    );
+}
+
+static int test_set_bang_parent_binding(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define x 1)"), env);
+    (void)LT_eval(read_one("((lambda () (set! x 9)))"), env);
+    result = LT_eval(read_one("x"), env);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 9,
+        "set! updates lexical parent binding"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -132,6 +158,8 @@ int main(void){
     failures += test_lambda_application();
     failures += test_if_special_form();
     failures += test_define_special_form();
+    failures += test_set_bang_special_form();
+    failures += test_set_bang_parent_binding();
 
     if (failures == 0){
         puts("eval tests passed");

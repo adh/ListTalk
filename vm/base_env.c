@@ -202,6 +202,27 @@ static LT_Value special_form_define(LT_Value arguments,
     return value;
 }
 
+static LT_Value special_form_set_bang(LT_Value arguments,
+                                      LT_Environment* environment){
+    LT_Value cursor = arguments;
+    LT_Value symbol = list_pop_arg(&cursor, "set!");
+    LT_Value value_expression = list_pop_arg(&cursor, "set!");
+    LT_Value value;
+
+    if (!LT_Value_is_symbol(symbol)){
+        LT_error("Special form set! expects symbol as first argument");
+    }
+    if (cursor != LT_VALUE_NIL){
+        LT_error("Special form set! expects two arguments");
+    }
+
+    value = LT_eval(value_expression, environment);
+    if (!LT_Environment_set(environment, symbol, value)){
+        LT_error("Special form set! expected existing mutable binding");
+    }
+    return value;
+}
+
 static void bind_primitive(LT_Environment* environment,
                            char* name,
                            LT_Primitive_Func function){
@@ -234,6 +255,7 @@ LT_Environment* LT_new_base_environment(void){
     bind_special_form(environment, "lambda", special_form_lambda);
     bind_special_form(environment, "if", special_form_if);
     bind_special_form(environment, "define", special_form_define);
+    bind_special_form(environment, "set!", special_form_set_bang);
     return environment;
 }
 
