@@ -1,9 +1,19 @@
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Pair.h>
 
 LT_Class LT_Float_class = {0};
 LT_Class* const LT__Immediate_classes[64] = {&LT_Class_class};
-LT_Class* const LT__Pointer_classes[8] = {&LT_Class_class};
+LT_Class* const LT__Pointer_classes[8] = {
+    &LT_Class_class,
+    &LT_Class_class,
+    &LT_Pair_class,
+    &LT_Class_class,
+    &LT_Class_class,
+    &LT_Class_class,
+    &LT_Class_class,
+    &LT_Class_class
+};
 
 void* LT_Class_alloc(LT_Class *klass)
 {

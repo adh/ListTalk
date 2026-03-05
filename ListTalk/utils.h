@@ -2,6 +2,7 @@
 #define H__ListTalk__utils__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/vm/value.h>
 
 #include <stdint.h>
 
@@ -19,6 +20,13 @@ void LT_StringBuilder_append_str(LT_StringBuilder* builder, char*str);
 void LT_StringBuilder_append_char(LT_StringBuilder* builder, char ch);
 char* LT_StringBuilder_value(LT_StringBuilder* builder);
 size_t LT_StringBuilder_length(LT_StringBuilder* builder);
+
+typedef struct LT_ListBuilder LT_ListBuilder;
+
+LT_ListBuilder* LT_ListBuilder_new();
+void LT_ListBuilder_append(LT_ListBuilder* builder, LT_Value value);
+LT_Value LT_ListBuilder_value(LT_ListBuilder* builder);
+size_t LT_ListBuilder_length(LT_ListBuilder* builder);
 
 
 typedef struct LT_InlineHash LT_InlineHash;

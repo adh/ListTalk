@@ -1,4 +1,5 @@
 #include <ListTalk/utils.h>
+#include <ListTalk/classes/Pair.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -43,6 +44,12 @@ struct LT_StringBuilder {
   char* buf;
 };
 
+struct LT_ListBuilder {
+    LT_Value head;
+    LT_Value tail;
+    size_t length;
+};
+
 LT_StringBuilder* LT_StringBuilder_new(){
     LT_StringBuilder* builder = GC_NEW(LT_StringBuilder);
     builder->size = STRING_BUILDER_INIT_SIZE;
@@ -76,6 +83,35 @@ char* LT_StringBuilder_value(LT_StringBuilder* builder){
     return builder->buf;
 }
 size_t LT_StringBuilder_length(LT_StringBuilder* builder){
+    return builder->length;
+}
+
+LT_ListBuilder* LT_ListBuilder_new(){
+    LT_ListBuilder* builder = GC_NEW(LT_ListBuilder);
+    builder->head = LT_VALUE_NIL;
+    builder->tail = LT_VALUE_NIL;
+    builder->length = 0;
+    return builder;
+}
+
+void LT_ListBuilder_append(LT_ListBuilder* builder, LT_Value value){
+    LT_Value pair = LT_cons(value, LT_VALUE_NIL);
+
+    if (builder->length == 0){
+        builder->head = pair;
+    } else {
+        LT_Pair_set_cdr(builder->tail, pair);
+    }
+
+    builder->tail = pair;
+    builder->length++;
+}
+
+LT_Value LT_ListBuilder_value(LT_ListBuilder* builder){
+    return builder->head;
+}
+
+size_t LT_ListBuilder_length(LT_ListBuilder* builder){
     return builder->length;
 }
 
