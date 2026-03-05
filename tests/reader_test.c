@@ -3,6 +3,7 @@
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/SmallInteger.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -115,6 +116,48 @@ static int test_comment_and_whitespace(void){
     );
 }
 
+static int test_fixnum_literal(void){
+    LT_Value value = read_one("12345");
+
+    if (expect(LT_Value_is_fixnum(value), "fixnum tag")){
+        return 1;
+    }
+    if (expect(LT_Value_class(value) == &LT_SmallInteger_class, "fixnum class")){
+        return 1;
+    }
+
+    return expect(
+        LT_Value_fixnum_value(value) == 12345,
+        "fixnum value"
+    );
+}
+
+static int test_negative_fixnum_literal(void){
+    LT_Value value = read_one("-42");
+
+    if (expect(LT_Value_is_fixnum(value), "negative fixnum tag")){
+        return 1;
+    }
+
+    return expect(
+        LT_Value_fixnum_value(value) == -42,
+        "negative fixnum value"
+    );
+}
+
+static int test_symbol_not_number(void){
+    LT_Value value = read_one("123abc");
+
+    if (expect(LT_Value_is_symbol(value), "mixed token is symbol")){
+        return 1;
+    }
+
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(value)), "123abc") == 0,
+        "mixed token symbol value"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -126,6 +169,9 @@ int main(void){
     failures += test_proper_list();
     failures += test_dotted_pair();
     failures += test_comment_and_whitespace();
+    failures += test_fixnum_literal();
+    failures += test_negative_fixnum_literal();
+    failures += test_symbol_not_number();
 
     if (failures == 0){
         puts("reader tests passed");

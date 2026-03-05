@@ -50,6 +50,9 @@ typedef uintptr_t LT_Value;
 #define LT_VALUE_NIL \
     LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_NIL, 0)
 
+#define LT_VALUE_FIXNUM_MIN (-(INT64_C(1) << 55))
+#define LT_VALUE_FIXNUM_MAX ((INT64_C(1) << 55) - 1)
+
 typedef struct LT_Class_s LT_Class;
 
 typedef struct LT_Object_s {
@@ -59,6 +62,32 @@ typedef struct LT_Object_s {
 extern LT_Class* const LT__Immediate_classes[];
 extern LT_Class* const LT__Pointer_classes[];
 extern LT_Class LT_Float_class;
+
+static inline int LT_Value_is_fixnum(LT_Value value){
+    return LT_VALUE_IS_IMMEDIATE(value)
+        && LT_VALUE_IMMEDIATE_TAG(value) == LT_VALUE_IMMEDIATE_TAG_FIXNUM;
+}
+
+static inline int LT_Value_fixnum_in_range(int64_t value){
+    return value >= LT_VALUE_FIXNUM_MIN && value <= LT_VALUE_FIXNUM_MAX;
+}
+
+static inline LT_Value LT_Value_fixnum(int64_t value){
+    return LT_VALUE_MAKE_IMMEDIATE(
+        LT_VALUE_IMMEDIATE_TAG_FIXNUM,
+        (uint64_t)value
+    );
+}
+
+static inline int64_t LT_Value_fixnum_value(LT_Value value){
+    uint64_t raw = LT_VALUE_IMMEDIATE_VALUE(value);
+
+    if (raw & (UINT64_C(1) << 55)){
+        raw |= UINT64_C(0xff00000000000000);
+    }
+
+    return (int64_t)raw;
+}
 
 static inline LT_Class* LT_Value_class(LT_Value value){
     if (LT_VALUE_IS_IMMEDIATE(value)){

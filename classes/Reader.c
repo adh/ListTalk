@@ -1,4 +1,5 @@
 #include <ListTalk/classes/Reader.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -6,6 +7,8 @@
 #include <ListTalk/vm/error.h>
 
 #include <ctype.h>
+#include <errno.h>
+#include <stdlib.h>
 
 typedef struct LT_FileReaderStream_s {
     LT_ReaderStream base;
@@ -161,8 +164,27 @@ static LT_String* read_string_literal(LT_ReaderStream* stream){
     );
 }
 
-static LT_Value read_symbol(int first, LT_ReaderStream* stream){
+static int parse_fixnum_token(const char* token, LT_Value* value){
+    char* end = NULL;
+    long long parsed;
+
+    errno = 0;
+    parsed = strtoll(token, &end, 10);
+
+    if (errno == ERANGE || end == token || *end != '\0'){
+        return 0;
+    }
+    if (!LT_Value_fixnum_in_range((int64_t)parsed)){
+        return 0;
+    }
+
+    *value = LT_Value_fixnum((int64_t)parsed);
+    return 1;
+}
+
+static LT_Value read_atom(int first, LT_ReaderStream* stream){
     LT_StringBuilder* builder = LT_StringBuilder_new();
+    LT_Value value;
     int ch = first;
 
     while (!is_delimiter(ch)){
@@ -172,6 +194,10 @@ static LT_Value read_symbol(int first, LT_ReaderStream* stream){
 
     if (ch != EOF){
         LT_ReaderStream_ungetc(stream, ch);
+    }
+
+    if (parse_fixnum_token(LT_StringBuilder_value(builder), &value)){
+        return value;
     }
 
     return LT_Symbol_new(LT_StringBuilder_value(builder));
@@ -257,7 +283,7 @@ static LT_Value read_object_from_first(
         LT_error("Bracket list syntax is not implemented in reader yet");
     }
 
-    return read_symbol(first, stream);
+    return read_atom(first, stream);
 }
 
 LT_DEFINE_CLASS(LT_Reader) {

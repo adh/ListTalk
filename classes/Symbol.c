@@ -4,7 +4,6 @@
 #include <ListTalk/utils.h>
 
 struct LT_Symbol_s {
-    LT_Object base;
     char* name;
 };
 
@@ -41,7 +40,7 @@ LT_Value LT_Symbol_new(char *name)
         return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
     }
 
-    symbol = LT_Class_ALLOC(LT_Symbol);
+    symbol = GC_NEW(LT_Symbol);
     symbol->name = LT_strdup(name);
     LT_StringHash_at_put(symbol_table, symbol->name, symbol);
     return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;

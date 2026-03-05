@@ -18,7 +18,7 @@ vm_lib = library(
                 'classes/String.c',
                 'classes/Nil.c',
                 'classes/Pair.c',
-                'classes/Number.c'
+                'classes/SmallInteger.c'
         ], 
         install : true, dependencies : [bdwgc])
 

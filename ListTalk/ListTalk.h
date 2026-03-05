@@ -5,6 +5,7 @@
 
 #include <ListTalk/vm/value.h>
 #include <ListTalk/classes/Nil.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
 
 LT__BEGIN_DECLS
