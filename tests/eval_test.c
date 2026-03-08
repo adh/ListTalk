@@ -75,6 +75,14 @@ static int test_symbol_lookup(void){
     );
 }
 
+static int test_type_of_primitive(void){
+    LT_Value value = eval_one("(type-of 1)");
+    return expect(
+        (LT_Class*)LT_VALUE_POINTER_VALUE(value) == &LT_SmallInteger_class,
+        "type-of returns class object"
+    );
+}
+
 static int test_quote(void){
     LT_Value value = eval_one("(quote (+ 1 2))");
 
@@ -207,6 +215,7 @@ int main(void){
     failures += test_multiply();
     failures += test_divide();
     failures += test_symbol_lookup();
+    failures += test_type_of_primitive();
     failures += test_quote();
     failures += test_quote_reader_syntax();
     failures += test_lambda_application();

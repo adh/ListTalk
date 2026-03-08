@@ -4,9 +4,39 @@
  */
 
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Symbol.h>
+#include <ListTalk/macros/decl_macros.h>
 
-LT_Class LT_Class_class = {0};
-LT_Class LT_Class_class_class = {0};
+#include <inttypes.h>
+
+static void Class_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_Class* klass = (LT_Class*)LT_VALUE_POINTER_VALUE(obj);
+
+    if (klass == &LT_Class_class_class){
+        fputs("#<Class Metaclass>", stream);
+        return;
+    }
+    if (LT_Value_is_symbol(klass->name)){
+        fputs("#<Class ", stream);
+        fputs(
+            LT_Symbol_name(LT_Symbol_from_object(klass->name)),
+            stream
+        );
+        fputc('>', stream);
+        return;
+    }
+
+    fprintf(stream, "#<Class 0x%" PRIxPTR ">", (uintptr_t)klass);
+}
+
+LT_DEFINE_CLASS(LT_Class) {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "Class",
+    .instance_size = sizeof(LT_Class),
+    .class_flags = LT_CLASS_FLAG_ABSTRACT,
+    .debugPrintOn = Class_debugPrintOn,
+};
 
 static LT_Class** make_single_superclass_list(LT_Class* superclass){
     LT_Class** superclasses;
@@ -31,6 +61,9 @@ void LT_init_native_class(LT_Class* klass){
         return;
     }
 
+    /* Mark as in-progress before recursive initialization to break cycles. */
+    klass->native_descriptor = NULL;
+
     if (descriptor->superclass != NULL){
         LT_init_native_class(descriptor->superclass);
     }
@@ -43,6 +76,11 @@ void LT_init_native_class(LT_Class* klass){
     klass->instance_size = descriptor->instance_size;
     klass->class_flags = (unsigned int)descriptor->class_flags;
     klass->debugPrintOn = descriptor->debugPrintOn;
+    if (descriptor->name == NULL){
+        klass->name = LT_NIL;
+    } else {
+        klass->name = LT_Symbol_new(descriptor->name);
+    }
     klass->superclasses = make_single_superclass_list(descriptor->superclass);
 
     if (metaclass != NULL){
@@ -50,9 +88,10 @@ void LT_init_native_class(LT_Class* klass){
         if (metaclass->instance_size == 0){
             metaclass->instance_size = sizeof(LT_Class);
         }
+        if (metaclass->debugPrintOn == NULL){
+            metaclass->debugPrintOn = Class_debugPrintOn;
+        }
         metaclass->superclasses =
             make_single_superclass_list(descriptor->metaclass_superclass);
     }
-
-    klass->native_descriptor = NULL;
 }

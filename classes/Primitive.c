@@ -26,6 +26,7 @@ static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
 LT_DEFINE_CLASS(LT_Primitive) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .name = "Primitive",
     .instance_size = sizeof(LT_Primitive),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = Primitive_debugPrintOn,

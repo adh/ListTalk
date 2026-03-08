@@ -25,6 +25,7 @@ static void SmallInteger_debugPrintOn(LT_Value obj, FILE* stream){
 LT_DEFINE_CLASS(LT_SmallInteger) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .name = "SmallInteger",
     .instance_size = sizeof(LT_SmallInteger),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,

@@ -97,6 +97,15 @@ static LT_Value primitive_divide(LT_Value arguments){
     return checked_fixnum_from_i128(result, "/");
 }
 
+static LT_Value primitive_type_of(LT_Value arguments){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_Value_class(value);
+}
+
 static LT_Value special_form_quote(LT_Value arguments,
                                    LT_Environment* environment){
     LT_Value cursor = arguments;
@@ -230,6 +239,7 @@ LT_Environment* LT_new_base_environment(void){
     bind_primitive(environment, "-", primitive_subtract);
     bind_primitive(environment, "*", primitive_multiply);
     bind_primitive(environment, "/", primitive_divide);
+    bind_primitive(environment, "type-of", primitive_type_of);
     bind_special_form(environment, "quote", special_form_quote);
     bind_special_form(environment, "lambda", special_form_lambda);
     bind_special_form(environment, "if", special_form_if);
