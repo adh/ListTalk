@@ -298,6 +298,128 @@ static int test_keyword_prefix_symbol(void){
     );
 }
 
+static int test_bracket_unary_send_syntax(void){
+    LT_Value value = read_one("[obj foo]");
+    LT_Value tail;
+    LT_Value selector;
+
+    if (expect(LT_Value_is_pair(value), "bracket unary expands to list")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_symbol(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_object(LT_car(value))),
+                "send"
+            ) == 0,
+        "bracket unary send selector"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Value_is_pair(tail), "bracket unary has receiver")){
+        return 1;
+    }
+    selector = LT_car(LT_cdr(tail));
+    if (expect(LT_Value_is_symbol(selector), "bracket unary keyword selector")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_object(selector)) == LT_PACKAGE_KEYWORD,
+        "bracket unary selector package"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(selector)), "foo") == 0,
+        "bracket unary selector name"
+    );
+}
+
+static int test_bracket_keyword_send_syntax(void){
+    LT_Value value = read_one("[obj token: bar token: baz]");
+    LT_Value tail;
+    LT_Value selector;
+    LT_Value args;
+
+    if (expect(LT_Value_is_pair(value), "bracket keyword expands to list")){
+        return 1;
+    }
+    tail = LT_cdr(value);
+    if (expect(LT_Value_is_pair(tail), "bracket keyword has receiver")){
+        return 1;
+    }
+    selector = LT_car(LT_cdr(tail));
+    if (expect(LT_Value_is_symbol(selector), "bracket keyword selector symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_object(selector)) == LT_PACKAGE_KEYWORD,
+        "bracket keyword selector package"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_Symbol_name(LT_Symbol_from_object(selector)),
+            "token:token:"
+        ) == 0,
+        "bracket keyword selector name"
+    )){
+        return 1;
+    }
+
+    args = LT_cdr(LT_cdr(tail));
+    if (expect(LT_Value_is_pair(args), "first keyword argument exists")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(args))), "bar") == 0,
+        "first keyword argument"
+    )){
+        return 1;
+    }
+    args = LT_cdr(args);
+    if (expect(LT_Value_is_pair(args), "second keyword argument exists")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(args))), "baz") == 0,
+        "second keyword argument"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(args) == LT_NIL, "keyword argument list end");
+}
+
+static int test_slot_accessor_syntax(void){
+    LT_Value value = read_one(".slot");
+    LT_Value tail;
+
+    if (expect(LT_Value_is_pair(value), "slot accessor expands to list")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(value))), "%self-slot") == 0,
+        "slot accessor operator"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Value_is_pair(tail), "slot accessor has symbol argument")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(tail))), "slot") == 0,
+        "slot accessor symbol"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(tail) == LT_NIL, "slot accessor arg list end");
+}
+
 int main(void){
     int failures = 0;
 
@@ -322,6 +444,9 @@ int main(void){
     failures += test_package_prefixed_symbol();
     failures += test_package_prefix_last_colon_split();
     failures += test_keyword_prefix_symbol();
+    failures += test_bracket_unary_send_syntax();
+    failures += test_bracket_keyword_send_syntax();
+    failures += test_slot_accessor_syntax();
 
     if (failures == 0){
         puts("reader tests passed");

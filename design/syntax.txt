@@ -12,7 +12,7 @@ Brackets:
 Slot accessor:
 ==============
 Non numeric tokens starting with dot are interpreted by droping the dot, 
-parsing resulting string as symbol and reading (%self-slot symbol)
+parsing resulting string as symbol and reading as (%self-slot symbol)
 
 Package prefix special-case:
 ============================

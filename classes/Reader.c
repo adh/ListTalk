@@ -14,6 +14,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct LT_FileReaderStream_s {
     LT_ReaderStream base;
@@ -37,6 +38,7 @@ static LT_Value read_object_from_first(
     LT_ReaderStream* stream,
     int first
 );
+static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
 
 static int file_stream_getc(void* stream){
     LT_FileReaderStream* file_stream = (LT_FileReaderStream*)stream;
@@ -191,9 +193,26 @@ static LT_Value parse_symbol_token(char* token){
     return LT_Symbol_parse_token(token);
 }
 
+static LT_Value expand_self_slot_accessor(char* token){
+    if (token[0] != '.'
+        || token[1] == '\0'
+        || isdigit((unsigned char)token[1])){
+        return 0;
+    }
+
+    return LT_cons(
+        LT_Symbol_new("%self-slot"),
+        LT_cons(
+            LT_Symbol_parse_token(token + 1),
+            LT_NIL
+        )
+    );
+}
+
 static LT_Value read_atom(int first, LT_ReaderStream* stream){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     LT_Value value;
+    LT_Value expanded;
     int ch = first;
 
     while (!is_delimiter(ch)){
@@ -207,6 +226,11 @@ static LT_Value read_atom(int first, LT_ReaderStream* stream){
 
     if (parse_fixnum_token(LT_StringBuilder_value(builder), &value)){
         return value;
+    }
+
+    expanded = expand_self_slot_accessor(LT_StringBuilder_value(builder));
+    if (expanded != 0){
+        return expanded;
     }
 
     return parse_symbol_token(LT_StringBuilder_value(builder));
@@ -363,6 +387,123 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
     }
 }
 
+static char* read_token_string(int first, LT_ReaderStream* stream){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    int ch = first;
+
+    while (!is_delimiter(ch)){
+        LT_StringBuilder_append_char(builder, (char)ch);
+        ch = LT_ReaderStream_getc(stream);
+    }
+
+    if (ch != EOF){
+        LT_ReaderStream_ungetc(stream, ch);
+    }
+
+    return LT_StringBuilder_value(builder);
+}
+
+static int token_ends_with_colon(char* token){
+    size_t length = strlen(token);
+    return length > 0 && token[length - 1] == ':';
+}
+
+static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
+    int ch = read_non_space_char(stream);
+    LT_Value receiver;
+    LT_ListBuilder* arguments;
+    LT_StringBuilder* selector;
+    LT_Value selector_symbol;
+    char* message_token;
+
+    if (ch == EOF){
+        LT_error("Unterminated bracket form");
+    }
+    if (ch == ']'){
+        LT_error("Bracket form expects receiver");
+    }
+
+    receiver = read_object_from_first(reader, stream, ch);
+    ch = read_non_space_char(stream);
+    if (ch == EOF){
+        LT_error("Unterminated bracket form");
+    }
+    if (ch == ']'){
+        LT_error("Bracket form expects message");
+    }
+    if (is_delimiter(ch)){
+        LT_error("Bracket form expects token message");
+    }
+
+    message_token = read_token_string(ch, stream);
+    ch = read_non_space_char(stream);
+
+    if (ch == ']'){
+        return LT_cons(
+            LT_Symbol_new("send"),
+            LT_cons(
+                receiver,
+                LT_cons(
+                    LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token),
+                    LT_NIL
+                )
+            )
+        );
+    }
+
+    if (!token_ends_with_colon(message_token)){
+        LT_error("Keyword bracket send expects selector parts ending with ':'");
+    }
+
+    selector = LT_StringBuilder_new();
+    arguments = LT_ListBuilder_new();
+    LT_StringBuilder_append_str(selector, message_token);
+
+    while (1){
+        LT_Value argument;
+        char* next_selector_token;
+
+        if (ch == EOF){
+            LT_error("Unterminated bracket form");
+        }
+
+        argument = read_object_from_first(reader, stream, ch);
+        LT_ListBuilder_append(arguments, argument);
+
+        ch = read_non_space_char(stream);
+        if (ch == EOF){
+            LT_error("Unterminated bracket form");
+        }
+        if (ch == ']'){
+            break;
+        }
+        if (is_delimiter(ch)){
+            LT_error("Keyword bracket send expects token selector parts");
+        }
+
+        next_selector_token = read_token_string(ch, stream);
+        if (!token_ends_with_colon(next_selector_token)){
+            LT_error("Keyword bracket send expects selector parts ending with ':'");
+        }
+        LT_StringBuilder_append_str(selector, next_selector_token);
+
+        ch = read_non_space_char(stream);
+    }
+
+    selector_symbol = LT_Symbol_new_in(
+        LT_PACKAGE_KEYWORD,
+        LT_StringBuilder_value(selector)
+    );
+
+    return LT_cons(
+        LT_Symbol_new("send"),
+        LT_cons(
+            receiver,
+            LT_cons(selector_symbol, LT_ListBuilder_value(arguments))
+        )
+    );
+}
+
 static LT_Value read_object_from_first(
     LT_Reader* reader,
     LT_ReaderStream* stream,
@@ -377,11 +518,14 @@ static LT_Value read_object_from_first(
     if (first == '('){
         return read_list(reader, stream);
     }
+    if (first == '['){
+        return read_bracket_form(reader, stream);
+    }
     if (first == ')'){
         LT_error("Unexpected ')'");
     }
-    if (first == '[' || first == ']'){
-        LT_error("Bracket list syntax is not implemented in reader yet");
+    if (first == ']'){
+        LT_error("Unexpected ']'");
     }
     if (first == '\''){
         return read_quote_syntax(reader, stream);
