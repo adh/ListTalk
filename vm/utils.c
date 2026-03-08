@@ -116,6 +116,14 @@ LT_Value LT_ListBuilder_value(LT_ListBuilder* builder){
     return builder->head;
 }
 
+LT_Value LT_ListBuilder_valueWithRest(LT_ListBuilder* builder, LT_Value rest){
+    if (builder->length == 0){
+        return rest;
+    }
+    LT_Pair_set_cdr(builder->tail, rest);
+    return builder->head;
+}
+
 size_t LT_ListBuilder_length(LT_ListBuilder* builder){
     return builder->length;
 }

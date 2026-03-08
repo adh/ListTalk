@@ -21,6 +21,8 @@ static inline int LT_Value_is_pair(LT_Value value){
 }
 
 LT_Value LT_cons(LT_Value car, LT_Value cdr);
+LT_Value LT_list(LT_Value first, ...);
+LT_Value LT_list_with_rest(LT_Value first, ...);
 LT_Value LT_car(LT_Value pair);
 LT_Value LT_cdr(LT_Value pair);
 

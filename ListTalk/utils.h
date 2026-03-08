@@ -31,6 +31,7 @@ typedef struct LT_ListBuilder LT_ListBuilder;
 LT_ListBuilder* LT_ListBuilder_new();
 void LT_ListBuilder_append(LT_ListBuilder* builder, LT_Value value);
 LT_Value LT_ListBuilder_value(LT_ListBuilder* builder);
+LT_Value LT_ListBuilder_valueWithRest(LT_ListBuilder* builder, LT_Value rest);
 size_t LT_ListBuilder_length(LT_ListBuilder* builder);
 
 

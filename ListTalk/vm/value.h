@@ -52,6 +52,9 @@ typedef uintptr_t LT_Value;
     | ((uintptr_t)(value) & 0x00ffffffffffffffULL) \
     | 0x8000000000000000ULL))
 
+#define LT_INVALID ((LT_Value)0)
+#define LT_INVALID2 ((LT_Value)-1)
+
 #define LT_NIL \
     LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_NIL, 0)
 #define LT_TRUE \

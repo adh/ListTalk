@@ -6,6 +6,8 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/vm/Class.h>
 
+#include <stdarg.h>
+
 struct LT_Pair_s {
     LT_Value car;
     LT_Value cdr;
@@ -47,6 +49,52 @@ LT_Value LT_cons(LT_Value car, LT_Value cdr){
     pair->car = car;
     pair->cdr = cdr;
     return ((LT_Value)(uintptr_t)pair) | LT_VALUE_POINTER_TAG_PAIR;
+}
+
+LT_Value LT_list(LT_Value first, ...){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    va_list args;
+    LT_Value value;
+
+    if (first == LT_INVALID){
+        return LT_NIL;
+    }
+
+    LT_ListBuilder_append(builder, first);
+    va_start(args, first);
+    while (1){
+        value = va_arg(args, LT_Value);
+        if (value == LT_INVALID){
+            break;
+        }
+        LT_ListBuilder_append(builder, value);
+    }
+    va_end(args);
+    return LT_ListBuilder_valueWithRest(builder, LT_NIL);
+}
+
+LT_Value LT_list_with_rest(LT_Value first, ...){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    va_list args;
+    LT_Value value;
+    LT_Value rest;
+
+    va_start(args, first);
+
+    if (first != LT_INVALID){
+        LT_ListBuilder_append(builder, first);
+        while (1){
+            value = va_arg(args, LT_Value);
+            if (value == LT_INVALID){
+                break;
+            }
+            LT_ListBuilder_append(builder, value);
+        }
+    }
+
+    rest = va_arg(args, LT_Value);
+    va_end(args);
+    return LT_ListBuilder_valueWithRest(builder, rest);
 }
 
 LT_Value LT_car(LT_Value pair){
