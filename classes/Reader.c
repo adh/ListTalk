@@ -187,6 +187,10 @@ static int parse_fixnum_token(const char* token, LT_Value* value){
     return 1;
 }
 
+static LT_Value parse_symbol_token(char* token){
+    return LT_Symbol_parse_token(token);
+}
+
 static LT_Value read_atom(int first, LT_ReaderStream* stream){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     LT_Value value;
@@ -205,7 +209,7 @@ static LT_Value read_atom(int first, LT_ReaderStream* stream){
         return value;
     }
 
-    return LT_Symbol_new(LT_StringBuilder_value(builder));
+    return parse_symbol_token(LT_StringBuilder_value(builder));
 }
 
 static void consume_dispatch_suffix_or_short(

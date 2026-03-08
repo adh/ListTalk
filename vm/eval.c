@@ -128,6 +128,10 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
     LT_Value value;
 
     if (!LT_Environment_lookup(environment, symbol, &value, NULL)){
+        if (LT_Symbol_package(LT_Symbol_from_object(symbol))
+            == LT_PACKAGE_KEYWORD){
+            return symbol;
+        }
         LT_error("Unbound symbol");
     }
     return value;

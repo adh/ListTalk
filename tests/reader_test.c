@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -227,6 +228,76 @@ static int test_quote_syntax(void){
     return expect(LT_cdr(tail) == LT_NIL, "quote syntax argument list end");
 }
 
+static int test_symbol_package_interning(void){
+    LT_Value default_symbol = LT_Symbol_new("alpha");
+    LT_Value listtalk_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "alpha");
+    LT_Value keyword_symbol = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "alpha");
+
+    if (expect(default_symbol == listtalk_symbol, "default symbol package")){
+        return 1;
+    }
+    if (expect(default_symbol != keyword_symbol, "symbols differ by package")){
+        return 1;
+    }
+
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_object(keyword_symbol))
+            == LT_PACKAGE_KEYWORD,
+        "symbol stores package"
+    );
+}
+
+static int test_package_prefixed_symbol(void){
+    LT_Value value = read_one("foo:bar");
+    LT_Symbol* symbol = LT_Symbol_from_object(value);
+
+    if (expect(LT_Value_is_symbol(value), "package-prefixed token is symbol")){
+        return 1;
+    }
+    if (expect(strcmp(LT_Symbol_name(symbol), "bar") == 0, "prefixed symbol name")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Package_name(LT_Symbol_package(symbol)), "foo") == 0,
+        "prefixed symbol package"
+    );
+}
+
+static int test_package_prefix_last_colon_split(void){
+    LT_Value value = read_one("http://example.org:path:item");
+    LT_Symbol* symbol = LT_Symbol_from_object(value);
+
+    if (expect(
+        strcmp(LT_Symbol_name(symbol), "item") == 0,
+        "last-colon split symbol name"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_Package_name(LT_Symbol_package(symbol)),
+            "http://example.org:path"
+        ) == 0,
+        "last-colon split package name"
+    );
+}
+
+static int test_keyword_prefix_symbol(void){
+    LT_Value value = read_one(":foo:bar");
+    LT_Symbol* symbol = LT_Symbol_from_object(value);
+
+    if (expect(
+        strcmp(LT_Package_name(LT_Symbol_package(symbol)), "keyword") == 0,
+        "keyword package"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(symbol), "foo:bar") == 0,
+        "keyword symbol keeps internal colons"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -247,6 +318,10 @@ int main(void){
     failures += test_dispatch_nil_short();
     failures += test_dispatch_bang_comment();
     failures += test_quote_syntax();
+    failures += test_symbol_package_interning();
+    failures += test_package_prefixed_symbol();
+    failures += test_package_prefix_last_colon_split();
+    failures += test_keyword_prefix_symbol();
 
     if (failures == 0){
         puts("reader tests passed");

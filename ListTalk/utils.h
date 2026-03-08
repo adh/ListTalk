@@ -72,6 +72,11 @@ void LT_register_constructor(void (*ctor)(void));
         LT_register_constructor(ctor); \
     }
 
+#define LT_REGISTER_INITIALIZER(init) \
+    void __attribute__((constructor)) LT___register_initializer_##init(void){ \
+        LT_register_constructor(init); \
+    }
+
 LT__END_DECLS
 
 #endif

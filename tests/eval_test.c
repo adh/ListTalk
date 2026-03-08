@@ -75,6 +75,24 @@ static int test_symbol_lookup(void){
     );
 }
 
+static int test_keyword_self_evaluating_when_unbound(void){
+    LT_Value value = eval_one(":token");
+
+    if (expect(LT_Value_is_symbol(value), "keyword eval result is symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_object(value)) == LT_PACKAGE_KEYWORD,
+        "keyword symbol package"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(value)), "token") == 0,
+        "keyword symbol name"
+    );
+}
+
 static int test_type_of_primitive(void){
     LT_Value value = eval_one("(type-of 1)");
     return expect(
@@ -215,6 +233,7 @@ int main(void){
     failures += test_multiply();
     failures += test_divide();
     failures += test_symbol_lookup();
+    failures += test_keyword_self_evaluating_when_unbound();
     failures += test_type_of_primitive();
     failures += test_quote();
     failures += test_quote_reader_syntax();

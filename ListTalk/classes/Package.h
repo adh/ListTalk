@@ -17,9 +17,13 @@ LT_DECLARE_CLASS(LT_Package);
 
 LT_Package* LT_Package_new(char* name);
 char* LT_Package_name(LT_Package* package);
+LT_Value LT_Package_intern_symbol(LT_Package* package, char* name);
 
-#define LT_PACKAGE_LISTTALK (LT_Package_new("ListTalk"))
-#define LT_PACKAGE_KEYWORD (LT_Package_new("keyword"))
+extern LT_Package LT_Package_LISTTALK;
+extern LT_Package LT_Package_KEYWORD;
+
+#define LT_PACKAGE_LISTTALK (&LT_Package_LISTTALK)
+#define LT_PACKAGE_KEYWORD (&LT_Package_KEYWORD)
 
 LT__END_DECLS
 
