@@ -50,7 +50,7 @@ struct LT_Class_s {
 /* Inlined here in order to resolve circular dependencies */
 extern LT_Class LT_Class_class;
 extern LT_Class LT_Class_class_class;
-inline LT_Class* LT_Class_from_object(LT_Value obj){
+static inline LT_Class* LT_Class_from_object(LT_Value obj){
     if (LT_Value_class(obj) != &LT_Class_class){
         LT_type_error(obj, &LT_Class_class);
     }
