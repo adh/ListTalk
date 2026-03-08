@@ -1,0 +1,23 @@
+Scheme/CL SExps.
+
+Brackets:
+=========
+
+[foo bar] expands into:
+- (send foo :bar) if bar is a token
+- error otherwise
+
+[foo token: bar token: baz] into (send foo :token:token: bar baz)
+
+Slot accessor:
+==============
+Non numeric tokens starting with dot are interpreted by droping the dot, 
+parsing resulting string as symbol and reading (%self-slot symbol)
+
+Package prefix special-case:
+============================
+Package name extends to the last colon in the symbol (in order to support
+URIs as package names), except when the first character is colon.
+
+In other words symbols in keyword package can contain unescaped colons,
+other symbols can not.
