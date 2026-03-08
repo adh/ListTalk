@@ -48,7 +48,7 @@ static void Pair_print_value(LT_Value value, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_Pair) {
-    .superclass = &LT_Class_class,
+    .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .instance_size = sizeof(LT_Pair),
     .class_flags = LT_CLASS_FLAG_SPECIAL,

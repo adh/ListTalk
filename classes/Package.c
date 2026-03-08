@@ -25,7 +25,7 @@ static void Package_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_Package) {
-    .superclass = &LT_Class_class,
+    .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .instance_size = sizeof(LT_Package),
     .debugPrintOn = Package_debugPrintOn,

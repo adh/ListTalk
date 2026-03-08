@@ -292,7 +292,7 @@ static LT_Value read_object_from_first(
 }
 
 LT_DEFINE_CLASS(LT_Reader) {
-    .superclass = &LT_Class_class,
+    .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .instance_size = sizeof(LT_Reader),
 };

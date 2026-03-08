@@ -14,7 +14,7 @@ struct LT_String_s {
 };
 
 LT_DEFINE_CLASS(LT_String) {
-    .superclass = &LT_Class_class,
+    .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .instance_size = sizeof(LT_String),
 };

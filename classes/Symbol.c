@@ -17,7 +17,7 @@ static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_Symbol) {
-    .superclass = &LT_Class_class,
+    .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .instance_size = sizeof(LT_Symbol),

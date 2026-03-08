@@ -144,6 +144,22 @@ static int test_set_bang_parent_binding(void){
     );
 }
 
+static int test_symbol_class_inherits_object(void){
+    if (expect(LT_Symbol_class.superclasses != NULL, "symbol has superclass")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_class.superclasses[0] == &LT_Object_class,
+        "symbol superclass is Object"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_class.superclasses[1] == NULL,
+        "single direct superclass in native descriptors"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -160,6 +176,7 @@ int main(void){
     failures += test_define_special_form();
     failures += test_set_bang_special_form();
     failures += test_set_bang_parent_binding();
+    failures += test_symbol_class_inherits_object();
 
     if (failures == 0){
         puts("eval tests passed");
