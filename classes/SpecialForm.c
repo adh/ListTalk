@@ -15,10 +15,10 @@ struct LT_SpecialForm_s {
 static void SpecialForm_debugPrintOn(LT_Value obj, FILE* stream){
     LT_SpecialForm* special_form = LT_SpecialForm_from_object(obj);
     if (special_form->name == NULL){
-        fputs("<SpecialForm>", stream);
+        fputs("#<SpecialForm>", stream);
         return;
     }
-    fputs("<SpecialForm ", stream);
+    fputs("#<SpecialForm ", stream);
     fputs(special_form->name, stream);
     fputc('>', stream);
 }

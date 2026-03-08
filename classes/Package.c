@@ -16,10 +16,10 @@ struct LT_Package_s {
 static void Package_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Package* package = LT_Package_from_object(obj);
     if (package->name == NULL){
-        fputs("<Package>", stream);
+        fputs("#<Package>", stream);
         return;
     }
-    fputs("<Package ", stream);
+    fputs("#<Package ", stream);
     fputs(package->name, stream);
     fputc('>', stream);
 }

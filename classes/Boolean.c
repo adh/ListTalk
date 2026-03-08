@@ -6,6 +6,8 @@
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/vm/Class.h>
 
+#include <inttypes.h>
+
 static void Boolean_debugPrintOn(LT_Value obj, FILE* stream){
     if (obj == LT_TRUE){
         fputs("true", stream);
@@ -15,7 +17,7 @@ static void Boolean_debugPrintOn(LT_Value obj, FILE* stream){
         fputs("false", stream);
         return;
     }
-    fputs("<boolean>", stream);
+    fprintf(stream, "#<boolean 0x%" PRIxPTR ">", (uintptr_t)obj);
 }
 
 LT_DEFINE_CLASS(LT_Boolean) {

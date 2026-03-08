@@ -15,10 +15,10 @@ struct LT_Primitive_s {
 static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Primitive* primitive = LT_Primitive_from_object(obj);
     if (primitive->name == NULL){
-        fputs("<Primitive>", stream);
+        fputs("#<Primitive>", stream);
         return;
     }
-    fputs("<Primitive ", stream);
+    fputs("#<Primitive ", stream);
     fputs(primitive->name, stream);
     fputc('>', stream);
 }

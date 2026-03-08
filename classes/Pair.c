@@ -6,6 +6,8 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/vm/Class.h>
 
+#include <inttypes.h>
+
 struct LT_Pair_s {
     LT_Value car;
     LT_Value cdr;
@@ -44,7 +46,7 @@ static void Pair_print_value(LT_Value value, FILE* stream){
         return;
     }
 
-    fputs("<value>", stream);
+    fprintf(stream, "#<value 0x%" PRIxPTR ">", (uintptr_t)value);
 }
 
 LT_DEFINE_CLASS(LT_Pair) {

@@ -8,7 +8,7 @@
 
 static void Object_debugPrintOn(LT_Value obj, FILE* stream){
     (void)obj;
-    fputs("<Object>", stream);
+    fputs("#<Object>", stream);
 }
 
 LT_DEFINE_CLASS(LT_Object) {

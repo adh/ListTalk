@@ -19,7 +19,7 @@ static void SmallInteger_debugPrintOn(LT_Value obj, FILE* stream){
         return;
     }
 
-    fputs("<small-integer>", stream);
+    fprintf(stream, "#<small-integer 0x%" PRIxPTR ">", (uintptr_t)obj);
 }
 
 LT_DEFINE_CLASS(LT_SmallInteger) {

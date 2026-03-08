@@ -15,7 +15,7 @@ struct LT_Closure_s {
 static void Closure_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Closure* closure = LT_Closure_from_object(obj);
     (void)closure;
-    fputs("<Closure>", stream);
+    fputs("#<Closure>", stream);
 }
 
 LT_DEFINE_CLASS(LT_Closure) {
