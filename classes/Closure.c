@@ -12,19 +12,12 @@ struct LT_Closure_s {
     LT_Environment* environment;
 };
 
-static void Closure_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Closure* closure = LT_Closure_from_object(obj);
-    (void)closure;
-    fputs("#<Closure>", stream);
-}
-
 LT_DEFINE_CLASS(LT_Closure) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Closure",
     .instance_size = sizeof(LT_Closure),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
-    .debugPrintOn = Closure_debugPrintOn,
 };
 
 LT_Value LT_Closure_new(LT_Value parameters,

@@ -6,20 +6,16 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/vm/Class.h>
 
-#include <inttypes.h>
-
 struct LT_Pair_s {
     LT_Value car;
     LT_Value cdr;
 };
 
-static void Pair_print_value(LT_Value value, FILE* stream);
-
 static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Pair* pair = LT_Pair_from_object(obj);
     fputc('(', stream);
     while (1){
-        Pair_print_value(pair->car, stream);
+        LT_Value_debugPrintOn(pair->car, stream);
 
         if (pair->cdr == LT_VALUE_NIL){
             break;
@@ -31,22 +27,10 @@ static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
         }
 
         fputs(" . ", stream);
-        Pair_print_value(pair->cdr, stream);
+        LT_Value_debugPrintOn(pair->cdr, stream);
         break;
     }
     fputc(')', stream);
-}
-
-static void Pair_print_value(LT_Value value, FILE* stream){
-    LT_Class* klass;
-
-    klass = LT_Value_class(value);
-    if (klass != NULL && klass->debugPrintOn != NULL){
-        klass->debugPrintOn(value, stream);
-        return;
-    }
-
-    fprintf(stream, "#<value 0x%" PRIxPTR ">", (uintptr_t)value);
 }
 
 LT_DEFINE_CLASS(LT_Pair) {

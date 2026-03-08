@@ -74,6 +74,7 @@ typedef struct LT_Object_s {
 extern LT_Class* const LT__Immediate_classes[];
 extern LT_Class* const LT__Pointer_classes[];
 extern LT_Class LT_Float_class;
+void LT_Value_debugPrintOn(LT_Value value, FILE* stream);
 
 static inline int LT_Value_is_fixnum(LT_Value value){
     return LT_VALUE_IS_IMMEDIATE(value)

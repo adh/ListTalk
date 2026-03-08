@@ -19,8 +19,5 @@ LT_DEFINE_CLASS(LT_Printer) {
 };
 
 void LT_printer_print_object(LT_Value object){
-    LT_Class* klass = LT_Value_class(object);
-    if (klass != NULL && klass->debugPrintOn != NULL){
-        klass->debugPrintOn(object, stdout);
-    }
+    LT_Value_debugPrintOn(object, stdout);
 }

@@ -5,6 +5,8 @@
 
 #include <ListTalk/classes/String.h>
 #include <ListTalk/vm/Class.h>
+
+#include <ctype.h>
 #include <string.h>
 
 struct LT_String_s {
@@ -13,11 +15,48 @@ struct LT_String_s {
     char str[];
 };
 
+static void String_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_String* string = LT_String_from_object(obj);
+    char* cursor = LT_String_value_cstr(string);
+
+    fputc('"', stream);
+    while (*cursor != '\0'){
+        unsigned char ch = (unsigned char)(*cursor);
+        switch (ch){
+            case '\n':
+                fputs("\\n", stream);
+                break;
+            case '\r':
+                fputs("\\r", stream);
+                break;
+            case '\t':
+                fputs("\\t", stream);
+                break;
+            case '\\':
+                fputs("\\\\", stream);
+                break;
+            case '"':
+                fputs("\\\"", stream);
+                break;
+            default:
+                if (isprint(ch)){
+                    fputc((int)ch, stream);
+                } else {
+                    fprintf(stream, "\\x%02x", (unsigned int)ch);
+                }
+                break;
+        }
+        cursor++;
+    }
+    fputc('"', stream);
+}
+
 LT_DEFINE_CLASS(LT_String) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "String",
     .instance_size = sizeof(LT_String),
+    .debugPrintOn = String_debugPrintOn,
 };
 
 LT_String* LT_String_new(char* buf, size_t len){

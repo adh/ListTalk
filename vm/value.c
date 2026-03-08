@@ -14,6 +14,8 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SpecialForm.h>
 
+#include <inttypes.h>
+
 LT_Class LT_Float_class = {0};
 LT_Class* const LT__Immediate_classes[64] = {
     [LT_VALUE_IMMEDIATE_TAG_BOOLEAN & 0x3f] = &LT_Boolean_class,
@@ -30,6 +32,27 @@ LT_Class* const LT__Pointer_classes[8] = {
     &LT_Class_class,
     &LT_SpecialForm_class
 };
+
+void LT_Value_debugPrintOn(LT_Value value, FILE* stream){
+    LT_Class* klass = LT_Value_class(value);
+    char* class_name = "value";
+
+    if (klass != NULL && klass->debugPrintOn != NULL){
+        klass->debugPrintOn(value, stream);
+        return;
+    }
+
+    if (klass != NULL && LT_Value_is_symbol(klass->name)){
+        class_name = LT_Symbol_name(LT_Symbol_from_object(klass->name));
+    }
+
+    fprintf(
+        stream,
+        "#<%s at 0x%" PRIxPTR ">",
+        class_name,
+        (uintptr_t)value
+    );
+}
 
 void* LT_Class_alloc(LT_Class *klass)
 {
