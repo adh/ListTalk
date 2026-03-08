@@ -9,10 +9,15 @@ LT_Class LT_Class_class = {0};
 LT_Class LT_Class_class_class = {0};
 
 static LT_Class** make_single_superclass_list(LT_Class* superclass){
+    LT_Class** superclasses;
+
     if (superclass == NULL){
-        return NULL;
+        superclasses = GC_MALLOC(sizeof(LT_Class*));
+        superclasses[0] = NULL;
+        return superclasses;
     }
-    LT_Class** superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
+
+    superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
     superclasses[0] = superclass;
     superclasses[1] = NULL;
     return superclasses;
