@@ -286,6 +286,24 @@ static LT_Value LT_Value_from_object(LT_Object* obj){
     return (LT_Value)(uintptr_t)obj;
 }
 
+static LT_Value read_quote_syntax(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    int first = read_non_space_char(stream);
+    LT_Value quoted;
+
+    if (first == EOF){
+        LT_error("Unexpected end of input after quote");
+    }
+
+    quoted = read_object_from_first(reader, stream, first);
+    return LT_cons(
+        LT_Symbol_new("quote"),
+        LT_cons(quoted, LT_NIL)
+    );
+}
+
 static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
     LT_Value head = LT_VALUE_NIL;
     LT_Value tail = LT_VALUE_NIL;
@@ -360,6 +378,9 @@ static LT_Value read_object_from_first(
     }
     if (first == '[' || first == ']'){
         LT_error("Bracket list syntax is not implemented in reader yet");
+    }
+    if (first == '\''){
+        return read_quote_syntax(reader, stream);
     }
     if (first == '#'){
         return read_dispatch_macro(reader, stream);

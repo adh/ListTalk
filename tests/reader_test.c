@@ -191,6 +191,42 @@ static int test_dispatch_bang_comment(void){
     );
 }
 
+static int test_quote_syntax(void){
+    LT_Value value = read_one("'a");
+    LT_Value tail;
+
+    if (expect(LT_Value_is_pair(value), "quote syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_symbol(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_object(LT_car(value))),
+                "quote"
+            ) == 0,
+        "quote syntax head symbol"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Value_is_pair(tail), "quote syntax has single argument")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_symbol(LT_car(tail))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_object(LT_car(tail))),
+                "a"
+            ) == 0,
+        "quote syntax quoted value"
+    )){
+        return 1;
+    }
+
+    return expect(LT_cdr(tail) == LT_NIL, "quote syntax argument list end");
+}
+
 int main(void){
     int failures = 0;
 
@@ -210,6 +246,7 @@ int main(void){
     failures += test_dispatch_nil();
     failures += test_dispatch_nil_short();
     failures += test_dispatch_bang_comment();
+    failures += test_quote_syntax();
 
     if (failures == 0){
         puts("reader tests passed");

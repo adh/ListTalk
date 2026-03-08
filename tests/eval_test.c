@@ -91,6 +91,22 @@ static int test_quote(void){
     );
 }
 
+static int test_quote_reader_syntax(void){
+    LT_Value value = eval_one("'(+ 1 2)");
+
+    if (expect(LT_Value_is_pair(value), "quote reader syntax returns list")){
+        return 1;
+    }
+    if (expect(LT_Value_is_symbol(LT_car(value)), "quote reader list first symbol")){
+        return 1;
+    }
+
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(value))), "+") == 0,
+        "quote reader syntax does not evaluate"
+    );
+}
+
 static int test_lambda_application(void){
     LT_Value value = eval_one("((lambda (x y) (+ x y)) 3 4)");
     return expect(
@@ -192,6 +208,7 @@ int main(void){
     failures += test_divide();
     failures += test_symbol_lookup();
     failures += test_quote();
+    failures += test_quote_reader_syntax();
     failures += test_lambda_application();
     failures += test_if_special_form();
     failures += test_define_special_form();
