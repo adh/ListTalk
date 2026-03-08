@@ -62,9 +62,6 @@ typedef uintptr_t LT_Value;
 #define LT_FALSE \
     LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_BOOLEAN, 0)
 
-/* Backwards compatibility alias. */
-#define LT_VALUE_NIL LT_NIL
-
 #define LT_VALUE_FIXNUM_MIN (-(INT64_C(1) << 55))
 #define LT_VALUE_FIXNUM_MAX ((INT64_C(1) << 55) - 1)
 

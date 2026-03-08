@@ -19,7 +19,7 @@ static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
     while (1){
         LT_Value_debugPrintOn(pair->car, stream);
 
-        if (pair->cdr == LT_VALUE_NIL){
+        if (pair->cdr == LT_NIL){
             break;
         }
         if (LT_Value_is_pair(pair->cdr)){

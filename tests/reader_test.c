@@ -65,7 +65,7 @@ static int test_string(void){
 
 static int test_nil_list(void){
     LT_Value value = read_one("()");
-    return expect(value == LT_VALUE_NIL, "empty list is nil");
+    return expect(value == LT_NIL, "empty list is nil");
 }
 
 static int test_proper_list(void){
@@ -93,7 +93,7 @@ static int test_proper_list(void){
         return 1;
     }
 
-    return expect(LT_cdr(tail) == LT_VALUE_NIL, "proper list terminator");
+    return expect(LT_cdr(tail) == LT_NIL, "proper list terminator");
 }
 
 static int test_dotted_pair(void){

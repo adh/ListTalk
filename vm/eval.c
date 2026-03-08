@@ -19,7 +19,7 @@ static LT_Value eval_list_items(LT_Value list, LT_Environment* environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     LT_Value cursor = list;
 
-    while (cursor != LT_VALUE_NIL){
+    while (cursor != LT_NIL){
         if (!LT_Value_is_pair(cursor)){
             LT_error("Application expects a proper list of arguments");
         }
@@ -39,7 +39,7 @@ static void bind_closure_parameters(LT_Value parameters,
     LT_Value parameter_cursor = parameters;
     LT_Value argument_cursor = arguments;
 
-    while (parameter_cursor != LT_VALUE_NIL && argument_cursor != LT_VALUE_NIL){
+    while (parameter_cursor != LT_NIL && argument_cursor != LT_NIL){
         LT_Value parameter;
 
         if (!LT_Value_is_pair(parameter_cursor)
@@ -63,16 +63,16 @@ static void bind_closure_parameters(LT_Value parameters,
         argument_cursor = LT_cdr(argument_cursor);
     }
 
-    if (parameter_cursor != LT_VALUE_NIL || argument_cursor != LT_VALUE_NIL){
+    if (parameter_cursor != LT_NIL || argument_cursor != LT_NIL){
         LT_error("Closure arity mismatch");
     }
 }
 
 static LT_Value eval_sequence(LT_Value body, LT_Environment* environment){
     LT_Value cursor = body;
-    LT_Value result = LT_VALUE_NIL;
+    LT_Value result = LT_NIL;
 
-    while (cursor != LT_VALUE_NIL){
+    while (cursor != LT_NIL){
         if (!LT_Value_is_pair(cursor)){
             LT_error("Closure body expects proper list of forms");
         }
@@ -121,7 +121,7 @@ static LT_Value apply_form(LT_Value operator,
     }
 
     LT_error("Tried to apply non-callable value");
-    return LT_VALUE_NIL;
+    return LT_NIL;
 }
 
 static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){

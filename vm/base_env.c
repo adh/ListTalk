@@ -26,7 +26,7 @@ static LT_Value primitive_add(LT_Value arguments){
     __int128 sum = 0;
     LT_Value cursor = arguments;
 
-    while (cursor != LT_VALUE_NIL){
+    while (cursor != LT_NIL){
         int64_t arg_value;
         LT_FIXNUM_ARG(cursor, arg_value);
         sum += arg_value;
@@ -43,12 +43,12 @@ static LT_Value primitive_subtract(LT_Value arguments){
     LT_FIXNUM_ARG(cursor, first_value);
     result = first_value;
 
-    if (cursor == LT_VALUE_NIL){
+    if (cursor == LT_NIL){
         result = -result;
         return checked_fixnum_from_i128(result, "-");
     }
 
-    while (cursor != LT_VALUE_NIL){
+    while (cursor != LT_NIL){
         int64_t arg_value;
         LT_FIXNUM_ARG(cursor, arg_value);
         result -= arg_value;
@@ -61,7 +61,7 @@ static LT_Value primitive_multiply(LT_Value arguments){
     __int128 product = 1;
     LT_Value cursor = arguments;
 
-    while (cursor != LT_VALUE_NIL){
+    while (cursor != LT_NIL){
         int64_t arg_value;
         LT_FIXNUM_ARG(cursor, arg_value);
         product *= arg_value;
@@ -81,11 +81,11 @@ static LT_Value primitive_divide(LT_Value arguments){
     LT_FIXNUM_ARG(cursor, first_value);
     result = first_value;
 
-    if (cursor == LT_VALUE_NIL){
+    if (cursor == LT_NIL){
         LT_error("Primitive / expects at least two arguments");
     }
 
-    while (cursor != LT_VALUE_NIL){
+    while (cursor != LT_NIL){
         int64_t divisor;
         LT_FIXNUM_ARG(cursor, divisor);
         if (divisor == 0){
@@ -126,12 +126,12 @@ static LT_Value special_form_lambda(LT_Value arguments,
 
     LT_OBJECT_ARG(cursor, parameters);
     LT_ARG_REST(cursor, body);
-    if (body == LT_VALUE_NIL){
+    if (body == LT_NIL){
         LT_error("Special form lambda expects body");
     }
 
     parameter_cursor = parameters;
-    while (parameter_cursor != LT_VALUE_NIL){
+    while (parameter_cursor != LT_NIL){
         LT_Value parameter;
         if (!LT_Value_is_pair(parameter_cursor)){
             LT_error("Lambda parameters must be proper list");
@@ -151,20 +151,20 @@ static LT_Value special_form_if(LT_Value arguments,
     LT_Value cursor = arguments;
     LT_Value condition_expression;
     LT_Value then_expression;
-    LT_Value else_expression = LT_VALUE_NIL;
+    LT_Value else_expression = LT_NIL;
     LT_Value condition_value;
 
     LT_OBJECT_ARG(cursor, condition_expression);
     LT_OBJECT_ARG(cursor, then_expression);
-    LT_OBJECT_ARG_OPT(cursor, else_expression, LT_VALUE_NIL);
+    LT_OBJECT_ARG_OPT(cursor, else_expression, LT_NIL);
     LT_ARG_END(cursor);
 
     condition_value = LT_eval(condition_expression, environment);
-    if (condition_value != LT_VALUE_NIL){
+    if (condition_value != LT_NIL){
         return LT_eval(then_expression, environment);
     }
-    if (else_expression == LT_VALUE_NIL){
-        return LT_VALUE_NIL;
+    if (else_expression == LT_NIL){
+        return LT_NIL;
     }
     return LT_eval(else_expression, environment);
 }

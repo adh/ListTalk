@@ -379,12 +379,12 @@ static LT_Value read_quote_syntax(
 }
 
 static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
-    LT_Value head = LT_VALUE_NIL;
-    LT_Value tail = LT_VALUE_NIL;
+    LT_Value head = LT_NIL;
+    LT_Value tail = LT_NIL;
     int ch = read_non_space_char(stream);
 
     if (ch == ')'){
-        return LT_VALUE_NIL;
+        return LT_NIL;
     }
 
     while (1){
@@ -399,9 +399,9 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
         }
 
         item = read_object_from_first(reader, stream, ch);
-        node = LT_cons(item, LT_VALUE_NIL);
+        node = LT_cons(item, LT_NIL);
 
-        if (head == LT_VALUE_NIL){
+        if (head == LT_NIL){
             head = node;
         } else {
             LT_Pair_set_cdr(tail, node);

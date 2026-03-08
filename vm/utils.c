@@ -93,14 +93,14 @@ size_t LT_StringBuilder_length(LT_StringBuilder* builder){
 
 LT_ListBuilder* LT_ListBuilder_new(){
     LT_ListBuilder* builder = GC_NEW(LT_ListBuilder);
-    builder->head = LT_VALUE_NIL;
-    builder->tail = LT_VALUE_NIL;
+    builder->head = LT_NIL;
+    builder->tail = LT_NIL;
     builder->length = 0;
     return builder;
 }
 
 void LT_ListBuilder_append(LT_ListBuilder* builder, LT_Value value){
-    LT_Value pair = LT_cons(value, LT_VALUE_NIL);
+    LT_Value pair = LT_cons(value, LT_NIL);
 
     if (builder->length == 0){
         builder->head = pair;
