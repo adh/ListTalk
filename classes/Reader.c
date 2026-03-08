@@ -8,6 +8,7 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/Vector.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
@@ -39,6 +40,7 @@ static LT_Value read_object_from_first(
     int first
 );
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 
 static int file_stream_getc(void* stream){
     LT_FileReaderStream* file_stream = (LT_FileReaderStream*)stream;
@@ -280,6 +282,8 @@ static LT_Value read_dispatch_macro(
     }
 
     switch (ch){
+        case '(':
+            return read_vector_literal(reader, stream);
         case '!':
             ch = LT_ReaderStream_getc(stream);
             while (ch != EOF && ch != '\n'){
@@ -310,6 +314,49 @@ static LT_Value read_dispatch_macro(
 
 static LT_Value LT_Value_from_object(LT_Object* obj){
     return (LT_Value)(uintptr_t)obj;
+}
+
+static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value cursor;
+    size_t length = 0;
+    size_t i = 0;
+    LT_Vector* vector;
+    int ch = read_non_space_char(stream);
+
+    if (ch == ')'){
+        return LT_Value_from_object((LT_Object*)LT_Vector_new(0));
+    }
+
+    while (1){
+        LT_Value item;
+
+        if (ch == EOF){
+            LT_error("Unterminated vector literal");
+        }
+        if (ch == '.'){
+            LT_error("Unexpected dot in vector literal");
+        }
+
+        item = read_object_from_first(reader, stream, ch);
+        LT_ListBuilder_append(builder, item);
+        length++;
+
+        ch = read_non_space_char(stream);
+        if (ch == ')'){
+            break;
+        }
+    }
+
+    vector = LT_Vector_new(length);
+    cursor = LT_ListBuilder_value(builder);
+    while (cursor != LT_NIL){
+        LT_Vector_atPut(vector, i, LT_car(cursor));
+        i++;
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_Value_from_object((LT_Object*)vector);
 }
 
 static LT_Value read_quote_syntax(

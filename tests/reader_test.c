@@ -10,6 +10,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Vector.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -420,6 +421,63 @@ static int test_slot_accessor_syntax(void){
     return expect(LT_cdr(tail) == LT_NIL, "slot accessor arg list end");
 }
 
+static int test_vector_literal_empty(void){
+    LT_Value value = read_one("#()");
+    LT_Vector* vector;
+
+    if (expect(LT_Value_class(value) == &LT_Vector_class, "empty vector class")){
+        return 1;
+    }
+    vector = LT_Vector_from_object(value);
+    return expect(LT_Vector_length(vector) == 0, "empty vector length");
+}
+
+static int test_vector_literal_values(void){
+    LT_Value value = read_one("#(alpha 42 :beta)");
+    LT_Vector* vector;
+    LT_Value item;
+
+    if (expect(LT_Value_class(value) == &LT_Vector_class, "vector class")){
+        return 1;
+    }
+    vector = LT_Vector_from_object(value);
+    if (expect(LT_Vector_length(vector) == 3, "vector length")){
+        return 1;
+    }
+
+    item = LT_Vector_at(vector, 0);
+    if (expect(
+        LT_Value_is_symbol(item)
+            && strcmp(LT_Symbol_name(LT_Symbol_from_object(item)), "alpha") == 0,
+        "vector first item"
+    )){
+        return 1;
+    }
+
+    item = LT_Vector_at(vector, 1);
+    if (expect(
+        LT_Value_is_fixnum(item) && LT_Value_fixnum_value(item) == 42,
+        "vector second item"
+    )){
+        return 1;
+    }
+
+    item = LT_Vector_at(vector, 2);
+    if (expect(LT_Value_is_symbol(item), "vector third item symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_object(item)) == LT_PACKAGE_KEYWORD,
+        "vector third item keyword package"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(item)), "beta") == 0,
+        "vector third item keyword name"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -447,6 +505,8 @@ int main(void){
     failures += test_bracket_unary_send_syntax();
     failures += test_bracket_keyword_send_syntax();
     failures += test_slot_accessor_syntax();
+    failures += test_vector_literal_empty();
+    failures += test_vector_literal_values();
 
     if (failures == 0){
         puts("reader tests passed");
