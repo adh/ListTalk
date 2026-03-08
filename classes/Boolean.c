@@ -10,11 +10,11 @@
 
 static void Boolean_debugPrintOn(LT_Value obj, FILE* stream){
     if (obj == LT_TRUE){
-        fputs("true", stream);
+        fputs("#true", stream);
         return;
     }
     if (obj == LT_FALSE){
-        fputs("false", stream);
+        fputs("#false", stream);
         return;
     }
     fprintf(stream, "#<boolean 0x%" PRIxPTR ">", (uintptr_t)obj);
