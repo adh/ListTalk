@@ -8,6 +8,7 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
@@ -98,30 +99,59 @@ static LT_Value apply_closure(LT_Value closure_value, LT_Value evaluated_argumen
     return eval_sequence(LT_Closure_body(closure), application_environment);
 }
 
-static LT_Value apply_form(LT_Value operator,
-                           LT_Value argument_expressions,
-                           LT_Environment* environment){
-    LT_Value evaluated_operator = eval_form(operator, environment);
-    LT_Value evaluated_arguments;
+static LT_Value apply_callable(LT_Value callable,
+                               LT_Value argument_expressions,
+                               LT_Environment* environment,
+                               int evaluate_arguments){
+    LT_Value arguments = argument_expressions;
 
-    if (LT_Value_is_special_form(evaluated_operator)){
-        return LT_SpecialForm_apply(
-            evaluated_operator,
-            argument_expressions,
-            environment
-        );
+    if (LT_Value_is_special_form(callable)){
+        return LT_SpecialForm_apply(callable, argument_expressions, environment);
     }
-
-    evaluated_arguments = eval_list_items(argument_expressions, environment);
-    if (LT_Value_is_primitive(evaluated_operator)){
-        return LT_Primitive_call(evaluated_operator, evaluated_arguments);
+    if (evaluate_arguments){
+        arguments = eval_list_items(argument_expressions, environment);
     }
-    if (LT_Value_is_closure(evaluated_operator)){
-        return apply_closure(evaluated_operator, evaluated_arguments);
+    if (LT_Value_is_primitive(callable)){
+        return LT_Primitive_call(callable, arguments);
+    }
+    if (LT_Value_is_closure(callable)){
+        return apply_closure(callable, arguments);
     }
 
     LT_error("Tried to apply non-callable value");
     return LT_NIL;
+}
+
+static LT_Value apply_form(LT_Value operator,
+                           LT_Value argument_expressions,
+                           LT_Environment* environment){
+    LT_Value evaluated_operator = eval_form(operator, environment);
+    LT_Value expansion;
+    LT_Value implementation;
+
+    if (LT_Value_is_macro(evaluated_operator)){
+        implementation = LT_Macro_callable(
+            LT_Macro_from_object(evaluated_operator)
+        );
+        if (!LT_Value_is_primitive(implementation)
+            && !LT_Value_is_closure(implementation)){
+            LT_error("Macro implementation must be primitive or closure");
+        }
+        expansion = apply_callable(
+            implementation,
+            argument_expressions,
+            environment,
+            0
+        );
+        return eval_form(expansion, environment);
+    }
+
+    return apply_callable(
+        evaluated_operator,
+        argument_expressions,
+        environment,
+        1
+    );
 }
 
 static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){

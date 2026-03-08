@@ -24,6 +24,7 @@ vm_lib = library(
                 'classes/Vector.c',
                 'classes/Closure.c',
                 'classes/Primitive.c',
+                'classes/Macro.c',
                 'classes/SpecialForm.c',
                 'classes/Nil.c',
                 'classes/Pair.c',

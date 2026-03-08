@@ -12,6 +12,7 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 
 #include <inttypes.h>
@@ -29,7 +30,7 @@ LT_Class* const LT__Pointer_classes[8] = {
     &LT_Symbol_class,
     &LT_Closure_class,
     &LT_Primitive_class,
-    &LT_Class_class,
+    &LT_Macro_class,
     &LT_SpecialForm_class
 };
 

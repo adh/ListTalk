@@ -8,6 +8,7 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -211,6 +212,28 @@ static LT_Value special_form_set_bang(LT_Value arguments,
     return value;
 }
 
+static int LT_Value_is_macro_implementation(LT_Value value){
+    return LT_Value_is_primitive(value)
+        || LT_Value_is_closure(value);
+}
+
+static LT_Value special_form_macro(LT_Value arguments,
+                                   LT_Environment* environment){
+    LT_Value cursor = arguments;
+    LT_Value callable_expression;
+    LT_Value callable;
+
+    LT_OBJECT_ARG(cursor, callable_expression);
+    LT_ARG_END(cursor);
+
+    callable = LT_eval(callable_expression, environment);
+    if (!LT_Value_is_macro_implementation(callable)){
+        LT_error("Special form macro expects primitive or closure");
+    }
+
+    return LT_Macro_new(callable);
+}
+
 static void bind_primitive(LT_Environment* environment,
                            char* name,
                            LT_Primitive_Func function){
@@ -245,6 +268,7 @@ LT_Environment* LT_new_base_environment(void){
     bind_special_form(environment, "if", special_form_if);
     bind_special_form(environment, "define", special_form_define);
     bind_special_form(environment, "set!", special_form_set_bang);
+    bind_special_form(environment, "macro", special_form_macro);
     return environment;
 }
 

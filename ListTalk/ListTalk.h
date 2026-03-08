@@ -20,6 +20,7 @@
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 
 LT__BEGIN_DECLS

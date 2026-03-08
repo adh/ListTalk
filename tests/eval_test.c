@@ -187,6 +187,35 @@ static int test_set_bang_parent_binding(void){
     );
 }
 
+static int test_macro_special_form_constructs_macro(void){
+    LT_Value value = eval_one("(macro (lambda (x) x))");
+    return expect(
+        LT_Value_is_macro(value),
+        "macro special form creates macro value"
+    );
+}
+
+static int test_macro_expansion_is_evaluated(void){
+    LT_Value value = eval_one("((macro (lambda (x) x)) (+ 1 2))");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 3,
+        "macro expansion is evaluated"
+    );
+}
+
+static int test_macro_expansion_uses_call_environment(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define x 42)"), env);
+    (void)LT_eval(read_one("(define id-macro (macro (lambda (x) x)))"), env);
+    result = LT_eval(read_one("(id-macro x)"), env);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 42,
+        "macro expansion evaluates in caller environment"
+    );
+}
+
 static int test_symbol_class_inherits_object(void){
     if (expect(LT_Symbol_class.superclasses != NULL, "symbol has superclass")){
         return 1;
@@ -242,6 +271,9 @@ int main(void){
     failures += test_define_special_form();
     failures += test_set_bang_special_form();
     failures += test_set_bang_parent_binding();
+    failures += test_macro_special_form_constructs_macro();
+    failures += test_macro_expansion_is_evaluated();
+    failures += test_macro_expansion_uses_call_environment();
     failures += test_symbol_class_inherits_object();
     failures += test_boolean_constants();
 
