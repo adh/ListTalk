@@ -208,6 +208,80 @@ static LT_Value read_atom(int first, LT_ReaderStream* stream){
     return LT_Symbol_new(LT_StringBuilder_value(builder));
 }
 
+static void consume_dispatch_suffix_or_short(
+    LT_ReaderStream* stream,
+    const char* suffix
+){
+    int ch = LT_ReaderStream_getc(stream);
+
+    if (is_delimiter(ch)){
+        if (ch != EOF){
+            LT_ReaderStream_ungetc(stream, ch);
+        }
+        return;
+    }
+
+    while (*suffix != '\0'){
+        if (ch != (unsigned char)(*suffix)){
+            LT_error("Invalid dispatch macro spelling");
+        }
+        suffix++;
+        if (*suffix != '\0'){
+            ch = LT_ReaderStream_getc(stream);
+        }
+    }
+
+    ch = LT_ReaderStream_getc(stream);
+    if (!is_delimiter(ch)){
+        LT_error("Invalid dispatch macro spelling");
+    }
+    if (ch != EOF){
+        LT_ReaderStream_ungetc(stream, ch);
+    }
+}
+
+static LT_Value read_dispatch_macro(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    int ch = LT_ReaderStream_getc(stream);
+
+    if (ch == EOF){
+        LT_error("Expected dispatch token after '#'");
+    }
+    if (isdigit((unsigned char)ch)){
+        LT_error("Dispatch token after '#' must start with non-numeric character");
+    }
+
+    switch (ch){
+        case '!':
+            ch = LT_ReaderStream_getc(stream);
+            while (ch != EOF && ch != '\n'){
+                ch = LT_ReaderStream_getc(stream);
+            }
+            ch = read_non_space_char(stream);
+            if (ch == EOF){
+                LT_error("Unexpected end of input");
+            }
+            return read_object_from_first(reader, stream, ch);
+        case '<':
+            LT_error("Unreadable object in input");
+            return LT_NIL;
+        case 't':
+            consume_dispatch_suffix_or_short(stream, "rue");
+            return LT_TRUE;
+        case 'f':
+            consume_dispatch_suffix_or_short(stream, "alse");
+            return LT_FALSE;
+        case 'n':
+            consume_dispatch_suffix_or_short(stream, "il");
+            return LT_NIL;
+        default:
+            LT_error("Unknown dispatch macro character");
+            return LT_NIL;
+    }
+}
+
 static LT_Value LT_Value_from_object(LT_Object* obj){
     return (LT_Value)(uintptr_t)obj;
 }
@@ -286,6 +360,9 @@ static LT_Value read_object_from_first(
     }
     if (first == '[' || first == ']'){
         LT_error("Bracket list syntax is not implemented in reader yet");
+    }
+    if (first == '#'){
+        return read_dispatch_macro(reader, stream);
     }
 
     return read_atom(first, stream);

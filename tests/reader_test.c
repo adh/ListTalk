@@ -163,6 +163,34 @@ static int test_symbol_not_number(void){
     );
 }
 
+static int test_dispatch_boolean_true(void){
+    LT_Value value = read_one("#t");
+    return expect(value == LT_TRUE, "dispatch #t");
+}
+
+static int test_dispatch_boolean_false(void){
+    LT_Value value = read_one("#false");
+    return expect(value == LT_FALSE, "dispatch #false");
+}
+
+static int test_dispatch_nil(void){
+    LT_Value value = read_one("#nil");
+    return expect(value == LT_NIL, "dispatch #nil");
+}
+
+static int test_dispatch_nil_short(void){
+    LT_Value value = read_one("#n");
+    return expect(value == LT_NIL, "dispatch #n");
+}
+
+static int test_dispatch_bang_comment(void){
+    LT_Value value = read_one("#! read-comment\nalpha");
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_object(value)), "alpha") == 0,
+        "dispatch #! line comment"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -177,6 +205,11 @@ int main(void){
     failures += test_fixnum_literal();
     failures += test_negative_fixnum_literal();
     failures += test_symbol_not_number();
+    failures += test_dispatch_boolean_true();
+    failures += test_dispatch_boolean_false();
+    failures += test_dispatch_nil();
+    failures += test_dispatch_nil_short();
+    failures += test_dispatch_bang_comment();
 
     if (failures == 0){
         puts("reader tests passed");
