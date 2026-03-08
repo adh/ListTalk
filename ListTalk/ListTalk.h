@@ -13,6 +13,7 @@
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/vm/base_env.h>
 #include <ListTalk/classes/Object.h>
+#include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Nil.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>

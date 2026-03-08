@@ -52,8 +52,15 @@ typedef uintptr_t LT_Value;
     | ((uintptr_t)(value) & 0x00ffffffffffffffULL) \
     | 0x8000000000000000ULL))
 
-#define LT_VALUE_NIL \
+#define LT_NIL \
     LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_NIL, 0)
+#define LT_TRUE \
+    LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_BOOLEAN, 1)
+#define LT_FALSE \
+    LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_BOOLEAN, 0)
+
+/* Backwards compatibility alias. */
+#define LT_VALUE_NIL LT_NIL
 
 #define LT_VALUE_FIXNUM_MIN (-(INT64_C(1) << 55))
 #define LT_VALUE_FIXNUM_MAX ((INT64_C(1) << 55) - 1)
@@ -71,6 +78,15 @@ extern LT_Class LT_Float_class;
 static inline int LT_Value_is_fixnum(LT_Value value){
     return LT_VALUE_IS_IMMEDIATE(value)
         && LT_VALUE_IMMEDIATE_TAG(value) == LT_VALUE_IMMEDIATE_TAG_FIXNUM;
+}
+
+static inline int LT_Value_is_boolean(LT_Value value){
+    return LT_VALUE_IS_IMMEDIATE(value)
+        && LT_VALUE_IMMEDIATE_TAG(value) == LT_VALUE_IMMEDIATE_TAG_BOOLEAN;
+}
+
+static inline int LT_Value_boolean_value(LT_Value value){
+    return LT_VALUE_IMMEDIATE_VALUE(value) != 0;
 }
 
 static inline int LT_Value_fixnum_in_range(int64_t value){

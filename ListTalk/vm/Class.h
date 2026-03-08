@@ -81,7 +81,7 @@ typedef struct LT_Method_Descriptor {
     LT_Value function; /* function, no special case for native code */
 } LT_Method_Descriptor;
 
-#define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, LT_VALUE_NIL}
+#define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, LT_NIL}
 struct LT_Class_Descriptor_s {
     LT_Class* superclass;
     LT_Class* metaclass_superclass;

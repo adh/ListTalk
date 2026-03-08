@@ -15,6 +15,7 @@ vm_lib = library(
                 'vm/init.c',
                 'vm/error.c',
                 'classes/Object.c',
+                'classes/Boolean.c',
                 'classes/Printer.c',
                 'classes/Reader.c',
                 'classes/Package.c',

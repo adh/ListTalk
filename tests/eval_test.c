@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/Symbol.h>
@@ -160,6 +161,26 @@ static int test_symbol_class_inherits_object(void){
     );
 }
 
+static int test_boolean_constants(void){
+    if (expect(LT_Value_is_boolean(LT_TRUE), "LT_TRUE is boolean")){
+        return 1;
+    }
+    if (expect(LT_Value_is_boolean(LT_FALSE), "LT_FALSE is boolean")){
+        return 1;
+    }
+    if (expect(LT_Value_boolean_value(LT_TRUE) == 1, "LT_TRUE value")){
+        return 1;
+    }
+    if (expect(LT_Value_boolean_value(LT_FALSE) == 0, "LT_FALSE value")){
+        return 1;
+    }
+    return expect(
+        LT_Value_class(LT_TRUE) == &LT_Boolean_class
+            && LT_Value_class(LT_FALSE) == &LT_Boolean_class,
+        "boolean class mapping"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -177,6 +198,7 @@ int main(void){
     failures += test_set_bang_special_form();
     failures += test_set_bang_parent_binding();
     failures += test_symbol_class_inherits_object();
+    failures += test_boolean_constants();
 
     if (failures == 0){
         puts("eval tests passed");

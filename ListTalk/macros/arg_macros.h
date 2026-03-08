@@ -15,7 +15,7 @@
 
 #define LT_OBJECT_ARG(al, name)                                      \
     do {                                                             \
-        if ((al) == LT_VALUE_NIL){                                   \
+        if ((al) == LT_NIL){                                   \
             LT_error("Required argument missing: " #name);           \
         }                                                            \
         if (!LT_Value_is_pair((al))){                                \
@@ -27,7 +27,7 @@
 
 #define LT_DISCARD_ARG(al, name)                                     \
     do {                                                             \
-        if ((al) == LT_VALUE_NIL){                                   \
+        if ((al) == LT_NIL){                                   \
             LT_error("Required argument missing: " #name);           \
         }                                                            \
         if (!LT_Value_is_pair((al))){                                \
@@ -38,7 +38,7 @@
 
 #define LT_OBJECT_ARG_OPT(al, name, default_value)                   \
     do {                                                             \
-        if ((al) == LT_VALUE_NIL){                                   \
+        if ((al) == LT_NIL){                                   \
             (name) = (default_value);                                \
         } else {                                                     \
             LT_OBJECT_ARG((al), (name));                             \
@@ -54,7 +54,7 @@
 
 #define LT_GENERIC_ARG_OPT(al, name, default_value, c_type, conv)    \
     do {                                                             \
-        if ((al) == LT_VALUE_NIL){                                   \
+        if ((al) == LT_NIL){                                   \
             (name) = (default_value);                                \
         } else {                                                     \
             LT_GENERIC_ARG((al), (name), c_type, conv);              \
@@ -73,7 +73,7 @@
 
 #define LT_ARG_END(al)                                               \
     do {                                                             \
-        if ((al) != LT_VALUE_NIL){                                   \
+        if ((al) != LT_NIL){                                   \
             LT_error("Too many arguments");                          \
         }                                                            \
     } while (0)
