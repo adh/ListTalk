@@ -21,8 +21,21 @@ typedef LT_Value(*LT_SpecialForm_Func)(
     LT_Environment* environment
 );
 
-LT_Value LT_SpecialForm_new(char* name, LT_SpecialForm_Func function);
+struct LT_SpecialForm_s {
+    LT_SpecialForm_Func function;
+    char* name;
+    char* arguments;
+    char* description;
+};
+
+LT_Value LT_SpecialForm_new(char* name,
+                            char* arguments,
+                            char* description,
+                            LT_SpecialForm_Func function);
+LT_Value LT_SpecialForm_from_static(LT_SpecialForm* special_form);
 char* LT_SpecialForm_name(LT_SpecialForm* special_form);
+char* LT_SpecialForm_arguments(LT_SpecialForm* special_form);
+char* LT_SpecialForm_description(LT_SpecialForm* special_form);
 LT_SpecialForm_Func LT_SpecialForm_function(LT_SpecialForm* special_form);
 LT_Value LT_SpecialForm_apply(
     LT_Value special_form,

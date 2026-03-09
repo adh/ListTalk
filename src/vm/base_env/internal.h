@@ -14,9 +14,6 @@
 void LT_base_env_bind_primitive(LT_Environment* environment,
                                 char* name,
                                 LT_Primitive_Func function);
-void LT_base_env_bind_special_form(LT_Environment* environment,
-                                   char* name,
-                                   LT_SpecialForm_Func function);
 
 void LT_base_env_bind_numbers(LT_Environment* environment);
 void LT_base_env_bind_primitives(LT_Environment* environment);

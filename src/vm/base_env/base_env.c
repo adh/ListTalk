@@ -6,7 +6,6 @@
 #include "internal.h"
 
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
 
 void LT_base_env_bind_primitive(LT_Environment* environment,
@@ -16,17 +15,6 @@ void LT_base_env_bind_primitive(LT_Environment* environment,
         environment,
         LT_Symbol_new(name),
         LT_Primitive_new(name, function),
-        LT_ENV_BINDING_FLAG_CONSTANT
-    );
-}
-
-void LT_base_env_bind_special_form(LT_Environment* environment,
-                                   char* name,
-                                   LT_SpecialForm_Func function){
-    LT_Environment_bind(
-        environment,
-        LT_Symbol_new(name),
-        LT_SpecialForm_new(name, function),
         LT_ENV_BINDING_FLAG_CONSTANT
     );
 }

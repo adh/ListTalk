@@ -139,11 +139,63 @@ static LT_Value special_form_macro(LT_Value arguments,
     return LT_Macro_new(callable);
 }
 
+static LT_SpecialForm quote_special_form = {
+    .function = special_form_quote,
+    .name = "quote",
+    .arguments = "(value)",
+    .description = "Return value without evaluation."
+};
+
+static LT_SpecialForm lambda_special_form = {
+    .function = special_form_lambda,
+    .name = "lambda",
+    .arguments = "((arg ...) body ...)",
+    .description = "Create closure with lexical scope."
+};
+
+static LT_SpecialForm if_special_form = {
+    .function = special_form_if,
+    .name = "if",
+    .arguments = "(condition then [else])",
+    .description = "Evaluate then or else based on condition."
+};
+
+static LT_SpecialForm define_special_form = {
+    .function = special_form_define,
+    .name = "define",
+    .arguments = "(symbol value-expression)",
+    .description = "Create mutable binding in current environment."
+};
+
+static LT_SpecialForm set_bang_special_form = {
+    .function = special_form_set_bang,
+    .name = "set!",
+    .arguments = "(symbol value-expression)",
+    .description = "Update existing mutable binding."
+};
+
+static LT_SpecialForm macro_special_form = {
+    .function = special_form_macro,
+    .name = "macro",
+    .arguments = "(callable-expression)",
+    .description = "Wrap primitive or closure as macro."
+};
+
+static void bind_static_special_form(LT_Environment* environment,
+                                     LT_SpecialForm* special_form){
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new(special_form->name),
+        LT_SpecialForm_from_static(special_form),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+}
+
 void LT_base_env_bind_special_forms(LT_Environment* environment){
-    LT_base_env_bind_special_form(environment, "quote", special_form_quote);
-    LT_base_env_bind_special_form(environment, "lambda", special_form_lambda);
-    LT_base_env_bind_special_form(environment, "if", special_form_if);
-    LT_base_env_bind_special_form(environment, "define", special_form_define);
-    LT_base_env_bind_special_form(environment, "set!", special_form_set_bang);
-    LT_base_env_bind_special_form(environment, "macro", special_form_macro);
+    bind_static_special_form(environment, &quote_special_form);
+    bind_static_special_form(environment, &lambda_special_form);
+    bind_static_special_form(environment, &if_special_form);
+    bind_static_special_form(environment, &define_special_form);
+    bind_static_special_form(environment, &set_bang_special_form);
+    bind_static_special_form(environment, &macro_special_form);
 }
