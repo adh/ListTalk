@@ -7,7 +7,9 @@
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Reader.h>
+#include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/Vector.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -38,7 +40,7 @@ static LT_Value eval_one(const char* source){
 static int test_add(void){
     LT_Value value = eval_one("(+ 1 2 3)");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 6,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 6,
         "addition"
     );
 }
@@ -46,7 +48,7 @@ static int test_add(void){
 static int test_subtract_unary(void){
     LT_Value value = eval_one("(- 7)");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == -7,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == -7,
         "unary subtraction"
     );
 }
@@ -54,7 +56,7 @@ static int test_subtract_unary(void){
 static int test_multiply(void){
     LT_Value value = eval_one("(* 4 5)");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 20,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 20,
         "multiplication"
     );
 }
@@ -62,7 +64,7 @@ static int test_multiply(void){
 static int test_divide(void){
     LT_Value value = eval_one("(/ 20 2 2)");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 5,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 5,
         "division"
     );
 }
@@ -70,7 +72,7 @@ static int test_divide(void){
 static int test_symbol_lookup(void){
     LT_Value value = eval_one("+");
     return expect(
-        LT_Value_is_primitive(value),
+        LT_Primitive_p(value),
         "symbol lookup in base environment"
     );
 }
@@ -78,17 +80,17 @@ static int test_symbol_lookup(void){
 static int test_keyword_self_evaluating_when_unbound(void){
     LT_Value value = eval_one(":token");
 
-    if (expect(LT_Value_is_symbol(value), "keyword eval result is symbol")){
+    if (expect(LT_Symbol_p(value), "keyword eval result is symbol")){
         return 1;
     }
     if (expect(
-        LT_Symbol_package(LT_Symbol_from_object(value)) == LT_PACKAGE_KEYWORD,
+        LT_Symbol_package(LT_Symbol_from_value(value)) == LT_PACKAGE_KEYWORD,
         "keyword symbol package"
     )){
         return 1;
     }
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(value)), "token") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "token") == 0,
         "keyword symbol name"
     );
 }
@@ -104,17 +106,17 @@ static int test_type_of_primitive(void){
 static int test_cons_primitive(void){
     LT_Value value = eval_one("(cons 1 2)");
 
-    if (expect(LT_Value_is_pair(value), "cons returns pair")){
+    if (expect(LT_Pair_p(value), "cons returns pair")){
         return 1;
     }
     if (expect(
-        LT_Value_is_fixnum(LT_car(value)) && LT_Value_fixnum_value(LT_car(value)) == 1,
+        LT_Value_is_fixnum(LT_car(value)) && LT_SmallInteger_value(LT_car(value)) == 1,
         "cons sets car"
     )){
         return 1;
     }
     return expect(
-        LT_Value_is_fixnum(LT_cdr(value)) && LT_Value_fixnum_value(LT_cdr(value)) == 2,
+        LT_Value_is_fixnum(LT_cdr(value)) && LT_SmallInteger_value(LT_cdr(value)) == 2,
         "cons sets cdr"
     );
 }
@@ -122,7 +124,7 @@ static int test_cons_primitive(void){
 static int test_car_primitive(void){
     LT_Value value = eval_one("(car '(7 8 9))");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 7,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 7,
         "car returns first element"
     );
 }
@@ -130,18 +132,18 @@ static int test_car_primitive(void){
 static int test_cdr_primitive(void){
     LT_Value value = eval_one("(cdr '(7 8 9))");
 
-    if (expect(LT_Value_is_pair(value), "cdr of non-empty list returns pair")){
+    if (expect(LT_Pair_p(value), "cdr of non-empty list returns pair")){
         return 1;
     }
     if (expect(
-        LT_Value_is_fixnum(LT_car(value)) && LT_Value_fixnum_value(LT_car(value)) == 8,
+        LT_Value_is_fixnum(LT_car(value)) && LT_SmallInteger_value(LT_car(value)) == 8,
         "cdr first element"
     )){
         return 1;
     }
     return expect(
         LT_Value_is_fixnum(LT_car(LT_cdr(value)))
-            && LT_Value_fixnum_value(LT_car(LT_cdr(value))) == 9,
+            && LT_SmallInteger_value(LT_car(LT_cdr(value))) == 9,
         "cdr second element"
     );
 }
@@ -162,18 +164,115 @@ static int test_pair_predicate_primitive(void){
     );
 }
 
+static int test_string_predicate_primitive(void){
+    LT_Value string_value = eval_one("(string? \"abc\")");
+    LT_Value fixnum_value = eval_one("(string? 1)");
+
+    if (expect(
+        LT_Value_is_boolean(string_value) && LT_Value_boolean_value(string_value),
+        "string? true for strings"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(fixnum_value) && !LT_Value_boolean_value(fixnum_value),
+        "string? false for non-strings"
+    );
+}
+
+static int test_string_length_primitive(void){
+    LT_Value value = eval_one("(string-length \"hello\")");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 5,
+        "string-length"
+    );
+}
+
+static int test_string_ref_primitive(void){
+    LT_Value value = eval_one("(string-ref \"ABC\" 1)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 66,
+        "string-ref returns byte value"
+    );
+}
+
+static int test_string_append_primitive(void){
+    LT_Value value = eval_one("(string-append \"ab\" \"cd\")");
+
+    if (expect(LT_Value_class(value) == &LT_String_class, "string-append returns string")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "abcd") == 0,
+        "string-append concatenates"
+    );
+}
+
+static int test_vector_predicate_primitive(void){
+    LT_Value vector_value = eval_one("(vector? #(1 2))");
+    LT_Value fixnum_value = eval_one("(vector? 1)");
+
+    if (expect(
+        LT_Value_is_boolean(vector_value) && LT_Value_boolean_value(vector_value),
+        "vector? true for vectors"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(fixnum_value) && !LT_Value_boolean_value(fixnum_value),
+        "vector? false for non-vectors"
+    );
+}
+
+static int test_vector_length_primitive(void){
+    LT_Value value = eval_one("(vector-length #(1 2 3))");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "vector-length"
+    );
+}
+
+static int test_vector_constructor_and_ref_primitive(void){
+    LT_Value value = eval_one("(vector-ref (vector 4 5 6) 2)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 6,
+        "vector constructor and vector-ref"
+    );
+}
+
+static int test_make_vector_primitive(void){
+    LT_Value value = eval_one("(vector-ref (make-vector 3 9) 1)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 9,
+        "make-vector with fill value"
+    );
+}
+
+static int test_vector_set_bang_primitive(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define v (vector 1 2 3))"), env);
+    (void)LT_eval(read_one("(vector-set! v 1 99)"), env);
+    result = LT_eval(read_one("(vector-ref v 1)"), env);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 99,
+        "vector-set! mutates vector"
+    );
+}
+
 static int test_quote(void){
     LT_Value value = eval_one("(quote (+ 1 2))");
 
-    if (expect(LT_Value_is_pair(value), "quote returns list")){
+    if (expect(LT_Pair_p(value), "quote returns list")){
         return 1;
     }
-    if (expect(LT_Value_is_symbol(LT_car(value)), "quote list first is symbol")){
+    if (expect(LT_Symbol_p(LT_car(value)), "quote list first is symbol")){
         return 1;
     }
 
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(value))), "+") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(value))), "+") == 0,
         "quote does not evaluate"
     );
 }
@@ -181,15 +280,15 @@ static int test_quote(void){
 static int test_quote_reader_syntax(void){
     LT_Value value = eval_one("'(+ 1 2)");
 
-    if (expect(LT_Value_is_pair(value), "quote reader syntax returns list")){
+    if (expect(LT_Pair_p(value), "quote reader syntax returns list")){
         return 1;
     }
-    if (expect(LT_Value_is_symbol(LT_car(value)), "quote reader list first symbol")){
+    if (expect(LT_Symbol_p(LT_car(value)), "quote reader list first symbol")){
         return 1;
     }
 
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(value))), "+") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(value))), "+") == 0,
         "quote reader syntax does not evaluate"
     );
 }
@@ -197,7 +296,7 @@ static int test_quote_reader_syntax(void){
 static int test_lambda_application(void){
     LT_Value value = eval_one("((lambda (x y) (+ x y)) 3 4)");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 7,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 7,
         "closure application"
     );
 }
@@ -205,7 +304,7 @@ static int test_lambda_application(void){
 static int test_if_special_form(void){
     LT_Value value = eval_one("(if () 1 2)");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 2,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
         "if false branch"
     );
 }
@@ -217,7 +316,7 @@ static int test_define_special_form(void){
     (void)LT_eval(read_one("(define add1 (lambda (x) (+ x 1)))"), env);
     result = LT_eval(read_one("(add1 9)"), env);
     return expect(
-        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 10,
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 10,
         "define binds value in current environment"
     );
 }
@@ -230,7 +329,7 @@ static int test_set_bang_special_form(void){
     (void)LT_eval(read_one("(set! x 42)"), env);
     result = LT_eval(read_one("x"), env);
     return expect(
-        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 42,
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
         "set! updates existing binding"
     );
 }
@@ -243,7 +342,7 @@ static int test_set_bang_parent_binding(void){
     (void)LT_eval(read_one("((lambda () (set! x 9)))"), env);
     result = LT_eval(read_one("x"), env);
     return expect(
-        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 9,
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 9,
         "set! updates lexical parent binding"
     );
 }
@@ -251,7 +350,7 @@ static int test_set_bang_parent_binding(void){
 static int test_macro_special_form_constructs_macro(void){
     LT_Value value = eval_one("(macro (lambda (x) x))");
     return expect(
-        LT_Value_is_macro(value),
+        LT_Macro_p(value),
         "macro special form creates macro value"
     );
 }
@@ -259,7 +358,7 @@ static int test_macro_special_form_constructs_macro(void){
 static int test_macro_expansion_is_evaluated(void){
     LT_Value value = eval_one("((macro (lambda (x) x)) (+ 1 2))");
     return expect(
-        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 3,
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
         "macro expansion is evaluated"
     );
 }
@@ -272,7 +371,7 @@ static int test_macro_expansion_uses_call_environment(void){
     (void)LT_eval(read_one("(define id-macro (macro (lambda (x) x)))"), env);
     result = LT_eval(read_one("(id-macro x)"), env);
     return expect(
-        LT_Value_is_fixnum(result) && LT_Value_fixnum_value(result) == 42,
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
         "macro expansion evaluates in caller environment"
     );
 }
@@ -329,6 +428,15 @@ int main(void){
     failures += test_car_primitive();
     failures += test_cdr_primitive();
     failures += test_pair_predicate_primitive();
+    failures += test_string_predicate_primitive();
+    failures += test_string_length_primitive();
+    failures += test_string_ref_primitive();
+    failures += test_string_append_primitive();
+    failures += test_vector_predicate_primitive();
+    failures += test_vector_length_primitive();
+    failures += test_vector_constructor_and_ref_primitive();
+    failures += test_make_vector_primitive();
+    failures += test_vector_set_bang_primitive();
     failures += test_quote();
     failures += test_quote_reader_syntax();
     failures += test_lambda_application();

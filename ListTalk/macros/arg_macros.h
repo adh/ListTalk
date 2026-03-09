@@ -8,6 +8,7 @@
 
 #include <ListTalk/macros/env_macros.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/value.h>
 
@@ -18,7 +19,7 @@
         if ((al) == LT_NIL){                                   \
             LT_error("Required argument missing: " #name);           \
         }                                                            \
-        if (!LT_Value_is_pair((al))){                                \
+        if (!LT_Pair_p((al))){                                \
             LT_error("Malformed argument list while parsing " #name); \
         }                                                            \
         (name) = LT_car((al));                                       \
@@ -30,7 +31,7 @@
         if ((al) == LT_NIL){                                   \
             LT_error("Required argument missing: " #name);           \
         }                                                            \
-        if (!LT_Value_is_pair((al))){                                \
+        if (!LT_Pair_p((al))){                                \
             LT_error("Malformed argument list while parsing " #name); \
         }                                                            \
         (al) = LT_cdr((al));                                         \
@@ -68,7 +69,7 @@
         if (!LT_Value_is_fixnum(LT___arg_tmp)){                      \
             LT_error("Expected fixnum argument: " #name);            \
         }                                                            \
-        (name) = LT_Value_fixnum_value(LT___arg_tmp);                \
+        (name) = LT_SmallInteger_value(LT___arg_tmp);                \
     } while (0)
 
 #define LT_ARG_END(al)                                               \

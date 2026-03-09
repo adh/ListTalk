@@ -43,11 +43,6 @@ LT_Value LT_SpecialForm_apply(
     LT_Environment* environment
 );
 
-static inline int LT_Value_is_special_form(LT_Value value){
-    return LT_VALUE_IS_POINTER(value)
-        && LT_VALUE_POINTER_TAG(value) == LT_VALUE_POINTER_TAG_SPECIAL_FORM;
-}
-
 LT__END_DECLS
 
 #endif

@@ -16,8 +16,11 @@
     typedef struct name##_s name; \
     extern LT_Class name##_class; \
     extern LT_Class name##_class_class; \
-    static inline name* name##_from_object(LT_Value value){ \
-        if (LT_Value_class(value) != &name##_class) { \
+    static inline int name##_p(LT_Value value){ \
+        return LT_Value_class(value) == &name##_class; \
+    } \
+    static inline name* name##_from_value(LT_Value value){ \
+        if (!name##_p(value)) { \
             LT_type_error(value, &name##_class); \
         } \
         return (name*)LT_VALUE_POINTER_VALUE(value); \

@@ -7,7 +7,6 @@
 
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/error.h>
 
 static LT_Value primitive_cons(LT_Value arguments){
     LT_Value cursor = arguments;
@@ -26,9 +25,7 @@ static LT_Value primitive_car(LT_Value arguments){
 
     LT_OBJECT_ARG(cursor, pair_value);
     LT_ARG_END(cursor);
-    if (!LT_Value_is_pair(pair_value)){
-        LT_error("Primitive car expects pair");
-    }
+    LT_Pair_from_value(pair_value);
     return LT_car(pair_value);
 }
 
@@ -38,9 +35,7 @@ static LT_Value primitive_cdr(LT_Value arguments){
 
     LT_OBJECT_ARG(cursor, pair_value);
     LT_ARG_END(cursor);
-    if (!LT_Value_is_pair(pair_value)){
-        LT_error("Primitive cdr expects pair");
-    }
+    LT_Pair_from_value(pair_value);
     return LT_cdr(pair_value);
 }
 
@@ -50,7 +45,7 @@ static LT_Value primitive_pair_p(LT_Value arguments){
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return LT_Value_is_pair(value) ? LT_TRUE : LT_FALSE;
+    return LT_Pair_p(value) ? LT_TRUE : LT_FALSE;
 }
 
 void LT_base_env_bind_lists(LT_Environment* environment){

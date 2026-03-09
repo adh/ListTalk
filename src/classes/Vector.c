@@ -14,7 +14,7 @@ struct LT_Vector_s {
 };
 
 static void Vector_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Vector* vector = LT_Vector_from_object(obj);
+    LT_Vector* vector = LT_Vector_from_value(obj);
     size_t i;
 
     fputs("#(", stream);

@@ -8,7 +8,7 @@
 #include <ListTalk/utils.h>
 
 static void SpecialForm_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_SpecialForm* special_form = LT_SpecialForm_from_object(obj);
+    LT_SpecialForm* special_form = LT_SpecialForm_from_value(obj);
     if (special_form->name == NULL){
         fputs("#<SpecialForm>", stream);
         return;
@@ -77,7 +77,7 @@ LT_Value LT_SpecialForm_apply(LT_Value special_form,
                               LT_Value arguments,
                               LT_Environment* environment){
     LT_SpecialForm_Func function = LT_SpecialForm_function(
-        LT_SpecialForm_from_object(special_form)
+        LT_SpecialForm_from_value(special_form)
     );
     return function(arguments, environment);
 }

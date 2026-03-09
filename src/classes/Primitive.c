@@ -13,7 +13,7 @@ struct LT_Primitive_s {
 };
 
 static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Primitive* primitive = LT_Primitive_from_object(obj);
+    LT_Primitive* primitive = LT_Primitive_from_value(obj);
     if (primitive->name == NULL){
         fputs("#<Primitive>", stream);
         return;
@@ -53,7 +53,7 @@ LT_Primitive_Func LT_Primitive_function(LT_Primitive* primitive){
 
 LT_Value LT_Primitive_call(LT_Value primitive, LT_Value arguments){
     LT_Primitive_Func function = LT_Primitive_function(
-        LT_Primitive_from_object(primitive)
+        LT_Primitive_from_value(primitive)
     );
     return function(arguments);
 }

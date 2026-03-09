@@ -17,7 +17,9 @@ LT_DECLARE_CLASS(LT_String);
 
 LT_String* LT_String_new(char* buf, size_t len);
 LT_String* LT_String_new_cstr(char* str);
-char* LT_String_value_cstr(LT_String* string);
+const char* LT_String_value_cstr(LT_String* string);
+size_t LT_String_length(LT_String* string);
+unsigned char LT_String_at(LT_String* string, size_t index);
 
 LT__END_DECLS
 

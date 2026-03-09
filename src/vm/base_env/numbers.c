@@ -13,7 +13,7 @@ static LT_Value checked_fixnum_from_i128(__int128 result){
         LT_error("Fixnum arithmetic overflow");
     }
 
-    return LT_Value_fixnum((int64_t)result);
+    return LT_SmallInteger_new((int64_t)result);
 }
 
 static LT_Value primitive_add(LT_Value arguments){

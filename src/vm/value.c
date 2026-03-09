@@ -43,8 +43,8 @@ void LT_Value_debugPrintOn(LT_Value value, FILE* stream){
         return;
     }
 
-    if (klass != NULL && LT_Value_is_symbol(klass->name)){
-        class_name = LT_Symbol_name(LT_Symbol_from_object(klass->name));
+    if (klass != NULL && LT_Symbol_p(klass->name)){
+        class_name = LT_Symbol_name(LT_Symbol_from_value(klass->name));
     }
 
     fprintf(

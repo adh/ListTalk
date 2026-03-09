@@ -22,7 +22,7 @@ LT_Package LT_Package_KEYWORD = {0};
 static int predefined_packages_initialized = 0;
 
 static void Package_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Package* package = LT_Package_from_object(obj);
+    LT_Package* package = LT_Package_from_value(obj);
     if (package->name == NULL){
         fputs("#<Package>", stream);
         return;
@@ -132,7 +132,7 @@ LT_Value LT_Package_intern_symbol(LT_Package* package, char* name){
     value = LT__Symbol_new_uninterned(package, name);
     LT_StringHash_at_put(
         &package->symbol_table,
-        LT_Symbol_name(LT_Symbol_from_object(value)),
+        LT_Symbol_name(LT_Symbol_from_value(value)),
         LT_VALUE_POINTER_VALUE(value)
     );
     return value;

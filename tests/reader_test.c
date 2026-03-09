@@ -37,14 +37,14 @@ static int test_symbol(void){
     LT_Value value = read_one("alpha");
     LT_Symbol* symbol;
 
-    if (expect(LT_Value_is_symbol(value), "symbol tag")){
+    if (expect(LT_Symbol_p(value), "symbol tag")){
         return 1;
     }
     if (expect(LT_Value_class(value) == &LT_Symbol_class, "symbol class")){
         return 1;
     }
 
-    symbol = LT_Symbol_from_object(value);
+    symbol = LT_Symbol_from_value(value);
     return expect(strcmp(LT_Symbol_name(symbol), "alpha") == 0, "symbol value");
 }
 
@@ -56,7 +56,7 @@ static int test_string(void){
         return 1;
     }
 
-    string = LT_String_from_object(value);
+    string = LT_String_from_value(value);
     return expect(
         strcmp(LT_String_value_cstr(string), "a\n\"b") == 0,
         "string value"
@@ -72,22 +72,22 @@ static int test_proper_list(void){
     LT_Value list = read_one("(a b)");
     LT_Value tail;
 
-    if (expect(LT_Value_is_pair(list), "proper list head pair")){
+    if (expect(LT_Pair_p(list), "proper list head pair")){
         return 1;
     }
     if (expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(list))), "a") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(list))), "a") == 0,
         "proper list first element"
     )){
         return 1;
     }
 
     tail = LT_cdr(list);
-    if (expect(LT_Value_is_pair(tail), "proper list second pair")){
+    if (expect(LT_Pair_p(tail), "proper list second pair")){
         return 1;
     }
     if (expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(tail))), "b") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(tail))), "b") == 0,
         "proper list second element"
     )){
         return 1;
@@ -99,18 +99,18 @@ static int test_proper_list(void){
 static int test_dotted_pair(void){
     LT_Value pair = read_one("(a . b)");
 
-    if (expect(LT_Value_is_pair(pair), "dotted pair type")){
+    if (expect(LT_Pair_p(pair), "dotted pair type")){
         return 1;
     }
     if (expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(pair))), "a") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(pair))), "a") == 0,
         "dotted pair car"
     )){
         return 1;
     }
 
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_cdr(pair))), "b") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_cdr(pair))), "b") == 0,
         "dotted pair cdr"
     );
 }
@@ -118,7 +118,7 @@ static int test_dotted_pair(void){
 static int test_comment_and_whitespace(void){
     LT_Value value = read_one("  ; comment here\n  token");
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(value)), "token") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "token") == 0,
         "comment and whitespace skipping"
     );
 }
@@ -134,7 +134,7 @@ static int test_fixnum_literal(void){
     }
 
     return expect(
-        LT_Value_fixnum_value(value) == 12345,
+        LT_SmallInteger_value(value) == 12345,
         "fixnum value"
     );
 }
@@ -147,7 +147,7 @@ static int test_negative_fixnum_literal(void){
     }
 
     return expect(
-        LT_Value_fixnum_value(value) == -42,
+        LT_SmallInteger_value(value) == -42,
         "negative fixnum value"
     );
 }
@@ -155,12 +155,12 @@ static int test_negative_fixnum_literal(void){
 static int test_symbol_not_number(void){
     LT_Value value = read_one("123abc");
 
-    if (expect(LT_Value_is_symbol(value), "mixed token is symbol")){
+    if (expect(LT_Symbol_p(value), "mixed token is symbol")){
         return 1;
     }
 
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(value)), "123abc") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "123abc") == 0,
         "mixed token symbol value"
     );
 }
@@ -188,7 +188,7 @@ static int test_dispatch_nil_short(void){
 static int test_dispatch_bang_comment(void){
     LT_Value value = read_one("#! read-comment\nalpha");
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(value)), "alpha") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "alpha") == 0,
         "dispatch #! line comment"
     );
 }
@@ -197,13 +197,13 @@ static int test_quote_syntax(void){
     LT_Value value = read_one("'a");
     LT_Value tail;
 
-    if (expect(LT_Value_is_pair(value), "quote syntax returns list")){
+    if (expect(LT_Pair_p(value), "quote syntax returns list")){
         return 1;
     }
     if (expect(
-        LT_Value_is_symbol(LT_car(value))
+        LT_Symbol_p(LT_car(value))
             && strcmp(
-                LT_Symbol_name(LT_Symbol_from_object(LT_car(value))),
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
                 "quote"
             ) == 0,
         "quote syntax head symbol"
@@ -212,13 +212,13 @@ static int test_quote_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Value_is_pair(tail), "quote syntax has single argument")){
+    if (expect(LT_Pair_p(tail), "quote syntax has single argument")){
         return 1;
     }
     if (expect(
-        LT_Value_is_symbol(LT_car(tail))
+        LT_Symbol_p(LT_car(tail))
             && strcmp(
-                LT_Symbol_name(LT_Symbol_from_object(LT_car(tail))),
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(tail))),
                 "a"
             ) == 0,
         "quote syntax quoted value"
@@ -242,7 +242,7 @@ static int test_symbol_package_interning(void){
     }
 
     return expect(
-        LT_Symbol_package(LT_Symbol_from_object(keyword_symbol))
+        LT_Symbol_package(LT_Symbol_from_value(keyword_symbol))
             == LT_PACKAGE_KEYWORD,
         "symbol stores package"
     );
@@ -250,9 +250,9 @@ static int test_symbol_package_interning(void){
 
 static int test_package_prefixed_symbol(void){
     LT_Value value = read_one("foo:bar");
-    LT_Symbol* symbol = LT_Symbol_from_object(value);
+    LT_Symbol* symbol = LT_Symbol_from_value(value);
 
-    if (expect(LT_Value_is_symbol(value), "package-prefixed token is symbol")){
+    if (expect(LT_Symbol_p(value), "package-prefixed token is symbol")){
         return 1;
     }
     if (expect(strcmp(LT_Symbol_name(symbol), "bar") == 0, "prefixed symbol name")){
@@ -266,7 +266,7 @@ static int test_package_prefixed_symbol(void){
 
 static int test_package_prefix_last_colon_split(void){
     LT_Value value = read_one("http://example.org:path:item");
-    LT_Symbol* symbol = LT_Symbol_from_object(value);
+    LT_Symbol* symbol = LT_Symbol_from_value(value);
 
     if (expect(
         strcmp(LT_Symbol_name(symbol), "item") == 0,
@@ -285,7 +285,7 @@ static int test_package_prefix_last_colon_split(void){
 
 static int test_keyword_prefix_symbol(void){
     LT_Value value = read_one(":foo:bar");
-    LT_Symbol* symbol = LT_Symbol_from_object(value);
+    LT_Symbol* symbol = LT_Symbol_from_value(value);
 
     if (expect(
         strcmp(LT_Package_name(LT_Symbol_package(symbol)), "keyword") == 0,
@@ -304,13 +304,13 @@ static int test_bracket_unary_send_syntax(void){
     LT_Value tail;
     LT_Value selector;
 
-    if (expect(LT_Value_is_pair(value), "bracket unary expands to list")){
+    if (expect(LT_Pair_p(value), "bracket unary expands to list")){
         return 1;
     }
     if (expect(
-        LT_Value_is_symbol(LT_car(value))
+        LT_Symbol_p(LT_car(value))
             && strcmp(
-                LT_Symbol_name(LT_Symbol_from_object(LT_car(value))),
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
                 "send"
             ) == 0,
         "bracket unary send selector"
@@ -319,21 +319,21 @@ static int test_bracket_unary_send_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Value_is_pair(tail), "bracket unary has receiver")){
+    if (expect(LT_Pair_p(tail), "bracket unary has receiver")){
         return 1;
     }
     selector = LT_car(LT_cdr(tail));
-    if (expect(LT_Value_is_symbol(selector), "bracket unary keyword selector")){
+    if (expect(LT_Symbol_p(selector), "bracket unary keyword selector")){
         return 1;
     }
     if (expect(
-        LT_Symbol_package(LT_Symbol_from_object(selector)) == LT_PACKAGE_KEYWORD,
+        LT_Symbol_package(LT_Symbol_from_value(selector)) == LT_PACKAGE_KEYWORD,
         "bracket unary selector package"
     )){
         return 1;
     }
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(selector)), "foo") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(selector)), "foo") == 0,
         "bracket unary selector name"
     );
 }
@@ -344,26 +344,26 @@ static int test_bracket_keyword_send_syntax(void){
     LT_Value selector;
     LT_Value args;
 
-    if (expect(LT_Value_is_pair(value), "bracket keyword expands to list")){
+    if (expect(LT_Pair_p(value), "bracket keyword expands to list")){
         return 1;
     }
     tail = LT_cdr(value);
-    if (expect(LT_Value_is_pair(tail), "bracket keyword has receiver")){
+    if (expect(LT_Pair_p(tail), "bracket keyword has receiver")){
         return 1;
     }
     selector = LT_car(LT_cdr(tail));
-    if (expect(LT_Value_is_symbol(selector), "bracket keyword selector symbol")){
+    if (expect(LT_Symbol_p(selector), "bracket keyword selector symbol")){
         return 1;
     }
     if (expect(
-        LT_Symbol_package(LT_Symbol_from_object(selector)) == LT_PACKAGE_KEYWORD,
+        LT_Symbol_package(LT_Symbol_from_value(selector)) == LT_PACKAGE_KEYWORD,
         "bracket keyword selector package"
     )){
         return 1;
     }
     if (expect(
         strcmp(
-            LT_Symbol_name(LT_Symbol_from_object(selector)),
+            LT_Symbol_name(LT_Symbol_from_value(selector)),
             "token:token:"
         ) == 0,
         "bracket keyword selector name"
@@ -372,21 +372,21 @@ static int test_bracket_keyword_send_syntax(void){
     }
 
     args = LT_cdr(LT_cdr(tail));
-    if (expect(LT_Value_is_pair(args), "first keyword argument exists")){
+    if (expect(LT_Pair_p(args), "first keyword argument exists")){
         return 1;
     }
     if (expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(args))), "bar") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(args))), "bar") == 0,
         "first keyword argument"
     )){
         return 1;
     }
     args = LT_cdr(args);
-    if (expect(LT_Value_is_pair(args), "second keyword argument exists")){
+    if (expect(LT_Pair_p(args), "second keyword argument exists")){
         return 1;
     }
     if (expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(args))), "baz") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(args))), "baz") == 0,
         "second keyword argument"
     )){
         return 1;
@@ -398,22 +398,22 @@ static int test_slot_accessor_syntax(void){
     LT_Value value = read_one(".slot");
     LT_Value tail;
 
-    if (expect(LT_Value_is_pair(value), "slot accessor expands to list")){
+    if (expect(LT_Pair_p(value), "slot accessor expands to list")){
         return 1;
     }
     if (expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(value))), "%self-slot") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(value))), "%self-slot") == 0,
         "slot accessor operator"
     )){
         return 1;
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Value_is_pair(tail), "slot accessor has symbol argument")){
+    if (expect(LT_Pair_p(tail), "slot accessor has symbol argument")){
         return 1;
     }
     if (expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(LT_car(tail))), "slot") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(tail))), "slot") == 0,
         "slot accessor symbol"
     )){
         return 1;
@@ -428,7 +428,7 @@ static int test_vector_literal_empty(void){
     if (expect(LT_Value_class(value) == &LT_Vector_class, "empty vector class")){
         return 1;
     }
-    vector = LT_Vector_from_object(value);
+    vector = LT_Vector_from_value(value);
     return expect(LT_Vector_length(vector) == 0, "empty vector length");
 }
 
@@ -440,15 +440,15 @@ static int test_vector_literal_values(void){
     if (expect(LT_Value_class(value) == &LT_Vector_class, "vector class")){
         return 1;
     }
-    vector = LT_Vector_from_object(value);
+    vector = LT_Vector_from_value(value);
     if (expect(LT_Vector_length(vector) == 3, "vector length")){
         return 1;
     }
 
     item = LT_Vector_at(vector, 0);
     if (expect(
-        LT_Value_is_symbol(item)
-            && strcmp(LT_Symbol_name(LT_Symbol_from_object(item)), "alpha") == 0,
+        LT_Symbol_p(item)
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(item)), "alpha") == 0,
         "vector first item"
     )){
         return 1;
@@ -456,24 +456,24 @@ static int test_vector_literal_values(void){
 
     item = LT_Vector_at(vector, 1);
     if (expect(
-        LT_Value_is_fixnum(item) && LT_Value_fixnum_value(item) == 42,
+        LT_Value_is_fixnum(item) && LT_SmallInteger_value(item) == 42,
         "vector second item"
     )){
         return 1;
     }
 
     item = LT_Vector_at(vector, 2);
-    if (expect(LT_Value_is_symbol(item), "vector third item symbol")){
+    if (expect(LT_Symbol_p(item), "vector third item symbol")){
         return 1;
     }
     if (expect(
-        LT_Symbol_package(LT_Symbol_from_object(item)) == LT_PACKAGE_KEYWORD,
+        LT_Symbol_package(LT_Symbol_from_value(item)) == LT_PACKAGE_KEYWORD,
         "vector third item keyword package"
     )){
         return 1;
     }
     return expect(
-        strcmp(LT_Symbol_name(LT_Symbol_from_object(item)), "beta") == 0,
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(item)), "beta") == 0,
         "vector third item keyword name"
     );
 }

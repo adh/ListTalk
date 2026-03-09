@@ -22,11 +22,6 @@ char* LT_Primitive_name(LT_Primitive* primitive);
 LT_Primitive_Func LT_Primitive_function(LT_Primitive* primitive);
 LT_Value LT_Primitive_call(LT_Value primitive, LT_Value arguments);
 
-static inline int LT_Value_is_primitive(LT_Value value){
-    return LT_VALUE_IS_POINTER(value)
-        && LT_VALUE_POINTER_TAG(value) == LT_VALUE_POINTER_TAG_PRIMITIVE;
-}
-
 LT__END_DECLS
 
 #endif

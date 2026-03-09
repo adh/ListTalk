@@ -15,7 +15,7 @@ struct LT_SmallInteger_s {
 
 static void SmallInteger_debugPrintOn(LT_Value obj, FILE* stream){
     if (LT_Value_is_fixnum(obj)){
-        fprintf(stream, "%" PRId64, LT_Value_fixnum_value(obj));
+        fprintf(stream, "%" PRId64, LT_SmallInteger_value(obj));
         return;
     }
 

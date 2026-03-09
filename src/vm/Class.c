@@ -16,10 +16,10 @@ static void Class_debugPrintOn(LT_Value obj, FILE* stream){
         fputs("#<Class Metaclass>", stream);
         return;
     }
-    if (LT_Value_is_symbol(klass->name)){
+    if (LT_Symbol_p(klass->name)){
         fputs("#<Class ", stream);
         fputs(
-            LT_Symbol_name(LT_Symbol_from_object(klass->name)),
+            LT_Symbol_name(LT_Symbol_from_value(klass->name)),
             stream
         );
         fputc('>', stream);

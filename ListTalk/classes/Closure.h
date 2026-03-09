@@ -25,11 +25,6 @@ LT_Value LT_Closure_parameters(LT_Closure* closure);
 LT_Value LT_Closure_body(LT_Closure* closure);
 LT_Environment* LT_Closure_environment(LT_Closure* closure);
 
-static inline int LT_Value_is_closure(LT_Value value){
-    return LT_VALUE_IS_POINTER(value)
-        && LT_VALUE_POINTER_TAG(value) == LT_VALUE_POINTER_TAG_CLOSURE;
-}
-
 LT__END_DECLS
 
 #endif

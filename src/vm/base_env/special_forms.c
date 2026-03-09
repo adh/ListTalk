@@ -39,11 +39,11 @@ static LT_Value special_form_lambda(LT_Value arguments,
     parameter_cursor = parameters;
     while (parameter_cursor != LT_NIL){
         LT_Value parameter;
-        if (!LT_Value_is_pair(parameter_cursor)){
+        if (!LT_Pair_p(parameter_cursor)){
             LT_error("Lambda parameters must be proper list");
         }
         parameter = LT_car(parameter_cursor);
-        if (!LT_Value_is_symbol(parameter)){
+        if (!LT_Symbol_p(parameter)){
             LT_error("Lambda parameter must be symbol");
         }
         parameter_cursor = LT_cdr(parameter_cursor);
@@ -85,7 +85,7 @@ static LT_Value special_form_define(LT_Value arguments,
     LT_OBJECT_ARG(cursor, symbol);
     LT_OBJECT_ARG(cursor, value_expression);
 
-    if (!LT_Value_is_symbol(symbol)){
+    if (!LT_Symbol_p(symbol)){
         LT_error("Special form define expects symbol as first argument");
     }
     LT_ARG_END(cursor);
@@ -105,7 +105,7 @@ static LT_Value special_form_set_bang(LT_Value arguments,
     LT_OBJECT_ARG(cursor, symbol);
     LT_OBJECT_ARG(cursor, value_expression);
 
-    if (!LT_Value_is_symbol(symbol)){
+    if (!LT_Symbol_p(symbol)){
         LT_error("Special form set! expects symbol as first argument");
     }
     LT_ARG_END(cursor);
@@ -117,9 +117,9 @@ static LT_Value special_form_set_bang(LT_Value arguments,
     return value;
 }
 
-static int LT_Value_is_macro_implementation(LT_Value value){
-    return LT_Value_is_primitive(value)
-        || LT_Value_is_closure(value);
+static int LT_Macro_p_implementation(LT_Value value){
+    return LT_Primitive_p(value)
+        || LT_Closure_p(value);
 }
 
 static LT_Value special_form_macro(LT_Value arguments,
@@ -132,7 +132,7 @@ static LT_Value special_form_macro(LT_Value arguments,
     LT_ARG_END(cursor);
 
     callable = LT_eval(callable_expression, environment);
-    if (!LT_Value_is_macro_implementation(callable)){
+    if (!LT_Macro_p_implementation(callable)){
         LT_error("Special form macro expects primitive or closure");
     }
 

@@ -183,11 +183,11 @@ static int parse_fixnum_token(const char* token, LT_Value* value){
     if (errno == ERANGE || end == token || *end != '\0'){
         return 0;
     }
-    if (!LT_Value_fixnum_in_range((int64_t)parsed)){
+    if (!LT_SmallInteger_in_range((int64_t)parsed)){
         return 0;
     }
 
-    *value = LT_Value_fixnum((int64_t)parsed);
+    *value = LT_SmallInteger_new((int64_t)parsed);
     return 1;
 }
 

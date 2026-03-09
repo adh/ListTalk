@@ -22,11 +22,6 @@ extern LT_Value LT_Symbol_parse_token(char* token);
 extern char* LT_Symbol_name(LT_Symbol* symbol);
 extern LT_Package* LT_Symbol_package(LT_Symbol* symbol);
 
-static inline int LT_Value_is_symbol(LT_Value value){
-    return LT_VALUE_IS_POINTER(value)
-        && LT_VALUE_POINTER_TAG(value) == LT_VALUE_POINTER_TAG_SYMBOL;
-}
-
 LT__END_DECLS
 
 #endif

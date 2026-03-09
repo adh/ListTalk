@@ -5,6 +5,7 @@
 
 #include <ListTalk/classes/String.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/error.h>
 
 #include <ctype.h>
 #include <string.h>
@@ -16,8 +17,8 @@ struct LT_String_s {
 };
 
 static void String_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_String* string = LT_String_from_object(obj);
-    char* cursor = LT_String_value_cstr(string);
+    LT_String* string = LT_String_from_value(obj);
+    const char* cursor = LT_String_value_cstr(string);
 
     fputc('"', stream);
     while (*cursor != '\0'){
@@ -69,6 +70,17 @@ LT_String* LT_String_new(char* buf, size_t len){
 LT_String* LT_String_new_cstr(char* str){
     return LT_String_new(str, strlen(str));
 }
-char* LT_String_value_cstr(LT_String* string){
+const char* LT_String_value_cstr(LT_String* string){
     return string->str;
+}
+
+size_t LT_String_length(LT_String* string){
+    return string->length;
+}
+
+unsigned char LT_String_at(LT_String* string, size_t index){
+    if (index >= string->length){
+        LT_error("String index out of bounds");
+    }
+    return (unsigned char)string->str[index];
 }

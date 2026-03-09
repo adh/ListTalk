@@ -21,7 +21,7 @@ static LT_Value eval_list_items(LT_Value list, LT_Environment* environment){
     LT_Value cursor = list;
 
     while (cursor != LT_NIL){
-        if (!LT_Value_is_pair(cursor)){
+        if (!LT_Pair_p(cursor)){
             LT_error("Application expects a proper list of arguments");
         }
         LT_ListBuilder_append(
@@ -43,13 +43,13 @@ static void bind_closure_parameters(LT_Value parameters,
     while (parameter_cursor != LT_NIL && argument_cursor != LT_NIL){
         LT_Value parameter;
 
-        if (!LT_Value_is_pair(parameter_cursor)
-            || !LT_Value_is_pair(argument_cursor)){
+        if (!LT_Pair_p(parameter_cursor)
+            || !LT_Pair_p(argument_cursor)){
             LT_error("Closure application expects proper argument lists");
         }
 
         parameter = LT_car(parameter_cursor);
-        if (!LT_Value_is_symbol(parameter)){
+        if (!LT_Symbol_p(parameter)){
             LT_error("Closure parameter must be symbol");
         }
 
@@ -74,7 +74,7 @@ static LT_Value eval_sequence(LT_Value body, LT_Environment* environment){
     LT_Value result = LT_NIL;
 
     while (cursor != LT_NIL){
-        if (!LT_Value_is_pair(cursor)){
+        if (!LT_Pair_p(cursor)){
             LT_error("Closure body expects proper list of forms");
         }
         result = eval_form(LT_car(cursor), environment);
@@ -85,7 +85,7 @@ static LT_Value eval_sequence(LT_Value body, LT_Environment* environment){
 }
 
 static LT_Value apply_closure(LT_Value closure_value, LT_Value evaluated_arguments){
-    LT_Closure* closure = LT_Closure_from_object(closure_value);
+    LT_Closure* closure = LT_Closure_from_value(closure_value);
     LT_Environment* application_environment = LT_Environment_new(
         LT_Closure_environment(closure)
     );
@@ -105,16 +105,16 @@ static LT_Value apply_callable(LT_Value callable,
                                int evaluate_arguments){
     LT_Value arguments = argument_expressions;
 
-    if (LT_Value_is_special_form(callable)){
+    if (LT_SpecialForm_p(callable)){
         return LT_SpecialForm_apply(callable, argument_expressions, environment);
     }
     if (evaluate_arguments){
         arguments = eval_list_items(argument_expressions, environment);
     }
-    if (LT_Value_is_primitive(callable)){
+    if (LT_Primitive_p(callable)){
         return LT_Primitive_call(callable, arguments);
     }
-    if (LT_Value_is_closure(callable)){
+    if (LT_Closure_p(callable)){
         return apply_closure(callable, arguments);
     }
 
@@ -129,12 +129,12 @@ static LT_Value apply_form(LT_Value operator,
     LT_Value expansion;
     LT_Value implementation;
 
-    if (LT_Value_is_macro(evaluated_operator)){
+    if (LT_Macro_p(evaluated_operator)){
         implementation = LT_Macro_callable(
-            LT_Macro_from_object(evaluated_operator)
+            LT_Macro_from_value(evaluated_operator)
         );
-        if (!LT_Value_is_primitive(implementation)
-            && !LT_Value_is_closure(implementation)){
+        if (!LT_Primitive_p(implementation)
+            && !LT_Closure_p(implementation)){
             LT_error("Macro implementation must be primitive or closure");
         }
         expansion = apply_callable(
@@ -158,7 +158,7 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
     LT_Value value;
 
     if (!LT_Environment_lookup(environment, symbol, &value, NULL)){
-        if (LT_Symbol_package(LT_Symbol_from_object(symbol))
+        if (LT_Symbol_package(LT_Symbol_from_value(symbol))
             == LT_PACKAGE_KEYWORD){
             return symbol;
         }
@@ -168,11 +168,11 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
 }
 
 static LT_Value eval_form(LT_Value expression, LT_Environment* environment){
-    if (LT_Value_is_symbol(expression)){
+    if (LT_Symbol_p(expression)){
         return eval_symbol(expression, environment);
     }
 
-    if (LT_Value_is_pair(expression)){
+    if (LT_Pair_p(expression)){
         return apply_form(
             LT_car(expression),
             LT_cdr(expression),

@@ -14,6 +14,8 @@ vm_lib = library(
                 'src/vm/base_env/numbers.c',
                 'src/vm/base_env/primitives.c',
                 'src/vm/base_env/lists.c',
+                'src/vm/base_env/strings.c',
+                'src/vm/base_env/vectors.c',
                 'src/vm/base_env/special_forms.c',
                 'src/vm/utils.c',
                 'src/vm/init.c',

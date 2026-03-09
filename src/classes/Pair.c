@@ -14,7 +14,7 @@ struct LT_Pair_s {
 };
 
 static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Pair* pair = LT_Pair_from_object(obj);
+    LT_Pair* pair = LT_Pair_from_value(obj);
     fputc('(', stream);
     while (1){
         LT_Value_debugPrintOn(pair->car, stream);
@@ -22,9 +22,9 @@ static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
         if (pair->cdr == LT_NIL){
             break;
         }
-        if (LT_Value_is_pair(pair->cdr)){
+        if (LT_Pair_p(pair->cdr)){
             fputc(' ', stream);
-            pair = LT_Pair_from_object(pair->cdr);
+            pair = LT_Pair_from_value(pair->cdr);
             continue;
         }
 
@@ -98,17 +98,17 @@ LT_Value LT_list_with_rest(LT_Value first, ...){
 }
 
 LT_Value LT_car(LT_Value pair){
-    return LT_Pair_from_object(pair)->car;
+    return LT_Pair_from_value(pair)->car;
 }
 
 LT_Value LT_cdr(LT_Value pair){
-    return LT_Pair_from_object(pair)->cdr;
+    return LT_Pair_from_value(pair)->cdr;
 }
 
 void LT_Pair_set_car(LT_Value pair, LT_Value value){
-    LT_Pair_from_object(pair)->car = value;
+    LT_Pair_from_value(pair)->car = value;
 }
 
 void LT_Pair_set_cdr(LT_Value pair, LT_Value value){
-    LT_Pair_from_object(pair)->cdr = value;
+    LT_Pair_from_value(pair)->cdr = value;
 }

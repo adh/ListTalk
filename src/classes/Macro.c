@@ -11,7 +11,7 @@ struct LT_Macro_s {
 };
 
 static void Macro_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Macro* macro = LT_Macro_from_object(obj);
+    LT_Macro* macro = LT_Macro_from_value(obj);
 
     fputs("#<Macro ", stream);
     LT_Value_debugPrintOn(macro->callable, stream);

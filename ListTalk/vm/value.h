@@ -90,27 +90,6 @@ static inline int LT_Value_boolean_value(LT_Value value){
     return LT_VALUE_IMMEDIATE_VALUE(value) != 0;
 }
 
-static inline int LT_Value_fixnum_in_range(int64_t value){
-    return value >= LT_VALUE_FIXNUM_MIN && value <= LT_VALUE_FIXNUM_MAX;
-}
-
-static inline LT_Value LT_Value_fixnum(int64_t value){
-    return LT_VALUE_MAKE_IMMEDIATE(
-        LT_VALUE_IMMEDIATE_TAG_FIXNUM,
-        (uint64_t)value
-    );
-}
-
-static inline int64_t LT_Value_fixnum_value(LT_Value value){
-    uint64_t raw = LT_VALUE_IMMEDIATE_VALUE(value);
-
-    if (raw & (UINT64_C(1) << 55)){
-        raw |= UINT64_C(0xff00000000000000);
-    }
-
-    return (int64_t)raw;
-}
-
 static inline LT_Class* LT_Value_class(LT_Value value){
     if (LT_VALUE_IS_IMMEDIATE(value)){
         if (LT_VALUE_IMMEDIATE_TAG_IS_FLONUM(LT_VALUE_IMMEDIATE_TAG(value))){
