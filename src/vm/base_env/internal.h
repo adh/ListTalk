@@ -17,6 +17,7 @@ void LT_base_env_bind_primitive(LT_Environment* environment,
 
 void LT_base_env_bind_numbers(LT_Environment* environment);
 void LT_base_env_bind_primitives(LT_Environment* environment);
+void LT_base_env_bind_lists(LT_Environment* environment);
 void LT_base_env_bind_special_forms(LT_Environment* environment);
 
 #endif

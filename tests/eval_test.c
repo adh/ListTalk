@@ -101,6 +101,67 @@ static int test_type_of_primitive(void){
     );
 }
 
+static int test_cons_primitive(void){
+    LT_Value value = eval_one("(cons 1 2)");
+
+    if (expect(LT_Value_is_pair(value), "cons returns pair")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(value)) && LT_Value_fixnum_value(LT_car(value)) == 1,
+        "cons sets car"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_cdr(value)) && LT_Value_fixnum_value(LT_cdr(value)) == 2,
+        "cons sets cdr"
+    );
+}
+
+static int test_car_primitive(void){
+    LT_Value value = eval_one("(car '(7 8 9))");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_Value_fixnum_value(value) == 7,
+        "car returns first element"
+    );
+}
+
+static int test_cdr_primitive(void){
+    LT_Value value = eval_one("(cdr '(7 8 9))");
+
+    if (expect(LT_Value_is_pair(value), "cdr of non-empty list returns pair")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(value)) && LT_Value_fixnum_value(LT_car(value)) == 8,
+        "cdr first element"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(value)))
+            && LT_Value_fixnum_value(LT_car(LT_cdr(value))) == 9,
+        "cdr second element"
+    );
+}
+
+static int test_pair_predicate_primitive(void){
+    LT_Value pair_value = eval_one("(pair? '(1 . 2))");
+    LT_Value fixnum_value = eval_one("(pair? 1)");
+
+    if (expect(
+        LT_Value_is_boolean(pair_value) && LT_Value_boolean_value(pair_value),
+        "pair? true for pair"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(fixnum_value) && !LT_Value_boolean_value(fixnum_value),
+        "pair? false for non-pair"
+    );
+}
+
 static int test_quote(void){
     LT_Value value = eval_one("(quote (+ 1 2))");
 
@@ -264,6 +325,10 @@ int main(void){
     failures += test_symbol_lookup();
     failures += test_keyword_self_evaluating_when_unbound();
     failures += test_type_of_primitive();
+    failures += test_cons_primitive();
+    failures += test_car_primitive();
+    failures += test_cdr_primitive();
+    failures += test_pair_predicate_primitive();
     failures += test_quote();
     failures += test_quote_reader_syntax();
     failures += test_lambda_application();

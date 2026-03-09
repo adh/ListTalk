@@ -24,6 +24,7 @@ LT_Environment* LT_new_base_environment(void){
 
     LT_base_env_bind_numbers(environment);
     LT_base_env_bind_primitives(environment);
+    LT_base_env_bind_lists(environment);
     LT_base_env_bind_special_forms(environment);
 
     return environment;
