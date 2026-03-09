@@ -7,7 +7,12 @@
 
 #include <ListTalk/macros/arg_macros.h>
 
-static LT_Value primitive_type_of(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_type_of,
+    "type-of",
+    "(value)",
+    "Return class descriptor of value."
+){
     LT_Value cursor = arguments;
     LT_Value value;
 
@@ -17,5 +22,5 @@ static LT_Value primitive_type_of(LT_Value arguments){
 }
 
 void LT_base_env_bind_primitives(LT_Environment* environment){
-    LT_base_env_bind_primitive(environment, "type-of", primitive_type_of);
+    LT_base_env_bind_static_primitive(environment, &primitive_type_of);
 }

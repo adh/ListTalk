@@ -21,7 +21,12 @@ static size_t checked_index_from_fixnum(int64_t value, const char* primitive_nam
     return (size_t)value;
 }
 
-static LT_Value primitive_string_p(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_string_p,
+    "string?",
+    "(value)",
+    "Return true when value is a string."
+){
     LT_Value cursor = arguments;
     LT_Value value;
 
@@ -30,7 +35,12 @@ static LT_Value primitive_string_p(LT_Value arguments){
     return LT_String_p(value) ? LT_TRUE : LT_FALSE;
 }
 
-static LT_Value primitive_string_length(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_string_length,
+    "string-length",
+    "(string)",
+    "Return string length as fixnum."
+){
     LT_Value cursor = arguments;
     LT_String* string;
     size_t length;
@@ -45,7 +55,12 @@ static LT_Value primitive_string_length(LT_Value arguments){
     return LT_SmallInteger_new((int64_t)length);
 }
 
-static LT_Value primitive_string_ref(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_string_ref,
+    "string-ref",
+    "(string index)",
+    "Return byte value at index."
+){
     LT_Value cursor = arguments;
     LT_String* string;
     int64_t index_value;
@@ -62,7 +77,12 @@ static LT_Value primitive_string_ref(LT_Value arguments){
     return LT_SmallInteger_new((int64_t)ch);
 }
 
-static LT_Value primitive_string_append(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_string_append,
+    "string-append",
+    "(string ...)",
+    "Concatenate all string arguments."
+){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     LT_Value cursor = arguments;
 
@@ -87,8 +107,8 @@ static LT_Value primitive_string_append(LT_Value arguments){
 }
 
 void LT_base_env_bind_strings(LT_Environment* environment){
-    LT_base_env_bind_primitive(environment, "string?", primitive_string_p);
-    LT_base_env_bind_primitive(environment, "string-length", primitive_string_length);
-    LT_base_env_bind_primitive(environment, "string-ref", primitive_string_ref);
-    LT_base_env_bind_primitive(environment, "string-append", primitive_string_append);
+    LT_base_env_bind_static_primitive(environment, &primitive_string_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_string_length);
+    LT_base_env_bind_static_primitive(environment, &primitive_string_ref);
+    LT_base_env_bind_static_primitive(environment, &primitive_string_append);
 }

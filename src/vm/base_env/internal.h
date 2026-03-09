@@ -11,9 +11,8 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SpecialForm.h>
 
-void LT_base_env_bind_primitive(LT_Environment* environment,
-                                char* name,
-                                LT_Primitive_Func function);
+void LT_base_env_bind_static_primitive(LT_Environment* environment,
+                                       LT_Primitive* primitive);
 
 void LT_base_env_bind_numbers(LT_Environment* environment);
 void LT_base_env_bind_primitives(LT_Environment* environment);

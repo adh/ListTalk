@@ -16,7 +16,12 @@ static LT_Value checked_fixnum_from_i128(__int128 result){
     return LT_SmallInteger_new((int64_t)result);
 }
 
-static LT_Value primitive_add(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_add,
+    "+",
+    "(n ...)",
+    "Return sum of numeric arguments."
+){
     __int128 sum = 0;
     LT_Value cursor = arguments;
 
@@ -29,7 +34,12 @@ static LT_Value primitive_add(LT_Value arguments){
     return checked_fixnum_from_i128(sum);
 }
 
-static LT_Value primitive_subtract(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_subtract,
+    "-",
+    "(n [n ...])",
+    "Negate one value or subtract remaining values from first."
+){
     LT_Value cursor = arguments;
     int64_t first_value;
     __int128 result;
@@ -51,7 +61,12 @@ static LT_Value primitive_subtract(LT_Value arguments){
     return checked_fixnum_from_i128(result);
 }
 
-static LT_Value primitive_multiply(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_multiply,
+    "*",
+    "(n ...)",
+    "Return product of numeric arguments."
+){
     __int128 product = 1;
     LT_Value cursor = arguments;
 
@@ -67,7 +82,12 @@ static LT_Value primitive_multiply(LT_Value arguments){
     return checked_fixnum_from_i128(product);
 }
 
-static LT_Value primitive_divide(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_divide,
+    "/",
+    "(n n ...)",
+    "Divide first value by remaining values."
+){
     LT_Value cursor = arguments;
     int64_t first_value;
     __int128 result;
@@ -92,8 +112,8 @@ static LT_Value primitive_divide(LT_Value arguments){
 }
 
 void LT_base_env_bind_numbers(LT_Environment* environment){
-    LT_base_env_bind_primitive(environment, "+", primitive_add);
-    LT_base_env_bind_primitive(environment, "-", primitive_subtract);
-    LT_base_env_bind_primitive(environment, "*", primitive_multiply);
-    LT_base_env_bind_primitive(environment, "/", primitive_divide);
+    LT_base_env_bind_static_primitive(environment, &primitive_add);
+    LT_base_env_bind_static_primitive(environment, &primitive_subtract);
+    LT_base_env_bind_static_primitive(environment, &primitive_multiply);
+    LT_base_env_bind_static_primitive(environment, &primitive_divide);
 }

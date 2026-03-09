@@ -8,13 +8,12 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Symbol.h>
 
-void LT_base_env_bind_primitive(LT_Environment* environment,
-                                char* name,
-                                LT_Primitive_Func function){
+void LT_base_env_bind_static_primitive(LT_Environment* environment,
+                                       LT_Primitive* primitive){
     LT_Environment_bind(
         environment,
-        LT_Symbol_new(name),
-        LT_Primitive_new(name, function),
+        LT_Symbol_new(primitive->name),
+        LT_Primitive_from_static(primitive),
         LT_ENV_BINDING_FLAG_CONSTANT
     );
 }

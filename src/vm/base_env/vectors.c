@@ -18,7 +18,12 @@ static size_t checked_nonnegative_from_fixnum(int64_t value, const char* primiti
     return (size_t)value;
 }
 
-static LT_Value primitive_vector_p(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_vector_p,
+    "vector?",
+    "(value)",
+    "Return true when value is a vector."
+){
     LT_Value cursor = arguments;
     LT_Value value;
 
@@ -27,7 +32,12 @@ static LT_Value primitive_vector_p(LT_Value arguments){
     return LT_Vector_p(value) ? LT_TRUE : LT_FALSE;
 }
 
-static LT_Value primitive_vector_length(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_vector_length,
+    "vector-length",
+    "(vector)",
+    "Return vector length as fixnum."
+){
     LT_Value cursor = arguments;
     LT_Vector* vector;
     size_t length;
@@ -42,7 +52,12 @@ static LT_Value primitive_vector_length(LT_Value arguments){
     return LT_SmallInteger_new((int64_t)length);
 }
 
-static LT_Value primitive_vector_ref(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_vector_ref,
+    "vector-ref",
+    "(vector index)",
+    "Return value at index."
+){
     LT_Value cursor = arguments;
     LT_Vector* vector;
     int64_t index_value;
@@ -57,7 +72,12 @@ static LT_Value primitive_vector_ref(LT_Value arguments){
     );
 }
 
-static LT_Value primitive_vector_set_bang(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_vector_set_bang,
+    "vector-set!",
+    "(vector index value)",
+    "Set vector element and return value."
+){
     LT_Value cursor = arguments;
     LT_Vector* vector;
     int64_t index_value;
@@ -76,7 +96,12 @@ static LT_Value primitive_vector_set_bang(LT_Value arguments){
     return value;
 }
 
-static LT_Value primitive_make_vector(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_make_vector,
+    "make-vector",
+    "(length [fill])",
+    "Create vector with optional fill value."
+){
     LT_Value cursor = arguments;
     int64_t length_value;
     LT_Value fill_value = LT_NIL;
@@ -96,7 +121,12 @@ static LT_Value primitive_make_vector(LT_Value arguments){
     return (LT_Value)(uintptr_t)vector;
 }
 
-static LT_Value primitive_vector(LT_Value arguments){
+LT_DEFINE_PRIMITIVE(
+    primitive_vector,
+    "vector",
+    "(value ...)",
+    "Create vector from argument values."
+){
     LT_Value cursor = arguments;
     LT_Value values;
     size_t length = 0;
@@ -124,10 +154,10 @@ static LT_Value primitive_vector(LT_Value arguments){
 }
 
 void LT_base_env_bind_vectors(LT_Environment* environment){
-    LT_base_env_bind_primitive(environment, "vector?", primitive_vector_p);
-    LT_base_env_bind_primitive(environment, "vector-length", primitive_vector_length);
-    LT_base_env_bind_primitive(environment, "vector-ref", primitive_vector_ref);
-    LT_base_env_bind_primitive(environment, "vector-set!", primitive_vector_set_bang);
-    LT_base_env_bind_primitive(environment, "make-vector", primitive_make_vector);
-    LT_base_env_bind_primitive(environment, "vector", primitive_vector);
+    LT_base_env_bind_static_primitive(environment, &primitive_vector_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_vector_length);
+    LT_base_env_bind_static_primitive(environment, &primitive_vector_ref);
+    LT_base_env_bind_static_primitive(environment, &primitive_vector_set_bang);
+    LT_base_env_bind_static_primitive(environment, &primitive_make_vector);
+    LT_base_env_bind_static_primitive(environment, &primitive_vector);
 }
