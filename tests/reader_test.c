@@ -10,6 +10,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Vector.h>
 
 #include <stdio.h>
@@ -149,6 +150,22 @@ static int test_negative_fixnum_literal(void){
     return expect(
         LT_SmallInteger_value(value) == -42,
         "negative fixnum value"
+    );
+}
+
+static int test_float_literal(void){
+    LT_Value value = read_one("3.5");
+
+    if (expect(LT_Float_p(value), "float tag")){
+        return 1;
+    }
+    if (expect(LT_Value_class(value) == &LT_Float_class, "float class")){
+        return 1;
+    }
+
+    return expect(
+        LT_Float_value(value) == 3.5,
+        "float value"
     );
 }
 
@@ -491,6 +508,7 @@ int main(void){
     failures += test_comment_and_whitespace();
     failures += test_fixnum_literal();
     failures += test_negative_fixnum_literal();
+    failures += test_float_literal();
     failures += test_symbol_not_number();
     failures += test_dispatch_boolean_true();
     failures += test_dispatch_boolean_false();

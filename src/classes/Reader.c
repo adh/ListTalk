@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Reader.h>
+#include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
@@ -14,6 +15,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -191,6 +193,38 @@ static int parse_fixnum_token(const char* token, LT_Value* value){
     return 1;
 }
 
+static int token_looks_float(const char* token){
+    const char* cursor = token;
+
+    while (*cursor != '\0'){
+        if (*cursor == '.' || *cursor == 'e' || *cursor == 'E'){
+            return 1;
+        }
+        cursor++;
+    }
+
+    return 0;
+}
+
+static int parse_float_token(const char* token, LT_Value* value){
+    char* end = NULL;
+    double parsed;
+
+    if (!token_looks_float(token)){
+        return 0;
+    }
+
+    errno = 0;
+    parsed = strtod(token, &end);
+
+    if (end == token || *end != '\0' || !isfinite(parsed)){
+        return 0;
+    }
+
+    *value = LT_Float_new(parsed);
+    return 1;
+}
+
 static LT_Value parse_symbol_token(char* token){
     return LT_Symbol_parse_token(token);
 }
@@ -225,6 +259,9 @@ static LT_Value read_atom(int first, LT_ReaderStream* stream){
     }
 
     if (parse_fixnum_token(LT_StringBuilder_value(builder), &value)){
+        return value;
+    }
+    if (parse_float_token(LT_StringBuilder_value(builder), &value)){
         return value;
     }
 

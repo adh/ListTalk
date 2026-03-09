@@ -27,15 +27,13 @@ static inline int LT_SmallInteger_p(LT_Value value){
     return LT_Value_class(value) == &LT_SmallInteger_class;
 }
 
-static inline LT_Value LT_SmallInteger_from_value(LT_Value value){
+static inline int64_t LT_SmallInteger_value(LT_Value value){
+    uint64_t raw;
+
     if (!LT_SmallInteger_p(value)){
         LT_type_error(value, &LT_SmallInteger_class);
     }
-    return value;
-}
-
-static inline int64_t LT_SmallInteger_value(LT_Value value){
-    uint64_t raw = LT_VALUE_IMMEDIATE_VALUE(LT_SmallInteger_from_value(value));
+    raw = LT_VALUE_IMMEDIATE_VALUE(value);
 
     if (raw & (UINT64_C(1) << 55)){
         raw |= UINT64_C(0xff00000000000000);

@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Boolean.h>
+#include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
@@ -66,6 +67,38 @@ static int test_divide(void){
     return expect(
         LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 5,
         "division"
+    );
+}
+
+static int test_add_float_mixed(void){
+    LT_Value value = eval_one("(+ 1.5 2)");
+    return expect(
+        LT_Float_p(value) && LT_Float_value(value) == 3.5,
+        "mixed addition returns float"
+    );
+}
+
+static int test_divide_float_mixed(void){
+    LT_Value value = eval_one("(/ 5.0 2)");
+    return expect(
+        LT_Float_p(value) && LT_Float_value(value) == 2.5,
+        "mixed division returns float"
+    );
+}
+
+static int test_subtract_unary_float(void){
+    LT_Value value = eval_one("(- 1.5)");
+    return expect(
+        LT_Float_p(value) && LT_Float_value(value) == -1.5,
+        "unary subtraction on float"
+    );
+}
+
+static int test_integer_divide_still_fixnum(void){
+    LT_Value value = eval_one("(/ 5 2)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
+        "integer division remains fixnum"
     );
 }
 
@@ -421,6 +454,10 @@ int main(void){
     failures += test_subtract_unary();
     failures += test_multiply();
     failures += test_divide();
+    failures += test_add_float_mixed();
+    failures += test_divide_float_mixed();
+    failures += test_subtract_unary_float();
+    failures += test_integer_divide_still_fixnum();
     failures += test_symbol_lookup();
     failures += test_keyword_self_evaluating_when_unbound();
     failures += test_type_of_primitive();

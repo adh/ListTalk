@@ -27,6 +27,7 @@ vm_lib = library(
                 'src/classes/Package.c',
                 'src/classes/Symbol.c',
                 'src/classes/Number.c',
+                'src/classes/Float.c',
                 'src/classes/String.c',
                 'src/classes/Vector.c',
                 'src/classes/Closure.c',
