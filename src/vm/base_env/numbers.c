@@ -6,15 +6,7 @@
 #include "internal.h"
 
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/error.h>
-
-static LT_Value checked_fixnum_from_i128(__int128 result){
-    if (result < LT_VALUE_FIXNUM_MIN || result > LT_VALUE_FIXNUM_MAX){
-        LT_error("Fixnum arithmetic overflow");
-    }
-
-    return LT_SmallInteger_new((int64_t)result);
-}
+#include <ListTalk/classes/Number.h>
 
 LT_DEFINE_PRIMITIVE(
     primitive_add,
@@ -22,16 +14,16 @@ LT_DEFINE_PRIMITIVE(
     "(n ...)",
     "Return sum of numeric arguments."
 ){
-    __int128 sum = 0;
     LT_Value cursor = arguments;
+    LT_Value result = LT_SmallInteger_new(0);
 
     while (cursor != LT_NIL){
-        int64_t arg_value;
-        LT_FIXNUM_ARG(cursor, arg_value);
-        sum += arg_value;
+        LT_Value operand;
+        LT_OBJECT_ARG(cursor, operand);
+        result = LT_Number_add2(result, operand);
     }
 
-    return checked_fixnum_from_i128(sum);
+    return result;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -41,24 +33,20 @@ LT_DEFINE_PRIMITIVE(
     "Negate one value or subtract remaining values from first."
 ){
     LT_Value cursor = arguments;
-    int64_t first_value;
-    __int128 result;
+    LT_Value result;
 
-    LT_FIXNUM_ARG(cursor, first_value);
-    result = first_value;
-
+    LT_OBJECT_ARG(cursor, result);
     if (cursor == LT_NIL){
-        result = -result;
-        return checked_fixnum_from_i128(result);
+        return LT_Number_negate(result);
     }
 
     while (cursor != LT_NIL){
-        int64_t arg_value;
-        LT_FIXNUM_ARG(cursor, arg_value);
-        result -= arg_value;
+        LT_Value operand;
+        LT_OBJECT_ARG(cursor, operand);
+        result = LT_Number_subtract2(result, operand);
     }
 
-    return checked_fixnum_from_i128(result);
+    return result;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -67,19 +55,16 @@ LT_DEFINE_PRIMITIVE(
     "(n ...)",
     "Return product of numeric arguments."
 ){
-    __int128 product = 1;
     LT_Value cursor = arguments;
+    LT_Value result = LT_SmallInteger_new(1);
 
     while (cursor != LT_NIL){
-        int64_t arg_value;
-        LT_FIXNUM_ARG(cursor, arg_value);
-        product *= arg_value;
-        if (product < LT_VALUE_FIXNUM_MIN || product > LT_VALUE_FIXNUM_MAX){
-            LT_error("Fixnum arithmetic overflow");
-        }
+        LT_Value operand;
+        LT_OBJECT_ARG(cursor, operand);
+        result = LT_Number_multiply2(result, operand);
     }
 
-    return checked_fixnum_from_i128(product);
+    return result;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -89,26 +74,20 @@ LT_DEFINE_PRIMITIVE(
     "Divide first value by remaining values."
 ){
     LT_Value cursor = arguments;
-    int64_t first_value;
-    __int128 result;
+    LT_Value result;
 
-    LT_FIXNUM_ARG(cursor, first_value);
-    result = first_value;
-
+    LT_OBJECT_ARG(cursor, result);
     if (cursor == LT_NIL){
         LT_error("Primitive / expects at least two arguments");
     }
 
     while (cursor != LT_NIL){
-        int64_t divisor;
-        LT_FIXNUM_ARG(cursor, divisor);
-        if (divisor == 0){
-            LT_error("Division by zero");
-        }
-        result /= divisor;
+        LT_Value operand;
+        LT_OBJECT_ARG(cursor, operand);
+        result = LT_Number_divide2(result, operand);
     }
 
-    return checked_fixnum_from_i128(result);
+    return result;
 }
 
 void LT_base_env_bind_numbers(LT_Environment* environment){
