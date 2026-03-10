@@ -13,31 +13,6 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/throw_catch.h>
 
-static LT_Value eval_sequence(LT_Value body,
-                              LT_Environment* environment,
-                              LT_TailCallUnwindMarker* tail_call_unwind_marker){
-    LT_Value cursor = body;
-    LT_Value result = LT_NIL;
-
-    while (cursor != LT_NIL){
-        LT_Value next_cursor;
-
-        if (!LT_Pair_p(cursor)){
-            LT_error("Special form body expects proper list of forms");
-        }
-
-        next_cursor = LT_cdr(cursor);
-        result = LT_eval(
-            LT_car(cursor),
-            environment,
-            (next_cursor == LT_NIL) ? tail_call_unwind_marker : NULL
-        );
-        cursor = next_cursor;
-    }
-
-    return result;
-}
-
 static LT_Value special_form_quote(LT_Value arguments,
                                    LT_Environment* environment,
                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
@@ -214,7 +189,7 @@ static LT_Value special_form_catch(LT_Value arguments,
 
     tag = LT_eval(tag_expression, environment, NULL);
     LT_CATCH(tag, result, {
-        result = eval_sequence(body, environment, tail_call_unwind_marker);
+        result = LT_eval_sequence(body, environment, tail_call_unwind_marker);
     });
 
     return result;
@@ -239,7 +214,7 @@ static LT_Value special_form_unwind_protect(
         result = LT_eval(protected_expression, environment, NULL);
     },
     {
-        (void)eval_sequence(cleanup_body, environment, NULL);
+        (void)LT_eval_sequence(cleanup_body, environment, NULL);
     });
 
     return result;

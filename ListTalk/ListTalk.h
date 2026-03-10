@@ -37,6 +37,12 @@ extern LT_Value LT_eval(
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 
+extern LT_Value LT_eval_sequence(
+    LT_Value body,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+);
+
 extern LT_Value LT_apply(
     LT_Value callable,
     LT_Value arguments,

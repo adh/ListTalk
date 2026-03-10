@@ -101,9 +101,9 @@ static void bind_closure_parameters(LT_Value parameters,
     }
 }
 
-static LT_Value eval_sequence(LT_Value body,
-                              LT_Environment* environment,
-                              LT_TailCallUnwindMarker* tail_call_unwind_marker){
+LT_Value LT_eval_sequence(LT_Value body,
+                          LT_Environment* environment,
+                          LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = body;
     LT_Value result = LT_NIL;
 
@@ -139,7 +139,7 @@ static LT_Value apply_closure(LT_Value closure_value,
         application_environment
     );
 
-    return eval_sequence(
+    return LT_eval_sequence(
         LT_Closure_body(closure),
         application_environment,
         tail_call_unwind_marker
