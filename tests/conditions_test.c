@@ -5,9 +5,11 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/conditions.h>
+#include <ListTalk/vm/error.h>
 #include <ListTalk/vm/throw_catch.h>
 
 #include <stdio.h>
@@ -30,6 +32,7 @@ static int g_order_index = 0;
 static int g_order[8];
 static LT_Value g_seen_condition_inner = LT_NIL;
 static LT_Value g_seen_condition_outer = LT_NIL;
+static LT_Value g_error_test_tag = LT_NIL;
 
 static void reset_state(void){
     g_inner_calls = 0;
@@ -80,6 +83,17 @@ static LT_Value throwing_handler_impl(LT_Value arguments,
     LT_OBJECT_ARG(cursor, condition);
     LT_ARG_END(cursor);
     LT_throw(condition, LT_TRUE);
+}
+
+static LT_Value catch_error_handler_impl(LT_Value arguments,
+                                         LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    LT_throw(g_error_test_tag, condition);
 }
 
 static int test_signal_invokes_bound_handler_with_condition_value(void){
@@ -193,6 +207,31 @@ static int test_handler_bind_scope_is_removed_on_non_local_exit(void){
     );
 }
 
+static int test_lt_error_signals_condition_to_handlers(void){
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-error-handler",
+        "(condition)",
+        "captures LT_error condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("error-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            LT_error("condition-probe");
+        });
+    });
+
+    if (expect(LT_Value_class(caught) == &LT_String_class, "LT_error emits string condition")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(caught)), "condition-probe") == 0,
+        "LT_error forwards condition message through LT_signal"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -202,6 +241,7 @@ int main(void){
     failures += test_signal_runs_all_handlers_inside_out();
     failures += test_handler_bind_scope_is_removed_after_body();
     failures += test_handler_bind_scope_is_removed_on_non_local_exit();
+    failures += test_lt_error_signals_condition_to_handlers();
 
     if (failures == 0){
         puts("conditions tests passed");

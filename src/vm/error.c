@@ -4,12 +4,16 @@
  */
 
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/conditions.h>
+#include <ListTalk/classes/String.h>
 
 #include <stdio.h>
 #include <stdlib.h>
 
 void LT_error(const char* message, ...) {
-    fprintf(stderr, "Error: %s\n", message);
+    LT_Value condition = (LT_Value)(uintptr_t)LT_String_new_cstr((char*)message);
+    LT_signal(condition);
+    fprintf(stderr, "Unrecoverable error: %s\n", message);
     abort();
 }
 
