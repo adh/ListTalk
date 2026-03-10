@@ -6,7 +6,7 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Symbol.h>
-#include <ListTalk/vm/throw_cacth.h>
+#include <ListTalk/vm/throw_catch.h>
 
 #include <stdio.h>
 

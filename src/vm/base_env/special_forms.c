@@ -11,7 +11,7 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
-#include <ListTalk/vm/throw_cacth.h>
+#include <ListTalk/vm/throw_catch.h>
 
 static LT_Value eval_sequence(LT_Value body,
                               LT_Environment* environment,

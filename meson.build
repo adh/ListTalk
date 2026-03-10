@@ -20,7 +20,7 @@ vm_lib = library(
                 'src/vm/utils.c',
                 'src/vm/init.c',
                 'src/vm/error.c',
-                'src/vm/throw_cacth.c',
+                'src/vm/throw_catch.c',
                 'src/classes/Object.c',
                 'src/classes/Boolean.c',
                 'src/classes/Printer.c',
@@ -63,9 +63,9 @@ eval_test_exe = executable(
         dependencies : [bdwgc]
 )
 
-throw_cacth_test_exe = executable(
-        'throw_cacth_test',
-        'tests/throw_cacth_test.c',
+throw_catch_test_exe = executable(
+        'throw_catch_test',
+        'tests/throw_catch_test.c',
         link_with: [vm_lib],
         dependencies : [bdwgc]
 )
@@ -81,8 +81,8 @@ test(
 )
 
 test(
-        'throw_cacth_test',
-        throw_cacth_test_exe
+        'throw_catch_test',
+        throw_catch_test_exe
 )
 
 install_subdir(
