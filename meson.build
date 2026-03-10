@@ -20,6 +20,7 @@ vm_lib = library(
                 'src/vm/utils.c',
                 'src/vm/init.c',
                 'src/vm/error.c',
+                'src/vm/conditions.c',
                 'src/vm/throw_catch.c',
                 'src/classes/Object.c',
                 'src/classes/Boolean.c',
@@ -70,6 +71,13 @@ throw_catch_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+conditions_test_exe = executable(
+        'conditions_test',
+        'tests/conditions_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -83,6 +91,11 @@ test(
 test(
         'throw_catch_test',
         throw_catch_test_exe
+)
+
+test(
+        'conditions_test',
+        conditions_test_exe
 )
 
 install_subdir(
