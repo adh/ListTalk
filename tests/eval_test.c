@@ -482,6 +482,82 @@ static int test_macro_expansion_uses_call_environment(void){
     );
 }
 
+static int test_catch_returns_body_value_without_throw(void){
+    LT_Value value = eval_one("(catch :t (+ 1 2))");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "catch returns body value when no throw happens"
+    );
+}
+
+static int test_throw_is_caught_by_matching_tag(void){
+    LT_Value value = eval_one("(catch :t (throw :t 42) 99)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
+        "throw transfers control to matching catch"
+    );
+}
+
+static int test_throw_skips_to_outer_matching_catch(void){
+    LT_Value value = eval_one("(catch :outer (catch :inner (throw :outer 7)))");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 7,
+        "throw skips non-matching inner catch"
+    );
+}
+
+static int test_unwind_protect_runs_cleanup_on_normal_path(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value protected_result;
+    LT_Value side_effect;
+
+    (void)LT_eval(read_one("(define x 0)"), env, NULL);
+    protected_result = LT_eval(
+        read_one("(unwind-protect 7 (set! x 1))"),
+        env,
+        NULL
+    );
+    side_effect = LT_eval(read_one("x"), env, NULL);
+
+    if (expect(
+        LT_Value_is_fixnum(protected_result)
+            && LT_SmallInteger_value(protected_result) == 7,
+        "unwind-protect returns protected value on normal path"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(side_effect) && LT_SmallInteger_value(side_effect) == 1,
+        "unwind-protect runs cleanup on normal path"
+    );
+}
+
+static int test_unwind_protect_runs_cleanup_on_throw_path(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught_result;
+    LT_Value side_effect;
+
+    (void)LT_eval(read_one("(define x 0)"), env, NULL);
+    caught_result = LT_eval(
+        read_one("(catch :t (unwind-protect (throw :t 9) (set! x 1)))"),
+        env,
+        NULL
+    );
+    side_effect = LT_eval(read_one("x"), env, NULL);
+
+    if (expect(
+        LT_Value_is_fixnum(caught_result)
+            && LT_SmallInteger_value(caught_result) == 9,
+        "unwind-protect rethrows and outer catch receives value"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(side_effect) && LT_SmallInteger_value(side_effect) == 1,
+        "unwind-protect runs cleanup during throw"
+    );
+}
+
 static int test_symbol_class_inherits_object(void){
     if (expect(LT_Symbol_class.superclasses != NULL, "symbol has superclass")){
         return 1;
@@ -560,6 +636,11 @@ int main(void){
     failures += test_macro_special_form_constructs_macro();
     failures += test_macro_expansion_is_evaluated();
     failures += test_macro_expansion_uses_call_environment();
+    failures += test_catch_returns_body_value_without_throw();
+    failures += test_throw_is_caught_by_matching_tag();
+    failures += test_throw_skips_to_outer_matching_catch();
+    failures += test_unwind_protect_runs_cleanup_on_normal_path();
+    failures += test_unwind_protect_runs_cleanup_on_throw_path();
     failures += test_symbol_class_inherits_object();
     failures += test_boolean_constants();
 

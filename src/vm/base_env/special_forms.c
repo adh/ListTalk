@@ -11,6 +11,32 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/throw_cacth.h>
+
+static LT_Value eval_sequence(LT_Value body,
+                              LT_Environment* environment,
+                              LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = body;
+    LT_Value result = LT_NIL;
+
+    while (cursor != LT_NIL){
+        LT_Value next_cursor;
+
+        if (!LT_Pair_p(cursor)){
+            LT_error("Special form body expects proper list of forms");
+        }
+
+        next_cursor = LT_cdr(cursor);
+        result = LT_eval(
+            LT_car(cursor),
+            environment,
+            (next_cursor == LT_NIL) ? tail_call_unwind_marker : NULL
+        );
+        cursor = next_cursor;
+    }
+
+    return result;
+}
 
 static LT_Value special_form_quote(LT_Value arguments,
                                    LT_Environment* environment,
@@ -154,6 +180,71 @@ static LT_Value special_form_macro(LT_Value arguments,
     return LT_Macro_new(callable);
 }
 
+static LT_Value special_form_throw(LT_Value arguments,
+                                   LT_Environment* environment,
+                                   LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value tag_expression;
+    LT_Value value_expression;
+    LT_Value tag;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, tag_expression);
+    LT_OBJECT_ARG(cursor, value_expression);
+    LT_ARG_END(cursor);
+
+    tag = LT_eval(tag_expression, environment, NULL);
+    value = LT_eval(value_expression, environment, NULL);
+    LT_throw(tag, value);
+    return LT_NIL;
+}
+
+static LT_Value special_form_catch(LT_Value arguments,
+                                   LT_Environment* environment,
+                                   LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value tag_expression;
+    LT_Value body;
+    LT_Value tag;
+    LT_Value result = LT_NIL;
+
+    LT_OBJECT_ARG(cursor, tag_expression);
+    LT_ARG_REST(cursor, body);
+
+    tag = LT_eval(tag_expression, environment, NULL);
+    LT_CATCH(tag, result, {
+        result = eval_sequence(body, environment, tail_call_unwind_marker);
+    });
+
+    return result;
+}
+
+static LT_Value special_form_unwind_protect(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value protected_expression;
+    LT_Value cleanup_body;
+    LT_Value result = LT_NIL;
+
+    LT_OBJECT_ARG(cursor, protected_expression);
+    LT_ARG_REST(cursor, cleanup_body);
+    (void)tail_call_unwind_marker;
+
+    LT_UNWIND_PROTECT(
+    {
+        result = LT_eval(protected_expression, environment, NULL);
+    },
+    {
+        (void)eval_sequence(cleanup_body, environment, NULL);
+    });
+
+    return result;
+}
+
 static LT_SpecialForm quote_special_form = {
     .function = special_form_quote,
     .name = "quote",
@@ -196,6 +287,27 @@ static LT_SpecialForm macro_special_form = {
     .description = "Wrap primitive or closure as macro."
 };
 
+static LT_SpecialForm throw_special_form = {
+    .function = special_form_throw,
+    .name = "throw",
+    .arguments = "(tag-expression value-expression)",
+    .description = "Throw value to nearest enclosing catch with matching tag."
+};
+
+static LT_SpecialForm catch_special_form = {
+    .function = special_form_catch,
+    .name = "catch",
+    .arguments = "(tag-expression body ...)",
+    .description = "Evaluate body and intercept throws matching tag."
+};
+
+static LT_SpecialForm unwind_protect_special_form = {
+    .function = special_form_unwind_protect,
+    .name = "unwind-protect",
+    .arguments = "(protected-expression cleanup ...)",
+    .description = "Always run cleanup forms; rethrow non-local exits."
+};
+
 static void bind_static_special_form(LT_Environment* environment,
                                      LT_SpecialForm* special_form){
     LT_Environment_bind(
@@ -213,4 +325,7 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &define_special_form);
     bind_static_special_form(environment, &set_bang_special_form);
     bind_static_special_form(environment, &macro_special_form);
+    bind_static_special_form(environment, &throw_special_form);
+    bind_static_special_form(environment, &catch_special_form);
+    bind_static_special_form(environment, &unwind_protect_special_form);
 }
