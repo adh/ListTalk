@@ -13,10 +13,12 @@
 #include <ListTalk/vm/error.h>
 
 static LT_Value special_form_quote(LT_Value arguments,
-                                   LT_Environment* environment){
+                                   LT_Environment* environment,
+                                   LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value value;
     (void)environment;
+    (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
@@ -24,7 +26,8 @@ static LT_Value special_form_quote(LT_Value arguments,
 }
 
 static LT_Value special_form_lambda(LT_Value arguments,
-                                    LT_Environment* environment){
+                                    LT_Environment* environment,
+                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value parameters;
     LT_Value body;
@@ -35,6 +38,7 @@ static LT_Value special_form_lambda(LT_Value arguments,
     if (body == LT_NIL){
         LT_error("Special form lambda expects body");
     }
+    (void)tail_call_unwind_marker;
 
     parameter_cursor = parameters;
     if (LT_Symbol_p(parameter_cursor)){
@@ -57,7 +61,8 @@ static LT_Value special_form_lambda(LT_Value arguments,
 }
 
 static LT_Value special_form_if(LT_Value arguments,
-                                LT_Environment* environment){
+                                LT_Environment* environment,
+                                LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value condition_expression;
     LT_Value then_expression;
@@ -69,18 +74,19 @@ static LT_Value special_form_if(LT_Value arguments,
     LT_OBJECT_ARG_OPT(cursor, else_expression, LT_NIL);
     LT_ARG_END(cursor);
 
-    condition_value = LT_eval(condition_expression, environment);
+    condition_value = LT_eval(condition_expression, environment, NULL);
     if (condition_value != LT_NIL){
-        return LT_eval(then_expression, environment);
+        return LT_eval(then_expression, environment, tail_call_unwind_marker);
     }
     if (else_expression == LT_NIL){
         return LT_NIL;
     }
-    return LT_eval(else_expression, environment);
+    return LT_eval(else_expression, environment, tail_call_unwind_marker);
 }
 
 static LT_Value special_form_define(LT_Value arguments,
-                                    LT_Environment* environment){
+                                    LT_Environment* environment,
+                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value symbol;
     LT_Value value_expression;
@@ -88,19 +94,21 @@ static LT_Value special_form_define(LT_Value arguments,
 
     LT_OBJECT_ARG(cursor, symbol);
     LT_OBJECT_ARG(cursor, value_expression);
+    (void)tail_call_unwind_marker;
 
     if (!LT_Symbol_p(symbol)){
         LT_error("Special form define expects symbol as first argument");
     }
     LT_ARG_END(cursor);
 
-    value = LT_eval(value_expression, environment);
+    value = LT_eval(value_expression, environment, NULL);
     LT_Environment_bind(environment, symbol, value, 0);
     return value;
 }
 
 static LT_Value special_form_set_bang(LT_Value arguments,
-                                      LT_Environment* environment){
+                                      LT_Environment* environment,
+                                      LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value symbol;
     LT_Value value_expression;
@@ -108,13 +116,14 @@ static LT_Value special_form_set_bang(LT_Value arguments,
 
     LT_OBJECT_ARG(cursor, symbol);
     LT_OBJECT_ARG(cursor, value_expression);
+    (void)tail_call_unwind_marker;
 
     if (!LT_Symbol_p(symbol)){
         LT_error("Special form set! expects symbol as first argument");
     }
     LT_ARG_END(cursor);
 
-    value = LT_eval(value_expression, environment);
+    value = LT_eval(value_expression, environment, NULL);
     if (!LT_Environment_set(environment, symbol, value)){
         LT_error("Special form set! expected existing mutable binding");
     }
@@ -127,15 +136,17 @@ static int LT_Macro_p_implementation(LT_Value value){
 }
 
 static LT_Value special_form_macro(LT_Value arguments,
-                                   LT_Environment* environment){
+                                   LT_Environment* environment,
+                                   LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value callable_expression;
     LT_Value callable;
 
     LT_OBJECT_ARG(cursor, callable_expression);
     LT_ARG_END(cursor);
+    (void)tail_call_unwind_marker;
 
-    callable = LT_eval(callable_expression, environment);
+    callable = LT_eval(callable_expression, environment, NULL);
     if (!LT_Macro_p_implementation(callable)){
         LT_error("Special form macro expects primitive or closure");
     }

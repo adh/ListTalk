@@ -53,7 +53,7 @@ int main(int argc, char**argv){
         LT_Value result;
 
         object = LT_Reader_readObject(reader, stream);
-        result = LT_eval(object, LT_get_shared_base_environment());
+        result = LT_eval(object, LT_get_shared_base_environment(), NULL);
         LT_printer_print_object(result);
         fputc('\n', stdout);
     }

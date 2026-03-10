@@ -35,7 +35,7 @@ static LT_Value read_one(const char* source){
 
 static LT_Value eval_one(const char* source){
     LT_Environment* env = LT_new_base_environment();
-    return LT_eval(read_one(source), env);
+    return LT_eval(read_one(source), env, NULL);
 }
 
 static int test_add(void){
@@ -285,9 +285,9 @@ static int test_vector_set_bang_primitive(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
 
-    (void)LT_eval(read_one("(define v (vector 1 2 3))"), env);
-    (void)LT_eval(read_one("(vector-set! v 1 99)"), env);
-    result = LT_eval(read_one("(vector-ref v 1)"), env);
+    (void)LT_eval(read_one("(define v (vector 1 2 3))"), env, NULL);
+    (void)LT_eval(read_one("(vector-set! v 1 99)"), env, NULL);
+    result = LT_eval(read_one("(vector-ref v 1)"), env, NULL);
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 99,
         "vector-set! mutates vector"
@@ -384,6 +384,29 @@ static int test_lambda_rest_parameter_symbol(void){
     );
 }
 
+static int test_tail_call_optimization_deep_recursion(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value input = LT_NIL;
+    LT_Value result;
+    int i;
+
+    for (i = 0; i < 20000; i += 1){
+        input = LT_cons(LT_NIL, input);
+    }
+
+    LT_Environment_bind(env, LT_Symbol_new("input"), input, 0);
+    (void)LT_eval(
+        read_one("(define len-loop (lambda (xs acc) (if xs (len-loop (cdr xs) (+ acc 1)) acc)))"),
+        env,
+        NULL
+    );
+    result = LT_eval(read_one("(len-loop input 0)"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 20000,
+        "tail recursion stays bounded and returns expected value"
+    );
+}
+
 static int test_if_special_form(void){
     LT_Value value = eval_one("(if () 1 2)");
     return expect(
@@ -396,8 +419,8 @@ static int test_define_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
 
-    (void)LT_eval(read_one("(define add1 (lambda (x) (+ x 1)))"), env);
-    result = LT_eval(read_one("(add1 9)"), env);
+    (void)LT_eval(read_one("(define add1 (lambda (x) (+ x 1)))"), env, NULL);
+    result = LT_eval(read_one("(add1 9)"), env, NULL);
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 10,
         "define binds value in current environment"
@@ -408,9 +431,9 @@ static int test_set_bang_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
 
-    (void)LT_eval(read_one("(define x 10)"), env);
-    (void)LT_eval(read_one("(set! x 42)"), env);
-    result = LT_eval(read_one("x"), env);
+    (void)LT_eval(read_one("(define x 10)"), env, NULL);
+    (void)LT_eval(read_one("(set! x 42)"), env, NULL);
+    result = LT_eval(read_one("x"), env, NULL);
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
         "set! updates existing binding"
@@ -421,9 +444,9 @@ static int test_set_bang_parent_binding(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
 
-    (void)LT_eval(read_one("(define x 1)"), env);
-    (void)LT_eval(read_one("((lambda () (set! x 9)))"), env);
-    result = LT_eval(read_one("x"), env);
+    (void)LT_eval(read_one("(define x 1)"), env, NULL);
+    (void)LT_eval(read_one("((lambda () (set! x 9)))"), env, NULL);
+    result = LT_eval(read_one("x"), env, NULL);
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 9,
         "set! updates lexical parent binding"
@@ -450,9 +473,9 @@ static int test_macro_expansion_uses_call_environment(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
 
-    (void)LT_eval(read_one("(define x 42)"), env);
-    (void)LT_eval(read_one("(define id-macro (macro (lambda (x) x)))"), env);
-    result = LT_eval(read_one("(id-macro x)"), env);
+    (void)LT_eval(read_one("(define x 42)"), env, NULL);
+    (void)LT_eval(read_one("(define id-macro (macro (lambda (x) x)))"), env, NULL);
+    result = LT_eval(read_one("(id-macro x)"), env, NULL);
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
         "macro expansion evaluates in caller environment"
@@ -529,6 +552,7 @@ int main(void){
     failures += test_lambda_application();
     failures += test_lambda_rest_parameter_dotted();
     failures += test_lambda_rest_parameter_symbol();
+    failures += test_tail_call_optimization_deep_recursion();
     failures += test_if_special_form();
     failures += test_define_special_form();
     failures += test_set_bang_special_form();

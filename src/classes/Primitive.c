@@ -73,9 +73,11 @@ LT_Primitive_Func LT_Primitive_function(LT_Primitive* primitive){
     return primitive->function;
 }
 
-LT_Value LT_Primitive_call(LT_Value primitive, LT_Value arguments){
+LT_Value LT_Primitive_call(LT_Value primitive,
+                           LT_Value arguments,
+                           LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Primitive_Func function = LT_Primitive_function(
         LT_Primitive_from_value(primitive)
     );
-    return function(arguments);
+    return function(arguments, tail_call_unwind_marker);
 }

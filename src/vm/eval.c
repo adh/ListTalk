@@ -14,7 +14,17 @@
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
-static LT_Value eval_form(LT_Value expression, LT_Environment* environment);
+#include <setjmp.h>
+
+struct LT_TailCallUnwindMarker_s {
+    jmp_buf jump_buffer;
+    LT_Value callable;
+    LT_Value arguments;
+};
+
+static LT_Value eval_form(LT_Value expression,
+                          LT_Environment* environment,
+                          LT_TailCallUnwindMarker* tail_call_unwind_marker);
 
 static LT_Value eval_list_items(LT_Value list, LT_Environment* environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
@@ -26,7 +36,7 @@ static LT_Value eval_list_items(LT_Value list, LT_Environment* environment){
         }
         LT_ListBuilder_append(
             builder,
-            eval_form(LT_car(cursor), environment)
+            eval_form(LT_car(cursor), environment, NULL)
         );
         cursor = LT_cdr(cursor);
     }
@@ -91,22 +101,33 @@ static void bind_closure_parameters(LT_Value parameters,
     }
 }
 
-static LT_Value eval_sequence(LT_Value body, LT_Environment* environment){
+static LT_Value eval_sequence(LT_Value body,
+                              LT_Environment* environment,
+                              LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = body;
     LT_Value result = LT_NIL;
 
     while (cursor != LT_NIL){
+        LT_Value next_cursor;
+
         if (!LT_Pair_p(cursor)){
             LT_error("Closure body expects proper list of forms");
         }
-        result = eval_form(LT_car(cursor), environment);
-        cursor = LT_cdr(cursor);
+        next_cursor = LT_cdr(cursor);
+        result = eval_form(
+            LT_car(cursor),
+            environment,
+            (next_cursor == LT_NIL) ? tail_call_unwind_marker : NULL
+        );
+        cursor = next_cursor;
     }
 
     return result;
 }
 
-static LT_Value apply_closure(LT_Value closure_value, LT_Value evaluated_arguments){
+static LT_Value apply_closure(LT_Value closure_value,
+                              LT_Value evaluated_arguments,
+                              LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Closure* closure = LT_Closure_from_value(closure_value);
     LT_Environment* application_environment = LT_Environment_new(
         LT_Closure_environment(closure)
@@ -118,25 +139,61 @@ static LT_Value apply_closure(LT_Value closure_value, LT_Value evaluated_argumen
         application_environment
     );
 
-    return eval_sequence(LT_Closure_body(closure), application_environment);
+    return eval_sequence(
+        LT_Closure_body(closure),
+        application_environment,
+        tail_call_unwind_marker
+    );
 }
 
-LT_Value LT_apply(LT_Value callable, LT_Value arguments){
-    if (LT_Primitive_p(callable)){
-        return LT_Primitive_call(callable, arguments);
-    }
-    if (LT_Closure_p(callable)){
-        return apply_closure(callable, arguments);
+LT_Value LT_apply(LT_Value callable,
+                  LT_Value arguments,
+                  LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_TailCallUnwindMarker local_tail_call_unwind_marker;
+    int jump_value;
+
+    if (tail_call_unwind_marker != NULL){
+        tail_call_unwind_marker->callable = callable;
+        tail_call_unwind_marker->arguments = arguments;
+        longjmp(tail_call_unwind_marker->jump_buffer, 1);
     }
 
-    LT_error("LT_apply expects primitive or closure callable");
+    local_tail_call_unwind_marker.callable = callable;
+    local_tail_call_unwind_marker.arguments = arguments;
+
+    while (1){
+        jump_value = setjmp(local_tail_call_unwind_marker.jump_buffer);
+        (void)jump_value;
+
+        callable = local_tail_call_unwind_marker.callable;
+        arguments = local_tail_call_unwind_marker.arguments;
+
+        if (LT_Primitive_p(callable)){
+            return LT_Primitive_call(
+                callable,
+                arguments,
+                &local_tail_call_unwind_marker
+            );
+        }
+        if (LT_Closure_p(callable)){
+            return apply_closure(
+                callable,
+                arguments,
+                &local_tail_call_unwind_marker
+            );
+        }
+
+        LT_error("LT_apply expects primitive or closure callable");
+    }
+
     return LT_NIL;
 }
 
 static LT_Value apply_form(LT_Value operator,
                            LT_Value argument_expressions,
-                           LT_Environment* environment){
-    LT_Value evaluated_operator = eval_form(operator, environment);
+                           LT_Environment* environment,
+                           LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value evaluated_operator = eval_form(operator, environment, NULL);
     LT_Value expansion;
     LT_Value implementation;
 
@@ -144,21 +201,23 @@ static LT_Value apply_form(LT_Value operator,
         implementation = LT_Macro_callable(
             LT_Macro_from_value(evaluated_operator)
         );
-        expansion = LT_apply(implementation, argument_expressions);
-        return eval_form(expansion, environment);
+        expansion = LT_apply(implementation, argument_expressions, NULL);
+        return eval_form(expansion, environment, tail_call_unwind_marker);
     }
 
     if (LT_SpecialForm_p(evaluated_operator)){
         return LT_SpecialForm_apply(
             evaluated_operator,
             argument_expressions,
-            environment
+            environment,
+            tail_call_unwind_marker
         );
     }
 
     return LT_apply(
         evaluated_operator,
-        eval_list_items(argument_expressions, environment)
+        eval_list_items(argument_expressions, environment),
+        tail_call_unwind_marker
     );
 }
 
@@ -175,7 +234,9 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
     return value;
 }
 
-static LT_Value eval_form(LT_Value expression, LT_Environment* environment){
+static LT_Value eval_form(LT_Value expression,
+                          LT_Environment* environment,
+                          LT_TailCallUnwindMarker* tail_call_unwind_marker){
     if (LT_Symbol_p(expression)){
         return eval_symbol(expression, environment);
     }
@@ -184,16 +245,19 @@ static LT_Value eval_form(LT_Value expression, LT_Environment* environment){
         return apply_form(
             LT_car(expression),
             LT_cdr(expression),
-            environment
+            environment,
+            tail_call_unwind_marker
         );
     }
 
     return expression;
 }
 
-LT_Value LT_eval(LT_Value expression, LT_Environment* environment){
+LT_Value LT_eval(LT_Value expression,
+                 LT_Environment* environment,
+                 LT_TailCallUnwindMarker* tail_call_unwind_marker){
     if (environment == NULL){
         LT_error("Evaluator expects environment");
     }
-    return eval_form(expression, environment);
+    return eval_form(expression, environment, tail_call_unwind_marker);
 }

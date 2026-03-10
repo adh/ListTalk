@@ -27,20 +27,20 @@
 
 LT__BEGIN_DECLS
 
-typedef struct LT_VMInstanceState_s LT_VMInstanceState;
-typedef struct LT_VMThreadState_s LT_VMThreadState;
-typedef struct LT_VMTailCallState_s LT_VMTailCallState;
+typedef struct LT_TailCallUnwindMarker_s LT_TailCallUnwindMarker;
 
 extern void LT_init(void);
 
 extern LT_Value LT_eval(
     LT_Value expression,
-    LT_Environment* environment
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 
 extern LT_Value LT_apply(
     LT_Value callable,
-    LT_Value arguments
+    LT_Value arguments,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 
 LT__END_DECLS

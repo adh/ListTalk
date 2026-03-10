@@ -9,13 +9,15 @@
 #include <ListTalk/macros/env_macros.h>
 
 #include <ListTalk/vm/value.h>
+#include <ListTalk/vm/tail_call.h>
 #include <ListTalk/macros/decl_macros.h>
 
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_Primitive);
 
-typedef LT_Value(*LT_Primitive_Func)(LT_Value arguments);
+typedef LT_Value(*LT_Primitive_Func)(LT_Value arguments,
+                                     LT_TailCallUnwindMarker* tail_call_unwind_marker);
 
 struct LT_Primitive_s {
     LT_Primitive_Func function;
@@ -27,7 +29,8 @@ struct LT_Primitive_s {
 #define LT_PRIMITIVE_IMPL_NAME(primitive_object_name) primitive_object_name##_impl
 
 #define LT_PRIMITIVE_HEAD(primitive_object_name) \
-    static LT_Value LT_PRIMITIVE_IMPL_NAME(primitive_object_name)(LT_Value arguments)
+    static LT_Value LT_PRIMITIVE_IMPL_NAME(primitive_object_name)(LT_Value arguments, \
+                                                                  LT_TailCallUnwindMarker* tail_call_unwind_marker)
 
 #define LT_DECLARE_PRIMITIVE(primitive_object_name, primitive_name, primitive_arguments, primitive_description) \
     LT_PRIMITIVE_HEAD(primitive_object_name); \
@@ -51,7 +54,9 @@ char* LT_Primitive_name(LT_Primitive* primitive);
 char* LT_Primitive_arguments(LT_Primitive* primitive);
 char* LT_Primitive_description(LT_Primitive* primitive);
 LT_Primitive_Func LT_Primitive_function(LT_Primitive* primitive);
-LT_Value LT_Primitive_call(LT_Value primitive, LT_Value arguments);
+LT_Value LT_Primitive_call(LT_Value primitive,
+                           LT_Value arguments,
+                           LT_TailCallUnwindMarker* tail_call_unwind_marker);
 
 LT__END_DECLS
 
