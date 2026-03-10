@@ -40,12 +40,21 @@ static void bind_closure_parameters(LT_Value parameters,
     LT_Value parameter_cursor = parameters;
     LT_Value argument_cursor = arguments;
 
-    while (parameter_cursor != LT_NIL && argument_cursor != LT_NIL){
+    if (LT_Symbol_p(parameter_cursor)){
+        LT_Environment_bind(
+            target_environment,
+            parameter_cursor,
+            argument_cursor,
+            0
+        );
+        return;
+    }
+
+    while (LT_Pair_p(parameter_cursor)){
         LT_Value parameter;
 
-        if (!LT_Pair_p(parameter_cursor)
-            || !LT_Pair_p(argument_cursor)){
-            LT_error("Closure application expects proper argument lists");
+        if (!LT_Pair_p(argument_cursor)){
+            LT_error("Closure arity mismatch");
         }
 
         parameter = LT_car(parameter_cursor);
@@ -64,7 +73,20 @@ static void bind_closure_parameters(LT_Value parameters,
         argument_cursor = LT_cdr(argument_cursor);
     }
 
-    if (parameter_cursor != LT_NIL || argument_cursor != LT_NIL){
+    if (LT_Symbol_p(parameter_cursor)){
+        LT_Environment_bind(
+            target_environment,
+            parameter_cursor,
+            argument_cursor,
+            0
+        );
+        return;
+    }
+
+    if (parameter_cursor != LT_NIL){
+        LT_error("Closure parameter list must be proper or dotted with symbol");
+    }
+    if (argument_cursor != LT_NIL){
         LT_error("Closure arity mismatch");
     }
 }
@@ -99,18 +121,7 @@ static LT_Value apply_closure(LT_Value closure_value, LT_Value evaluated_argumen
     return eval_sequence(LT_Closure_body(closure), application_environment);
 }
 
-static LT_Value apply_callable(LT_Value callable,
-                               LT_Value argument_expressions,
-                               LT_Environment* environment,
-                               int evaluate_arguments){
-    LT_Value arguments = argument_expressions;
-
-    if (LT_SpecialForm_p(callable)){
-        return LT_SpecialForm_apply(callable, argument_expressions, environment);
-    }
-    if (evaluate_arguments){
-        arguments = eval_list_items(argument_expressions, environment);
-    }
+LT_Value LT_apply(LT_Value callable, LT_Value arguments){
     if (LT_Primitive_p(callable)){
         return LT_Primitive_call(callable, arguments);
     }
@@ -118,7 +129,7 @@ static LT_Value apply_callable(LT_Value callable,
         return apply_closure(callable, arguments);
     }
 
-    LT_error("Tried to apply non-callable value");
+    LT_error("LT_apply expects primitive or closure callable");
     return LT_NIL;
 }
 
@@ -133,24 +144,21 @@ static LT_Value apply_form(LT_Value operator,
         implementation = LT_Macro_callable(
             LT_Macro_from_value(evaluated_operator)
         );
-        if (!LT_Primitive_p(implementation)
-            && !LT_Closure_p(implementation)){
-            LT_error("Macro implementation must be primitive or closure");
-        }
-        expansion = apply_callable(
-            implementation,
-            argument_expressions,
-            environment,
-            0
-        );
+        expansion = LT_apply(implementation, argument_expressions);
         return eval_form(expansion, environment);
     }
 
-    return apply_callable(
+    if (LT_SpecialForm_p(evaluated_operator)){
+        return LT_SpecialForm_apply(
+            evaluated_operator,
+            argument_expressions,
+            environment
+        );
+    }
+
+    return LT_apply(
         evaluated_operator,
-        argument_expressions,
-        environment,
-        1
+        eval_list_items(argument_expressions, environment)
     );
 }
 

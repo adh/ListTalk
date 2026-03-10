@@ -37,16 +37,20 @@ static LT_Value special_form_lambda(LT_Value arguments,
     }
 
     parameter_cursor = parameters;
-    while (parameter_cursor != LT_NIL){
+    if (LT_Symbol_p(parameter_cursor)){
+        return LT_Closure_new(parameters, body, environment);
+    }
+
+    while (LT_Pair_p(parameter_cursor)){
         LT_Value parameter;
-        if (!LT_Pair_p(parameter_cursor)){
-            LT_error("Lambda parameters must be proper list");
-        }
         parameter = LT_car(parameter_cursor);
         if (!LT_Symbol_p(parameter)){
             LT_error("Lambda parameter must be symbol");
         }
         parameter_cursor = LT_cdr(parameter_cursor);
+    }
+    if (parameter_cursor != LT_NIL && !LT_Symbol_p(parameter_cursor)){
+        LT_error("Lambda parameters must be proper or dotted with symbol");
     }
 
     return LT_Closure_new(parameters, body, environment);

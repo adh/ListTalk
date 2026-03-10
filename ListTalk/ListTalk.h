@@ -38,6 +38,11 @@ extern LT_Value LT_eval(
     LT_Environment* environment
 );
 
+extern LT_Value LT_apply(
+    LT_Value callable,
+    LT_Value arguments
+);
+
 LT__END_DECLS
 
 #endif

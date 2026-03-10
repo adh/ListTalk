@@ -334,6 +334,56 @@ static int test_lambda_application(void){
     );
 }
 
+static int test_lambda_rest_parameter_dotted(void){
+    LT_Value value = eval_one("((lambda (x . rest) rest) 1 2 3)");
+
+    if (expect(LT_Pair_p(value), "dotted rest returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(value)) && LT_SmallInteger_value(LT_car(value)) == 2,
+        "dotted rest first element"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(value)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(value))) == 3,
+        "dotted rest second element"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_cdr(LT_cdr(value)) == LT_NIL,
+        "dotted rest tail terminates"
+    );
+}
+
+static int test_lambda_rest_parameter_symbol(void){
+    LT_Value value = eval_one("((lambda args args) 4 5)");
+
+    if (expect(LT_Pair_p(value), "symbol rest returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(value)) && LT_SmallInteger_value(LT_car(value)) == 4,
+        "symbol rest first element"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(value)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(value))) == 5,
+        "symbol rest second element"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_cdr(LT_cdr(value)) == LT_NIL,
+        "symbol rest tail terminates"
+    );
+}
+
 static int test_if_special_form(void){
     LT_Value value = eval_one("(if () 1 2)");
     return expect(
@@ -477,6 +527,8 @@ int main(void){
     failures += test_quote();
     failures += test_quote_reader_syntax();
     failures += test_lambda_application();
+    failures += test_lambda_rest_parameter_dotted();
+    failures += test_lambda_rest_parameter_symbol();
     failures += test_if_special_form();
     failures += test_define_special_form();
     failures += test_set_bang_special_form();
