@@ -19,7 +19,7 @@ typedef struct LT_ThrowCatchFrame_s {
     LT_Value tag;
     LT_Value thrown_tag;
     LT_Value thrown_value;
-    int catches_all;
+    int is_unwind_protect;
     struct LT_ThrowCatchFrame_s* previous;
 } LT_ThrowCatchFrame;
 
@@ -34,7 +34,7 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value);
         LT__throw_catch_frame.tag = (TAG_EXPR); \
         LT__throw_catch_frame.thrown_tag = LT_NIL; \
         LT__throw_catch_frame.thrown_value = LT_NIL; \
-        LT__throw_catch_frame.catches_all = 0; \
+        LT__throw_catch_frame.is_unwind_protect = 0; \
         LT__throw_catch_frame.previous = LT__throw_catch_stack; \
         LT__throw_catch_stack = &LT__throw_catch_frame; \
         LT__throw_catch_jump_value = setjmp(LT__throw_catch_frame.jump_buffer); \
@@ -56,7 +56,7 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value);
         LT__throw_catch_frame.tag = LT_NIL; \
         LT__throw_catch_frame.thrown_tag = LT_NIL; \
         LT__throw_catch_frame.thrown_value = LT_NIL; \
-        LT__throw_catch_frame.catches_all = 1; \
+        LT__throw_catch_frame.is_unwind_protect = 1; \
         LT__throw_catch_frame.previous = LT__throw_catch_stack; \
         LT__throw_catch_stack = &LT__throw_catch_frame; \
         LT__throw_catch_jump_value = setjmp(LT__throw_catch_frame.jump_buffer); \
