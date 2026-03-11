@@ -10,6 +10,7 @@
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/throw_catch.h>
 
@@ -220,6 +221,27 @@ static LT_Value special_form_unwind_protect(
     return result;
 }
 
+static LT_Value special_form_handler_bind(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value handler_expression;
+    LT_Value body;
+    LT_Value handler;
+    LT_Value result = LT_NIL;
+
+    LT_OBJECT_ARG(cursor, handler_expression);
+    LT_ARG_REST(cursor, body);
+
+    handler = LT_eval(handler_expression, environment, NULL);
+    LT_HANDLER_BIND(handler, {
+        result = LT_eval_sequence(body, environment, tail_call_unwind_marker);
+    });
+    return result;
+}
+
 static LT_SpecialForm quote_special_form = {
     .function = special_form_quote,
     .name = "quote",
@@ -283,6 +305,13 @@ static LT_SpecialForm unwind_protect_special_form = {
     .description = "Always run cleanup forms; rethrow non-local exits."
 };
 
+static LT_SpecialForm handler_bind_special_form = {
+    .function = special_form_handler_bind,
+    .name = "handler-bind",
+    .arguments = "(handler-expression body ...)",
+    .description = "Bind condition handler during dynamic extent of body."
+};
+
 static void bind_static_special_form(LT_Environment* environment,
                                      LT_SpecialForm* special_form){
     LT_Environment_bind(
@@ -303,4 +332,5 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &throw_special_form);
     bind_static_special_form(environment, &catch_special_form);
     bind_static_special_form(environment, &unwind_protect_special_form);
+    bind_static_special_form(environment, &handler_bind_special_form);
 }

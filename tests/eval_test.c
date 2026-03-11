@@ -7,10 +7,12 @@
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/macros/arg_macros.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -558,6 +560,22 @@ static int test_unwind_protect_runs_cleanup_on_throw_path(void){
     );
 }
 
+static int test_handler_bind_special_form_binds_handler_for_body(void){
+    LT_Value value = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (error \"boom\")))"
+    );
+
+    if (expect(LT_String_p(value), "handler-bind catches error condition")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "boom") == 0,
+        "error forwards string condition through handler-bind"
+    );
+}
+
 static int test_symbol_class_inherits_object(void){
     if (expect(LT_Symbol_class.superclasses != NULL, "symbol has superclass")){
         return 1;
@@ -641,6 +659,7 @@ int main(void){
     failures += test_throw_skips_to_outer_matching_catch();
     failures += test_unwind_protect_runs_cleanup_on_normal_path();
     failures += test_unwind_protect_runs_cleanup_on_throw_path();
+    failures += test_handler_bind_special_form_binds_handler_for_body();
     failures += test_symbol_class_inherits_object();
     failures += test_boolean_constants();
 
