@@ -11,6 +11,7 @@
 
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/Environment.h>
+#include <ListTalk/vm/compiler.h>
 #include <ListTalk/vm/base_env.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/classes/Object.h>

@@ -554,6 +554,135 @@ static int test_macro_expansion_uses_call_environment(void){
     );
 }
 
+static int test_compiler_fold_non_constant_symbol_returns_invalid(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value symbol_x = LT_Symbol_new("x");
+    LT_Value folded;
+
+    LT_Environment_bind(env, symbol_x, LT_SmallInteger_new(7), 0);
+    folded = LT_compiler_fold_expression(symbol_x, env);
+    return expect(
+        folded == LT_INVALID,
+        "compiler fold returns invalid for non-constant symbol"
+    );
+}
+
+static int test_compiler_fold_application_folds_operator_and_arguments(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded;
+    LT_Value args;
+
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("x"),
+        LT_SmallInteger_new(5),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    folded = LT_compiler_fold_expression(read_one("(+ x y)"), env);
+
+    if (expect(LT_Pair_p(folded), "compiler fold returns folded application")){
+        return 1;
+    }
+    if (expect(LT_Primitive_p(LT_car(folded)), "folded operator becomes value")){
+        return 1;
+    }
+
+    args = LT_cdr(folded);
+    if (expect(
+        LT_Value_is_fixnum(LT_car(args)) && LT_SmallInteger_value(LT_car(args)) == 5,
+        "constant argument is folded to bound value"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_car(LT_cdr(args)) == LT_INVALID,
+        "undefined argument is folded to invalid marker"
+    );
+}
+
+static int test_compiler_fold_special_form_uses_special_form_reference(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded;
+    LT_Value arguments;
+
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("x"),
+        LT_TRUE,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    folded = LT_compiler_fold_expression(read_one("(if x (+ 1 2) y)"), env);
+
+    if (expect(LT_Pair_p(folded), "special form fold returns list form")){
+        return 1;
+    }
+    if (expect(
+        LT_SpecialForm_p(LT_car(folded)),
+        "special form operator is replaced by special form value"
+    )){
+        return 1;
+    }
+
+    arguments = LT_cdr(folded);
+    if (expect(
+        LT_car(arguments) == LT_TRUE,
+        "special form expression folds constant condition"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Pair_p(LT_car(LT_cdr(arguments))),
+        "special form expression folds nested application"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_car(LT_cdr(LT_cdr(arguments))) == LT_INVALID,
+        "special form expression folds unresolved symbol to invalid"
+    );
+}
+
+static int test_compiler_fold_expands_macros(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded;
+    LT_Value arguments;
+    LT_Value macro_value;
+
+    macro_value = LT_eval(read_one("(macro (lambda (x) x))"), env, NULL);
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("id-macro"),
+        macro_value,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    folded = LT_compiler_fold_expression(read_one("(id-macro (+ 1 2))"), env);
+
+    if (expect(LT_Pair_p(folded), "compiler fold returns expanded macro form")){
+        return 1;
+    }
+    if (expect(
+        LT_Primitive_p(LT_car(folded)),
+        "macro expansion is folded and operator is resolved"
+    )){
+        return 1;
+    }
+
+    arguments = LT_cdr(folded);
+    if (expect(
+        LT_Value_is_fixnum(LT_car(arguments))
+            && LT_SmallInteger_value(LT_car(arguments)) == 1,
+        "macro expansion folds first argument"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(arguments)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(arguments))) == 2,
+        "macro expansion folds second argument"
+    );
+}
+
 static int test_catch_returns_body_value_without_throw(void){
     LT_Value value = eval_one("(catch :t (+ 1 2))");
     return expect(
@@ -739,6 +868,10 @@ int main(void){
     failures += test_macro_special_form_constructs_macro();
     failures += test_macro_expansion_is_evaluated();
     failures += test_macro_expansion_uses_call_environment();
+    failures += test_compiler_fold_non_constant_symbol_returns_invalid();
+    failures += test_compiler_fold_application_folds_operator_and_arguments();
+    failures += test_compiler_fold_special_form_uses_special_form_reference();
+    failures += test_compiler_fold_expands_macros();
     failures += test_catch_returns_body_value_without_throw();
     failures += test_throw_is_caught_by_matching_tag();
     failures += test_throw_skips_to_outer_matching_catch();

@@ -11,8 +11,161 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/conditions.h>
+#include <ListTalk/vm/compiler.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/throw_catch.h>
+
+static LT_Value fold_argument_list(LT_Value arguments,
+                                   LT_Environment* environment){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value cursor = arguments;
+
+    while (LT_Pair_p(cursor)){
+        LT_ListBuilder_append(
+            builder,
+            LT_compiler_fold_expression(LT_car(cursor), environment)
+        );
+        cursor = LT_cdr(cursor);
+    }
+
+    if (cursor == LT_NIL){
+        return LT_ListBuilder_value(builder);
+    }
+
+    return LT_ListBuilder_valueWithRest(
+        builder,
+        LT_compiler_fold_expression(cursor, environment)
+    );
+}
+
+static LT_Value fold_operator_special_form_value(LT_Value form,
+                                                 LT_Environment* environment){
+    LT_Value value = LT_compiler_fold_expression(LT_car(form), environment);
+
+    if (!LT_SpecialForm_p(value)){
+        return LT_INVALID;
+    }
+    return value;
+}
+
+static LT_Value expand_special_form_quote(LT_Value form,
+                                          LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        LT_cdr(form)
+    );
+}
+
+static LT_Value expand_special_form_lambda(LT_Value form,
+                                           LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+    LT_Value arguments = LT_cdr(form);
+    LT_Value parameters = LT_NIL;
+    LT_Value body = LT_NIL;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+
+    if (LT_Pair_p(arguments)){
+        parameters = LT_car(arguments);
+        body = fold_argument_list(LT_cdr(arguments), environment);
+    }
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        LT_cons(parameters, body)
+    );
+}
+
+static LT_Value expand_special_form_define(LT_Value form,
+                                           LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+    LT_Value arguments = LT_cdr(form);
+    LT_Value symbol = LT_NIL;
+    LT_Value value_and_rest = LT_NIL;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+
+    if (LT_Pair_p(arguments)){
+        symbol = LT_car(arguments);
+        value_and_rest = fold_argument_list(LT_cdr(arguments), environment);
+    }
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        LT_cons(symbol, value_and_rest)
+    );
+}
+
+static LT_Value expand_special_form_set_bang(LT_Value form,
+                                             LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+    LT_Value arguments = LT_cdr(form);
+    LT_Value symbol = LT_NIL;
+    LT_Value value_and_rest = LT_NIL;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+
+    if (LT_Pair_p(arguments)){
+        symbol = LT_car(arguments);
+        value_and_rest = fold_argument_list(LT_cdr(arguments), environment);
+    }
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        LT_cons(symbol, value_and_rest)
+    );
+}
+
+static LT_Value expand_special_form_default(LT_Value form,
+                                            LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        fold_argument_list(LT_cdr(form), environment)
+    );
+}
 
 static LT_Value special_form_quote(LT_Value arguments,
                                    LT_Environment* environment,
@@ -244,6 +397,7 @@ static LT_Value special_form_handler_bind(
 
 static LT_SpecialForm quote_special_form = {
     .function = special_form_quote,
+    .expand_function = expand_special_form_quote,
     .name = "quote",
     .arguments = "(value)",
     .description = "Return value without evaluation."
@@ -251,6 +405,7 @@ static LT_SpecialForm quote_special_form = {
 
 static LT_SpecialForm lambda_special_form = {
     .function = special_form_lambda,
+    .expand_function = expand_special_form_lambda,
     .name = "lambda",
     .arguments = "((arg ...) body ...)",
     .description = "Create closure with lexical scope."
@@ -258,6 +413,7 @@ static LT_SpecialForm lambda_special_form = {
 
 static LT_SpecialForm if_special_form = {
     .function = special_form_if,
+    .expand_function = expand_special_form_default,
     .name = "if",
     .arguments = "(condition then [else])",
     .description = "Evaluate then or else based on condition."
@@ -265,6 +421,7 @@ static LT_SpecialForm if_special_form = {
 
 static LT_SpecialForm define_special_form = {
     .function = special_form_define,
+    .expand_function = expand_special_form_define,
     .name = "define",
     .arguments = "(symbol value-expression)",
     .description = "Create mutable binding in current environment."
@@ -272,6 +429,7 @@ static LT_SpecialForm define_special_form = {
 
 static LT_SpecialForm set_bang_special_form = {
     .function = special_form_set_bang,
+    .expand_function = expand_special_form_set_bang,
     .name = "set!",
     .arguments = "(symbol value-expression)",
     .description = "Update existing mutable binding."
@@ -279,6 +437,7 @@ static LT_SpecialForm set_bang_special_form = {
 
 static LT_SpecialForm macro_special_form = {
     .function = special_form_macro,
+    .expand_function = expand_special_form_default,
     .name = "macro",
     .arguments = "(callable-expression)",
     .description = "Wrap primitive or closure as macro."
@@ -286,6 +445,7 @@ static LT_SpecialForm macro_special_form = {
 
 static LT_SpecialForm throw_special_form = {
     .function = special_form_throw,
+    .expand_function = expand_special_form_default,
     .name = "throw",
     .arguments = "(tag-expression value-expression)",
     .description = "Throw value to nearest enclosing catch with matching tag."
@@ -293,6 +453,7 @@ static LT_SpecialForm throw_special_form = {
 
 static LT_SpecialForm catch_special_form = {
     .function = special_form_catch,
+    .expand_function = expand_special_form_default,
     .name = "catch",
     .arguments = "(tag-expression body ...)",
     .description = "Evaluate body and intercept throws matching tag."
@@ -300,6 +461,7 @@ static LT_SpecialForm catch_special_form = {
 
 static LT_SpecialForm unwind_protect_special_form = {
     .function = special_form_unwind_protect,
+    .expand_function = expand_special_form_default,
     .name = "unwind-protect",
     .arguments = "(protected-expression cleanup ...)",
     .description = "Always run cleanup forms; rethrow non-local exits."
@@ -307,6 +469,7 @@ static LT_SpecialForm unwind_protect_special_form = {
 
 static LT_SpecialForm handler_bind_special_form = {
     .function = special_form_handler_bind,
+    .expand_function = expand_special_form_default,
     .name = "handler-bind",
     .arguments = "(handler-expression body ...)",
     .description = "Bind condition handler during dynamic extent of body."

@@ -23,8 +23,14 @@ typedef LT_Value(*LT_SpecialForm_Func)(
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 
+typedef LT_Value(*LT_SpecialForm_ExpandFunc)(
+    LT_Value form,
+    LT_Environment* environment
+);
+
 struct LT_SpecialForm_s {
     LT_SpecialForm_Func function;
+    LT_SpecialForm_ExpandFunc expand_function;
     char* name;
     char* arguments;
     char* description;
@@ -33,17 +39,26 @@ struct LT_SpecialForm_s {
 LT_Value LT_SpecialForm_new(char* name,
                             char* arguments,
                             char* description,
-                            LT_SpecialForm_Func function);
+                            LT_SpecialForm_Func function,
+                            LT_SpecialForm_ExpandFunc expand_function);
 LT_Value LT_SpecialForm_from_static(LT_SpecialForm* special_form);
 char* LT_SpecialForm_name(LT_SpecialForm* special_form);
 char* LT_SpecialForm_arguments(LT_SpecialForm* special_form);
 char* LT_SpecialForm_description(LT_SpecialForm* special_form);
 LT_SpecialForm_Func LT_SpecialForm_function(LT_SpecialForm* special_form);
+LT_SpecialForm_ExpandFunc LT_SpecialForm_expand_function(
+    LT_SpecialForm* special_form
+);
 LT_Value LT_SpecialForm_apply(
     LT_Value special_form,
     LT_Value arguments,
     LT_Environment* environment,
     LT_TailCallUnwindMarker* tail_call_unwind_marker
+);
+LT_Value LT_SpecialForm_expand(
+    LT_Value special_form,
+    LT_Value form,
+    LT_Environment* environment
 );
 
 LT__END_DECLS

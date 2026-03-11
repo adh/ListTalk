@@ -30,10 +30,12 @@ LT_DEFINE_CLASS(LT_SpecialForm) {
 LT_Value LT_SpecialForm_new(char* name,
                             char* arguments,
                             char* description,
-                            LT_SpecialForm_Func function){
+                            LT_SpecialForm_Func function,
+                            LT_SpecialForm_ExpandFunc expand_function){
     LT_SpecialForm* special_form = GC_NEW(LT_SpecialForm);
 
     special_form->function = function;
+    special_form->expand_function = expand_function;
     if (name == NULL){
         special_form->name = NULL;
     } else {
@@ -73,6 +75,12 @@ LT_SpecialForm_Func LT_SpecialForm_function(LT_SpecialForm* special_form){
     return special_form->function;
 }
 
+LT_SpecialForm_ExpandFunc LT_SpecialForm_expand_function(
+    LT_SpecialForm* special_form
+){
+    return special_form->expand_function;
+}
+
 LT_Value LT_SpecialForm_apply(LT_Value special_form,
                               LT_Value arguments,
                               LT_Environment* environment,
@@ -81,4 +89,17 @@ LT_Value LT_SpecialForm_apply(LT_Value special_form,
         LT_SpecialForm_from_value(special_form)
     );
     return function(arguments, environment, tail_call_unwind_marker);
+}
+
+LT_Value LT_SpecialForm_expand(LT_Value special_form,
+                               LT_Value form,
+                               LT_Environment* environment){
+    LT_SpecialForm_ExpandFunc function = LT_SpecialForm_expand_function(
+        LT_SpecialForm_from_value(special_form)
+    );
+
+    if (function == NULL){
+        return LT_INVALID;
+    }
+    return function(form, environment);
 }

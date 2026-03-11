@@ -7,6 +7,7 @@ vm_lib = library(
         'ListTalkVM', 
         [
                 'src/vm/eval.c',
+                'src/vm/compiler.c',
                 'src/vm/value.c',
                 'src/vm/Class.c',
                 'src/vm/Environment.c',
