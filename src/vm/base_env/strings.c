@@ -6,6 +6,7 @@
 #include "internal.h"
 
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Character.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
@@ -19,6 +20,20 @@ static size_t checked_index_from_fixnum(int64_t value, const char* primitive_nam
         LT_error("Index out of supported range");
     }
     return (size_t)value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_character_p,
+    "character?",
+    "(value)",
+    "Return true when value is a character."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Character_p(value) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -59,7 +74,7 @@ LT_DEFINE_PRIMITIVE(
     primitive_string_ref,
     "string-ref",
     "(string index)",
-    "Return byte value at index."
+    "Return character at index."
 ){
     LT_Value cursor = arguments;
     LT_String* string;
@@ -74,7 +89,37 @@ LT_DEFINE_PRIMITIVE(
         string,
         checked_index_from_fixnum(index_value, "string-ref")
     );
-    return LT_SmallInteger_new((int64_t)ch);
+    return LT_Character_new(ch);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_string_to_character_list,
+    "string->list",
+    "(string)",
+    "Return a list of characters in string order."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_to_character_list(string);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_character_list_to_string,
+    "list->string",
+    "(characters)",
+    "Construct a string from a proper list of characters."
+){
+    LT_Value cursor = arguments;
+    LT_Value characters;
+
+    LT_OBJECT_ARG(cursor, characters);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_from_character_list(characters);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -107,8 +152,17 @@ LT_DEFINE_PRIMITIVE(
 }
 
 void LT_base_env_bind_strings(LT_Environment* environment){
+    LT_base_env_bind_static_primitive(environment, &primitive_character_p);
     LT_base_env_bind_static_primitive(environment, &primitive_string_p);
     LT_base_env_bind_static_primitive(environment, &primitive_string_length);
     LT_base_env_bind_static_primitive(environment, &primitive_string_ref);
+    LT_base_env_bind_static_primitive(
+        environment,
+        &primitive_string_to_character_list
+    );
+    LT_base_env_bind_static_primitive(
+        environment,
+        &primitive_character_list_to_string
+    );
     LT_base_env_bind_static_primitive(environment, &primitive_string_append);
 }

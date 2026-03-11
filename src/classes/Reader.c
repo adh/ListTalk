@@ -5,6 +5,7 @@
 
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/Float.h>
+#include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
@@ -43,6 +44,8 @@ static LT_Value read_object_from_first(
 );
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_character_literal(LT_ReaderStream* stream);
+static char* read_token_string(int first, LT_ReaderStream* stream);
 
 static int file_stream_getc(void* stream){
     LT_FileReaderStream* file_stream = (LT_FileReaderStream*)stream;
@@ -321,6 +324,8 @@ static LT_Value read_dispatch_macro(
     switch (ch){
         case '(':
             return read_vector_literal(reader, stream);
+        case '\\':
+            return read_character_literal(stream);
         case '!':
             ch = LT_ReaderStream_getc(stream);
             while (ch != EOF && ch != '\n'){
@@ -347,6 +352,49 @@ static LT_Value read_dispatch_macro(
             LT_error("Unknown dispatch macro character");
             return LT_NIL;
     }
+}
+
+static LT_Value read_character_literal(LT_ReaderStream* stream){
+    int ch = LT_ReaderStream_getc(stream);
+    char* token;
+    char* end;
+    unsigned long parsed;
+
+    if (ch == EOF || is_delimiter(ch)){
+        LT_error("Character literal expects token after '#\\\\'");
+    }
+
+    token = read_token_string(ch, stream);
+
+    if (token[0] != '\0' && token[1] == '\0'){
+        return LT_Character_new((uint32_t)(unsigned char)token[0]);
+    }
+    if (strcmp(token, "space") == 0){
+        return LT_Character_new((uint32_t)' ');
+    }
+    if (strcmp(token, "tab") == 0){
+        return LT_Character_new((uint32_t)'\t');
+    }
+    if (strcmp(token, "newline") == 0){
+        return LT_Character_new((uint32_t)'\n');
+    }
+    if (strcmp(token, "return") == 0){
+        return LT_Character_new((uint32_t)'\r');
+    }
+    if ((token[0] == 'u' || token[0] == 'U')
+        && token[1] == '+'
+        && token[2] != '\0'){
+        errno = 0;
+        parsed = strtoul(token + 2, &end, 16);
+        if (errno != 0 || *end != '\0'
+            || !LT_Character_codepoint_is_valid((uint32_t)parsed)){
+            LT_error("Invalid Unicode code point in character literal");
+        }
+        return LT_Character_new((uint32_t)parsed);
+    }
+
+    LT_error("Invalid character literal");
+    return LT_NIL;
 }
 
 static LT_Value LT_Value_from_object(LT_Object* obj){

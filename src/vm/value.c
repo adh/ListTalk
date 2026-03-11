@@ -7,6 +7,7 @@
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Nil.h>
+#include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
@@ -22,6 +23,7 @@ LT_Class* const LT__Immediate_classes[64] = {
     [LT_VALUE_IMMEDIATE_TAG_BOOLEAN & 0x3f] = &LT_Boolean_class,
     [LT_VALUE_IMMEDIATE_TAG_NIL & 0x3f] = &LT_Nil_class,
     [LT_VALUE_IMMEDIATE_TAG_FIXNUM & 0x3f] = &LT_SmallInteger_class,
+    [LT_VALUE_IMMEDIATE_TAG_CHARACTER & 0x3f] = &LT_Character_class,
 };
 LT_Class* const LT__Pointer_classes[8] = {
     &LT_Class_class,

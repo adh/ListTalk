@@ -20,6 +20,8 @@ LT_String* LT_String_new_cstr(char* str);
 const char* LT_String_value_cstr(LT_String* string);
 size_t LT_String_length(LT_String* string);
 unsigned char LT_String_at(LT_String* string, size_t index);
+LT_Value LT_String_to_character_list(LT_String* string);
+LT_String* LT_String_from_character_list(LT_Value characters);
 
 LT__END_DECLS
 

@@ -4,10 +4,14 @@
  */
 
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Character.h>
+#include <ListTalk/classes/Pair.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/utils.h>
 
 #include <ctype.h>
+#include <stdint.h>
 #include <string.h>
 
 struct LT_String_s {
@@ -83,4 +87,48 @@ unsigned char LT_String_at(LT_String* string, size_t index){
         LT_error("String index out of bounds");
     }
     return (unsigned char)string->str[index];
+}
+
+LT_Value LT_String_to_character_list(LT_String* string){
+    LT_Value list = LT_NIL;
+    size_t index = string->length;
+
+    while (index > 0){
+        index--;
+        list = LT_cons(
+            LT_Character_new((uint32_t)(unsigned char)string->str[index]),
+            list
+        );
+    }
+    return list;
+}
+
+LT_String* LT_String_from_character_list(LT_Value characters){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    LT_Value cursor = characters;
+
+    while (cursor != LT_NIL){
+        LT_Value element;
+
+        if (!LT_Pair_p(cursor)){
+            LT_error("Expected proper list of characters");
+        }
+
+        element = LT_car(cursor);
+        if (LT_Character_value(element) > UINT32_C(0xff)){
+            LT_error(
+                "Cannot encode character code point above 0xFF in byte string"
+            );
+        }
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(unsigned char)LT_Character_value(element)
+        );
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
 }

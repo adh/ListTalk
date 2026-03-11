@@ -14,6 +14,7 @@
 #include <ListTalk/classes/Vector.h>
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 static int fail(const char* message){
@@ -200,6 +201,42 @@ static int test_dispatch_nil(void){
 static int test_dispatch_nil_short(void){
     LT_Value value = read_one("#n");
     return expect(value == LT_NIL, "dispatch #n");
+}
+
+static int test_dispatch_character_single(void){
+    LT_Value value = read_one("#\\A");
+
+    if (expect(LT_Character_p(value), "dispatch character single type")){
+        return 1;
+    }
+    return expect(
+        LT_Character_value(value) == (uint32_t)'A',
+        "dispatch character single value"
+    );
+}
+
+static int test_dispatch_character_named(void){
+    LT_Value value = read_one("#\\space");
+
+    if (expect(LT_Character_p(value), "dispatch character named type")){
+        return 1;
+    }
+    return expect(
+        LT_Character_value(value) == (uint32_t)' ',
+        "dispatch character named value"
+    );
+}
+
+static int test_dispatch_character_unicode(void){
+    LT_Value value = read_one("#\\u+03bb");
+
+    if (expect(LT_Character_p(value), "dispatch character unicode type")){
+        return 1;
+    }
+    return expect(
+        LT_Character_value(value) == UINT32_C(0x03bb),
+        "dispatch character unicode value"
+    );
 }
 
 static int test_dispatch_bang_comment(void){
@@ -514,6 +551,9 @@ int main(void){
     failures += test_dispatch_boolean_false();
     failures += test_dispatch_nil();
     failures += test_dispatch_nil_short();
+    failures += test_dispatch_character_single();
+    failures += test_dispatch_character_named();
+    failures += test_dispatch_character_unicode();
     failures += test_dispatch_bang_comment();
     failures += test_quote_syntax();
     failures += test_symbol_package_interning();

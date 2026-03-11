@@ -16,6 +16,7 @@
 #include <ListTalk/classes/Object.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Nil.h>
+#include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallInteger.h>

@@ -24,6 +24,7 @@ vm_lib = library(
                 'src/vm/throw_catch.c',
                 'src/classes/Object.c',
                 'src/classes/Boolean.c',
+                'src/classes/Character.c',
                 'src/classes/Printer.c',
                 'src/classes/Reader.c',
                 'src/classes/Package.c',

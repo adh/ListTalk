@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Boolean.h>
+#include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
@@ -15,6 +16,7 @@
 #include <ListTalk/macros/arg_macros.h>
 
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 static int fail(const char* message){
@@ -225,9 +227,77 @@ static int test_string_length_primitive(void){
 
 static int test_string_ref_primitive(void){
     LT_Value value = eval_one("(string-ref \"ABC\" 1)");
+    if (expect(LT_Character_p(value), "string-ref returns character")){
+        return 1;
+    }
+    return expect(LT_Character_value(value) == 'B', "string-ref character value");
+}
+
+static int test_character_predicate_primitive(void){
+    LT_Value character_value = eval_one("(character? (string-ref \"x\" 0))");
+    LT_Value fixnum_value = eval_one("(character? 1)");
+
+    if (expect(
+        LT_Value_is_boolean(character_value)
+            && LT_Value_boolean_value(character_value),
+        "character? true for characters"
+    )){
+        return 1;
+    }
     return expect(
-        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 66,
-        "string-ref returns byte value"
+        LT_Value_is_boolean(fixnum_value) && !LT_Value_boolean_value(fixnum_value),
+        "character? false for non-characters"
+    );
+}
+
+static int test_string_to_character_list_primitive(void){
+    LT_Value value = eval_one("(string->list \"ABC\")");
+
+    if (expect(LT_Pair_p(value), "string->list returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Character_p(LT_car(value))
+            && LT_Character_value(LT_car(value)) == 'A',
+        "first character is A"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Character_p(LT_car(value))
+            && LT_Character_value(LT_car(value)) == 'B',
+        "second character is B"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Character_p(LT_car(value))
+            && LT_Character_value(LT_car(value)) == 'C',
+        "third character is C"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(value) == LT_NIL, "list ends with nil");
+}
+
+static int test_character_list_to_string_primitive(void){
+    LT_Value value = eval_one(
+        "(list->string (string->list \"hello\"))"
+    );
+
+    if (expect(
+        LT_Value_class(value) == &LT_String_class,
+        "list->string returns string"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "hello") == 0,
+        "list->string round-trip"
     );
 }
 
@@ -612,6 +682,18 @@ static int test_boolean_constants(void){
     );
 }
 
+static int test_character_api_uses_unicode_codepoints(void){
+    LT_Value value = LT_Character_new(UINT32_C(0x1f600));
+
+    if (expect(LT_Character_p(value), "LT_Character_new returns character")){
+        return 1;
+    }
+    return expect(
+        LT_Character_value(value) == UINT32_C(0x1f600),
+        "LT_Character stores full 21-bit code point"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -635,6 +717,9 @@ int main(void){
     failures += test_string_predicate_primitive();
     failures += test_string_length_primitive();
     failures += test_string_ref_primitive();
+    failures += test_character_predicate_primitive();
+    failures += test_string_to_character_list_primitive();
+    failures += test_character_list_to_string_primitive();
     failures += test_string_append_primitive();
     failures += test_vector_predicate_primitive();
     failures += test_vector_length_primitive();
@@ -662,6 +747,7 @@ int main(void){
     failures += test_handler_bind_special_form_binds_handler_for_body();
     failures += test_symbol_class_inherits_object();
     failures += test_boolean_constants();
+    failures += test_character_api_uses_unicode_codepoints();
 
     if (failures == 0){
         puts("eval tests passed");
