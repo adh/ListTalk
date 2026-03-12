@@ -5,10 +5,16 @@
 
 #include "internal.h"
 
+#include <ListTalk/classes/Printer.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/utils.h>
 #include <ListTalk/vm/compiler.h>
 #include <ListTalk/vm/error.h>
+
+#include <stdio.h>
+#include <stdlib.h>
 
 LT_DEFINE_PRIMITIVE(
     primitive_type_of,
@@ -41,6 +47,82 @@ LT_DEFINE_PRIMITIVE(
     }
 
     LT_error(LT_String_value_cstr(LT_String_from_value(message)));
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_display,
+    "display",
+    "(value)",
+    "Print value and newline to standard output, then return it."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+
+    if (LT_String_p(value)){
+        fputs(LT_String_value_cstr(LT_String_from_value(value)), stdout);
+    } else {
+        LT_printer_print_object(value);
+    }
+    fputc('\n', stdout);
+    fflush(stdout);
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_read,
+    "read",
+    "()",
+    "Read one line from standard input and return it as a string."
+){
+    LT_Value cursor = arguments;
+    LT_StringBuilder* builder;
+    int ch;
+    (void)tail_call_unwind_marker;
+
+    LT_ARG_END(cursor);
+
+    builder = LT_StringBuilder_new();
+    ch = fgetc(stdin);
+    if (ch == EOF){
+        return LT_NIL;
+    }
+
+    while (ch != EOF && ch != '\n'){
+        if (ch != '\r'){
+            LT_StringBuilder_append_char(builder, (char)ch);
+        }
+        ch = fgetc(stdin);
+    }
+
+    return (LT_Value)(uintptr_t)LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_exit,
+    "exit",
+    "([status])",
+    "Terminate process with optional fixnum status code."
+){
+    LT_Value cursor = arguments;
+    LT_Value status = LT_SmallInteger_new(0);
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG_OPT(cursor, status, status);
+    LT_ARG_END(cursor);
+
+    if (!LT_Value_is_fixnum(status)){
+        LT_type_error(status, &LT_SmallInteger_class);
+    }
+
+    exit((int)LT_SmallInteger_value(status));
     return LT_NIL;
 }
 
@@ -87,6 +169,9 @@ LT_DEFINE_PRIMITIVE(
 void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_type_of);
     LT_base_env_bind_static_primitive(environment, &primitive_error);
+    LT_base_env_bind_static_primitive(environment, &primitive_display);
+    LT_base_env_bind_static_primitive(environment, &primitive_read);
+    LT_base_env_bind_static_primitive(environment, &primitive_exit);
     LT_base_env_bind_static_primitive(environment, &primitive_macroexpand);
     LT_base_env_bind_static_primitive(environment, &primitive_fold_expression);
 }

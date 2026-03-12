@@ -15,6 +15,12 @@ meson compile -C build
 ./build/listtalk
 ```
 
+Run source files:
+
+```sh
+./build/listtalk path/to/file.lt
+```
+
 ## Test
 
 ```sh

@@ -18,7 +18,7 @@ static void object_slot_set(LT_Class_Slot* slot, LT_Value object, LT_Value value
     *val = value;
 }
 
-LT_Slot_Type LT_SlotType_Object = {
+LT_SlotType LT_SlotType_Object = {
     .ref = object_slot_ref,
     .set = object_slot_set,
 };

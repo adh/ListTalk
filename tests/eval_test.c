@@ -114,6 +114,18 @@ static int test_symbol_lookup(void){
     );
 }
 
+static int test_display_primitive_returns_argument(void){
+    LT_Value value = eval_one("(display \"hello\")");
+
+    if (expect(LT_String_p(value), "display returns value")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "hello") == 0,
+        "display returns exact string argument"
+    );
+}
+
 static int test_keyword_self_evaluating_when_unbound(void){
     LT_Value value = eval_one(":token");
 
@@ -963,6 +975,7 @@ int main(void){
     failures += test_subtract_unary_float();
     failures += test_integer_divide_still_fixnum();
     failures += test_symbol_lookup();
+    failures += test_display_primitive_returns_argument();
     failures += test_keyword_self_evaluating_when_unbound();
     failures += test_type_of_primitive();
     failures += test_cons_primitive();

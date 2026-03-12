@@ -22,7 +22,7 @@ typedef struct LT_Class_Slot {
     LT_SlotType* type;
 } LT_Class_Slot;
 
-struct LT_Slot_Type_s {
+struct LT_SlotType_s {
     LT_Value (*ref)(LT_Class_Slot* slot, LT_Value object);
     void (*set)(LT_Class_Slot* slot, LT_Value object, LT_Value value);
 };

@@ -67,25 +67,14 @@ static LT_Value repl_error_handler(LT_Value arguments,
     LT_throw(LT__repl_error_tag, condition);
 }
 
-int main(int argc, char**argv){
-    LT_Reader* reader;
-    LT_ReaderStream* stream;
-    LT_Value error_handler;
+static int eval_stream(FILE* file,
+                       LT_Reader* reader,
+                       LT_Value error_handler,
+                       int print_result,
+                       int stop_on_error){
+    LT_ReaderStream* stream = LT_ReaderStream_newForFile(file);
 
-    (void)argc;
-    (void)argv;
-    LT_init();
-    reader = LT_Reader_new();
-    stream = LT_ReaderStream_newForFile(stdin);
-    LT__repl_error_tag = LT_Symbol_new("repl-error");
-    error_handler = LT_Primitive_new(
-        "repl-error-handler",
-        "(condition)",
-        "Print top-level error and continue REPL loop.",
-        repl_error_handler
-    );
-
-    while (stream_has_next_form(stdin)){
+    while (stream_has_next_form(file)){
         LT_Value object;
         LT_Value result;
         LT_Value caught = LT_NIL;
@@ -94,12 +83,53 @@ int main(int argc, char**argv){
             LT_HANDLER_BIND(error_handler, {
                 object = LT_Reader_readObject(reader, stream);
                 result = LT_eval(object, LT_get_shared_base_environment(), NULL);
-                LT_printer_print_object(result);
-                fputc('\n', stdout);
+                if (print_result){
+                    LT_printer_print_object(result);
+                    fputc('\n', stdout);
+                }
             });
         });
-        (void)caught;
+
+        if (caught != LT_NIL && stop_on_error){
+            return 1;
+        }
     }
 
     return 0;
+}
+
+int main(int argc, char**argv){
+    LT_Reader* reader;
+    LT_Value error_handler;
+    FILE* source_file;
+    int eval_status;
+
+    LT_init();
+    reader = LT_Reader_new();
+    LT__repl_error_tag = LT_Symbol_new("repl-error");
+    error_handler = LT_Primitive_new(
+        "repl-error-handler",
+        "(condition)",
+        "Print top-level error and continue REPL loop.",
+        repl_error_handler
+    );
+
+    if (argc <= 1){
+        return eval_stream(stdin, reader, error_handler, 1, 0);
+    }
+
+    if (argc > 2){
+        fprintf(stderr, "Usage: %s [script-file]\n", argv[0]);
+        return 2;
+    }
+
+    source_file = fopen(argv[1], "r");
+    if (source_file == NULL){
+        fprintf(stderr, "Error: unable to open source file '%s'\n", argv[1]);
+        return 1;
+    }
+
+    eval_status = eval_stream(source_file, reader, error_handler, 0, 1);
+    fclose(source_file);
+    return eval_status;
 }
