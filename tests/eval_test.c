@@ -461,6 +461,24 @@ static int test_slot_table_includes_superclass_slots(void){
     );
 }
 
+static int test_metaclass_has_valid_name_slot(void){
+    LT_Value metaclass_name = eval_one("(slot-ref (type-of SmallInteger) 'name)");
+
+    if (expect(
+        LT_Symbol_p(metaclass_name),
+        "metaclass name slot contains symbol"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_Symbol_name(LT_Symbol_from_value(metaclass_name)),
+            "SmallInteger class"
+        ) == 0,
+        "metaclass gets synthesized class name"
+    );
+}
+
 static int test_quote(void){
     LT_Value value = eval_one("(quote (+ 1 2))");
 
@@ -1082,6 +1100,7 @@ int main(void){
     failures += test_slot_ref_primitive();
     failures += test_slot_set_bang_primitive();
     failures += test_slot_table_includes_superclass_slots();
+    failures += test_metaclass_has_valid_name_slot();
     failures += test_quote();
     failures += test_quote_reader_syntax();
     failures += test_lambda_application();

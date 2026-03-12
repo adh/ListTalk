@@ -108,6 +108,23 @@ static size_t count_slot_descriptors(LT_Slot_Descriptor* descriptor_slots){
     return count;
 }
 
+static LT_Value make_metaclass_name(LT_Value class_name){
+    char* name;
+    size_t length;
+    char* metaclass_name;
+
+    if (!LT_Symbol_p(class_name)){
+        return LT_NIL;
+    }
+
+    name = LT_Symbol_name(LT_Symbol_from_value(class_name));
+    length = strlen(name);
+    metaclass_name = GC_MALLOC_ATOMIC(length + strlen(" class") + 1);
+    memcpy(metaclass_name, name, length);
+    memcpy(metaclass_name + length, " class", strlen(" class") + 1);
+    return LT_Symbol_new(metaclass_name);
+}
+
 static int compare_slots_by_name(const void* left, const void* right){
     const LT_Class_Slot* left_slot = (const LT_Class_Slot*)left;
     const LT_Class_Slot* right_slot = (const LT_Class_Slot*)right;
@@ -219,6 +236,9 @@ void LT_init_native_class(LT_Class* klass){
     } else {
         klass->name = LT_Symbol_new(descriptor->name);
     }
+    klass->methods = LT_NIL;
+    klass->method_cache = LT_NIL;
+    klass->documentation = LT_NIL;
     klass->superclasses = make_single_superclass_list(descriptor->superclass);
     materialize_slots(klass, descriptor->slots);
 
@@ -230,6 +250,10 @@ void LT_init_native_class(LT_Class* klass){
         if (metaclass->debugPrintOn == NULL){
             metaclass->debugPrintOn = Class_debugPrintOn;
         }
+        metaclass->name = make_metaclass_name(klass->name);
+        metaclass->methods = LT_NIL;
+        metaclass->method_cache = LT_NIL;
+        metaclass->documentation = LT_NIL;
         metaclass->superclasses =
             make_single_superclass_list(descriptor->metaclass_superclass);
         if (descriptor->metaclass_superclass != NULL){
