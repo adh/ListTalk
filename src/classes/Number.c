@@ -9,6 +9,8 @@
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/error.h>
 
+#include <stdbool.h>
+
 struct LT_Number_s {
     LT_Object base;
 };
@@ -29,6 +31,29 @@ static LT_Value checked_fixnum_from_i64(int64_t result){
     }
 
     return LT_SmallInteger_new(result);
+}
+
+bool LT_Number_equal_p(LT_Value left, LT_Value right){
+    if (!(LT_Value_is_fixnum(left) || LT_Float_p(left))){
+        return false;
+    }
+    if (!(LT_Value_is_fixnum(right) || LT_Float_p(right))){
+        return false;
+    }
+
+    if (LT_Value_is_fixnum(left) && LT_Value_is_fixnum(right)){
+        return LT_SmallInteger_value(left) == LT_SmallInteger_value(right);
+    }
+
+    if (LT_Float_p(left) && LT_Float_p(right)){
+        return LT_Float_value(left) == LT_Float_value(right);
+    }
+
+    if (LT_Value_is_fixnum(left) && LT_Float_p(right)){
+        return (double)LT_SmallInteger_value(left) == LT_Float_value(right);
+    }
+
+    return LT_Float_value(left) == (double)LT_SmallInteger_value(right);
 }
 
 LT_Value LT_Number_add2(LT_Value left, LT_Value right){

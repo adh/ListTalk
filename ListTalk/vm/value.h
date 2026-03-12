@@ -8,6 +8,8 @@
 
 #include <ListTalk/macros/env_macros.h>
 
+#include <stdbool.h>
+
 LT__BEGIN_DECLS
 
 typedef uintptr_t LT_Value;
@@ -75,6 +77,8 @@ extern LT_Class* const LT__Immediate_classes[];
 extern LT_Class* const LT__Pointer_classes[];
 extern LT_Class LT_Float_class;
 void LT_Value_debugPrintOn(LT_Value value, FILE* stream);
+bool LT_Value_eqv_p(LT_Value left, LT_Value right);
+bool LT_Value_equal_p(LT_Value left, LT_Value right);
 
 static inline int LT_Value_is_fixnum(LT_Value value){
     return LT_VALUE_IS_IMMEDIATE(value)

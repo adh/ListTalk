@@ -8,8 +8,15 @@
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Float.h>
+#include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/Macro.h>
+#include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Object.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/Environment.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/compiler.h>
@@ -17,6 +24,269 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+static int class_object_p(LT_Value value){
+    LT_Class* object_class = LT_Value_class(value);
+
+    while (object_class != NULL){
+        if (object_class == &LT_Class_class){
+            return 1;
+        }
+        if (object_class->superclasses == NULL){
+            break;
+        }
+        object_class = object_class->superclasses[0];
+    }
+
+    return 0;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_numeric_equal,
+    "=",
+    "(n ...)",
+    "Return true when all numeric arguments are equal.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value first;
+
+    LT_OBJECT_ARG(cursor, first);
+    if (!LT_Value_is_fixnum(first) && !LT_Float_p(first)){
+        LT_type_error(first, &LT_Number_class);
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (!LT_Value_is_fixnum(next) && !LT_Float_p(next)){
+            LT_type_error(next, &LT_Number_class);
+        }
+        if (!LT_Number_equal_p(first, next)){
+            return LT_FALSE;
+        }
+        first = next;
+    }
+
+    return LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_eq_p,
+    "eq?",
+    "(left right)",
+    "Return true when both arguments are the same value identity.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value left;
+    LT_Value right;
+
+    LT_OBJECT_ARG(cursor, left);
+    LT_OBJECT_ARG(cursor, right);
+    LT_ARG_END(cursor);
+    return left == right ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_eqv_p,
+    "eqv?",
+    "(left right)",
+    "Return true for identical values or numerically equivalent numbers.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value left;
+    LT_Value right;
+
+    LT_OBJECT_ARG(cursor, left);
+    LT_OBJECT_ARG(cursor, right);
+    LT_ARG_END(cursor);
+    return LT_Value_eqv_p(left, right) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_equal_p,
+    "equal?",
+    "(left right)",
+    "Return true when two values are structurally equal.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value left;
+    LT_Value right;
+
+    LT_OBJECT_ARG(cursor, left);
+    LT_OBJECT_ARG(cursor, right);
+    LT_ARG_END(cursor);
+    return LT_Value_equal_p(left, right) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_not,
+    "not",
+    "(value)",
+    "Return true when value is nil.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return value == LT_NIL ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_null_p,
+    "null?",
+    "(value)",
+    "Return true when value is nil.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return value == LT_NIL ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_boolean_p,
+    "boolean?",
+    "(value)",
+    "Return true when value is a boolean.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Value_is_boolean(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_number_p,
+    "number?",
+    "(value)",
+    "Return true when value is a number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return (LT_Value_is_fixnum(value) || LT_Float_p(value)) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_symbol_p,
+    "symbol?",
+    "(value)",
+    "Return true when value is a symbol.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Symbol_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_primitive_p,
+    "primitive?",
+    "(value)",
+    "Return true when value is a primitive function.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Primitive_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_closure_p,
+    "closure?",
+    "(value)",
+    "Return true when value is a closure.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Closure_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_macro_p,
+    "macro?",
+    "(value)",
+    "Return true when value is a macro.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Macro_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_special_form_p,
+    "special-form?",
+    "(value)",
+    "Return true when value is a special form.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_SpecialForm_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_class_p,
+    "class?",
+    "(value)",
+    "Return true when value is a class object.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return class_object_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_environment_p,
+    "environment?",
+    "(value)",
+    "Return true when value is an environment.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Environment_p(value) ? LT_TRUE : LT_FALSE;
+}
 
 LT_DEFINE_PRIMITIVE(
     primitive_type_of,
@@ -222,6 +492,21 @@ LT_DEFINE_PRIMITIVE(
 }
 
 void LT_base_env_bind_primitives(LT_Environment* environment){
+    LT_base_env_bind_static_primitive(environment, &primitive_numeric_equal);
+    LT_base_env_bind_static_primitive(environment, &primitive_eq_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_eqv_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_equal_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_not);
+    LT_base_env_bind_static_primitive(environment, &primitive_null_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_boolean_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_number_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_symbol_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_primitive_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_closure_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_macro_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_special_form_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_class_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_environment_p);
     LT_base_env_bind_static_primitive(environment, &primitive_type_of);
     LT_base_env_bind_static_primitive(environment, &primitive_class_slots);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_ref);

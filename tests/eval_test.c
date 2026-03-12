@@ -259,6 +259,252 @@ static int test_pair_predicate_primitive(void){
     );
 }
 
+static int test_numeric_equal_primitive(void){
+    LT_Value true_value = eval_one("(= 1 1 1.0)");
+    LT_Value false_value = eval_one("(= 1 2)");
+
+    if (expect(
+        LT_Value_is_boolean(true_value) && LT_Value_boolean_value(true_value),
+        "= true when all numbers are equal"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(false_value) && !LT_Value_boolean_value(false_value),
+        "= false when numbers differ"
+    );
+}
+
+static int test_numeric_equal_type_error_on_non_number(void){
+    LT_Value value = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (= 1 \"1\")))"
+    );
+
+    if (expect(LT_String_p(value), "= non-number signals condition")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "Type error") == 0,
+        "= non-number raises type error"
+    );
+}
+
+static int test_eq_primitive(void){
+    LT_Value true_value = eval_one("(eq? 'a 'a)");
+    LT_Value false_value = eval_one("(eq? (cons 1 2) (cons 1 2))");
+
+    if (expect(
+        LT_Value_is_boolean(true_value) && LT_Value_boolean_value(true_value),
+        "eq? true for same identity"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(false_value) && !LT_Value_boolean_value(false_value),
+        "eq? false for distinct objects"
+    );
+}
+
+static int test_eqv_primitive(void){
+    LT_Value value = eval_one("(eqv? 1 1.0)");
+    return expect(
+        LT_Value_is_boolean(value) && LT_Value_boolean_value(value),
+        "eqv? compares numeric values"
+    );
+}
+
+static int test_equal_primitive(void){
+    LT_Value value = eval_one("(equal? '(1 (2 3)) '(1 (2 3)))");
+    return expect(
+        LT_Value_is_boolean(value) && LT_Value_boolean_value(value),
+        "equal? compares nested lists structurally"
+    );
+}
+
+static int test_not_primitive(void){
+    LT_Value nil_value = eval_one("(not ())");
+    LT_Value truthy_value = eval_one("(not #false)");
+
+    if (expect(
+        LT_Value_is_boolean(nil_value) && LT_Value_boolean_value(nil_value),
+        "not true for nil"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(truthy_value) && !LT_Value_boolean_value(truthy_value),
+        "not false for non-nil"
+    );
+}
+
+static int test_core_type_predicates(void){
+    LT_Value null_true = eval_one("(null? ())");
+    LT_Value null_false = eval_one("(null? 1)");
+    LT_Value boolean_true = eval_one("(boolean? #t)");
+    LT_Value number_true = eval_one("(number? 1.5)");
+    LT_Value symbol_true = eval_one("(symbol? 'abc)");
+    LT_Value primitive_true = eval_one("(primitive? +)");
+    LT_Value closure_true = eval_one("(closure? (lambda (x) x))");
+    LT_Value macro_true = eval_one("(macro? (macro (lambda (x) x)))");
+    LT_Value special_form_true = eval_one("(special-form? if)");
+    LT_Value class_true = eval_one("(class? SmallInteger)");
+    LT_Value environment_true = eval_one("(environment? (get-current-environment))");
+
+    if (expect(
+        LT_Value_is_boolean(null_true) && LT_Value_boolean_value(null_true),
+        "null? true for nil"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(null_false) && !LT_Value_boolean_value(null_false),
+        "null? false for non-nil"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(boolean_true) && LT_Value_boolean_value(boolean_true),
+        "boolean? true for booleans"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(number_true) && LT_Value_boolean_value(number_true),
+        "number? true for floats"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(symbol_true) && LT_Value_boolean_value(symbol_true),
+        "symbol? true for symbols"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(primitive_true) && LT_Value_boolean_value(primitive_true),
+        "primitive? true for primitives"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(closure_true) && LT_Value_boolean_value(closure_true),
+        "closure? true for closures"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(macro_true) && LT_Value_boolean_value(macro_true),
+        "macro? true for macros"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(special_form_true) && LT_Value_boolean_value(special_form_true),
+        "special-form? true for special forms"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(class_true) && LT_Value_boolean_value(class_true),
+        "class? true for classes"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(environment_true)
+            && LT_Value_boolean_value(environment_true),
+        "environment? true for environments"
+    );
+}
+
+static int test_list_constructor_primitive(void){
+    LT_Value value = eval_one("(list 1 2 3)");
+
+    if (expect(LT_Pair_p(value), "list returns proper list")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(value)) && LT_SmallInteger_value(LT_car(value)) == 1,
+        "list first element"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 2,
+        "list second element"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 3,
+        "list third element"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(value) == LT_NIL, "list terminates with nil");
+}
+
+static int test_list_predicate_primitive(void){
+    LT_Value true_value = eval_one("(list? '(1 2 3))");
+    LT_Value false_value = eval_one("(list? '(1 . 2))");
+
+    if (expect(
+        LT_Value_is_boolean(true_value) && LT_Value_boolean_value(true_value),
+        "list? true for proper lists"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(false_value) && !LT_Value_boolean_value(false_value),
+        "list? false for dotted pairs"
+    );
+}
+
+static int test_assoc_primitives(void){
+    LT_Value assoc_value = eval_one("(assoc \"ab\" '((\"ab\" . 3) (\"cd\" . 4)))");
+    LT_Value assq_value = eval_one("(assq 'b '((a . 1) (b . 2)))");
+    LT_Value assq_miss_value = eval_one("(assq (string-append \"a\" \"\") '((\"a\" . 1)))");
+    LT_Value assv_value = eval_one("(assv 1.0 '((1 . 9)))");
+
+    if (expect(
+        LT_Pair_p(assoc_value)
+            && LT_Value_is_fixnum(LT_cdr(assoc_value))
+            && LT_SmallInteger_value(LT_cdr(assoc_value)) == 3,
+        "assoc matches structurally equal key"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Pair_p(assq_value)
+            && LT_Value_is_fixnum(LT_cdr(assq_value))
+            && LT_SmallInteger_value(LT_cdr(assq_value)) == 2,
+        "assq matches by identity"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(assq_miss_value)
+            && !LT_Value_boolean_value(assq_miss_value),
+        "assq returns false when no identity match"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Pair_p(assv_value)
+            && LT_Value_is_fixnum(LT_cdr(assv_value))
+            && LT_SmallInteger_value(LT_cdr(assv_value)) == 9,
+        "assv matches numerically equivalent keys"
+    );
+}
+
 static int test_string_predicate_primitive(void){
     LT_Value string_value = eval_one("(string? \"abc\")");
     LT_Value fixnum_value = eval_one("(string? 1)");
@@ -1085,6 +1331,16 @@ int main(void){
     failures += test_car_primitive();
     failures += test_cdr_primitive();
     failures += test_pair_predicate_primitive();
+    failures += test_numeric_equal_primitive();
+    failures += test_numeric_equal_type_error_on_non_number();
+    failures += test_eq_primitive();
+    failures += test_eqv_primitive();
+    failures += test_equal_primitive();
+    failures += test_not_primitive();
+    failures += test_core_type_predicates();
+    failures += test_list_constructor_primitive();
+    failures += test_list_predicate_primitive();
+    failures += test_assoc_primitives();
     failures += test_string_predicate_primitive();
     failures += test_string_length_primitive();
     failures += test_string_ref_primitive();
