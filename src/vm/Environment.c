@@ -36,7 +36,7 @@ LT_DEFINE_CLASS(LT_Environment) {
 };
 
 static void* environment_symbol_key(LT_Value symbol){
-    return LT_VALUE_POINTER_VALUE(symbol);
+    return (void*)(symbol);
 }
 
 LT_Environment* LT_Environment_new(LT_Environment* parent){
