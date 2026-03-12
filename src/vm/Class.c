@@ -9,6 +9,20 @@
 
 #include <inttypes.h>
 
+static LT_Value object_slot_ref(LT_Class_Slot* slot, LT_Value object){
+    LT_Value* val = LT_VALUE_POINTER_VALUE(object) + slot->offset;
+    return *val;
+}
+static void object_slot_set(LT_Class_Slot* slot, LT_Value object, LT_Value value){
+    LT_Value* val = LT_VALUE_POINTER_VALUE(object) + slot->offset;
+    *val = value;
+}
+
+LT_Slot_Type LT_SlotType_Object = {
+    .ref = object_slot_ref,
+    .set = object_slot_set,
+};
+
 static void Class_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Class* klass = (LT_Class*)LT_VALUE_POINTER_VALUE(obj);
 

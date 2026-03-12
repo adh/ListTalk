@@ -22,6 +22,13 @@ typedef struct LT_Class_Slot {
     LT_SlotType* type;
 } LT_Class_Slot;
 
+struct LT_Slot_Type_s {
+    LT_Value (*ref)(LT_Class_Slot* slot, LT_Value object);
+    void (*set)(LT_Class_Slot* slot, LT_Value object, LT_Value value);
+};
+
+extern LT_SlotType LT_SlotType_Object;
+
 #define LT_CLASS_FLAG_FLEXIBLE   1
 #define LT_CLASS_FLAG_SPECIAL    2
 #define LT_CLASS_FLAG_ABSTRACT   4
