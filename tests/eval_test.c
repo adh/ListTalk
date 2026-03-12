@@ -1276,6 +1276,73 @@ static int test_symbol_class_inherits_object(void){
     );
 }
 
+static int test_precedence_list_initialized(void){
+    LT_Value* precedence_list = LT_SmallInteger_class.precedence_list;
+
+    if (expect(precedence_list != NULL, "class precedence list exists")){
+        return 1;
+    }
+    if (expect(
+        precedence_list[0] == LT_STATIC_CLASS(LT_SmallInteger),
+        "precedence list starts with class itself"
+    )){
+        return 1;
+    }
+    if (expect(
+        precedence_list[1] == LT_STATIC_CLASS(LT_Number),
+        "precedence list contains direct superclass"
+    )){
+        return 1;
+    }
+    if (expect(
+        precedence_list[2] == LT_STATIC_CLASS(LT_Object),
+        "precedence list contains root object class"
+    )){
+        return 1;
+    }
+    return expect(
+        precedence_list[3] == LT_INVALID,
+        "precedence list is LT_INVALID terminated"
+    );
+}
+
+static int test_value_is_instance_of_uses_precedence_list(void){
+    LT_Value one = LT_SmallInteger_new(1);
+    LT_Value small_integer_class = LT_STATIC_CLASS(LT_SmallInteger);
+
+    if (expect(
+        LT_Value_is_instance_of(one, small_integer_class),
+        "fixnum is instance of SmallInteger"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_Number)),
+        "fixnum is instance of Number"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_Object)),
+        "fixnum is instance of Object"
+    )){
+        return 1;
+    }
+    if (expect(
+        !LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_Pair)),
+        "fixnum is not instance of Pair"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_instance_of(
+            small_integer_class,
+            LT_STATIC_CLASS(LT_Class)
+        ),
+        "class object is instance of Class"
+    );
+}
+
 static int test_boolean_constants(void){
     if (expect(LT_Value_is_boolean(LT_TRUE), "LT_TRUE is boolean")){
         return 1;
@@ -1386,6 +1453,8 @@ int main(void){
     failures += test_unwind_protect_runs_cleanup_on_throw_path();
     failures += test_handler_bind_special_form_binds_handler_for_body();
     failures += test_symbol_class_inherits_object();
+    failures += test_precedence_list_initialized();
+    failures += test_value_is_instance_of_uses_precedence_list();
     failures += test_boolean_constants();
     failures += test_character_api_uses_unicode_codepoints();
 

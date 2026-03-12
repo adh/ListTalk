@@ -39,9 +39,12 @@ extern LT_SlotType LT_SlotType_ReadonlyObject;
 
 typedef struct LT_Class_Descriptor_s LT_Class_Descriptor;
 
+#define LT_STATIC_CLASS(name) ((LT_Value)(uintptr_t)&name##_class)
+
 struct LT_Class_s {
     LT_Object base;
     LT_Class** superclasses; /* NULL terminated */
+    LT_Value* precedence_list; /* LT_INVALID terminated list of class objects */
     size_t instance_size;
     unsigned int class_flags;
     size_t slot_count;

@@ -26,19 +26,7 @@
 #include <stdlib.h>
 
 static int class_object_p(LT_Value value){
-    LT_Class* object_class = LT_Value_class(value);
-
-    while (object_class != NULL){
-        if (object_class == &LT_Class_class){
-            return 1;
-        }
-        if (object_class->superclasses == NULL){
-            break;
-        }
-        object_class = object_class->superclasses[0];
-    }
-
-    return 0;
+    return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Class));
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(

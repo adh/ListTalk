@@ -121,6 +121,25 @@ bool LT_Value_equal_p(LT_Value left, LT_Value right){
     return false;
 }
 
+bool LT_Value_is_instance_of(LT_Value value, LT_Value class_value){
+    LT_Class* value_class = LT_Value_class(value);
+    LT_Class* expected = LT_Class_from_object(class_value);
+    LT_Value expected_value = (LT_Value)(uintptr_t)expected;
+    size_t i;
+
+    if (value_class == NULL || value_class->precedence_list == NULL){
+        return false;
+    }
+
+    for (i = 0; value_class->precedence_list[i] != LT_INVALID; i++){
+        if (value_class->precedence_list[i] == expected_value){
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void* LT_Class_alloc(LT_Class *klass)
 {
     LT_Object* obj = GC_MALLOC(klass->instance_size);

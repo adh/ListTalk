@@ -96,6 +96,29 @@ static LT_Class** make_single_superclass_list(LT_Class* superclass){
     return superclasses;
 }
 
+static LT_Value* make_single_inheritance_precedence_list(LT_Class* klass,
+                                                         LT_Class* superclass){
+    size_t superclass_length = 0;
+    LT_Value* precedence_list;
+    size_t i;
+
+    if (superclass != NULL && superclass->precedence_list != NULL){
+        while (superclass->precedence_list[superclass_length] != LT_INVALID){
+            superclass_length++;
+        }
+    }
+
+    precedence_list = GC_MALLOC(
+        sizeof(LT_Value) * (superclass_length + 2)
+    );
+    precedence_list[0] = (LT_Value)(uintptr_t)klass;
+    for (i = 0; i < superclass_length; i++){
+        precedence_list[i + 1] = superclass->precedence_list[i];
+    }
+    precedence_list[superclass_length + 1] = LT_INVALID;
+    return precedence_list;
+}
+
 static size_t count_slot_descriptors(LT_Slot_Descriptor* descriptor_slots){
     size_t count = 0;
 
@@ -240,6 +263,10 @@ void LT_init_native_class(LT_Class* klass){
     klass->method_cache = LT_NIL;
     klass->documentation = LT_NIL;
     klass->superclasses = make_single_superclass_list(descriptor->superclass);
+    klass->precedence_list = make_single_inheritance_precedence_list(
+        klass,
+        descriptor->superclass
+    );
     materialize_slots(klass, descriptor->slots);
 
     if (metaclass != NULL){
@@ -256,6 +283,10 @@ void LT_init_native_class(LT_Class* klass){
         metaclass->documentation = LT_NIL;
         metaclass->superclasses =
             make_single_superclass_list(descriptor->metaclass_superclass);
+        metaclass->precedence_list = make_single_inheritance_precedence_list(
+            metaclass,
+            descriptor->metaclass_superclass
+        );
         if (descriptor->metaclass_superclass != NULL){
             metaclass->slot_count = descriptor->metaclass_superclass->slot_count;
             metaclass->slots = descriptor->metaclass_superclass->slots;
