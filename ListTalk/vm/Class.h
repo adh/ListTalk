@@ -124,6 +124,7 @@ struct LT_Class_Descriptor_s {
 };
 
 void LT_init_native_class(LT_Class* klass);
+LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names);
 LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name);
 LT_Value LT_Class_slots(LT_Class* klass);
 void LT_Class_addMethod(LT_Class* klass, LT_Value selector, LT_Value method);

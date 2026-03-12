@@ -285,6 +285,173 @@ static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_sl
     }
 }
 
+static LT_Class** materialize_superclass_array(LT_Value superclasses_value,
+                                               size_t* count_out){
+    LT_Value cursor = superclasses_value;
+    size_t count = 0;
+    LT_Class** superclasses;
+    size_t i;
+
+    while (cursor != LT_NIL){
+        if (!LT_Pair_p(cursor)){
+            LT_error("Superclass list must be proper list");
+        }
+        count++;
+        cursor = LT_cdr(cursor);
+    }
+
+    superclasses = GC_MALLOC(sizeof(LT_Class*) * (count + 1));
+    cursor = superclasses_value;
+    for (i = 0; i < count; i++){
+        LT_Value superclass_value = LT_car(cursor);
+        LT_Class* superclass = LT_Class_from_object(superclass_value);
+
+        LT_init_native_class(superclass);
+        superclasses[i] = superclass;
+        cursor = LT_cdr(cursor);
+    }
+    superclasses[count] = NULL;
+    *count_out = count;
+    return superclasses;
+}
+
+static LT_Class** materialize_metaclass_superclass_array(LT_Class** superclasses,
+                                                         size_t count){
+    LT_Class** metaclass_superclasses;
+    (void)superclasses;
+    (void)count;
+
+    metaclass_superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
+    metaclass_superclasses[0] = &LT_Class_class;
+    metaclass_superclasses[1] = NULL;
+    return metaclass_superclasses;
+}
+
+static LT_Value* make_precedence_list(LT_Class* self, LT_Class** direct_superclasses){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_InlineHash seen;
+    LT_Value self_value = (LT_Value)(uintptr_t)self;
+    LT_Value* precedence_list;
+    LT_Value cursor;
+    size_t count;
+    size_t i;
+
+    LT_InlineHash_init(&seen);
+    LT_PointerHash_at_put(&seen, (void*)(uintptr_t)self_value, (void*)1);
+    LT_ListBuilder_append(builder, self_value);
+
+    for (i = 0; direct_superclasses[i] != NULL; i++){
+        LT_Class* superclass = direct_superclasses[i];
+        size_t j = 0;
+
+        if (superclass->precedence_list == NULL){
+            continue;
+        }
+
+        while (superclass->precedence_list[j] != LT_INVALID){
+            LT_Value klass_value = superclass->precedence_list[j];
+            if (!LT_PointerHash_at(&seen, (void*)(uintptr_t)klass_value)){
+                LT_PointerHash_at_put(&seen, (void*)(uintptr_t)klass_value, (void*)1);
+                LT_ListBuilder_append(builder, klass_value);
+            }
+            j++;
+        }
+    }
+
+    count = LT_ListBuilder_length(builder);
+    precedence_list = GC_MALLOC(sizeof(LT_Value) * (count + 1));
+    cursor = LT_ListBuilder_value(builder);
+    for (i = 0; i < count; i++){
+        precedence_list[i] = LT_car(cursor);
+        cursor = LT_cdr(cursor);
+    }
+    precedence_list[count] = LT_INVALID;
+    return precedence_list;
+}
+
+static void materialize_dynamic_slots(LT_Class* klass,
+                                      LT_Class* primary_superclass,
+                                      LT_Value slot_names){
+    size_t inherited_slot_count = 0;
+    size_t slot_name_count = 0;
+    LT_Value cursor = slot_names;
+    LT_Class_Slot* slots;
+    size_t slot_count = 0;
+    size_t i;
+    size_t next_offset;
+
+    if (primary_superclass != NULL){
+        inherited_slot_count = primary_superclass->slot_count;
+    }
+
+    while (cursor != LT_NIL){
+        if (!LT_Pair_p(cursor)){
+            LT_error("Slot name list must be proper list");
+        }
+        if (!LT_Symbol_p(LT_car(cursor))){
+            LT_type_error(LT_car(cursor), &LT_Symbol_class);
+        }
+        slot_name_count++;
+        cursor = LT_cdr(cursor);
+    }
+
+    if (inherited_slot_count + slot_name_count == 0){
+        klass->slot_count = 0;
+        klass->slots = NULL;
+        klass->instance_size = (primary_superclass != NULL)
+            ? primary_superclass->instance_size
+            : sizeof(LT_Object);
+        return;
+    }
+
+    slots = GC_MALLOC(sizeof(LT_Class_Slot) * (inherited_slot_count + slot_name_count));
+    if (inherited_slot_count != 0){
+        memcpy(
+            slots,
+            primary_superclass->slots,
+            sizeof(LT_Class_Slot) * inherited_slot_count
+        );
+        slot_count = inherited_slot_count;
+    }
+
+    next_offset = (primary_superclass != NULL)
+        ? primary_superclass->instance_size
+        : sizeof(LT_Object);
+    cursor = slot_names;
+    while (cursor != LT_NIL){
+        LT_Value slot_name = LT_car(cursor);
+        int duplicate = 0;
+
+        for (i = 0; i < slot_count; i++){
+            if (slots[i].name == slot_name){
+                duplicate = 1;
+                break;
+            }
+        }
+
+        if (!duplicate){
+            slots[slot_count].name = slot_name;
+            slots[slot_count].offset = next_offset;
+            slots[slot_count].type = &LT_SlotType_Object;
+            slot_count++;
+            next_offset += sizeof(LT_Value);
+        }
+        cursor = LT_cdr(cursor);
+    }
+
+    klass->slots = slots;
+    klass->slot_count = slot_count;
+    klass->instance_size = next_offset;
+    if (slot_count > 1){
+        qsort(
+            klass->slots,
+            klass->slot_count,
+            sizeof(LT_Class_Slot),
+            compare_slots_by_name
+        );
+    }
+}
+
 void LT_init_native_class(LT_Class* klass){
     LT_Class_Descriptor* descriptor = klass->native_descriptor;
     LT_Class* metaclass;
@@ -379,6 +546,85 @@ void LT_init_native_class(LT_Class* klass){
             metaclass->slots = NULL;
         }
     }
+}
+
+LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names){
+    LT_Class* klass;
+    LT_Class* metaclass;
+    LT_Class** superclass_array;
+    LT_Class** metaclass_superclass_array;
+    size_t superclass_count;
+    size_t i;
+    LT_Class* primary_superclass = NULL;
+    LT_Class* primary_metaclass_superclass;
+
+    if (name != LT_NIL && !LT_Symbol_p(name)){
+        LT_type_error(name, &LT_Symbol_class);
+    }
+
+    superclass_array = materialize_superclass_array(superclasses, &superclass_count);
+    if (superclass_count != 0){
+        primary_superclass = superclass_array[0];
+        for (i = 1; i < superclass_count; i++){
+            if (superclass_array[i]->slot_count != 0){
+                LT_error("Multiple inheritance with slots is not supported");
+            }
+        }
+    }
+    metaclass_superclass_array = materialize_metaclass_superclass_array(
+        superclass_array,
+        superclass_count
+    );
+    primary_metaclass_superclass = metaclass_superclass_array[0];
+
+    LT_init_native_class(&LT_IdentityDictionary_class);
+    metaclass = LT_Class_ALLOC(LT_Class);
+    metaclass->base.klass = &LT_Class_class_class;
+    metaclass->superclasses = metaclass_superclass_array;
+    metaclass->precedence_list = make_precedence_list(metaclass, metaclass_superclass_array);
+    metaclass->instance_size = sizeof(LT_Class);
+    metaclass->class_flags = 0;
+    if (primary_metaclass_superclass != NULL){
+        metaclass->slot_count = primary_metaclass_superclass->slot_count;
+        metaclass->slots = primary_metaclass_superclass->slots;
+        metaclass->hash = primary_metaclass_superclass->hash;
+        metaclass->equal_p = primary_metaclass_superclass->equal_p;
+    } else {
+        metaclass->slot_count = 0;
+        metaclass->slots = NULL;
+        metaclass->hash = Class_default_hash;
+        metaclass->equal_p = Class_default_equal_p;
+    }
+    metaclass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+    metaclass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+    metaclass->cache_version = LT_Class_method_cache_global_version;
+    metaclass->name = make_metaclass_name(name);
+    metaclass->debugPrintOn = Class_debugPrintOn;
+    metaclass->documentation = LT_NIL;
+    metaclass->native_descriptor = NULL;
+
+    klass = LT_Class_ALLOC(LT_Class);
+    klass->base.klass = metaclass;
+    klass->superclasses = superclass_array;
+    klass->precedence_list = make_precedence_list(klass, superclass_array);
+    klass->class_flags = 0;
+    klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+    klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+    klass->cache_version = LT_Class_method_cache_global_version;
+    klass->name = name;
+    klass->debugPrintOn = Class_debugPrintOn;
+    if (primary_superclass != NULL){
+        klass->hash = primary_superclass->hash;
+        klass->equal_p = primary_superclass->equal_p;
+    } else {
+        klass->hash = Class_default_hash;
+        klass->equal_p = Class_default_equal_p;
+    }
+    klass->documentation = LT_NIL;
+    klass->native_descriptor = NULL;
+    materialize_dynamic_slots(klass, primary_superclass, slot_names);
+
+    return (LT_Value)(uintptr_t)klass;
 }
 
 LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name){

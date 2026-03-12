@@ -368,6 +368,26 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_make_class,
+    "make-class",
+    "(name superclasses slot-names)",
+    "Create class with name, superclasses list, and slot-name list."
+){
+    LT_Value cursor = arguments;
+    LT_Value name;
+    LT_Value superclasses;
+    LT_Value slot_names;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, name);
+    LT_OBJECT_ARG(cursor, superclasses);
+    LT_OBJECT_ARG(cursor, slot_names);
+    LT_ARG_END(cursor);
+
+    return LT_Class_new(name, superclasses, slot_names);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_error,
     "error",
     "(message)",
@@ -522,6 +542,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_type_of);
     LT_base_env_bind_static_primitive(environment, &primitive_send);
     LT_base_env_bind_static_primitive(environment, &primitive_class_slots);
+    LT_base_env_bind_static_primitive(environment, &primitive_make_class);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_ref);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_set);
     LT_base_env_bind_static_primitive(environment, &primitive_error);

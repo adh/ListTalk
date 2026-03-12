@@ -371,6 +371,49 @@ static int test_basic_string_and_vector_methods(void){
     );
 }
 
+static int test_make_class_primitive(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value new_class;
+    LT_Value class_slots;
+    LT_Value subclass_slots;
+    LT_Value class_predicate;
+
+    new_class = LT_eval(
+        read_one("(make-class 'Point (list Object) '(x y))"),
+        env,
+        NULL
+    );
+    LT_Environment_bind(env, LT_Symbol_new("Point"), new_class, 0);
+
+    class_predicate = LT_eval(read_one("(class? Point)"), env, NULL);
+    class_slots = LT_eval(read_one("[Point slots]"), env, NULL);
+    subclass_slots = LT_eval(
+        read_one("[(make-class 'PairPlus (list Pair) '(z)) slots]"),
+        env,
+        NULL
+    );
+
+    if (expect(
+        LT_Value_is_boolean(class_predicate) && LT_Value_boolean_value(class_predicate),
+        "make-class returns class object"
+    )){
+        return 1;
+    }
+    if (expect(
+        list_contains_symbol_name(class_slots, "x")
+            && list_contains_symbol_name(class_slots, "y"),
+        "make-class installs declared dynamic slots"
+    )){
+        return 1;
+    }
+    return expect(
+        list_contains_symbol_name(subclass_slots, "car")
+            && list_contains_symbol_name(subclass_slots, "cdr")
+            && list_contains_symbol_name(subclass_slots, "z"),
+        "make-class includes inherited slots from primary superclass"
+    );
+}
+
 static int test_class_add_method_invalidates_method_cache(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "class-name");
     LT_Value result;
@@ -1597,6 +1640,7 @@ int main(void){
     failures += test_basic_object_and_class_methods();
     failures += test_basic_pair_methods();
     failures += test_basic_string_and_vector_methods();
+    failures += test_make_class_primitive();
     failures += test_class_add_method_invalidates_method_cache();
     failures += test_cons_primitive();
     failures += test_car_primitive();
