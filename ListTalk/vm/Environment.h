@@ -9,10 +9,11 @@
 #include <ListTalk/macros/env_macros.h>
 
 #include <ListTalk/vm/value.h>
+#include <ListTalk/macros/decl_macros.h>
 
 LT__BEGIN_DECLS
 
-typedef struct LT_Environment LT_Environment;
+LT_DECLARE_CLASS(LT_Environment);
 
 #define LT_ENV_BINDING_FLAG_CONSTANT 0x1
 

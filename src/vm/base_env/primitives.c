@@ -7,6 +7,7 @@
 
 #include <ListTalk/classes/String.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/compiler.h>
 #include <ListTalk/vm/error.h>
 
 LT_DEFINE_PRIMITIVE(
@@ -43,7 +44,49 @@ LT_DEFINE_PRIMITIVE(
     return LT_NIL;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_macroexpand,
+    "macroexpand",
+    "(form environment)",
+    "Expand macros in form using environment object."
+){
+    LT_Value cursor = arguments;
+    LT_Value expression;
+    LT_Value environment_value;
+    LT_Environment* lexical_environment;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, expression);
+    LT_OBJECT_ARG(cursor, environment_value);
+    LT_ARG_END(cursor);
+
+    lexical_environment = LT_Environment_from_value(environment_value);
+    return LT_compiler_macroexpand(expression, lexical_environment);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_fold_expression,
+    "fold-expression",
+    "(form environment)",
+    "Fold form with lexical constants from environment object."
+){
+    LT_Value cursor = arguments;
+    LT_Value expression;
+    LT_Value environment_value;
+    LT_Environment* lexical_environment;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, expression);
+    LT_OBJECT_ARG(cursor, environment_value);
+    LT_ARG_END(cursor);
+
+    lexical_environment = LT_Environment_from_value(environment_value);
+    return LT_compiler_fold_expression(expression, lexical_environment);
+}
+
 void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_type_of);
     LT_base_env_bind_static_primitive(environment, &primitive_error);
+    LT_base_env_bind_static_primitive(environment, &primitive_macroexpand);
+    LT_base_env_bind_static_primitive(environment, &primitive_fold_expression);
 }

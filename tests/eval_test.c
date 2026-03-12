@@ -683,6 +683,125 @@ static int test_compiler_fold_expands_macros(void){
     );
 }
 
+static int test_macroexpand_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value macro_value;
+    LT_Value expanded;
+    LT_Value arguments;
+
+    macro_value = LT_eval(read_one("(macro (lambda (x) x))"), env, NULL);
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("id-macro"),
+        macro_value,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    expanded = LT_eval(
+        read_one("(macroexpand '(id-macro (+ 1 2)) (get-current-environment))"),
+        env,
+        NULL
+    );
+    if (expect(LT_Pair_p(expanded), "macroexpand primitive returns form")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(expanded))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(expanded))), "+") == 0,
+        "macroexpand primitive expands to application syntax"
+    )){
+        return 1;
+    }
+
+    arguments = LT_cdr(expanded);
+    if (expect(
+        LT_Value_is_fixnum(LT_car(arguments))
+            && LT_SmallInteger_value(LT_car(arguments)) == 1,
+        "macroexpand primitive keeps first argument"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(arguments)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(arguments))) == 2,
+        "macroexpand primitive keeps second argument"
+    );
+}
+
+static int test_fold_expression_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded;
+    LT_Value arguments;
+
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("x"),
+        LT_SmallInteger_new(5),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    folded = LT_eval(
+        read_one("(fold-expression '(+ x y) (get-current-environment))"),
+        env,
+        NULL
+    );
+    if (expect(LT_Pair_p(folded), "fold-expression primitive returns form")){
+        return 1;
+    }
+    if (expect(
+        LT_Primitive_p(LT_car(folded)),
+        "fold-expression primitive resolves operator"
+    )){
+        return 1;
+    }
+
+    arguments = LT_cdr(folded);
+    if (expect(
+        LT_Value_is_fixnum(LT_car(arguments))
+            && LT_SmallInteger_value(LT_car(arguments)) == 5,
+        "fold-expression primitive resolves constant symbol"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_car(LT_cdr(arguments)) == LT_INVALID,
+        "fold-expression primitive marks unresolved symbol invalid"
+    );
+}
+
+static int test_get_current_environment_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded;
+    LT_Value arguments;
+
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("x"),
+        LT_SmallInteger_new(7),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    (void)LT_eval(
+        read_one("(define captured-env (get-current-environment))"),
+        env,
+        NULL
+    );
+
+    folded = LT_eval(
+        read_one("(fold-expression '(+ x y) captured-env)"),
+        env,
+        NULL
+    );
+    if (expect(LT_Pair_p(folded), "captured environment can be reused")){
+        return 1;
+    }
+    arguments = LT_cdr(folded);
+    return expect(
+        LT_Value_is_fixnum(LT_car(arguments))
+            && LT_SmallInteger_value(LT_car(arguments)) == 7,
+        "get-current-environment captures lexical environment"
+    );
+}
+
 static int test_catch_returns_body_value_without_throw(void){
     LT_Value value = eval_one("(catch :t (+ 1 2))");
     return expect(
@@ -872,6 +991,9 @@ int main(void){
     failures += test_compiler_fold_application_folds_operator_and_arguments();
     failures += test_compiler_fold_special_form_uses_special_form_reference();
     failures += test_compiler_fold_expands_macros();
+    failures += test_macroexpand_special_form();
+    failures += test_fold_expression_special_form();
+    failures += test_get_current_environment_special_form();
     failures += test_catch_returns_body_value_without_throw();
     failures += test_throw_is_caught_by_matching_tag();
     failures += test_throw_skips_to_outer_matching_catch();

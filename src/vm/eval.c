@@ -201,7 +201,11 @@ static LT_Value apply_form(LT_Value operator,
         implementation = LT_Macro_callable(
             LT_Macro_from_value(evaluated_operator)
         );
-        expansion = LT_apply(implementation, argument_expressions, NULL);
+        expansion = LT_apply(
+            implementation,
+            argument_expressions,
+            NULL
+        );
         return eval_form(expansion, environment, tail_call_unwind_marker);
     }
 

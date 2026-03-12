@@ -395,6 +395,17 @@ static LT_Value special_form_handler_bind(
     return result;
 }
 
+static LT_Value special_form_get_current_environment(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    (void)tail_call_unwind_marker;
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)environment;
+}
+
 static LT_SpecialForm quote_special_form = {
     .function = special_form_quote,
     .expand_function = expand_special_form_quote,
@@ -475,6 +486,14 @@ static LT_SpecialForm handler_bind_special_form = {
     .description = "Bind condition handler during dynamic extent of body."
 };
 
+static LT_SpecialForm get_current_environment_special_form = {
+    .function = special_form_get_current_environment,
+    .expand_function = expand_special_form_default,
+    .name = "get-current-environment",
+    .arguments = "()",
+    .description = "Return current lexical environment."
+};
+
 static void bind_static_special_form(LT_Environment* environment,
                                      LT_SpecialForm* special_form){
     LT_Environment_bind(
@@ -496,4 +515,5 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &catch_special_form);
     bind_static_special_form(environment, &unwind_protect_special_form);
     bind_static_special_form(environment, &handler_bind_special_form);
+    bind_static_special_form(environment, &get_current_environment_special_form);
 }

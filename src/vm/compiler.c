@@ -57,7 +57,11 @@ LT_Value LT_compiler_macroexpand(LT_Value expression,
         }
 
         implementation = LT_Macro_callable(LT_Macro_from_value(operator_value));
-        expanded = LT_apply(implementation, LT_cdr(expanded), NULL);
+        expanded = LT_apply(
+            implementation,
+            LT_cdr(expanded),
+            NULL
+        );
         expansion_count++;
 
         if (expansion_count > LT_COMPILER_MAX_MACROEXPAND_STEPS){
