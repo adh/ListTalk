@@ -9,6 +9,7 @@
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Object.h>
+#include <ListTalk/vm/Class.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/compiler.h>
@@ -65,6 +66,23 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
 
     return LT_Object_slot_set(object, slot_name, value);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_class_slots,
+    "class-slots",
+    "(class)",
+    "Return list of slot names for class."
+){
+    LT_Value cursor = arguments;
+    LT_Value class_value;
+    LT_Class* klass;
+
+    LT_OBJECT_ARG(cursor, class_value);
+    LT_ARG_END(cursor);
+
+    klass = LT_Class_from_object(class_value);
+    return LT_Class_slots(klass);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -205,6 +223,7 @@ LT_DEFINE_PRIMITIVE(
 
 void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_type_of);
+    LT_base_env_bind_static_primitive(environment, &primitive_class_slots);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_ref);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_set);
     LT_base_env_bind_static_primitive(environment, &primitive_error);

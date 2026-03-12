@@ -61,10 +61,20 @@ extern LT_Class LT_Object_class_class;
 extern LT_Class LT_Class_class;
 extern LT_Class LT_Class_class_class;
 static inline LT_Class* LT_Class_from_object(LT_Value obj){
-    if (LT_Value_class(obj) != &LT_Class_class){
-        LT_type_error(obj, &LT_Class_class);
+    LT_Class* object_class = LT_Value_class(obj);
+
+    while (object_class != NULL){
+        if (object_class == &LT_Class_class){
+            return (LT_Class*)LT_VALUE_POINTER_VALUE(obj);
+        }
+        if (object_class->superclasses == NULL){
+            break;
+        }
+        object_class = object_class->superclasses[0];
     }
-    return (LT_Class*)LT_VALUE_POINTER_VALUE(obj);
+
+    LT_type_error(obj, &LT_Class_class);
+    return NULL;
 }
 
 
@@ -105,6 +115,7 @@ struct LT_Class_Descriptor_s {
 
 void LT_init_native_class(LT_Class* klass);
 LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name);
+LT_Value LT_Class_slots(LT_Class* klass);
 
 LT__END_DECLS
 #endif

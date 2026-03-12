@@ -6,6 +6,7 @@
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/decl_macros.h>
+#include <ListTalk/utils.h>
 
 #include <stddef.h>
 #include <inttypes.h>
@@ -264,4 +265,15 @@ LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name){
     }
 
     return NULL;
+}
+
+LT_Value LT_Class_slots(LT_Class* klass){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    for (i = 0; i < klass->slot_count; i++){
+        LT_ListBuilder_append(builder, klass->slots[i].name);
+    }
+
+    return LT_ListBuilder_value(builder);
 }

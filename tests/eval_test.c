@@ -42,6 +42,26 @@ static LT_Value eval_one(const char* source){
     return LT_eval(read_one(source), env, NULL);
 }
 
+static int list_contains_symbol_name(LT_Value list, const char* name){
+    LT_Value cursor = list;
+
+    while (cursor != LT_NIL){
+        LT_Value element;
+
+        if (!LT_Pair_p(cursor)){
+            return 0;
+        }
+        element = LT_car(cursor);
+        if (LT_Symbol_p(element)
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(element)), name) == 0){
+            return 1;
+        }
+        cursor = LT_cdr(cursor);
+    }
+
+    return 0;
+}
+
 static int test_add(void){
     LT_Value value = eval_one("(+ 1 2 3)");
     return expect(
@@ -157,6 +177,24 @@ static int test_native_class_lookup(void){
     return expect(
         (LT_Class*)LT_VALUE_POINTER_VALUE(value) == &LT_SmallInteger_class,
         "native class is bound as constant in base environment"
+    );
+}
+
+static int test_class_slots_primitive(void){
+    LT_Value slots = eval_one("(class-slots Pair)");
+
+    if (expect(LT_Pair_p(slots), "class-slots returns non-empty list for Pair")){
+        return 1;
+    }
+    if (expect(
+        list_contains_symbol_name(slots, "car"),
+        "class-slots includes car"
+    )){
+        return 1;
+    }
+    return expect(
+        list_contains_symbol_name(slots, "cdr"),
+        "class-slots includes cdr"
     );
 }
 
@@ -1024,6 +1062,7 @@ int main(void){
     failures += test_keyword_self_evaluating_when_unbound();
     failures += test_type_of_primitive();
     failures += test_native_class_lookup();
+    failures += test_class_slots_primitive();
     failures += test_cons_primitive();
     failures += test_car_primitive();
     failures += test_cdr_primitive();
