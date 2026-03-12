@@ -15,6 +15,7 @@ void LT_base_env_bind_static_primitive(LT_Environment* environment,
                                        LT_Primitive* primitive);
 
 void LT_base_env_bind_numbers(LT_Environment* environment);
+void LT_base_env_bind_native_classes(LT_Environment* environment);
 void LT_base_env_bind_primitives(LT_Environment* environment);
 void LT_base_env_bind_lists(LT_Environment* environment);
 void LT_base_env_bind_strings(LT_Environment* environment);

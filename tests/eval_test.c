@@ -152,6 +152,14 @@ static int test_type_of_primitive(void){
     );
 }
 
+static int test_native_class_lookup(void){
+    LT_Value value = eval_one("SmallInteger");
+    return expect(
+        (LT_Class*)LT_VALUE_POINTER_VALUE(value) == &LT_SmallInteger_class,
+        "native class is bound as constant in base environment"
+    );
+}
+
 static int test_cons_primitive(void){
     LT_Value value = eval_one("(cons 1 2)");
 
@@ -1015,6 +1023,7 @@ int main(void){
     failures += test_display_primitive_returns_argument();
     failures += test_keyword_self_evaluating_when_unbound();
     failures += test_type_of_primitive();
+    failures += test_native_class_lookup();
     failures += test_cons_primitive();
     failures += test_car_primitive();
     failures += test_cdr_primitive();
