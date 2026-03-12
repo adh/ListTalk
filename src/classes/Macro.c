@@ -6,8 +6,15 @@
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/vm/Class.h>
 
+#include <stddef.h>
+
 struct LT_Macro_s {
     LT_Value callable;
+};
+
+static LT_Slot_Descriptor Macro_slots[] = {
+    {"callable", offsetof(LT_Macro, callable), &LT_SlotType_ReadonlyObject},
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
 static void Macro_debugPrintOn(LT_Value obj, FILE* stream){
@@ -25,6 +32,7 @@ LT_DEFINE_CLASS(LT_Macro) {
     .instance_size = sizeof(LT_Macro),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = Macro_debugPrintOn,
+    .slots = Macro_slots,
 };
 
 LT_Value LT_Macro_new(LT_Value callable){

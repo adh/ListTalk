@@ -8,6 +8,8 @@
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
 
+#include <stddef.h>
+
 struct LT_Environment_Binding {
     LT_Value value;
     unsigned int flags;
@@ -22,6 +24,11 @@ struct LT_Environment_s {
     void* invocation_context_data;
 };
 
+static LT_Slot_Descriptor Environment_slots[] = {
+    {"parent", offsetof(LT_Environment, parent), &LT_SlotType_ReadonlyObject},
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
+};
+
 static void Environment_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Environment* environment = LT_Environment_from_value(obj);
     fprintf(stream, "#<Environment %p>", (void*)environment);
@@ -33,6 +40,7 @@ LT_DEFINE_CLASS(LT_Environment) {
     .name = "Environment",
     .instance_size = sizeof(LT_Environment),
     .debugPrintOn = Environment_debugPrintOn,
+    .slots = Environment_slots,
 };
 
 static void* environment_symbol_key(LT_Value symbol){

@@ -8,6 +8,7 @@
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Object.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/compiler.h>
@@ -28,6 +29,42 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
     return (LT_Value)(uintptr_t)LT_Value_class(value);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_slot_ref,
+    "slot-ref",
+    "(object slot)",
+    "Read object slot value by symbol name."
+){
+    LT_Value cursor = arguments;
+    LT_Value object;
+    LT_Value slot_name;
+
+    LT_OBJECT_ARG(cursor, object);
+    LT_OBJECT_ARG(cursor, slot_name);
+    LT_ARG_END(cursor);
+
+    return LT_Object_slot_ref(object, slot_name);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_slot_set,
+    "slot-set!",
+    "(object slot value)",
+    "Set object slot value by symbol name."
+){
+    LT_Value cursor = arguments;
+    LT_Value object;
+    LT_Value slot_name;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, object);
+    LT_OBJECT_ARG(cursor, slot_name);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+
+    return LT_Object_slot_set(object, slot_name, value);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -168,6 +205,8 @@ LT_DEFINE_PRIMITIVE(
 
 void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_type_of);
+    LT_base_env_bind_static_primitive(environment, &primitive_slot_ref);
+    LT_base_env_bind_static_primitive(environment, &primitive_slot_set);
     LT_base_env_bind_static_primitive(environment, &primitive_error);
     LT_base_env_bind_static_primitive(environment, &primitive_display);
     LT_base_env_bind_static_primitive(environment, &primitive_read);

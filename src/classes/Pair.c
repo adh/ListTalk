@@ -6,11 +6,18 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/vm/Class.h>
 
+#include <stddef.h>
 #include <stdarg.h>
 
 struct LT_Pair_s {
     LT_Value car;
     LT_Value cdr;
+};
+
+static LT_Slot_Descriptor Pair_slots[] = {
+    {"car", offsetof(LT_Pair, car), &LT_SlotType_Object},
+    {"cdr", offsetof(LT_Pair, cdr), &LT_SlotType_Object},
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
 static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
@@ -42,6 +49,7 @@ LT_DEFINE_CLASS(LT_Pair) {
     .instance_size = sizeof(LT_Pair),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = Pair_debugPrintOn,
+    .slots = Pair_slots,
 };
 
 LT_Value LT_cons(LT_Value car, LT_Value cdr){

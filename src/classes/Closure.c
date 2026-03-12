@@ -6,10 +6,19 @@
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/vm/Class.h>
 
+#include <stddef.h>
+
 struct LT_Closure_s {
     LT_Value parameters;
     LT_Value body;
     LT_Environment* environment;
+};
+
+static LT_Slot_Descriptor Closure_slots[] = {
+    {"parameters", offsetof(LT_Closure, parameters), &LT_SlotType_ReadonlyObject},
+    {"body", offsetof(LT_Closure, body), &LT_SlotType_ReadonlyObject},
+    {"environment", offsetof(LT_Closure, environment), &LT_SlotType_ReadonlyObject},
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
 LT_DEFINE_CLASS(LT_Closure) {
@@ -18,6 +27,7 @@ LT_DEFINE_CLASS(LT_Closure) {
     .name = "Closure",
     .instance_size = sizeof(LT_Closure),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
+    .slots = Closure_slots,
 };
 
 LT_Value LT_Closure_new(LT_Value parameters,

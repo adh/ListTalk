@@ -378,6 +378,43 @@ static int test_vector_set_bang_primitive(void){
     );
 }
 
+static int test_slot_ref_primitive(void){
+    LT_Value value = eval_one("(slot-ref '(1 . 2) 'car)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 1,
+        "slot-ref reads pair slot"
+    );
+}
+
+static int test_slot_set_bang_primitive(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define p (cons 1 2))"), env, NULL);
+    (void)LT_eval(read_one("(slot-set! p 'car 77)"), env, NULL);
+    result = LT_eval(read_one("(slot-ref p 'car)"), env, NULL);
+
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 77,
+        "slot-set! mutates pair slot"
+    );
+}
+
+static int test_slot_table_includes_superclass_slots(void){
+    LT_Value class_name = eval_one("(slot-ref (type-of 1) 'name)");
+
+    if (expect(
+        LT_Symbol_p(class_name),
+        "slot-ref on class object returns inherited Class slot"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(class_name)), "SmallInteger") == 0,
+        "inherited class slot resolves through single lookup"
+    );
+}
+
 static int test_quote(void){
     LT_Value value = eval_one("(quote (+ 1 2))");
 
@@ -994,6 +1031,9 @@ int main(void){
     failures += test_vector_constructor_and_ref_primitive();
     failures += test_make_vector_primitive();
     failures += test_vector_set_bang_primitive();
+    failures += test_slot_ref_primitive();
+    failures += test_slot_set_bang_primitive();
+    failures += test_slot_table_includes_superclass_slots();
     failures += test_quote();
     failures += test_quote_reader_syntax();
     failures += test_lambda_application();

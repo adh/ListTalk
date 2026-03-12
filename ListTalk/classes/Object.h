@@ -18,6 +18,9 @@ LT__BEGIN_DECLS
 extern LT_Class LT_Object_class;
 extern LT_Class LT_Object_class_class;
 
+LT_Value LT_Object_slot_ref(LT_Value object, LT_Value slot_name);
+LT_Value LT_Object_slot_set(LT_Value object, LT_Value slot_name, LT_Value value);
+
 LT__END_DECLS
 
 #endif

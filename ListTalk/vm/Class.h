@@ -28,6 +28,7 @@ struct LT_SlotType_s {
 };
 
 extern LT_SlotType LT_SlotType_Object;
+extern LT_SlotType LT_SlotType_ReadonlyObject;
 
 #define LT_CLASS_FLAG_FLEXIBLE   1
 #define LT_CLASS_FLAG_SPECIAL    2
@@ -103,6 +104,7 @@ struct LT_Class_Descriptor_s {
 };
 
 void LT_init_native_class(LT_Class* klass);
+LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name);
 
 LT__END_DECLS
 #endif
