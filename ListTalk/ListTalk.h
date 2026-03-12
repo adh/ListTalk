@@ -27,6 +27,7 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
+#include <ListTalk/classes/IdentityDictionary.h>
 
 LT__BEGIN_DECLS
 

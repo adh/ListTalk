@@ -52,16 +52,27 @@ struct LT_InlineHash_Entry {
 };
 
 void LT_InlineHash_init(LT_InlineHash* h);
+size_t LT_InlineHash_count(LT_InlineHash* h);
 
 
 void LT_StringHash_at_put(LT_InlineHash* sh,
                           char* key, void* value);
 void* LT_StringHash_at(LT_InlineHash* sh, char* key);
+int LT_StringHash_remove(
+    LT_InlineHash* sh,
+    char* key,
+    void** value_out
+);
 
 void LT_PointerHash_at_put(LT_InlineHash* sh,
                            void* key, void* value);
 void* LT_PointerHash_at(LT_InlineHash* sh,
                         void* key);
+int LT_PointerHash_remove(
+    LT_InlineHash* sh,
+    void* key,
+    void** value_out
+);
 
 /* constructors registered here are called from LT_init() after symbols are
  * setup and native class initialization. So the VM is guaranteed to not be

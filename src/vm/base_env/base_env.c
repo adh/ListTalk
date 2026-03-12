@@ -23,6 +23,7 @@
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/Printer.h>
+#include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
 
@@ -55,6 +56,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"SpecialForm", &LT_SpecialForm_class},
     {"Reader", &LT_Reader_class},
     {"Printer", &LT_Printer_class},
+    {"IdentityDictionary", &LT_IdentityDictionary_class},
 };
 
 void LT_base_env_bind_static_primitive(LT_Environment* environment,

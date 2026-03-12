@@ -138,6 +138,10 @@ void LT_InlineHash_init(LT_InlineHash* h){
 
 }
 
+size_t LT_InlineHash_count(LT_InlineHash* h){
+    return h->count;
+}
+
 static LT_InlineHash_Entry* get_hash_entry(LT_InlineHash* h, 
                                               char* key, 
                                               size_t hash){
@@ -263,6 +267,33 @@ void* LT_StringHash_at(LT_InlineHash* h, char* key){
     }
 }
 
+int LT_StringHash_remove(LT_InlineHash* h, char* key, void** value_out){
+    size_t hash = LT_fnv_hash(key);
+    size_t index = hash & h->mask;
+    LT_InlineHash_Entry* current = h->vector[index];
+    LT_InlineHash_Entry* previous = NULL;
+
+    while (current != NULL){
+        if (current->hash == hash && strcmp(current->key, key) == 0){
+            if (previous == NULL){
+                h->vector[index] = current->next;
+            } else {
+                previous->next = current->next;
+            }
+
+            h->count--;
+            if (value_out != NULL){
+                *value_out = current->value;
+            }
+            return 1;
+        }
+        previous = current;
+        current = current->next;
+    }
+
+    return 0;
+}
+
 void LT_PointerHash_at_put(LT_InlineHash* h, void* key, void* value){
     LT_InlineHash_Entry* e;
     size_t hash;
@@ -287,6 +318,33 @@ void* LT_PointerHash_at(LT_InlineHash* h, void* key){
     } else {
         return NULL;
     }
+}
+
+int LT_PointerHash_remove(LT_InlineHash* h, void* key, void** value_out){
+    size_t hash = LT_pointer_hash(key);
+    size_t index = hash & h->mask;
+    LT_InlineHash_Entry* current = h->vector[index];
+    LT_InlineHash_Entry* previous = NULL;
+
+    while (current != NULL){
+        if (current->hash == hash && current->key == key){
+            if (previous == NULL){
+                h->vector[index] = current->next;
+            } else {
+                previous->next = current->next;
+            }
+
+            h->count--;
+            if (value_out != NULL){
+                *value_out = current->value;
+            }
+            return 1;
+        }
+        previous = current;
+        current = current->next;
+    }
+
+    return 0;
 }
 
 void LT_register_constructor(void (*ctor)(void)){

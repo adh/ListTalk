@@ -40,7 +40,8 @@ vm_lib = library(
                 'src/classes/SpecialForm.c',
                 'src/classes/Nil.c',
                 'src/classes/Pair.c',
-                'src/classes/SmallInteger.c'
+                'src/classes/SmallInteger.c',
+                'src/classes/IdentityDictionary.c'
         ], 
         install : true, dependencies : [bdwgc])
 
@@ -80,6 +81,13 @@ conditions_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+identity_dictionary_test_exe = executable(
+        'identity_dictionary_test',
+        'tests/identity_dictionary_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -98,6 +106,11 @@ test(
 test(
         'conditions_test',
         conditions_test_exe
+)
+
+test(
+        'identity_dictionary_test',
+        identity_dictionary_test_exe
 )
 
 install_subdir(
