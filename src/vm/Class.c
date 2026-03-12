@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 #include <inttypes.h>
+#include <stdlib.h>
 #include <string.h>
 
 static LT_Value object_slot_ref(LT_Class_Slot* slot, LT_Value object){
@@ -106,6 +107,19 @@ static size_t count_slot_descriptors(LT_Slot_Descriptor* descriptor_slots){
     return count;
 }
 
+static int compare_slots_by_name(const void* left, const void* right){
+    const LT_Class_Slot* left_slot = (const LT_Class_Slot*)left;
+    const LT_Class_Slot* right_slot = (const LT_Class_Slot*)right;
+
+    if (left_slot->name < right_slot->name){
+        return -1;
+    }
+    if (left_slot->name > right_slot->name){
+        return 1;
+    }
+    return 0;
+}
+
 static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_slots){
     size_t superclass_slot_count = 0;
     size_t descriptor_slot_count;
@@ -166,6 +180,14 @@ static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_sl
 
     klass->slot_count = slot_count;
     klass->slots = slots;
+    if (slot_count > 1){
+        qsort(
+            klass->slots,
+            klass->slot_count,
+            sizeof(LT_Class_Slot),
+            compare_slots_by_name
+        );
+    }
 }
 
 void LT_init_native_class(LT_Class* klass){
@@ -220,15 +242,24 @@ void LT_init_native_class(LT_Class* klass){
 }
 
 LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name){
-    size_t i;
+    size_t low = 0;
+    size_t high = klass->slot_count;
 
     if (!LT_Symbol_p(slot_name)){
         LT_type_error(slot_name, &LT_Symbol_class);
     }
 
-    for (i = klass->slot_count; i > 0; i--){
-        if (klass->slots[i - 1].name == slot_name){
-            return &klass->slots[i - 1];
+    while (low < high){
+        size_t mid = low + ((high - low) / 2);
+        LT_Value candidate = klass->slots[mid].name;
+
+        if (candidate == slot_name){
+            return &klass->slots[mid];
+        }
+        if (candidate < slot_name){
+            low = mid + 1;
+        } else {
+            high = mid;
         }
     }
 
