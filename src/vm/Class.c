@@ -8,6 +8,7 @@
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
 
@@ -84,6 +85,25 @@ static LT_Slot_Descriptor Class_slots[] = {
     LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
+LT_DECLARE_PRIMITIVE(
+    class_method_slots,
+    "Class>>slots",
+    "(self)",
+    "Return class slot names."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_lookup_selector,
+    "Class>>lookupSelector:",
+    "(self selector)",
+    "Return resolved method for selector or nil."
+);
+
+static LT_Method_Descriptor Class_methods[] = {
+    {"slots", &class_method_slots},
+    {"lookupSelector:", &class_method_lookup_selector},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Class) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -92,6 +112,7 @@ LT_DEFINE_CLASS(LT_Class) {
     .class_flags = LT_CLASS_FLAG_ABSTRACT,
     .debugPrintOn = Class_debugPrintOn,
     .slots = Class_slots,
+    .methods = Class_methods,
 };
 
 static LT_Class** make_single_superclass_list(LT_Class* superclass){
@@ -157,8 +178,8 @@ static void materialize_direct_methods(
     while (descriptor_methods[i].selector != NULL){
         LT_Class_addMethod(
             klass,
-            LT_Symbol_parse_token(descriptor_methods[i].selector),
-            descriptor_methods[i].function
+            LT_Symbol_new_in(LT_PACKAGE_KEYWORD, descriptor_methods[i].selector),
+            LT_Primitive_from_static(descriptor_methods[i].primitive)
         );
         i++;
     }
@@ -444,4 +465,32 @@ LT_Value LT_Class_lookup_method(LT_Class* klass, LT_Value selector){
     }
 
     return LT_INVALID;
+}
+
+LT_PRIMITIVE_HEAD(class_method_slots){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Class_slots(LT_Class_from_object(self));
+}
+
+LT_PRIMITIVE_HEAD(class_method_lookup_selector){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value selector;
+    LT_Value method;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, selector);
+    LT_ARG_END(cursor);
+
+    method = LT_Class_lookup_method(LT_Class_from_object(self), selector);
+    if (method == LT_INVALID){
+        return LT_NIL;
+    }
+    return method;
 }

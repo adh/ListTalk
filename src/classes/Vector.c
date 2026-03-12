@@ -4,8 +4,11 @@
  */
 
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/macros/arg_macros.h>
 
 struct LT_Vector_s {
     LT_Object base;
@@ -65,6 +68,72 @@ static void Vector_debugPrintOn(LT_Value obj, FILE* stream){
     fputc(')', stream);
 }
 
+LT_DEFINE_PRIMITIVE(
+    vector_method_length,
+    "Vector>>length",
+    "(self)",
+    "Return vector length."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_SmallInteger_new((int64_t)LT_Vector_length(LT_Vector_from_value(self)));
+}
+
+LT_DEFINE_PRIMITIVE(
+    vector_method_at,
+    "Vector>>at:",
+    "(self index)",
+    "Return vector item at index."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value index;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, index);
+    LT_ARG_END(cursor);
+    return LT_Vector_at(
+        LT_Vector_from_value(self),
+        (size_t)LT_SmallInteger_value(index)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    vector_method_at_put,
+    "Vector>>at:put:",
+    "(self index value)",
+    "Set vector item at index."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value index;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, index);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_Vector_atPut(
+        LT_Vector_from_value(self),
+        (size_t)LT_SmallInteger_value(index),
+        value
+    );
+    return value;
+}
+
+static LT_Method_Descriptor Vector_methods[] = {
+    {"length", &vector_method_length},
+    {"at:", &vector_method_at},
+    {"at:put:", &vector_method_at_put},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Vector) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -74,6 +143,7 @@ LT_DEFINE_CLASS(LT_Vector) {
     .hash = Vector_hash,
     .equal_p = Vector_equal_p,
     .debugPrintOn = Vector_debugPrintOn,
+    .methods = Vector_methods,
 };
 
 LT_Vector* LT_Vector_new(size_t length){

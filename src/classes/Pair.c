@@ -4,8 +4,10 @@
  */
 
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/vm/Class.h>
 
+#include <ListTalk/macros/arg_macros.h>
 #include <stddef.h>
 #include <stdarg.h>
 
@@ -59,6 +61,80 @@ static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
     fputc(')', stream);
 }
 
+LT_DEFINE_PRIMITIVE(
+    pair_method_car,
+    "Pair>>car",
+    "(self)",
+    "Return pair car."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_car(self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    pair_method_cdr,
+    "Pair>>cdr",
+    "(self)",
+    "Return pair cdr."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_cdr(self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    pair_method_car_put,
+    "Pair>>car:",
+    "(self value)",
+    "Set pair car."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_Pair_set_car(self, value);
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    pair_method_cdr_put,
+    "Pair>>cdr:",
+    "(self value)",
+    "Set pair cdr."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_Pair_set_cdr(self, value);
+    return value;
+}
+
+static LT_Method_Descriptor Pair_methods[] = {
+    {"car", &pair_method_car},
+    {"cdr", &pair_method_cdr},
+    {"car:", &pair_method_car_put},
+    {"cdr:", &pair_method_cdr_put},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Pair) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -69,6 +145,7 @@ LT_DEFINE_CLASS(LT_Pair) {
     .equal_p = Pair_equal_p,
     .debugPrintOn = Pair_debugPrintOn,
     .slots = Pair_slots,
+    .methods = Pair_methods,
 };
 
 LT_Value LT_cons(LT_Value car, LT_Value cdr){

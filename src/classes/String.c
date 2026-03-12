@@ -4,10 +4,13 @@
  */
 
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 
 #include <ctype.h>
@@ -94,6 +97,52 @@ static void String_debugPrintOn(LT_Value obj, FILE* stream){
     fputc('"', stream);
 }
 
+LT_DEFINE_PRIMITIVE(
+    string_method_length,
+    "String>>length",
+    "(self)",
+    "Return byte string length."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* string;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    string = LT_String_from_value(self);
+    return LT_SmallInteger_new((int64_t)LT_String_length(string));
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_at,
+    "String>>at:",
+    "(self index)",
+    "Return byte at index as character."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value index;
+    LT_String* string;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, index);
+    LT_ARG_END(cursor);
+
+    string = LT_String_from_value(self);
+    return LT_Character_new((uint32_t)LT_String_at(
+        string,
+        (size_t)LT_SmallInteger_value(index)
+    ));
+}
+
+static LT_Method_Descriptor String_methods[] = {
+    {"length", &string_method_length},
+    {"at:", &string_method_at},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_String) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -102,6 +151,7 @@ LT_DEFINE_CLASS(LT_String) {
     .hash = String_hash,
     .equal_p = String_equal_p,
     .debugPrintOn = String_debugPrintOn,
+    .methods = String_methods,
 };
 
 LT_String* LT_String_new(char* buf, size_t len){

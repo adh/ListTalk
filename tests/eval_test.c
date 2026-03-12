@@ -293,6 +293,84 @@ static int test_send_primitive_uses_precedence_lookup_and_cache(void){
     );
 }
 
+static int test_basic_object_and_class_methods(void){
+    LT_Value object_class = eval_one("[1 class]");
+    LT_Value class_slots = eval_one("[Class slots]");
+    LT_Value lookup_hit = eval_one("[Pair lookupSelector: :car]");
+    LT_Value lookup_miss = eval_one("[Pair lookupSelector: :does-not-exist]");
+
+    if (expect(
+        (LT_Class*)LT_VALUE_POINTER_VALUE(object_class) == &LT_SmallInteger_class,
+        "Object>>class returns receiver class"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Primitive_p(lookup_hit),
+        "Class>>lookupSelector: returns method when selector exists"
+    )){
+        return 1;
+    }
+    if (expect(
+        lookup_miss == LT_NIL,
+        "Class>>lookupSelector: returns nil when selector missing"
+    )){
+        return 1;
+    }
+    return expect(
+        list_contains_symbol_name(class_slots, "name"),
+        "Class>>slots returns slot list"
+    );
+}
+
+static int test_basic_pair_methods(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define p (cons 1 2))"), env, NULL);
+    result = LT_eval(read_one("[p car]"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 1,
+        "Pair>>car"
+    )){
+        return 1;
+    }
+    (void)LT_eval(read_one("[p car: 42]"), env, NULL);
+    result = LT_eval(read_one("[p car]"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "Pair>>car: mutates pair"
+    );
+}
+
+static int test_basic_string_and_vector_methods(void){
+    LT_Value string_length = eval_one("[\"abc\" length]");
+    LT_Value string_char = eval_one("[\"abc\" at: 1]");
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value vector_value;
+
+    (void)LT_eval(read_one("(define v (vector 4 5 6))"), env, NULL);
+    (void)LT_eval(read_one("[v at: 1 put: 99]"), env, NULL);
+    vector_value = LT_eval(read_one("[v at: 1]"), env, NULL);
+
+    if (expect(
+        LT_Value_is_fixnum(string_length) && LT_SmallInteger_value(string_length) == 3,
+        "String>>length"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Character_p(string_char) && LT_Character_value(string_char) == 'b',
+        "String>>at:"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(vector_value) && LT_SmallInteger_value(vector_value) == 99,
+        "Vector>>at:put: and Vector>>at:"
+    );
+}
+
 static int test_class_add_method_invalidates_method_cache(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "class-name");
     LT_Value result;
@@ -1516,6 +1594,9 @@ int main(void){
     failures += test_class_slots_primitive();
     failures += test_send_primitive_uses_direct_method_dictionary();
     failures += test_send_primitive_uses_precedence_lookup_and_cache();
+    failures += test_basic_object_and_class_methods();
+    failures += test_basic_pair_methods();
+    failures += test_basic_string_and_vector_methods();
     failures += test_class_add_method_invalidates_method_cache();
     failures += test_cons_primitive();
     failures += test_car_primitive();

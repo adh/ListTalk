@@ -17,6 +17,7 @@ typedef size_t(*LT_Class_hash_Func)(LT_Value self);
 typedef int(*LT_Class_equal_p_Func)(LT_Value self, LT_Value other);
 
 typedef struct LT_SlotType_s LT_SlotType;
+typedef struct LT_Primitive_s LT_Primitive;
 
 typedef struct LT_Class_Slot {
     LT_Value name;
@@ -103,10 +104,10 @@ typedef struct LT_Slot_Descriptor {
 #define LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR {NULL, 0, NULL}
 typedef struct LT_Method_Descriptor {
     char* selector;
-    LT_Value function; /* function, no special case for native code */
+    LT_Primitive* primitive;
 } LT_Method_Descriptor;
 
-#define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, LT_NIL}
+#define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, NULL}
 struct LT_Class_Descriptor_s {
     LT_Class* superclass;
     LT_Class* metaclass_superclass;

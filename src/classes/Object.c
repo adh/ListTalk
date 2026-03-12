@@ -4,7 +4,67 @@
  */
 
 #include <ListTalk/classes/Object.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
+
+LT_DEFINE_PRIMITIVE(
+    object_method_class,
+    "Object>>class",
+    "(self)",
+    "Return receiver class."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_Value_class(self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    object_method_slot,
+    "Object>>slot:",
+    "(self slot)",
+    "Read receiver slot."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value slot_name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, slot_name);
+    LT_ARG_END(cursor);
+    return LT_Object_slot_ref(self, slot_name);
+}
+
+LT_DEFINE_PRIMITIVE(
+    object_method_slot_put,
+    "Object>>slot:put:",
+    "(self slot value)",
+    "Write receiver slot."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value slot_name;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, slot_name);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Object_slot_set(self, slot_name, value);
+}
+
+static LT_Method_Descriptor Object_methods[] = {
+    {"class", &object_method_class},
+    {"slot:", &object_method_slot},
+    {"slot:put:", &object_method_slot_put},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
 
 LT_DEFINE_CLASS(LT_Object) {
     .superclass = NULL,
@@ -12,6 +72,7 @@ LT_DEFINE_CLASS(LT_Object) {
     .name = "Object",
     .instance_size = sizeof(LT_Object),
     .class_flags = LT_CLASS_FLAG_ABSTRACT,
+    .methods = Object_methods,
 };
 
 LT_Value LT_Object_slot_ref(LT_Value object, LT_Value slot_name){
