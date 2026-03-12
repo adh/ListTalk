@@ -70,6 +70,7 @@ static LT_Value repl_error_handler(LT_Value arguments,
 static int eval_stream(FILE* file,
                        LT_Reader* reader,
                        LT_Value error_handler,
+                       LT_Environment* environment,
                        int print_result,
                        int stop_on_error){
     LT_ReaderStream* stream = LT_ReaderStream_newForFile(file);
@@ -82,7 +83,7 @@ static int eval_stream(FILE* file,
         LT_CATCH(LT__repl_error_tag, caught, {
             LT_HANDLER_BIND(error_handler, {
                 object = LT_Reader_readObject(reader, stream);
-                result = LT_eval(object, LT_get_shared_base_environment(), NULL);
+                result = LT_eval(object, environment, NULL);
                 if (print_result){
                     LT_printer_print_object(result);
                     fputc('\n', stdout);
@@ -98,9 +99,22 @@ static int eval_stream(FILE* file,
     return 0;
 }
 
+static LT_Value build_command_line_list(int argc, char** argv){
+    LT_Value args = LT_NIL;
+    int index;
+
+    for (index = argc - 1; index >= 1; index--){
+        LT_Value argument = (LT_Value)(uintptr_t)LT_String_new_cstr(argv[index]);
+        args = LT_cons(argument, args);
+    }
+
+    return args;
+}
+
 int main(int argc, char**argv){
     LT_Reader* reader;
     LT_Value error_handler;
+    LT_Environment* base_environment;
     FILE* source_file;
     int eval_status;
 
@@ -113,23 +127,45 @@ int main(int argc, char**argv){
         "Print top-level error and continue REPL loop.",
         repl_error_handler
     );
+    base_environment = LT_get_shared_base_environment();
 
     if (argc <= 1){
-        return eval_stream(stdin, reader, error_handler, 1, 0);
+        return eval_stream(
+            stdin,
+            reader,
+            error_handler,
+            base_environment,
+            1,
+            0
+        );
     }
 
-    if (argc > 2){
-        fprintf(stderr, "Usage: %s [script-file]\n", argv[0]);
-        return 2;
-    }
+    {
+        LT_Value command_line_symbol = LT_Symbol_new("*command-line*");
+        LT_Value command_line_list = build_command_line_list(argc, argv);
 
-    source_file = fopen(argv[1], "r");
-    if (source_file == NULL){
-        fprintf(stderr, "Error: unable to open source file '%s'\n", argv[1]);
-        return 1;
-    }
+        LT_Environment_bind(
+            base_environment,
+            command_line_symbol,
+            command_line_list,
+            0
+        );
 
-    eval_status = eval_stream(source_file, reader, error_handler, 0, 1);
-    fclose(source_file);
+        source_file = fopen(argv[1], "r");
+        if (source_file == NULL){
+            fprintf(stderr, "Error: unable to open source file '%s'\n", argv[1]);
+            return 1;
+        }
+
+        eval_status = eval_stream(
+            source_file,
+            reader,
+            error_handler,
+            base_environment,
+            0,
+            1
+        );
+        fclose(source_file);
+    }
     return eval_status;
 }
