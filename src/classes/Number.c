@@ -10,6 +10,48 @@
 #include <ListTalk/vm/error.h>
 
 #include <stdbool.h>
+#include <math.h>
+#include <string.h>
+
+static size_t hash_uint64(uint64_t value){
+    value ^= value >> 33;
+    value *= UINT64_C(0xff51afd7ed558ccd);
+    value ^= value >> 33;
+    value *= UINT64_C(0xc4ceb9fe1a85ec53);
+    value ^= value >> 33;
+    return (size_t)value;
+}
+
+static int Number_class_equal_p(LT_Value left, LT_Value right){
+    return LT_Number_equal_p(left, right);
+}
+
+static size_t Number_class_hash(LT_Value value){
+    if (LT_Value_is_fixnum(value)){
+        return hash_uint64((uint64_t)LT_SmallInteger_value(value));
+    }
+
+    if (LT_Float_p(value)){
+        double float_value = LT_Float_value(value);
+        uint64_t bits;
+
+        if (float_value == 0.0){
+            return hash_uint64(UINT64_C(0));
+        }
+        if (float_value >= (double)LT_VALUE_FIXNUM_MIN
+            && float_value <= (double)LT_VALUE_FIXNUM_MAX){
+            double integral = trunc(float_value);
+            if (integral == float_value){
+                return hash_uint64((uint64_t)(int64_t)integral);
+            }
+        }
+
+        memcpy(&bits, &float_value, sizeof(bits));
+        return hash_uint64(bits);
+    }
+
+    return 0;
+}
 
 struct LT_Number_s {
     LT_Object base;
@@ -20,6 +62,8 @@ LT_DEFINE_CLASS(LT_Number) {
     .metaclass_superclass = &LT_Class_class,
     .name = "Number",
     .instance_size = sizeof(LT_Number),
+    .hash = Number_class_hash,
+    .equal_p = Number_class_equal_p,
     .class_flags = LT_CLASS_FLAG_ABSTRACT
         | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,

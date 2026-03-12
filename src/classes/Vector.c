@@ -13,6 +13,44 @@ struct LT_Vector_s {
     LT_Value items[];
 };
 
+static size_t Vector_hash(LT_Value value){
+    LT_Vector* vector = LT_Vector_from_value(value);
+    size_t length = LT_Vector_length(vector);
+    size_t hash = (size_t)0x9e3779b1;
+    size_t i;
+
+    for (i = 0; i < length; i++){
+        hash = (hash * (size_t)33) ^ LT_Value_hash(vector->items[i]);
+    }
+    return hash;
+}
+
+static int Vector_equal_p(LT_Value left, LT_Value right){
+    LT_Vector* left_vector;
+    LT_Vector* right_vector;
+    size_t i;
+    size_t length;
+
+    if (!LT_Vector_p(right)){
+        return 0;
+    }
+
+    left_vector = LT_Vector_from_value(left);
+    right_vector = LT_Vector_from_value(right);
+    if (LT_Vector_length(left_vector) != LT_Vector_length(right_vector)){
+        return 0;
+    }
+
+    length = LT_Vector_length(left_vector);
+    for (i = 0; i < length; i++){
+        if (!LT_Value_equal_p(left_vector->items[i], right_vector->items[i])){
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
 static void Vector_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Vector* vector = LT_Vector_from_value(obj);
     size_t i;
@@ -33,6 +71,8 @@ LT_DEFINE_CLASS(LT_Vector) {
     .name = "Vector",
     .instance_size = sizeof(LT_Vector),
     .class_flags = LT_CLASS_FLAG_FLEXIBLE,
+    .hash = Vector_hash,
+    .equal_p = Vector_equal_p,
     .debugPrintOn = Vector_debugPrintOn,
 };
 

@@ -22,7 +22,6 @@
 
 #include <inttypes.h>
 #include <stdbool.h>
-#include <string.h>
 
 LT_Class* const LT__Immediate_classes[64] = {
     [LT_VALUE_IMMEDIATE_TAG_BOOLEAN & 0x3f] = &LT_Boolean_class,
@@ -69,52 +68,37 @@ bool LT_Value_eqv_p(LT_Value left, LT_Value right){
     return LT_Number_equal_p(left, right);
 }
 
+size_t LT_Value_hash(LT_Value value){
+    LT_Class* klass = LT_Value_class(value);
+
+    if (klass != NULL && klass->hash != NULL){
+        return klass->hash(value);
+    }
+
+    return LT_pointer_hash((void*)(uintptr_t)value);
+}
+
 bool LT_Value_equal_p(LT_Value left, LT_Value right){
+    LT_Class* left_class;
+    LT_Class* right_class;
+
     if (LT_Value_eqv_p(left, right)){
         return true;
     }
 
-    if (LT_String_p(left) && LT_String_p(right)){
-        LT_String* left_string = LT_String_from_value(left);
-        LT_String* right_string = LT_String_from_value(right);
-        size_t length = LT_String_length(left_string);
+    left_class = LT_Value_class(left);
+    right_class = LT_Value_class(right);
 
-        if (length != LT_String_length(right_string)){
-            return false;
-        }
-
-        return memcmp(
-            LT_String_value_cstr(left_string),
-            LT_String_value_cstr(right_string),
-            length
-        ) == 0;
+    if (left_class != NULL
+        && left_class->equal_p != NULL
+        && left_class->equal_p(left, right)){
+        return true;
     }
 
-    if (LT_Pair_p(left) && LT_Pair_p(right)){
-        return LT_Value_equal_p(LT_car(left), LT_car(right))
-            && LT_Value_equal_p(LT_cdr(left), LT_cdr(right));
-    }
-
-    if (LT_Vector_p(left) && LT_Vector_p(right)){
-        LT_Vector* left_vector = LT_Vector_from_value(left);
-        LT_Vector* right_vector = LT_Vector_from_value(right);
-        size_t i;
-        size_t length;
-
-        if (LT_Vector_length(left_vector) != LT_Vector_length(right_vector)){
-            return false;
-        }
-
-        length = LT_Vector_length(left_vector);
-        for (i = 0; i < length; i++){
-            if (!LT_Value_equal_p(
-                LT_Vector_at(left_vector, i),
-                LT_Vector_at(right_vector, i)
-            )){
-                return false;
-            }
-        }
-
+    if (right_class != NULL
+        && right_class != left_class
+        && right_class->equal_p != NULL
+        && right_class->equal_p(right, left)){
         return true;
     }
 

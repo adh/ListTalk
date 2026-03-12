@@ -20,6 +20,44 @@ struct LT_String_s {
     char str[];
 };
 
+static size_t String_hash(LT_Value value){
+    LT_String* string = LT_String_from_value(value);
+    const unsigned char* cursor =
+        (const unsigned char*)LT_String_value_cstr(string);
+    size_t index;
+    uint32_t hash = UINT32_C(0x811c9dc5);
+
+    for (index = 0; index < LT_String_length(string); index++){
+        hash += (uint32_t)cursor[index];
+        hash *= UINT32_C(0x01000193);
+    }
+    return (size_t)hash;
+}
+
+static int String_equal_p(LT_Value left, LT_Value right){
+    LT_String* left_string;
+    LT_String* right_string;
+    size_t length;
+
+    if (!LT_String_p(right)){
+        return 0;
+    }
+
+    left_string = LT_String_from_value(left);
+    right_string = LT_String_from_value(right);
+    length = LT_String_length(left_string);
+
+    if (length != LT_String_length(right_string)){
+        return 0;
+    }
+
+    return memcmp(
+        LT_String_value_cstr(left_string),
+        LT_String_value_cstr(right_string),
+        length
+    ) == 0;
+}
+
 static void String_debugPrintOn(LT_Value obj, FILE* stream){
     LT_String* string = LT_String_from_value(obj);
     const char* cursor = LT_String_value_cstr(string);
@@ -61,6 +99,8 @@ LT_DEFINE_CLASS(LT_String) {
     .metaclass_superclass = &LT_Class_class,
     .name = "String",
     .instance_size = sizeof(LT_String),
+    .hash = String_hash,
+    .equal_p = String_equal_p,
     .debugPrintOn = String_debugPrintOn,
 };
 

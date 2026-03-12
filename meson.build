@@ -41,7 +41,8 @@ vm_lib = library(
                 'src/classes/Nil.c',
                 'src/classes/Pair.c',
                 'src/classes/SmallInteger.c',
-                'src/classes/IdentityDictionary.c'
+                'src/classes/IdentityDictionary.c',
+                'src/classes/Dictionary.c'
         ], 
         install : true, dependencies : [bdwgc])
 
@@ -88,6 +89,13 @@ identity_dictionary_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+dictionary_test_exe = executable(
+        'dictionary_test',
+        'tests/dictionary_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -111,6 +119,11 @@ test(
 test(
         'identity_dictionary_test',
         identity_dictionary_test_exe
+)
+
+test(
+        'dictionary_test',
+        dictionary_test_exe
 )
 
 install_subdir(

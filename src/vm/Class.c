@@ -43,6 +43,14 @@ LT_SlotType LT_SlotType_ReadonlyObject = {
     .set = readonly_object_slot_set,
 };
 
+static size_t Class_default_hash(LT_Value obj){
+    return LT_pointer_hash((void*)(uintptr_t)obj);
+}
+
+static int Class_default_equal_p(LT_Value left, LT_Value right){
+    return left == right;
+}
+
 static void Class_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Class* klass = (LT_Class*)LT_VALUE_POINTER_VALUE(obj);
 
@@ -254,6 +262,20 @@ void LT_init_native_class(LT_Class* klass){
     klass->instance_size = descriptor->instance_size;
     klass->class_flags = (unsigned int)descriptor->class_flags;
     klass->debugPrintOn = descriptor->debugPrintOn;
+    if (descriptor->hash != NULL){
+        klass->hash = descriptor->hash;
+    } else if (descriptor->superclass != NULL){
+        klass->hash = descriptor->superclass->hash;
+    } else {
+        klass->hash = Class_default_hash;
+    }
+    if (descriptor->equal_p != NULL){
+        klass->equal_p = descriptor->equal_p;
+    } else if (descriptor->superclass != NULL){
+        klass->equal_p = descriptor->superclass->equal_p;
+    } else {
+        klass->equal_p = Class_default_equal_p;
+    }
     if (descriptor->name == NULL){
         klass->name = LT_NIL;
     } else {
@@ -276,6 +298,13 @@ void LT_init_native_class(LT_Class* klass){
         }
         if (metaclass->debugPrintOn == NULL){
             metaclass->debugPrintOn = Class_debugPrintOn;
+        }
+        if (descriptor->metaclass_superclass != NULL){
+            metaclass->hash = descriptor->metaclass_superclass->hash;
+            metaclass->equal_p = descriptor->metaclass_superclass->equal_p;
+        } else {
+            metaclass->hash = Class_default_hash;
+            metaclass->equal_p = Class_default_equal_p;
         }
         metaclass->name = make_metaclass_name(klass->name);
         metaclass->methods = LT_NIL;

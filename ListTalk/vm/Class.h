@@ -13,6 +13,8 @@
 LT__BEGIN_DECLS
 
 typedef void(*LT_Class_debugPrintOn_Func)(LT_Value self, FILE* stream);
+typedef size_t(*LT_Class_hash_Func)(LT_Value self);
+typedef int(*LT_Class_equal_p_Func)(LT_Value self, LT_Value other);
 
 typedef struct LT_SlotType_s LT_SlotType;
 
@@ -54,6 +56,8 @@ struct LT_Class_s {
     uintptr_t cache_version;
     LT_Value name;
     LT_Class_debugPrintOn_Func debugPrintOn;
+    LT_Class_hash_Func hash;
+    LT_Class_equal_p_Func equal_p;
     LT_Value documentation;
     LT_Class_Descriptor* native_descriptor; /* Native class descriptor */
 };
@@ -111,6 +115,8 @@ struct LT_Class_Descriptor_s {
     size_t instance_size;
     int class_flags;
     LT_Class_debugPrintOn_Func debugPrintOn;
+    LT_Class_hash_Func hash;
+    LT_Class_equal_p_Func equal_p;
     LT_Slot_Descriptor* slots;
     LT_Method_Descriptor* methods;
     LT_Method_Descriptor* class_methods;

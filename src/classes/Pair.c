@@ -14,6 +14,23 @@ struct LT_Pair_s {
     LT_Value cdr;
 };
 
+static size_t Pair_hash(LT_Value value){
+    LT_Pair* pair = LT_Pair_from_value(value);
+    size_t car_hash = LT_Value_hash(pair->car);
+    size_t cdr_hash = LT_Value_hash(pair->cdr);
+
+    return (car_hash * (size_t)33) ^ (cdr_hash + (size_t)0x9e3779b1);
+}
+
+static int Pair_equal_p(LT_Value left, LT_Value right){
+    if (!LT_Pair_p(right)){
+        return 0;
+    }
+
+    return LT_Value_equal_p(LT_car(left), LT_car(right))
+        && LT_Value_equal_p(LT_cdr(left), LT_cdr(right));
+}
+
 static LT_Slot_Descriptor Pair_slots[] = {
     {"car", offsetof(LT_Pair, car), &LT_SlotType_Object},
     {"cdr", offsetof(LT_Pair, cdr), &LT_SlotType_Object},
@@ -48,6 +65,8 @@ LT_DEFINE_CLASS(LT_Pair) {
     .name = "Pair",
     .instance_size = sizeof(LT_Pair),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
+    .hash = Pair_hash,
+    .equal_p = Pair_equal_p,
     .debugPrintOn = Pair_debugPrintOn,
     .slots = Pair_slots,
 };
