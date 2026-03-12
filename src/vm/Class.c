@@ -97,10 +97,17 @@ LT_DECLARE_PRIMITIVE(
     "(self selector)",
     "Return resolved method for selector or nil."
 );
+LT_DECLARE_PRIMITIVE(
+    class_method_add_method_with_selector,
+    "Class>>addMethod:withSelector:",
+    "(self method selector)",
+    "Add direct method for selector."
+);
 
 static LT_Method_Descriptor Class_methods[] = {
     {"slots", &class_method_slots},
     {"lookupSelector:", &class_method_lookup_selector},
+    {"addMethod:withSelector:", &class_method_add_method_with_selector},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -738,5 +745,21 @@ LT_PRIMITIVE_HEAD(class_method_lookup_selector){
     if (method == LT_INVALID){
         return LT_NIL;
     }
+    return method;
+}
+
+LT_PRIMITIVE_HEAD(class_method_add_method_with_selector){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value method;
+    LT_Value selector;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, method);
+    LT_OBJECT_ARG(cursor, selector);
+    LT_ARG_END(cursor);
+
+    LT_Class_addMethod(LT_Class_from_object(self), selector, method);
     return method;
 }

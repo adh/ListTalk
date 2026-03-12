@@ -414,6 +414,28 @@ static int test_make_class_primitive(void){
     );
 }
 
+static int test_class_add_method_with_selector_method(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(
+        read_one("(define m [Pair lookupSelector: :car])"),
+        env,
+        NULL
+    );
+    (void)LT_eval(
+        read_one("[Pair addMethod: m withSelector: :first]"),
+        env,
+        NULL
+    );
+    result = LT_eval(read_one("['(9 . 8) first]"), env, NULL);
+
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 9,
+        "Class>>addMethod:withSelector: installs callable method"
+    );
+}
+
 static int test_class_add_method_invalidates_method_cache(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "class-name");
     LT_Value result;
@@ -1641,6 +1663,7 @@ int main(void){
     failures += test_basic_pair_methods();
     failures += test_basic_string_and_vector_methods();
     failures += test_make_class_primitive();
+    failures += test_class_add_method_with_selector_method();
     failures += test_class_add_method_invalidates_method_cache();
     failures += test_cons_primitive();
     failures += test_car_primitive();
