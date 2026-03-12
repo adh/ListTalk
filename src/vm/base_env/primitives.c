@@ -5,6 +5,7 @@
 
 #include "internal.h"
 
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
@@ -291,6 +292,29 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_send,
+    "send",
+    "(receiver selector argument ...)",
+    "Send selector to receiver with arguments."
+){
+    LT_Value cursor = arguments;
+    LT_Value receiver;
+    LT_Value selector;
+    LT_Value message_arguments;
+
+    LT_OBJECT_ARG(cursor, receiver);
+    LT_OBJECT_ARG(cursor, selector);
+    LT_ARG_REST(cursor, message_arguments);
+
+    return LT_send(
+        receiver,
+        selector,
+        message_arguments,
+        tail_call_unwind_marker
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_slot_ref,
     "slot-ref",
     "(object slot)",
@@ -496,6 +520,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_class_p);
     LT_base_env_bind_static_primitive(environment, &primitive_environment_p);
     LT_base_env_bind_static_primitive(environment, &primitive_type_of);
+    LT_base_env_bind_static_primitive(environment, &primitive_send);
     LT_base_env_bind_static_primitive(environment, &primitive_class_slots);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_ref);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_set);

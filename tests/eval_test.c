@@ -42,6 +42,50 @@ static LT_Value eval_one(const char* source){
     return LT_eval(read_one(source), env, NULL);
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_test_pair_sum_method,
+    "test-pair-sum-method",
+    "(self)",
+    "Test helper method: sum pair car and cdr."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    return LT_Number_add2(LT_car(self), LT_cdr(self));
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_object_class_name_method,
+    "test-object-class-name-method",
+    "(self)",
+    "Test helper method: return receiver class name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Value_class(self)->name;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_pair_override_method,
+    "test-pair-override-method",
+    "(self)",
+    "Test helper method: return override marker."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)self;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Symbol_new("PairOverride");
+}
+
 static int list_contains_symbol_name(LT_Value list, const char* name){
     LT_Value cursor = list;
 
@@ -195,6 +239,82 @@ static int test_class_slots_primitive(void){
     return expect(
         list_contains_symbol_name(slots, "cdr"),
         "class-slots includes cdr"
+    );
+}
+
+static int test_send_primitive_uses_direct_method_dictionary(void){
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "sum");
+    LT_Value result;
+
+    LT_Class_addMethod(
+        &LT_Pair_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_pair_sum_method)
+    );
+
+    result = eval_one("[ '(1 . 2) sum]");
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 3,
+        "send dispatches to direct method"
+    );
+}
+
+static int test_send_primitive_uses_precedence_lookup_and_cache(void){
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "class-name");
+    LT_IdentityDictionary* pair_cache;
+    LT_Value cached = LT_NIL;
+    LT_Value result;
+
+    LT_Class_addMethod(
+        &LT_Object_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_object_class_name_method)
+    );
+
+    result = eval_one("[ '(1 . 2) class-name]");
+    if (expect(
+        LT_Symbol_p(result)
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(result)), "Pair") == 0,
+        "send resolves method on superclass precedence list"
+    )){
+        return 1;
+    }
+
+    pair_cache = LT_IdentityDictionary_from_value(LT_Pair_class.method_cache);
+    if (expect(
+        LT_IdentityDictionary_at(pair_cache, selector, &cached),
+        "resolved method is cached in receiver class method_cache"
+    )){
+        return 1;
+    }
+    return expect(
+        cached == LT_Primitive_from_static(&primitive_test_object_class_name_method),
+        "method_cache stores resolved method"
+    );
+}
+
+static int test_class_add_method_invalidates_method_cache(void){
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "class-name");
+    LT_Value result;
+
+    LT_Class_addMethod(
+        &LT_Object_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_object_class_name_method)
+    );
+    (void)eval_one("[ '(1 . 2) class-name]");
+
+    LT_Class_addMethod(
+        &LT_Pair_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_pair_override_method)
+    );
+    result = eval_one("[ '(1 . 2) class-name]");
+
+    return expect(
+        LT_Symbol_p(result)
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(result)), "PairOverride") == 0,
+        "LT_Class_addMethod invalidates stale method cache entries"
     );
 }
 
@@ -1394,6 +1514,9 @@ int main(void){
     failures += test_type_of_primitive();
     failures += test_native_class_lookup();
     failures += test_class_slots_primitive();
+    failures += test_send_primitive_uses_direct_method_dictionary();
+    failures += test_send_primitive_uses_precedence_lookup_and_cache();
+    failures += test_class_add_method_invalidates_method_cache();
     failures += test_cons_primitive();
     failures += test_car_primitive();
     failures += test_cdr_primitive();

@@ -189,6 +189,24 @@ LT_Value LT_apply(LT_Value callable,
     return LT_NIL;
 }
 
+LT_Value LT_send(LT_Value receiver,
+                 LT_Value selector,
+                 LT_Value arguments,
+                 LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Class* receiver_class = LT_Value_class(receiver);
+    LT_Value method = LT_Class_lookup_method(receiver_class, selector);
+
+    if (method == LT_INVALID){
+        LT_error("Message not understood");
+    }
+
+    return LT_apply(
+        method,
+        LT_cons(receiver, arguments),
+        tail_call_unwind_marker
+    );
+}
+
 static LT_Value apply_form(LT_Value operator,
                            LT_Value argument_expressions,
                            LT_Environment* environment,

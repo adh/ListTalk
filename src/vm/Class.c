@@ -4,6 +4,9 @@
  */
 
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/IdentityDictionary.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
@@ -42,6 +45,8 @@ LT_SlotType LT_SlotType_ReadonlyObject = {
     .ref = object_slot_ref,
     .set = readonly_object_slot_set,
 };
+
+static uintptr_t LT_Class_method_cache_global_version = 1;
 
 static size_t Class_default_hash(LT_Value obj){
     return LT_pointer_hash((void*)(uintptr_t)obj);
@@ -137,6 +142,26 @@ static size_t count_slot_descriptors(LT_Slot_Descriptor* descriptor_slots){
         count++;
     }
     return count;
+}
+
+static void materialize_direct_methods(
+    LT_Class* klass,
+    LT_Method_Descriptor* descriptor_methods
+){
+    size_t i = 0;
+
+    if (descriptor_methods == NULL){
+        return;
+    }
+
+    while (descriptor_methods[i].selector != NULL){
+        LT_Class_addMethod(
+            klass,
+            LT_Symbol_parse_token(descriptor_methods[i].selector),
+            descriptor_methods[i].function
+        );
+        i++;
+    }
 }
 
 static LT_Value make_metaclass_name(LT_Value class_name){
@@ -281,8 +306,10 @@ void LT_init_native_class(LT_Class* klass){
     } else {
         klass->name = LT_Symbol_new(descriptor->name);
     }
-    klass->methods = LT_NIL;
-    klass->method_cache = LT_NIL;
+    LT_init_native_class(&LT_IdentityDictionary_class);
+    klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+    klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+    klass->cache_version = LT_Class_method_cache_global_version;
     klass->documentation = LT_NIL;
     klass->superclasses = make_single_superclass_list(descriptor->superclass);
     klass->precedence_list = make_single_inheritance_precedence_list(
@@ -290,6 +317,7 @@ void LT_init_native_class(LT_Class* klass){
         descriptor->superclass
     );
     materialize_slots(klass, descriptor->slots);
+    materialize_direct_methods(klass, descriptor->methods);
 
     if (metaclass != NULL){
         metaclass->base.klass = &LT_Class_class_class;
@@ -307,14 +335,20 @@ void LT_init_native_class(LT_Class* klass){
             metaclass->equal_p = Class_default_equal_p;
         }
         metaclass->name = make_metaclass_name(klass->name);
-        metaclass->methods = LT_NIL;
-        metaclass->method_cache = LT_NIL;
+        LT_init_native_class(&LT_IdentityDictionary_class);
+        metaclass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+        metaclass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+        metaclass->cache_version = LT_Class_method_cache_global_version;
         metaclass->documentation = LT_NIL;
         metaclass->superclasses =
             make_single_superclass_list(descriptor->metaclass_superclass);
         metaclass->precedence_list = make_single_inheritance_precedence_list(
             metaclass,
             descriptor->metaclass_superclass
+        );
+        materialize_direct_methods(
+            metaclass,
+            descriptor->class_methods
         );
         if (descriptor->metaclass_superclass != NULL){
             metaclass->slot_count = descriptor->metaclass_superclass->slot_count;
@@ -360,4 +394,54 @@ LT_Value LT_Class_slots(LT_Class* klass){
     }
 
     return LT_ListBuilder_value(builder);
+}
+
+void LT_Class_addMethod(LT_Class* klass, LT_Value selector, LT_Value method){
+    LT_IdentityDictionary* methods;
+
+    if (!LT_Symbol_p(selector)){
+        LT_type_error(selector, &LT_Symbol_class);
+    }
+    if (!LT_Primitive_p(method) && !LT_Closure_p(method)){
+        LT_error("Method must be primitive or closure");
+    }
+
+    methods = LT_IdentityDictionary_from_value(klass->methods);
+    LT_IdentityDictionary_atPut(methods, selector, method);
+
+    LT_Class_method_cache_global_version++;
+}
+
+LT_Value LT_Class_lookup_method(LT_Class* klass, LT_Value selector){
+    LT_IdentityDictionary* method_cache;
+    LT_Value method;
+    size_t i;
+
+    if (!LT_Symbol_p(selector)){
+        LT_type_error(selector, &LT_Symbol_class);
+    }
+
+    if (klass->cache_version != LT_Class_method_cache_global_version){
+        klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+        klass->cache_version = LT_Class_method_cache_global_version;
+    }
+
+    method_cache = LT_IdentityDictionary_from_value(klass->method_cache);
+    if (LT_IdentityDictionary_at(method_cache, selector, &method)){
+        return method;
+    }
+
+    for (i = 0; klass->precedence_list[i] != LT_INVALID; i++){
+        LT_Class* current = LT_Class_from_object(klass->precedence_list[i]);
+        LT_IdentityDictionary* methods = LT_IdentityDictionary_from_value(
+            current->methods
+        );
+
+        if (LT_IdentityDictionary_at(methods, selector, &method)){
+            LT_IdentityDictionary_atPut(method_cache, selector, method);
+            return method;
+        }
+    }
+
+    return LT_INVALID;
 }
