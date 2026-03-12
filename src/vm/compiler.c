@@ -96,10 +96,32 @@ static LT_Value fold_application(LT_Value expression,
         return LT_compiler_fold_expression(expanded, lexical_environment);
     }
 
-    return LT_cons(
-        folded_operator,
-        fold_list_items(LT_cdr(expression), lexical_environment)
-    );
+    {
+        LT_Value folded_arguments = fold_list_items(
+            LT_cdr(expression),
+            lexical_environment
+        );
+
+        if (LT_Primitive_p(folded_operator)
+            && (LT_Primitive_flags(
+                LT_Primitive_from_value(folded_operator)
+            ) & LT_PRIMITIVE_FLAG_PURE) != 0){
+            LT_Value cursor = folded_arguments;
+
+            while (LT_Pair_p(cursor)){
+                if (LT_car(cursor) == LT_INVALID){
+                    return LT_cons(folded_operator, folded_arguments);
+                }
+                cursor = LT_cdr(cursor);
+            }
+
+            if (cursor == LT_NIL){
+                return LT_Primitive_call(folded_operator, folded_arguments, NULL);
+            }
+        }
+
+        return LT_cons(folded_operator, folded_arguments);
+    }
 }
 
 LT_Value LT_compiler_fold_expression(LT_Value expression,

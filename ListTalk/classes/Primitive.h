@@ -19,8 +19,11 @@ LT_DECLARE_CLASS(LT_Primitive);
 typedef LT_Value(*LT_Primitive_Func)(LT_Value arguments,
                                      LT_TailCallUnwindMarker* tail_call_unwind_marker);
 
+#define LT_PRIMITIVE_FLAG_PURE 0x1
+
 struct LT_Primitive_s {
     LT_Primitive_Func function;
+    unsigned int flags;
     char* name;
     char* arguments;
     char* description;
@@ -33,9 +36,25 @@ struct LT_Primitive_s {
                                                                   LT_TailCallUnwindMarker* tail_call_unwind_marker)
 
 #define LT_DECLARE_PRIMITIVE(primitive_object_name, primitive_name, primitive_arguments, primitive_description) \
+    LT_DECLARE_PRIMITIVE_FLAGS( \
+        primitive_object_name, \
+        primitive_name, \
+        primitive_arguments, \
+        primitive_description, \
+        0 \
+    )
+
+#define LT_DECLARE_PRIMITIVE_FLAGS( \
+    primitive_object_name, \
+    primitive_name, \
+    primitive_arguments, \
+    primitive_description, \
+    primitive_flags \
+) \
     LT_PRIMITIVE_HEAD(primitive_object_name); \
     static LT_Primitive primitive_object_name = { \
         .function = LT_PRIMITIVE_IMPL_NAME(primitive_object_name), \
+        .flags = primitive_flags, \
         .name = primitive_name, \
         .arguments = primitive_arguments, \
         .description = primitive_description \
@@ -45,15 +64,37 @@ struct LT_Primitive_s {
     LT_DECLARE_PRIMITIVE(primitive_object_name, primitive_name, primitive_arguments, primitive_description); \
     LT_PRIMITIVE_HEAD(primitive_object_name)
 
+#define LT_DEFINE_PRIMITIVE_FLAGS( \
+    primitive_object_name, \
+    primitive_name, \
+    primitive_arguments, \
+    primitive_description, \
+    primitive_flags \
+) \
+    LT_DECLARE_PRIMITIVE_FLAGS( \
+        primitive_object_name, \
+        primitive_name, \
+        primitive_arguments, \
+        primitive_description, \
+        primitive_flags \
+    ); \
+    LT_PRIMITIVE_HEAD(primitive_object_name)
+
 LT_Value LT_Primitive_new(char* name,
                           char* arguments,
                           char* description,
                           LT_Primitive_Func function);
+LT_Value LT_Primitive_new_with_flags(char* name,
+                                     char* arguments,
+                                     char* description,
+                                     LT_Primitive_Func function,
+                                     unsigned int flags);
 LT_Value LT_Primitive_from_static(LT_Primitive* primitive);
 char* LT_Primitive_name(LT_Primitive* primitive);
 char* LT_Primitive_arguments(LT_Primitive* primitive);
 char* LT_Primitive_description(LT_Primitive* primitive);
 LT_Primitive_Func LT_Primitive_function(LT_Primitive* primitive);
+unsigned int LT_Primitive_flags(LT_Primitive* primitive);
 LT_Value LT_Primitive_call(LT_Value primitive,
                            LT_Value arguments,
                            LT_TailCallUnwindMarker* tail_call_unwind_marker);

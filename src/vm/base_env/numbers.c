@@ -8,11 +8,12 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/classes/Number.h>
 
-LT_DEFINE_PRIMITIVE(
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_add,
     "+",
     "(n ...)",
-    "Return sum of numeric arguments."
+    "Return sum of numeric arguments.",
+    LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
     LT_Value result = LT_SmallInteger_new(0);
@@ -26,11 +27,12 @@ LT_DEFINE_PRIMITIVE(
     return result;
 }
 
-LT_DEFINE_PRIMITIVE(
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_subtract,
     "-",
     "(n [n ...])",
-    "Negate one value or subtract remaining values from first."
+    "Negate one value or subtract remaining values from first.",
+    LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
     LT_Value result;
@@ -49,11 +51,12 @@ LT_DEFINE_PRIMITIVE(
     return result;
 }
 
-LT_DEFINE_PRIMITIVE(
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_multiply,
     "*",
     "(n ...)",
-    "Return product of numeric arguments."
+    "Return product of numeric arguments.",
+    LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
     LT_Value result = LT_SmallInteger_new(1);
@@ -67,11 +70,12 @@ LT_DEFINE_PRIMITIVE(
     return result;
 }
 
-LT_DEFINE_PRIMITIVE(
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_divide,
     "/",
     "(n n ...)",
-    "Divide first value by remaining values."
+    "Divide first value by remaining values.",
+    LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
     LT_Value result;

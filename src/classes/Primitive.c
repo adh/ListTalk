@@ -31,9 +31,24 @@ LT_Value LT_Primitive_new(char* name,
                           char* arguments,
                           char* description,
                           LT_Primitive_Func function){
+    return LT_Primitive_new_with_flags(
+        name,
+        arguments,
+        description,
+        function,
+        0
+    );
+}
+
+LT_Value LT_Primitive_new_with_flags(char* name,
+                                     char* arguments,
+                                     char* description,
+                                     LT_Primitive_Func function,
+                                     unsigned int flags){
     LT_Primitive* primitive = GC_NEW(LT_Primitive);
 
     primitive->function = function;
+    primitive->flags = flags;
     if (name == NULL){
         primitive->name = NULL;
     } else {
@@ -71,6 +86,10 @@ char* LT_Primitive_description(LT_Primitive* primitive){
 
 LT_Primitive_Func LT_Primitive_function(LT_Primitive* primitive){
     return primitive->function;
+}
+
+unsigned int LT_Primitive_flags(LT_Primitive* primitive){
+    return primitive->flags;
 }
 
 LT_Value LT_Primitive_call(LT_Value primitive,

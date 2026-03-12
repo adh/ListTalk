@@ -631,8 +631,9 @@ static int test_compiler_fold_special_form_uses_special_form_reference(void){
         return 1;
     }
     if (expect(
-        LT_Pair_p(LT_car(LT_cdr(arguments))),
-        "special form expression folds nested application"
+        LT_Value_is_fixnum(LT_car(LT_cdr(arguments)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(arguments))) == 3,
+        "special form expression constant-folds pure nested application"
     )){
         return 1;
     }
@@ -645,7 +646,6 @@ static int test_compiler_fold_special_form_uses_special_form_reference(void){
 static int test_compiler_fold_expands_macros(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value folded;
-    LT_Value arguments;
     LT_Value macro_value;
 
     macro_value = LT_eval(read_one("(macro (lambda (x) x))"), env, NULL);
@@ -658,28 +658,35 @@ static int test_compiler_fold_expands_macros(void){
 
     folded = LT_compiler_fold_expression(read_one("(id-macro (+ 1 2))"), env);
 
-    if (expect(LT_Pair_p(folded), "compiler fold returns expanded macro form")){
-        return 1;
-    }
-    if (expect(
-        LT_Primitive_p(LT_car(folded)),
-        "macro expansion is folded and operator is resolved"
-    )){
-        return 1;
-    }
+    return expect(
+        LT_Value_is_fixnum(folded) && LT_SmallInteger_value(folded) == 3,
+        "macro expansion result is folded through pure primitive"
+    );
+}
 
-    arguments = LT_cdr(folded);
+static int test_compiler_fold_pure_primitive_constant_folds(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded = LT_compiler_fold_expression(read_one("(+ 1 2 3)"), env);
+
+    return expect(
+        LT_Value_is_fixnum(folded) && LT_SmallInteger_value(folded) == 6,
+        "compiler fold constant-folds pure primitive application"
+    );
+}
+
+static int test_compiler_fold_impure_primitive_is_not_constant_folded(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded = LT_compiler_fold_expression(read_one("(error \"boom\")"), env);
+
     if (expect(
-        LT_Value_is_fixnum(LT_car(arguments))
-            && LT_SmallInteger_value(LT_car(arguments)) == 1,
-        "macro expansion folds first argument"
+        LT_Pair_p(folded),
+        "compiler fold keeps impure primitive as application"
     )){
         return 1;
     }
     return expect(
-        LT_Value_is_fixnum(LT_car(LT_cdr(arguments)))
-            && LT_SmallInteger_value(LT_car(LT_cdr(arguments))) == 2,
-        "macro expansion folds second argument"
+        LT_Primitive_p(LT_car(folded)),
+        "compiler fold resolves impure operator but does not execute it"
     );
 }
 
@@ -991,6 +998,8 @@ int main(void){
     failures += test_compiler_fold_application_folds_operator_and_arguments();
     failures += test_compiler_fold_special_form_uses_special_form_reference();
     failures += test_compiler_fold_expands_macros();
+    failures += test_compiler_fold_pure_primitive_constant_folds();
+    failures += test_compiler_fold_impure_primitive_is_not_constant_folded();
     failures += test_macroexpand_special_form();
     failures += test_fold_expression_special_form();
     failures += test_get_current_environment_special_form();
