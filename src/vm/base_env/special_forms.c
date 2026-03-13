@@ -435,7 +435,7 @@ static LT_SpecialForm if_special_form = {
 static LT_SpecialForm define_special_form = {
     .function = special_form_define,
     .expand_function = expand_special_form_define,
-    .name = "define",
+    .name = "%define",
     .arguments = "(symbol value-expression)",
     .description = "Create mutable binding in current environment."
 };
@@ -508,11 +508,28 @@ static void bind_static_special_form(LT_Environment* environment,
     );
 }
 
+static void bind_static_special_form_in(LT_Environment* environment,
+                                        LT_Package* package,
+                                        LT_SpecialForm* special_form){
+    LT_Value special_form_value = LT_SpecialForm_from_static(special_form);
+
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new_in(package, special_form->name),
+        special_form_value,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+}
+
 void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &quote_special_form);
     bind_static_special_form(environment, &lambda_special_form);
     bind_static_special_form(environment, &if_special_form);
-    bind_static_special_form(environment, &define_special_form);
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &define_special_form
+    );
     bind_static_special_form(environment, &set_bang_special_form);
     bind_static_special_form(environment, &macro_special_form);
     bind_static_special_form(environment, &throw_special_form);

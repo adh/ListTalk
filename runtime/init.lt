@@ -8,3 +8,8 @@
 
 (ListTalk:in-package :ListTalk-implementation)
 (ListTalk:use-package :ListTalk)
+
+(%define ListTalk:define
+  (macro
+    (lambda (name value-expression)
+      (list '%define name value-expression))))
