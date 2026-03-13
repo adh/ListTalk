@@ -1,0 +1,7 @@
+;;;;; -*- mode: scheme -*-
+;;;;; SPDX-License-Identifier: MIT
+;;;;; Copyright (c) 2023 - 2026 Ales Hakl
+
+; Runtime initialization forms.
+; This file is embedded into libListTalkVM and evaluated when the base
+; environment is initialized.

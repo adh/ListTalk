@@ -2,10 +2,27 @@ project('ListTalk', 'c',
         default_options : ['c_std=c11'])
 
 bdwgc = dependency('bdw-gc')
+python3 = find_program('python3')
+
+runtime_init_embedded = custom_target(
+        'runtime_init_embedded.c',
+        input : 'runtime/init.lt',
+        output : 'runtime_init_embedded.c',
+        command : [
+                python3,
+                files('tools/embed_file_as_c.py'),
+                '@INPUT@',
+                'LT_runtime_init_source',
+                '-o',
+                '@OUTPUT@'
+        ],
+        depend_files : files('tools/embed_file_as_c.py')
+)
 
 vm_lib = library(
-        'ListTalkVM', 
+                'ListTalkVM', 
         [
+                runtime_init_embedded,
                 'src/vm/eval.c',
                 'src/vm/compiler.c',
                 'src/vm/value.c',

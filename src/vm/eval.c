@@ -11,9 +11,11 @@
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/Reader.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
+#include <ctype.h>
 #include <setjmp.h>
 
 struct LT_TailCallUnwindMarker_s {
@@ -25,6 +27,31 @@ struct LT_TailCallUnwindMarker_s {
 static LT_Value eval_form(LT_Value expression,
                           LT_Environment* environment,
                           LT_TailCallUnwindMarker* tail_call_unwind_marker);
+
+static int stream_has_next_form(LT_ReaderStream* stream){
+    int ch = LT_ReaderStream_getc(stream);
+
+    while (1){
+        while (ch != EOF && isspace((unsigned char)ch)){
+            ch = LT_ReaderStream_getc(stream);
+        }
+
+        if (ch == ';'){
+            while (ch != EOF && ch != '\n'){
+                ch = LT_ReaderStream_getc(stream);
+            }
+            ch = LT_ReaderStream_getc(stream);
+            continue;
+        }
+
+        if (ch == EOF){
+            return 0;
+        }
+
+        LT_ReaderStream_ungetc(stream, ch);
+        return 1;
+    }
+}
 
 static LT_Value eval_list_items(LT_Value list, LT_Environment* environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
@@ -282,4 +309,26 @@ LT_Value LT_eval(LT_Value expression,
         LT_error("Evaluator expects environment");
     }
     return eval_form(expression, environment, tail_call_unwind_marker);
+}
+
+LT_Value LT_eval_sequence_string(const char* source, LT_Environment* environment){
+    LT_Reader* reader;
+    LT_ReaderStream* stream;
+    LT_Value result = LT_NIL;
+
+    if (source == NULL){
+        LT_error("Evaluator expects source string");
+    }
+    if (environment == NULL){
+        LT_error("Evaluator expects environment");
+    }
+
+    reader = LT_Reader_new();
+    stream = LT_ReaderStream_newForString(source);
+
+    while (stream_has_next_form(stream)){
+        result = LT_eval(LT_Reader_readObject(reader, stream), environment, NULL);
+    }
+
+    return result;
 }

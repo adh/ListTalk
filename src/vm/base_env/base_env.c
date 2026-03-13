@@ -5,6 +5,8 @@
 
 #include "internal.h"
 
+#include <ListTalk/ListTalk.h>
+
 #include <ListTalk/classes/Object.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Nil.h>
@@ -30,6 +32,10 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
+
+extern unsigned char LT_runtime_init_source[];
+extern size_t LT_runtime_init_source_length;
 
 struct LT_NativeClassBinding {
     const char* name;
@@ -86,6 +92,7 @@ void LT_base_env_bind_native_classes(LT_Environment* environment){
 
 LT_Environment* LT_new_base_environment(void){
     LT_Environment* environment = LT_Environment_new(NULL);
+    char* runtime_init_source;
 
     LT_base_env_bind_native_classes(environment);
     LT_base_env_bind_numbers(environment);
@@ -94,6 +101,10 @@ LT_Environment* LT_new_base_environment(void){
     LT_base_env_bind_strings(environment);
     LT_base_env_bind_vectors(environment);
     LT_base_env_bind_special_forms(environment);
+    runtime_init_source = GC_MALLOC_ATOMIC(LT_runtime_init_source_length + 1);
+    memcpy(runtime_init_source, LT_runtime_init_source, LT_runtime_init_source_length);
+    runtime_init_source[LT_runtime_init_source_length] = '\0';
+    LT_eval_sequence_string(runtime_init_source, environment);
 
     return environment;
 }
