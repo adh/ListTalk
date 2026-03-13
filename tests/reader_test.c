@@ -29,6 +29,25 @@ static int expect(int condition, const char* message){
     return 0;
 }
 
+static int expect_symbol_print(LT_Value symbol, const char* expected, const char* message){
+    FILE* file = tmpfile();
+    char buffer[256];
+    size_t length;
+
+    if (file == NULL){
+        return fail("tmpfile failed");
+    }
+
+    LT_Value_debugPrintOn(symbol, file);
+    fflush(file);
+    fseek(file, 0, SEEK_SET);
+    length = fread(buffer, 1, sizeof(buffer) - 1, file);
+    fclose(file);
+    buffer[length] = '\0';
+
+    return expect(strcmp(buffer, expected) == 0, message);
+}
+
 static LT_Value read_one(const char* source){
     LT_Reader* reader = LT_Reader_new();
     LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
@@ -283,6 +302,32 @@ static int test_quote_syntax(void){
     return expect(LT_cdr(tail) == LT_NIL, "quote syntax argument list end");
 }
 
+static int test_quote_syntax_in_user_package_uses_listtalk_quote(void){
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_USER, {
+        value = read_one("'a");
+    });
+
+    if (expect(LT_Pair_p(value), "quote syntax in user package returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "quote"
+            ) == 0,
+        "quote syntax in user package uses quote symbol"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(value))) == LT_PACKAGE_LISTTALK,
+        "quote syntax in user package targets ListTalk quote symbol"
+    );
+}
+
 static int test_symbol_package_interning(void){
     LT_Value default_symbol = LT_Symbol_new("alpha");
     LT_Value listtalk_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "alpha");
@@ -300,6 +345,99 @@ static int test_symbol_package_interning(void){
             == LT_PACKAGE_KEYWORD,
         "symbol stores package"
     );
+}
+
+static int test_reader_uses_thread_local_current_package(void){
+    LT_Package* package = LT_Package_new("reader-test-package");
+    LT_Value scoped_symbol = LT_NIL;
+    LT_Value default_symbol;
+    const char* name = "__reader_scoped_only__";
+
+    LT_WITH_PACKAGE(package, {
+        scoped_symbol = read_one(name);
+    });
+    default_symbol = read_one(name);
+
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(scoped_symbol)) == package,
+        "reader interns unqualified symbol in current package"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_value(default_symbol)) == LT_PACKAGE_LISTTALK,
+        "reader restores previous package after LT_WITH_PACKAGE"
+    );
+}
+
+static int test_symbol_print_omits_prefix_in_current_package(void){
+    LT_Package* package = LT_Package_new("print-current");
+    LT_Value symbol = LT_NIL;
+    int failed = 0;
+
+    LT_WITH_PACKAGE(package, {
+        symbol = LT_Symbol_new("token");
+        if (expect_symbol_print(
+            symbol,
+            "token",
+            "symbol in current package prints without prefix"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_symbol_print_omits_prefix_from_used_package_without_conflict(void){
+    LT_Package* current = LT_Package_new("print-used-current");
+    LT_Package* imported = LT_Package_new("print-used-imported");
+    LT_Value symbol = LT_NIL;
+    int failed = 0;
+
+    LT_WITH_PACKAGE(imported, {
+        symbol = LT_Symbol_new("token");
+    });
+    LT_Package_use_package(current, imported, NULL);
+
+    LT_WITH_PACKAGE(current, {
+        if (expect_symbol_print(
+            symbol,
+            "token",
+            "used package symbol without local conflict prints without prefix"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_symbol_print_keeps_prefix_for_used_package_conflict(void){
+    LT_Package* current = LT_Package_new("print-conflict-current");
+    LT_Package* imported = LT_Package_new("print-conflict-imported");
+    LT_Value imported_symbol = LT_NIL;
+    int failed = 0;
+
+    LT_WITH_PACKAGE(imported, {
+        imported_symbol = LT_Symbol_new("token");
+    });
+    LT_WITH_PACKAGE(current, {
+        (void)LT_Symbol_new("token");
+    });
+    LT_Package_use_package(current, imported, NULL);
+
+    LT_WITH_PACKAGE(current, {
+        if (expect_symbol_print(
+            imported_symbol,
+            "print-conflict-imported:token",
+            "used package symbol with local conflict keeps prefix"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
 }
 
 static int test_package_prefixed_symbol(void){
@@ -556,7 +694,12 @@ int main(void){
     failures += test_dispatch_character_unicode();
     failures += test_dispatch_bang_comment();
     failures += test_quote_syntax();
+    failures += test_quote_syntax_in_user_package_uses_listtalk_quote();
     failures += test_symbol_package_interning();
+    failures += test_reader_uses_thread_local_current_package();
+    failures += test_symbol_print_omits_prefix_in_current_package();
+    failures += test_symbol_print_omits_prefix_from_used_package_without_conflict();
+    failures += test_symbol_print_keeps_prefix_for_used_package_conflict();
     failures += test_package_prefixed_symbol();
     failures += test_package_prefix_last_colon_split();
     failures += test_keyword_prefix_symbol();

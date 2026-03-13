@@ -11,6 +11,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Macro.h>
@@ -28,6 +29,43 @@
 
 static int class_object_p(LT_Value value){
     return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Class));
+}
+
+static LT_Package* package_from_designator(LT_Value designator, int create_missing){
+    const char* package_name = NULL;
+    LT_Package* package;
+
+    if (LT_Package_p(designator)){
+        return LT_Package_from_value(designator);
+    }
+    if (LT_Symbol_p(designator)){
+        package_name = LT_Symbol_name(LT_Symbol_from_value(designator));
+    } else if (LT_String_p(designator)){
+        package_name = LT_String_value_cstr(LT_String_from_value(designator));
+    } else {
+        LT_error("Package designator must be package, symbol, or string");
+    }
+
+    if (create_missing){
+        return LT_Package_new((char*)package_name);
+    }
+
+    package = LT_Package_find((char*)package_name);
+    if (package == NULL){
+        LT_error("Referenced package does not exist");
+    }
+    return package;
+}
+
+static const char* package_nickname_from_designator(LT_Value designator){
+    if (LT_Symbol_p(designator)){
+        return LT_Symbol_name(LT_Symbol_from_value(designator));
+    }
+    if (LT_String_p(designator)){
+        return LT_String_value_cstr(LT_String_from_value(designator));
+    }
+    LT_error("Package nickname must be symbol or string");
+    return NULL;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -540,6 +578,97 @@ LT_DEFINE_PRIMITIVE(
     return LT_compiler_fold_expression(expression, lexical_environment);
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_define_package,
+    "define-package",
+    "(package-designator [used-package-or-(used-package nickname)] ...)",
+    "Define package and optionally add used packages."
+){
+    LT_Value cursor = arguments;
+    LT_Value package_designator;
+    LT_Package* package;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, package_designator);
+    package = package_from_designator(package_designator, 1);
+
+    while (LT_Pair_p(cursor)){
+        LT_Value spec = LT_car(cursor);
+
+        if (LT_Pair_p(spec)){
+            LT_Value spec_cursor = spec;
+            LT_Value used_designator;
+            LT_Value nickname_designator;
+
+            LT_OBJECT_ARG(spec_cursor, used_designator);
+            LT_OBJECT_ARG(spec_cursor, nickname_designator);
+            LT_ARG_END(spec_cursor);
+
+            LT_Package_use_package(
+                package,
+                package_from_designator(used_designator, 1),
+                (char*)package_nickname_from_designator(nickname_designator)
+            );
+        } else {
+            LT_Package_use_package(
+                package,
+                package_from_designator(spec, 1),
+                NULL
+            );
+        }
+        cursor = LT_cdr(cursor);
+    }
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)package;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_in_package,
+    "in-package",
+    "(package-designator)",
+    "Set current package for symbol interning."
+){
+    LT_Value cursor = arguments;
+    LT_Value package_designator;
+    LT_Package* package;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, package_designator);
+    LT_ARG_END(cursor);
+
+    package = package_from_designator(package_designator, 0);
+    LT_set_current_package(package);
+    return (LT_Value)(uintptr_t)package;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_use_package,
+    "use-package",
+    "(used-package-designator [nickname-designator])",
+    "Use package in current package, optionally by nickname only."
+){
+    LT_Value cursor = arguments;
+    LT_Value used_designator;
+    LT_Value nickname_designator = LT_NIL;
+    LT_Package* current_package;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, used_designator);
+    LT_OBJECT_ARG_OPT(cursor, nickname_designator, LT_NIL);
+    LT_ARG_END(cursor);
+
+    current_package = LT_get_current_package();
+    LT_Package_use_package(
+        current_package,
+        package_from_designator(used_designator, 0),
+        (nickname_designator == LT_NIL)
+            ? NULL
+            : (char*)package_nickname_from_designator(nickname_designator)
+    );
+    return (LT_Value)(uintptr_t)current_package;
+}
+
 void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_numeric_equal);
     LT_base_env_bind_static_primitive(environment, &primitive_eq_p);
@@ -569,4 +698,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_exit);
     LT_base_env_bind_static_primitive(environment, &primitive_macroexpand);
     LT_base_env_bind_static_primitive(environment, &primitive_fold_expression);
+    LT_base_env_bind_static_primitive(environment, &primitive_define_package);
+    LT_base_env_bind_static_primitive(environment, &primitive_in_package);
+    LT_base_env_bind_static_primitive(environment, &primitive_use_package);
 }

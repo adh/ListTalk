@@ -8,6 +8,7 @@
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
@@ -1223,6 +1224,107 @@ static int test_set_bang_parent_binding(void){
     );
 }
 
+static int test_define_package_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
+        value = LT_eval(read_one("(define-package \"TestPackage\")"), env, NULL);
+    });
+
+    if (expect(LT_Package_p(value), "define-package returns package object")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Package_name(LT_Package_from_value(value)), "TestPackage") == 0,
+        "define-package creates package by symbol designator"
+    );
+}
+
+static int test_in_package_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result = LT_NIL;
+    LT_Package* package = LT_Package_new("EvalInPackage");
+    int failed = 0;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
+        (void)LT_eval(read_one("(define-package \"EvalInPackage\")"), env, NULL);
+        result = LT_eval(read_one("(in-package \"EvalInPackage\")"), env, NULL);
+        if (expect(
+            LT_Package_p(result)
+                && LT_Package_from_value(result) == package,
+            "in-package returns selected package"
+        )){
+            failed = 1;
+        }
+        if (expect(
+            LT_Symbol_package(LT_Symbol_from_value(LT_Symbol_new("x"))) == package,
+            "in-package updates current package for subsequent interning"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_use_package_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value = LT_NIL;
+    int failed = 0;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
+        (void)LT_eval_sequence_string(
+            "(define-package \"PackageSource\") "
+            "(in-package \"PackageSource\") "
+            "(define exported-value 42) "
+            "(in-package \"ListTalk\") "
+            "(define-package \"PackageUser\") "
+            "(in-package \"PackageUser\") "
+            "(use-package \"PackageSource\") "
+            "exported-value",
+            env
+        );
+        value = LT_eval(read_one("exported-value"), env, NULL);
+        if (expect(
+            LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
+            "use-package makes used package symbols visible"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_use_package_with_nickname(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value = LT_NIL;
+    int failed = 0;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
+        (void)LT_eval_sequence_string(
+            "(define-package \"NickSource\") "
+            "(in-package \"NickSource\") "
+            "(define value 99) "
+            "(in-package \"ListTalk\") "
+            "(define-package \"NickUser\") "
+            "(in-package \"NickUser\") "
+            "(use-package \"NickSource\" \"ns\")",
+            env
+        );
+        value = LT_eval(read_one("ns:value"), env, NULL);
+        if (expect(
+            LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 99,
+            "use-package nickname resolves package-prefixed symbols"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
 static int test_macro_special_form_constructs_macro(void){
     LT_Value value = eval_one("(macro (lambda (x) x))");
     return expect(
@@ -1615,6 +1717,33 @@ static int test_symbol_class_inherits_object(void){
     );
 }
 
+static int test_symbol_package_slot_is_readonly(void){
+    LT_Value slot_value = eval_one("(slot-ref 'alpha 'package)");
+    LT_Value readonly_error = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (slot-set! 'alpha 'package 1)))"
+    );
+
+    if (expect(
+        LT_Package_p(slot_value)
+            && LT_Package_from_value(slot_value) == LT_PACKAGE_LISTTALK,
+        "symbol package slot exposes package object"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_String_p(readonly_error),
+        "setting readonly symbol package slot signals string error"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(readonly_error)), "Readonly slot") == 0,
+        "symbol package slot is readonly"
+    );
+}
+
 static int test_precedence_list_initialized(void){
     LT_Value* precedence_list = LT_SmallInteger_class.precedence_list;
 
@@ -1785,6 +1914,10 @@ int main(void){
     failures += test_define_special_form();
     failures += test_set_bang_special_form();
     failures += test_set_bang_parent_binding();
+    failures += test_define_package_special_form();
+    failures += test_in_package_special_form();
+    failures += test_use_package_special_form();
+    failures += test_use_package_with_nickname();
     failures += test_macro_special_form_constructs_macro();
     failures += test_macro_expansion_is_evaluated();
     failures += test_macro_expansion_uses_call_environment();
@@ -1803,6 +1936,7 @@ int main(void){
     failures += test_unwind_protect_runs_cleanup_on_normal_path();
     failures += test_unwind_protect_runs_cleanup_on_throw_path();
     failures += test_handler_bind_special_form_binds_handler_for_body();
+    failures += test_symbol_package_slot_is_readonly();
     failures += test_symbol_class_inherits_object();
     failures += test_precedence_list_initialized();
     failures += test_value_is_instance_of_uses_precedence_list();

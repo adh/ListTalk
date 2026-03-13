@@ -5,3 +5,6 @@
 ; Runtime initialization forms.
 ; This file is embedded into libListTalkVM and evaluated when the base
 ; environment is initialized.
+
+(ListTalk:in-package :ListTalk-implementation)
+(ListTalk:use-package :ListTalk)

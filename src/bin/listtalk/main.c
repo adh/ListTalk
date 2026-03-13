@@ -119,6 +119,7 @@ int main(int argc, char**argv){
     int eval_status;
 
     LT_init();
+    LT_set_current_package(LT_PACKAGE_LISTTALK_USER);
     reader = LT_Reader_new();
     LT__repl_error_tag = LT_Symbol_new("repl-error");
     error_handler = LT_Primitive_new(

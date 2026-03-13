@@ -69,10 +69,12 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
 
 void LT_base_env_bind_static_primitive(LT_Environment* environment,
                                        LT_Primitive* primitive){
+    LT_Value primitive_value = LT_Primitive_from_static(primitive);
+
     LT_Environment_bind(
         environment,
-        LT_Symbol_new(primitive->name),
-        LT_Primitive_from_static(primitive),
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, primitive->name),
+        primitive_value,
         LT_ENV_BINDING_FLAG_CONSTANT
     );
 }
@@ -81,10 +83,13 @@ void LT_base_env_bind_native_classes(LT_Environment* environment){
     size_t i;
 
     for (i = 0; i < sizeof(native_class_bindings) / sizeof(native_class_bindings[0]); i++){
+        LT_Value class_value = (LT_Value)(uintptr_t)native_class_bindings[i].klass;
+        char* name = (char*)native_class_bindings[i].name;
+
         LT_Environment_bind(
             environment,
-            LT_Symbol_new((char*)native_class_bindings[i].name),
-            (LT_Value)(uintptr_t)native_class_bindings[i].klass,
+            LT_Symbol_new_in(LT_PACKAGE_LISTTALK, name),
+            class_value,
             LT_ENV_BINDING_FLAG_CONSTANT
         );
     }
@@ -93,18 +98,22 @@ void LT_base_env_bind_native_classes(LT_Environment* environment){
 LT_Environment* LT_new_base_environment(void){
     LT_Environment* environment = LT_Environment_new(NULL);
     char* runtime_init_source;
+    LT_Package* previous_package = LT_get_current_package();
 
-    LT_base_env_bind_native_classes(environment);
-    LT_base_env_bind_numbers(environment);
-    LT_base_env_bind_primitives(environment);
-    LT_base_env_bind_lists(environment);
-    LT_base_env_bind_strings(environment);
-    LT_base_env_bind_vectors(environment);
-    LT_base_env_bind_special_forms(environment);
-    runtime_init_source = GC_MALLOC_ATOMIC(LT_runtime_init_source_length + 1);
-    memcpy(runtime_init_source, LT_runtime_init_source, LT_runtime_init_source_length);
-    runtime_init_source[LT_runtime_init_source_length] = '\0';
-    LT_eval_sequence_string(runtime_init_source, environment);
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
+        LT_base_env_bind_native_classes(environment);
+        LT_base_env_bind_numbers(environment);
+        LT_base_env_bind_primitives(environment);
+        LT_base_env_bind_lists(environment);
+        LT_base_env_bind_strings(environment);
+        LT_base_env_bind_vectors(environment);
+        LT_base_env_bind_special_forms(environment);
+        runtime_init_source = GC_MALLOC_ATOMIC(LT_runtime_init_source_length + 1);
+        memcpy(runtime_init_source, LT_runtime_init_source, LT_runtime_init_source_length);
+        runtime_init_source[LT_runtime_init_source_length] = '\0';
+        LT_eval_sequence_string(runtime_init_source, environment);
+    });
+    LT_set_current_package(previous_package);
 
     return environment;
 }

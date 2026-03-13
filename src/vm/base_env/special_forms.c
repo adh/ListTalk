@@ -167,6 +167,7 @@ static LT_Value expand_special_form_default(LT_Value form,
     );
 }
 
+
 static LT_Value special_form_quote(LT_Value arguments,
                                    LT_Environment* environment,
                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
@@ -406,6 +407,7 @@ static LT_Value special_form_get_current_environment(
     return (LT_Value)(uintptr_t)environment;
 }
 
+
 static LT_SpecialForm quote_special_form = {
     .function = special_form_quote,
     .expand_function = expand_special_form_quote,
@@ -496,10 +498,12 @@ static LT_SpecialForm get_current_environment_special_form = {
 
 static void bind_static_special_form(LT_Environment* environment,
                                      LT_SpecialForm* special_form){
+    LT_Value special_form_value = LT_SpecialForm_from_static(special_form);
+
     LT_Environment_bind(
         environment,
-        LT_Symbol_new(special_form->name),
-        LT_SpecialForm_from_static(special_form),
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, special_form->name),
+        special_form_value,
         LT_ENV_BINDING_FLAG_CONSTANT
     );
 }

@@ -240,7 +240,7 @@ static LT_Value expand_self_slot_accessor(char* token){
     }
 
     return LT_list(
-        LT_Symbol_new("%self-slot"),
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%self-slot"),
         LT_Symbol_parse_token(token + 1),
         LT_INVALID
     );
@@ -457,7 +457,7 @@ static LT_Value read_quote_syntax(
 
     quoted = read_object_from_first(reader, stream, first);
     return LT_list(
-        LT_Symbol_new("quote"),
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quote"),
         quoted,
         LT_INVALID
     );
@@ -571,7 +571,7 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
 
     if (ch == ']'){
         return LT_list(
-            LT_Symbol_new("send"),
+            LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send"),
             receiver,
             LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token),
             LT_INVALID
@@ -623,7 +623,7 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     );
 
     return LT_list_with_rest(
-        LT_Symbol_new("send"),
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send"),
         receiver,
         selector_symbol,
         LT_INVALID,
