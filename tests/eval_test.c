@@ -665,7 +665,7 @@ static int test_equal_primitive(void){
 
 static int test_not_primitive(void){
     LT_Value nil_value = eval_one("(not ())");
-    LT_Value truthy_value = eval_one("(not #false)");
+    LT_Value false_value = eval_one("(not #false)");
 
     if (expect(
         LT_Value_is_boolean(nil_value) && LT_Value_boolean_value(nil_value),
@@ -674,8 +674,8 @@ static int test_not_primitive(void){
         return 1;
     }
     return expect(
-        LT_Value_is_boolean(truthy_value) && !LT_Value_boolean_value(truthy_value),
-        "not false for non-nil"
+        LT_Value_is_boolean(false_value) && LT_Value_boolean_value(false_value),
+        "not true for #false"
     );
 }
 
@@ -1289,10 +1289,18 @@ static int test_tail_call_optimization_deep_recursion(void){
 }
 
 static int test_if_special_form(void){
-    LT_Value value = eval_one("(if () 1 2)");
+    LT_Value nil_branch = eval_one("(if () 1 2)");
+    LT_Value false_branch = eval_one("(if #false 1 2)");
+
+    if (expect(
+        LT_Value_is_fixnum(nil_branch) && LT_SmallInteger_value(nil_branch) == 2,
+        "if nil branch is false"
+    )){
+        return 1;
+    }
     return expect(
-        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
-        "if false branch"
+        LT_Value_is_fixnum(false_branch) && LT_SmallInteger_value(false_branch) == 2,
+        "if #false branch is false"
     );
 }
 
@@ -1305,6 +1313,43 @@ static int test_define_special_form(void){
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 10,
         "define binds value in current environment"
+    );
+}
+
+static int test_define_function_shorthand(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(read_one("(define (add2 x y) (+ x y))"), env, NULL);
+    result = LT_eval(read_one("(add2 3 4)"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 7,
+        "define function shorthand creates callable binding"
+    )){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(define (bump x) (set! x (+ x 1)) x)"), env, NULL);
+    result = LT_eval(read_one("(bump 9)"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 10,
+        "define function shorthand keeps full function body sequence"
+    );
+}
+
+static int test_define_macro_shorthand(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(
+        read_one("(define-macro (inc x) (list '+ x 1))"),
+        env,
+        NULL
+    );
+    result = LT_eval(read_one("(inc 41)"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "define-macro shorthand defines macro with lambda-style parameters"
     );
 }
 
@@ -2025,6 +2070,8 @@ int main(void){
     failures += test_tail_call_optimization_deep_recursion();
     failures += test_if_special_form();
     failures += test_define_special_form();
+    failures += test_define_function_shorthand();
+    failures += test_define_macro_shorthand();
     failures += test_set_bang_special_form();
     failures += test_set_bang_parent_binding();
     failures += test_define_package_special_form();

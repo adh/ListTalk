@@ -243,7 +243,7 @@ static LT_Value special_form_if(LT_Value arguments,
     LT_ARG_END(cursor);
 
     condition_value = LT_eval(condition_expression, environment, NULL);
-    if (condition_value != LT_NIL){
+    if (LT_Value_truthy_p(condition_value)){
         return LT_eval(then_expression, environment, tail_call_unwind_marker);
     }
     if (else_expression == LT_NIL){

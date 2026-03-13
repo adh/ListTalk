@@ -154,7 +154,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_not,
     "not",
     "(value)",
-    "Return true when value is nil.",
+    "Return true when value is falsey (nil or #false).",
     LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
@@ -162,7 +162,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return value == LT_NIL ? LT_TRUE : LT_FALSE;
+    return LT_Value_truthy_p(value) ? LT_FALSE : LT_TRUE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(

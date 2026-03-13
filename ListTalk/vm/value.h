@@ -96,6 +96,10 @@ static inline int LT_Value_boolean_value(LT_Value value){
     return LT_VALUE_IMMEDIATE_VALUE(value) != 0;
 }
 
+static inline int LT_Value_truthy_p(LT_Value value){
+    return value != LT_NIL && value != LT_FALSE;
+}
+
 static inline LT_Class* LT_Value_class(LT_Value value){
     if (LT_VALUE_IS_IMMEDIATE(value)){
         if (LT_VALUE_IMMEDIATE_TAG_IS_FLONUM(LT_VALUE_IMMEDIATE_TAG(value))){

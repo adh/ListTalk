@@ -9,7 +9,19 @@
 (ListTalk:in-package :ListTalk-implementation)
 (ListTalk:use-package :ListTalk)
 
-(%define ListTalk:define
+(%define ListTalk:define-macro
   (macro
-    (lambda (name value-expression)
-      (list '%define name value-expression))))
+    (lambda (target . body)
+      (if (pair? target)
+          (list '%define
+                (car target)
+                (list 'macro
+                      (cons 'lambda (cons (cdr target) body))))
+          (list '%define target (list 'macro (car body)))))))
+
+(ListTalk:define-macro (ListTalk:define target . body)
+  (if (pair? target)
+      (list '%define
+            (car target)
+            (cons 'lambda (cons (cdr target) body)))
+      (list '%define target (car body))))
