@@ -107,6 +107,25 @@ static int list_contains_symbol_name(LT_Value list, const char* name){
     return 0;
 }
 
+static int string_starts_with(const char* value, const char* prefix){
+    size_t prefix_len = strlen(prefix);
+    return strncmp(value, prefix, prefix_len) == 0;
+}
+
+static char* debug_string_for_value(LT_Value value){
+    char* buffer = NULL;
+    size_t size = 0;
+    FILE* stream = open_memstream(&buffer, &size);
+
+    if (stream == NULL){
+        fail("open_memstream failed");
+        return NULL;
+    }
+    LT_Value_debugPrintOn(value, stream);
+    fclose(stream);
+    return buffer;
+}
+
 static int test_add(void){
     LT_Value value = eval_one("(+ 1 2 3)");
     return expect(
@@ -1304,6 +1323,42 @@ static int test_if_special_form(void){
     );
 }
 
+static int test_let_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+
+    value = LT_eval(read_one("(let ((x 1) (y 2)) (+ x y))"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "let binds local names for body evaluation"
+    )){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(define x 10)"), env, NULL);
+    value = LT_eval(read_one("(let ((x 1) (y x)) y)"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 10,
+        "let evaluates binding expressions in outer environment"
+    )){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(let ((x 99)) x)"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 99,
+        "let local binding shadows outer binding in body"
+    )){
+        return 1;
+    }
+
+    value = LT_eval(read_one("x"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 10,
+        "let local binding does not leak to outer environment"
+    );
+}
+
 static int test_define_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
@@ -1350,6 +1405,217 @@ static int test_define_macro_shorthand(void){
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
         "define-macro shorthand defines macro with lambda-style parameters"
+    );
+}
+
+static int test_symbol_uninterned_and_gensym_c_api(void){
+    LT_Value uninterned = LT_Symbol_new_uninterned("temp");
+    LT_Value generated = LT_Symbol_gensym(NULL);
+    LT_Value named_generated = LT_Symbol_gensym("named");
+    char* uninterned_debug = NULL;
+    char* generated_debug = NULL;
+    char* named_generated_debug = NULL;
+
+    if (expect(LT_Symbol_p(uninterned), "LT_Symbol_new_uninterned returns symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(uninterned)) == NULL,
+        "uninterned symbol has nil package"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(uninterned)), "temp") == 0,
+        "uninterned symbol keeps exact name"
+    )){
+        return 1;
+    }
+    if (expect(LT_Symbol_p(generated), "LT_Symbol_gensym returns symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_name(LT_Symbol_from_value(generated)) == NULL,
+        "opaque gensym stores NULL name"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(generated)) == NULL,
+        "gensym symbol has nil package"
+    )){
+        return 1;
+    }
+    uninterned_debug = debug_string_for_value(uninterned);
+    generated_debug = debug_string_for_value(generated);
+    named_generated_debug = debug_string_for_value(named_generated);
+    if (uninterned_debug == NULL
+        || generated_debug == NULL
+        || named_generated_debug == NULL){
+        return 1;
+    }
+    if (expect(
+        strcmp(uninterned_debug, "#:temp") == 0,
+        "named uninterned symbol prints #:name"
+    )){
+        return 1;
+    }
+    if (expect(
+        string_starts_with(generated_debug, "#<gensym at 0x"),
+        "gensym prints opaque identity form"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(named_generated_debug, "#:named") == 0,
+        "named gensym behaves like uninterned symbol"
+    );
+}
+
+static int test_gensym_primitive(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value first;
+    LT_Value second;
+    LT_Value named_from_string;
+    LT_Value named_from_symbol;
+    char* first_debug = NULL;
+    char* second_debug = NULL;
+    char* named_from_string_debug = NULL;
+    char* named_from_symbol_debug = NULL;
+
+    first = LT_eval(read_one("(gensym)"), env, NULL);
+    second = LT_eval(read_one("(gensym)"), env, NULL);
+    named_from_string = LT_eval(read_one("(gensym \"tmp\")"), env, NULL);
+    named_from_symbol = LT_eval(read_one("(gensym 'symtmp)"), env, NULL);
+
+    if (expect(LT_Symbol_p(first), "gensym primitive returns symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_name(LT_Symbol_from_value(first)) == NULL,
+        "gensym primitive unnamed form has NULL name"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(first)) == NULL,
+        "gensym primitive returns uninterned symbol"
+    )){
+        return 1;
+    }
+    if (expect(first != second, "gensym primitive returns unique symbols")){
+        return 1;
+    }
+    first_debug = debug_string_for_value(first);
+    second_debug = debug_string_for_value(second);
+    named_from_string_debug = debug_string_for_value(named_from_string);
+    named_from_symbol_debug = debug_string_for_value(named_from_symbol);
+    if (first_debug == NULL
+        || second_debug == NULL
+        || named_from_string_debug == NULL
+        || named_from_symbol_debug == NULL){
+        return 1;
+    }
+    if (expect(
+        string_starts_with(first_debug, "#<gensym at 0x"),
+        "gensym primitive print form is opaque identity"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(first_debug, second_debug) != 0,
+        "gensym print forms differ for distinct symbols"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(named_from_string_debug, "#:tmp") == 0,
+        "gensym accepts string name designator"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(named_from_symbol_debug, "#:symtmp") == 0,
+        "gensym accepts symbol name designator"
+    );
+}
+
+static int test_symbol_class_methods_for_uninterned_and_gensym(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value generated = LT_eval(read_one("[Symbol gensym]"), env, NULL);
+    LT_Value uninterned = LT_eval(read_one("[Symbol uninterned: 'temp]"), env, NULL);
+
+    if (expect(LT_Symbol_p(generated), "Symbol class>>gensym returns symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(generated)) == NULL,
+        "Symbol class>>gensym returns uninterned symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(uninterned),
+        "Symbol class>>uninterned: returns symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(uninterned)) == NULL,
+        "Symbol class>>uninterned: returns uninterned symbol"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(uninterned)), "temp") == 0,
+        "Symbol class>>uninterned: accepts symbol name designator"
+    );
+}
+
+static int test_with_gensyms_macro(void){
+    LT_Value result = eval_one(
+        "(with-gensyms (a b) "
+        "  (list (symbol? a) "
+        "        (symbol? b) "
+        "        (eq? a b) "
+        "        (null? (slot-ref a 'package)) "
+        "        (null? (slot-ref b 'package))))"
+    );
+
+    if (expect(LT_Pair_p(result), "with-gensyms returns list in test harness")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_boolean_value(LT_car(result)),
+        "with-gensyms binds symbol for first name"
+    )){
+        return 1;
+    }
+    result = LT_cdr(result);
+    if (expect(
+        LT_Value_boolean_value(LT_car(result)),
+        "with-gensyms binds symbol for second name"
+    )){
+        return 1;
+    }
+    result = LT_cdr(result);
+    if (expect(
+        !LT_Value_boolean_value(LT_car(result)),
+        "with-gensyms symbols are distinct"
+    )){
+        return 1;
+    }
+    result = LT_cdr(result);
+    if (expect(
+        LT_Value_boolean_value(LT_car(result)),
+        "with-gensyms first symbol package is nil"
+    )){
+        return 1;
+    }
+    result = LT_cdr(result);
+    return expect(
+        LT_Value_boolean_value(LT_car(result)),
+        "with-gensyms second symbol package is nil"
     );
 }
 
@@ -2069,9 +2335,14 @@ int main(void){
     failures += test_lambda_rest_parameter_symbol();
     failures += test_tail_call_optimization_deep_recursion();
     failures += test_if_special_form();
+    failures += test_let_special_form();
     failures += test_define_special_form();
     failures += test_define_function_shorthand();
     failures += test_define_macro_shorthand();
+    failures += test_symbol_uninterned_and_gensym_c_api();
+    failures += test_gensym_primitive();
+    failures += test_symbol_class_methods_for_uninterned_and_gensym();
+    failures += test_with_gensyms_macro();
     failures += test_set_bang_special_form();
     failures += test_set_bang_parent_binding();
     failures += test_define_package_special_form();

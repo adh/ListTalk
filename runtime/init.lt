@@ -22,3 +22,14 @@
   (if (pair? target)
       `(%define ,(car target) (lambda ,(cdr target) ,@body))
       `(%define ,target ,(car body))))
+
+; TODO: delalamoize this
+(ListTalk:define-macro (ListTalk:with-gensyms symbols . body)
+  (let ()
+    (define (expand remaining)
+      (if (null? remaining)
+          `((lambda () ,@body))
+          `((lambda (,(car remaining))
+              ,(expand (cdr remaining)))
+            (gensym))))
+    (expand symbols)))

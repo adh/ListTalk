@@ -165,6 +165,30 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return LT_Value_truthy_p(value) ? LT_FALSE : LT_TRUE;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_gensym,
+    "gensym",
+    "([name])",
+    "Return a fresh gensym or named uninterned symbol."
+){
+    LT_Value cursor = arguments;
+    LT_Value name_designator = LT_NIL;
+    char* name = NULL;
+
+    LT_OBJECT_ARG_OPT(cursor, name_designator, LT_NIL);
+    LT_ARG_END(cursor);
+    if (name_designator != LT_NIL){
+        if (LT_Symbol_p(name_designator)){
+            name = LT_Symbol_name(LT_Symbol_from_value(name_designator));
+        } else if (LT_String_p(name_designator)){
+            name = (char*)LT_String_value_cstr(LT_String_from_value(name_designator));
+        } else {
+            LT_error("Name designator must be symbol or string");
+        }
+    }
+    return LT_Symbol_gensym(name);
+}
+
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_null_p,
     "null?",
@@ -675,6 +699,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_eqv_p);
     LT_base_env_bind_static_primitive(environment, &primitive_equal_p);
     LT_base_env_bind_static_primitive(environment, &primitive_not);
+    LT_base_env_bind_static_primitive(environment, &primitive_gensym);
     LT_base_env_bind_static_primitive(environment, &primitive_null_p);
     LT_base_env_bind_static_primitive(environment, &primitive_boolean_p);
     LT_base_env_bind_static_primitive(environment, &primitive_number_p);

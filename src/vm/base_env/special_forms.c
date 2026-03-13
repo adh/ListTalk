@@ -252,6 +252,74 @@ static LT_Value special_form_if(LT_Value arguments,
     return LT_eval(else_expression, environment, tail_call_unwind_marker);
 }
 
+static LT_Value special_form_let(LT_Value arguments,
+                                 LT_Environment* environment,
+                                 LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value bindings;
+    LT_Value body;
+    LT_Value binding_cursor;
+    LT_ListBuilder* symbols = LT_ListBuilder_new();
+    LT_ListBuilder* values = LT_ListBuilder_new();
+    LT_Environment* let_environment;
+
+    LT_OBJECT_ARG(cursor, bindings);
+    LT_ARG_REST(cursor, body);
+    if (body == LT_NIL){
+        LT_error("Special form let expects body");
+    }
+
+    binding_cursor = bindings;
+    while (binding_cursor != LT_NIL){
+        LT_Value binding;
+        LT_Value binding_form_cursor;
+        LT_Value symbol;
+        LT_Value value_expression;
+        LT_Value value;
+
+        if (!LT_Pair_p(binding_cursor)){
+            LT_error("Special form let expects proper binding list");
+        }
+
+        binding = LT_car(binding_cursor);
+        if (!LT_Pair_p(binding)){
+            LT_error("Special form let binding must be pair");
+        }
+
+        binding_form_cursor = binding;
+        LT_OBJECT_ARG(binding_form_cursor, symbol);
+        LT_OBJECT_ARG(binding_form_cursor, value_expression);
+        LT_ARG_END(binding_form_cursor);
+
+        if (!LT_Symbol_p(symbol)){
+            LT_error("Special form let binding name must be symbol");
+        }
+
+        value = LT_eval(value_expression, environment, NULL);
+        LT_ListBuilder_append(symbols, symbol);
+        LT_ListBuilder_append(values, value);
+
+        binding_cursor = LT_cdr(binding_cursor);
+    }
+
+    let_environment = LT_Environment_new(environment);
+    binding_cursor = LT_ListBuilder_value(symbols);
+    cursor = LT_ListBuilder_value(values);
+
+    while (binding_cursor != LT_NIL){
+        LT_Environment_bind(
+            let_environment,
+            LT_car(binding_cursor),
+            LT_car(cursor),
+            0
+        );
+        binding_cursor = LT_cdr(binding_cursor);
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_eval_sequence(body, let_environment, tail_call_unwind_marker);
+}
+
 static LT_Value special_form_define(LT_Value arguments,
                                     LT_Environment* environment,
                                     LT_TailCallUnwindMarker* tail_call_unwind_marker){
@@ -452,6 +520,14 @@ static LT_SpecialForm if_special_form = {
     .description = "Evaluate then or else based on condition."
 };
 
+static LT_SpecialForm let_special_form = {
+    .function = special_form_let,
+    .expand_function = expand_special_form_default,
+    .name = "let",
+    .arguments = "(((symbol value-expression) ...) body ...)",
+    .description = "Evaluate body in lexical scope with local bindings."
+};
+
 static LT_SpecialForm define_special_form = {
     .function = special_form_define,
     .expand_function = expand_special_form_define,
@@ -546,6 +622,7 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &quasiquote_special_form);
     bind_static_special_form(environment, &lambda_special_form);
     bind_static_special_form(environment, &if_special_form);
+    bind_static_special_form(environment, &let_special_form);
     bind_static_special_form_in(
         environment,
         LT_PACKAGE_LISTTALK_IMPLEMENTATION,

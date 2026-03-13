@@ -4,15 +4,20 @@
  */
 
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/macros/arg_macros.h>
 
 #include <ListTalk/utils.h>
 
 #include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 struct LT_Symbol_s {
-    LT_Package* package;
+    LT_Value package;
     char* name;
 };
 
@@ -20,6 +25,17 @@ static LT_Slot_Descriptor Symbol_slots[] = {
     {"package", offsetof(LT_Symbol, package), &LT_SlotType_ReadonlyObject},
     LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
+
+static char* symbol_name_designator(LT_Value value){
+    if (LT_Symbol_p(value)){
+        return LT_Symbol_name(LT_Symbol_from_value(value));
+    }
+    if (LT_String_p(value)){
+        return (char*)LT_String_value_cstr(LT_String_from_value(value));
+    }
+    LT_error("Name designator must be symbol or string");
+    return NULL;
+}
 
 static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Symbol* symbol = (LT_Symbol*)LT_VALUE_POINTER_VALUE(obj);
@@ -31,6 +47,15 @@ static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
     if (package == LT_PACKAGE_KEYWORD){
         fputc(':', stream);
         fputs(name, stream);
+        return;
+    }
+    if (package == NULL){
+        if (name != NULL){
+            fputs("#:", stream);
+            fputs(name, stream);
+            return;
+        }
+        fprintf(stream, "#<gensym at %p>", (void*)symbol);
         return;
     }
 
@@ -50,6 +75,62 @@ static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
     fputs(name, stream);
 }
 
+LT_DEFINE_PRIMITIVE(
+    symbol_class_method_gensym,
+    "Symbol class>>gensym",
+    "(self [name])",
+    "Return a fresh gensym or named uninterned symbol."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name_designator = LT_NIL;
+    char* name = NULL;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG_OPT(cursor, name_designator, LT_NIL);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Symbol_class){
+        LT_error("gensym class method is only supported on Symbol");
+    }
+
+    if (name_designator != LT_NIL){
+        name = symbol_name_designator(name_designator);
+    }
+    return LT_Symbol_gensym(name);
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_class_method_uninterned,
+    "Symbol class>>uninterned:",
+    "(self name)",
+    "Return a fresh uninterned symbol with the provided name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name_designator;
+    char* name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, name_designator);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Symbol_class){
+        LT_error("uninterned: class method is only supported on Symbol");
+    }
+
+    name = symbol_name_designator(name_designator);
+    return LT_Symbol_new_uninterned(name);
+}
+
+static LT_Method_Descriptor Symbol_class_methods[] = {
+    {"gensym", &symbol_class_method_gensym},
+    {"uninterned:", &symbol_class_method_uninterned},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Symbol) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -58,22 +139,32 @@ LT_DEFINE_CLASS(LT_Symbol) {
     .instance_size = sizeof(LT_Symbol),
     .debugPrintOn = Symbol_debugPrintOn,
     .slots = Symbol_slots,
+    .class_methods = Symbol_class_methods,
 };
 
 LT_Value LT__Symbol_new_uninterned(LT_Package* package, char *name){
     LT_Symbol* symbol;
 
+    symbol = GC_NEW(LT_Symbol);
     if (package == NULL){
-        LT_error("Symbol package must not be NULL");
+        symbol->package = LT_NIL;
+    } else {
+        symbol->package = (LT_Value)(uintptr_t)package;
     }
     if (name == NULL){
-        LT_error("Symbol name must not be NULL");
+        symbol->name = NULL;
+    } else {
+        symbol->name = LT_strdup(name);
     }
-
-    symbol = GC_NEW(LT_Symbol);
-    symbol->package = package;
-    symbol->name = LT_strdup(name);
     return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
+}
+
+LT_Value LT_Symbol_new_uninterned(char* name){
+    return LT__Symbol_new_uninterned(NULL, name);
+}
+
+LT_Value LT_Symbol_gensym(char* name){
+    return LT_Symbol_new_uninterned(name);
 }
 
 LT_Value LT_Symbol_new_in(LT_Package* package, char *name){
@@ -131,5 +222,8 @@ char *LT_Symbol_name(LT_Symbol * symbol)
 }
 
 LT_Package* LT_Symbol_package(LT_Symbol* symbol){
-    return symbol->package;
+    if (symbol->package == LT_NIL){
+        return NULL;
+    }
+    return (LT_Package*)LT_VALUE_POINTER_VALUE(symbol->package);
 }

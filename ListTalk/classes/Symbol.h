@@ -18,6 +18,8 @@ LT_DECLARE_CLASS(LT_Symbol);
 
 extern LT_Value LT_Symbol_new(char* name);
 extern LT_Value LT_Symbol_new_in(LT_Package* package, char* name);
+extern LT_Value LT_Symbol_new_uninterned(char* name);
+extern LT_Value LT_Symbol_gensym(char* name);
 extern LT_Value LT_Symbol_parse_token(char* token);
 extern char* LT_Symbol_name(LT_Symbol* symbol);
 extern LT_Package* LT_Symbol_package(LT_Symbol* symbol);
