@@ -181,6 +181,18 @@ static LT_Value special_form_quote(LT_Value arguments,
     return value;
 }
 
+static LT_Value special_form_quasiquote(LT_Value arguments,
+                                        LT_Environment* environment,
+                                        LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_quasiquote(value, environment);
+}
+
 static LT_Value special_form_lambda(LT_Value arguments,
                                     LT_Environment* environment,
                                     LT_TailCallUnwindMarker* tail_call_unwind_marker){
@@ -416,6 +428,14 @@ static LT_SpecialForm quote_special_form = {
     .description = "Return value without evaluation."
 };
 
+static LT_SpecialForm quasiquote_special_form = {
+    .function = special_form_quasiquote,
+    .expand_function = expand_special_form_quote,
+    .name = "quasiquote",
+    .arguments = "(value)",
+    .description = "Evaluate quasiquote template."
+};
+
 static LT_SpecialForm lambda_special_form = {
     .function = special_form_lambda,
     .expand_function = expand_special_form_lambda,
@@ -523,6 +543,7 @@ static void bind_static_special_form_in(LT_Environment* environment,
 
 void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &quote_special_form);
+    bind_static_special_form(environment, &quasiquote_special_form);
     bind_static_special_form(environment, &lambda_special_form);
     bind_static_special_form(environment, &if_special_form);
     bind_static_special_form_in(

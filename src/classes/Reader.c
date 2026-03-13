@@ -463,6 +463,55 @@ static LT_Value read_quote_syntax(
     );
 }
 
+static LT_Value read_quasiquote_syntax(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    int first = read_non_space_char(stream);
+    LT_Value quoted;
+
+    if (first == EOF){
+        LT_error("Unexpected end of input after quasiquote");
+    }
+
+    quoted = read_object_from_first(reader, stream, first);
+    return LT_list(
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quasiquote"),
+        quoted,
+        LT_INVALID
+    );
+}
+
+static LT_Value read_unquote_syntax(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    int first = LT_ReaderStream_getc(stream);
+    LT_Value quoted;
+    LT_Value operator_symbol;
+
+    if (first == '@'){
+        operator_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "unquote-splicing");
+    } else {
+        operator_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "unquote");
+        if (first != EOF){
+            LT_ReaderStream_ungetc(stream, first);
+        }
+    }
+
+    first = read_non_space_char(stream);
+    if (first == EOF){
+        LT_error("Unexpected end of input after unquote");
+    }
+
+    quoted = read_object_from_first(reader, stream, first);
+    return LT_list(
+        operator_symbol,
+        quoted,
+        LT_INVALID
+    );
+}
+
 static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
     LT_Value head = LT_NIL;
     LT_Value tail = LT_NIL;
@@ -656,6 +705,12 @@ static LT_Value read_object_from_first(
     }
     if (first == '\''){
         return read_quote_syntax(reader, stream);
+    }
+    if (first == '`'){
+        return read_quasiquote_syntax(reader, stream);
+    }
+    if (first == ','){
+        return read_unquote_syntax(reader, stream);
     }
     if (first == '#'){
         return read_dispatch_macro(reader, stream);

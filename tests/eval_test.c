@@ -1097,6 +1097,116 @@ static int test_quote_reader_syntax(void){
     );
 }
 
+static int test_quasiquote_unquote(void){
+    LT_Value value = eval_one("(quasiquote (+ (unquote (+ 1 2)) 4))");
+
+    if (expect(LT_Pair_p(value), "quasiquote returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(value))), "+") == 0,
+        "quasiquote keeps literal symbol"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 3,
+        "quasiquote evaluates unquote expression"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 4,
+        "quasiquote keeps trailing literal"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(value) == LT_NIL, "quasiquote list terminates");
+}
+
+static int test_quasiquote_reader_syntax(void){
+    LT_Value value = eval_one("`(+ ,(+ 1 2) 4)");
+
+    if (expect(LT_Pair_p(value), "quasiquote reader returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(value))), "+") == 0,
+        "quasiquote reader keeps literal symbol"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 3,
+        "quasiquote reader evaluates comma"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 4,
+        "quasiquote reader keeps literal tail"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(value) == LT_NIL, "quasiquote reader list terminates");
+}
+
+static int test_quasiquote_unquote_splicing(void){
+    LT_Value value = eval_one("`(1 ,@(list 2 3) 4)");
+
+    if (expect(LT_Pair_p(value), "unquote-splicing returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(value)) && LT_SmallInteger_value(LT_car(value)) == 1,
+        "unquote-splicing first element"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 2,
+        "unquote-splicing inserts first spliced item"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 3,
+        "unquote-splicing inserts second spliced item"
+    )){
+        return 1;
+    }
+    value = LT_cdr(value);
+    if (expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 4,
+        "unquote-splicing keeps trailing element"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(value) == LT_NIL, "unquote-splicing list terminates");
+}
+
 static int test_lambda_application(void){
     LT_Value value = eval_one("((lambda (x y) (+ x y)) 3 4)");
     return expect(
@@ -1906,6 +2016,9 @@ int main(void){
     failures += test_metaclass_has_valid_name_slot();
     failures += test_quote();
     failures += test_quote_reader_syntax();
+    failures += test_quasiquote_unquote();
+    failures += test_quasiquote_reader_syntax();
+    failures += test_quasiquote_unquote_splicing();
     failures += test_lambda_application();
     failures += test_lambda_rest_parameter_dotted();
     failures += test_lambda_rest_parameter_symbol();

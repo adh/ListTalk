@@ -302,6 +302,117 @@ static int test_quote_syntax(void){
     return expect(LT_cdr(tail) == LT_NIL, "quote syntax argument list end");
 }
 
+static int test_quasiquote_syntax(void){
+    LT_Value value = read_one("`a");
+    LT_Value tail;
+
+    if (expect(LT_Pair_p(value), "quasiquote syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "quasiquote"
+            ) == 0,
+        "quasiquote syntax head symbol"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Pair_p(tail), "quasiquote syntax has single argument")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(tail))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(tail))),
+                "a"
+            ) == 0,
+        "quasiquote syntax quoted value"
+    )){
+        return 1;
+    }
+
+    return expect(LT_cdr(tail) == LT_NIL, "quasiquote syntax argument list end");
+}
+
+static int test_unquote_syntax(void){
+    LT_Value value = read_one(",a");
+    LT_Value tail;
+
+    if (expect(LT_Pair_p(value), "unquote syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "unquote"
+            ) == 0,
+        "unquote syntax head symbol"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Pair_p(tail), "unquote syntax has single argument")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(tail))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(tail))),
+                "a"
+            ) == 0,
+        "unquote syntax argument value"
+    )){
+        return 1;
+    }
+
+    return expect(LT_cdr(tail) == LT_NIL, "unquote syntax argument list end");
+}
+
+static int test_unquote_splicing_syntax(void){
+    LT_Value value = read_one(",@a");
+    LT_Value tail;
+
+    if (expect(LT_Pair_p(value), "unquote-splicing syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "unquote-splicing"
+            ) == 0,
+        "unquote-splicing syntax head symbol"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Pair_p(tail), "unquote-splicing syntax has single argument")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(tail))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(tail))),
+                "a"
+            ) == 0,
+        "unquote-splicing syntax argument value"
+    )){
+        return 1;
+    }
+
+    return expect(
+        LT_cdr(tail) == LT_NIL,
+        "unquote-splicing syntax argument list end"
+    );
+}
+
 static int test_quote_syntax_in_user_package_uses_listtalk_quote(void){
     LT_Value value = LT_NIL;
 
@@ -694,6 +805,9 @@ int main(void){
     failures += test_dispatch_character_unicode();
     failures += test_dispatch_bang_comment();
     failures += test_quote_syntax();
+    failures += test_quasiquote_syntax();
+    failures += test_unquote_syntax();
+    failures += test_unquote_splicing_syntax();
     failures += test_quote_syntax_in_user_package_uses_listtalk_quote();
     failures += test_symbol_package_interning();
     failures += test_reader_uses_thread_local_current_package();

@@ -24,6 +24,7 @@ vm_lib = library(
         [
                 runtime_init_embedded,
                 'src/vm/eval.c',
+                'src/vm/quasiquote.c',
                 'src/vm/compiler.c',
                 'src/vm/value.c',
                 'src/vm/Class.c',
