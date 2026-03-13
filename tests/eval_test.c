@@ -414,6 +414,82 @@ static int test_make_class_primitive(void){
     );
 }
 
+static int test_make_instance_primitive(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value instance;
+
+    (void)LT_eval(
+        read_one("(define Point (make-class 'Point (list Object) '(x y)))"),
+        env,
+        NULL
+    );
+    instance = LT_eval(read_one("(make-instance Point)"), env, NULL);
+
+    return expect(
+        LT_Value_class(instance) == LT_Class_from_object(
+            LT_eval(read_one("Point"), env, NULL)
+        ),
+        "make-instance allocates empty instance for allocatable class"
+    );
+}
+
+static int test_class_alloc_method(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value instance;
+
+    (void)LT_eval(
+        read_one("(define Point (make-class 'Point (list Object) '(x y)))"),
+        env,
+        NULL
+    );
+    instance = LT_eval(read_one("[Point alloc]"), env, NULL);
+
+    return expect(
+        LT_Value_class(instance) == LT_Class_from_object(
+            LT_eval(read_one("Point"), env, NULL)
+        ),
+        "Class>>alloc allocates empty instance for allocatable class"
+    );
+}
+
+static int test_make_instance_non_allocatable_class_errors(void){
+    LT_Value value = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (make-instance Pair)))"
+    );
+
+    if (expect(LT_String_p(value), "make-instance on Pair signals condition")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(value)),
+            "Class is not allocatable"
+        ) == 0,
+        "make-instance on non-allocatable class raises error"
+    );
+}
+
+static int test_class_alloc_non_allocatable_class_errors(void){
+    LT_Value value = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    [Pair alloc]))"
+    );
+
+    if (expect(LT_String_p(value), "Class>>alloc on Pair signals condition")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(value)),
+            "Class is not allocatable"
+        ) == 0,
+        "Class>>alloc on non-allocatable class raises error"
+    );
+}
+
 static int test_class_add_method_with_selector_method(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
@@ -1663,6 +1739,10 @@ int main(void){
     failures += test_basic_pair_methods();
     failures += test_basic_string_and_vector_methods();
     failures += test_make_class_primitive();
+    failures += test_make_instance_primitive();
+    failures += test_class_alloc_method();
+    failures += test_make_instance_non_allocatable_class_errors();
+    failures += test_class_alloc_non_allocatable_class_errors();
     failures += test_class_add_method_with_selector_method();
     failures += test_class_add_method_invalidates_method_cache();
     failures += test_cons_primitive();

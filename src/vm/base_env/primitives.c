@@ -388,6 +388,23 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_make_instance,
+    "make-instance",
+    "(class)",
+    "Allocate empty instance for allocatable class."
+){
+    LT_Value cursor = arguments;
+    LT_Value class_value;
+    LT_Class* klass;
+
+    LT_OBJECT_ARG(cursor, class_value);
+    LT_ARG_END(cursor);
+
+    klass = LT_Class_from_object(class_value);
+    return LT_Class_make_instance(klass);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_error,
     "error",
     "(message)",
@@ -543,6 +560,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_send);
     LT_base_env_bind_static_primitive(environment, &primitive_class_slots);
     LT_base_env_bind_static_primitive(environment, &primitive_make_class);
+    LT_base_env_bind_static_primitive(environment, &primitive_make_instance);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_ref);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_set);
     LT_base_env_bind_static_primitive(environment, &primitive_error);

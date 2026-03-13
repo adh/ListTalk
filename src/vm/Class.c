@@ -103,11 +103,18 @@ LT_DECLARE_PRIMITIVE(
     "(self method selector)",
     "Add direct method for selector."
 );
+LT_DECLARE_PRIMITIVE(
+    class_method_alloc,
+    "Class>>alloc",
+    "(self)",
+    "Allocate empty instance for allocatable class."
+);
 
 static LT_Method_Descriptor Class_methods[] = {
     {"slots", &class_method_slots},
     {"lookupSelector:", &class_method_lookup_selector},
     {"addMethod:withSelector:", &class_method_add_method_with_selector},
+    {"alloc", &class_method_alloc},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -614,7 +621,7 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     klass->base.klass = metaclass;
     klass->superclasses = superclass_array;
     klass->precedence_list = make_precedence_list(klass, superclass_array);
-    klass->class_flags = 0;
+    klass->class_flags = LT_CLASS_FLAG_ALLOCATABLE;
     klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->cache_version = LT_Class_method_cache_global_version;
@@ -632,6 +639,14 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     materialize_dynamic_slots(klass, primary_superclass, slot_names);
 
     return (LT_Value)(uintptr_t)klass;
+}
+
+LT_Value LT_Class_make_instance(LT_Class* klass){
+    if ((klass->class_flags & LT_CLASS_FLAG_ALLOCATABLE) == 0){
+        LT_error("Class is not allocatable");
+    }
+
+    return (LT_Value)(uintptr_t)LT_Class_alloc(klass);
 }
 
 LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name){
@@ -762,4 +777,15 @@ LT_PRIMITIVE_HEAD(class_method_add_method_with_selector){
 
     LT_Class_addMethod(LT_Class_from_object(self), selector, method);
     return method;
+}
+
+LT_PRIMITIVE_HEAD(class_method_alloc){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    return LT_Class_make_instance(LT_Class_from_object(self));
 }
