@@ -13,15 +13,12 @@
   (macro
     (lambda (target . body)
       (if (pair? target)
-          (list '%define
-                (car target)
-                (list 'macro
-                      (cons 'lambda (cons (cdr target) body))))
-          (list '%define target (list 'macro (car body)))))))
+          `(%define
+             ,(car target)
+             (macro (lambda ,(cdr target) ,@body)))
+          `(%define ,target (macro ,(car body)))))))
 
 (ListTalk:define-macro (ListTalk:define target . body)
   (if (pair? target)
-      (list '%define
-            (car target)
-            (cons 'lambda (cons (cdr target) body)))
-      (list '%define target (car body))))
+      `(%define ,(car target) (lambda ,(cdr target) ,@body))
+      `(%define ,target ,(car body))))
