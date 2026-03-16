@@ -23,6 +23,34 @@
       `(%define ,(car target) (lambda ,(cdr target) ,@body))
       `(%define ,target ,(car body))))
 
+(ListTalk:define-macro (ListTalk:%self-slot slot-name)
+  `(slot-ref ListTalk:self ',slot-name))
+
+(ListTalk:define-macro (ListTalk:set! target value)
+  (if (symbol? target)
+      `(%set! ,target ,value)
+      (if (pair? target)
+          (if (eq? (car target) '%self-slot)
+              `(slot-set! ListTalk:self ',(cadr target) ,value)
+              (error "set! unsupported target"))
+          (error "set! unsupported target"))))
+
+(ListTalk:define-macro (ListTalk:define-class name superclasses slot-names)
+  `(define ,name
+     (make-class ',name
+                 (list ,@superclasses)
+                 ',slot-names)))
+
+(ListTalk:define-macro (ListTalk:define-method signature . body)
+  (if (pair? signature)
+      (if (eq? (car signature) 'send)
+          `[,(cadr signature)
+            addMethod: (lambda (ListTalk:self ,@(cdddr signature))
+                         ,@body)
+            withSelector: ,(caddr signature)]
+          (error "define-method expects [Class selector ...] signature"))
+      (error "define-method expects [Class selector ...] signature")))
+
 ; TODO: delalamoize this
 (ListTalk:define-macro (ListTalk:with-gensyms symbols . body)
   (let ()

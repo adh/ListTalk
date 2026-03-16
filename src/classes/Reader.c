@@ -116,6 +116,20 @@ static int is_delimiter(int ch){
         || ch == ';';
 }
 
+static int dot_starts_dotted_pair(LT_ReaderStream* stream){
+    int next = LT_ReaderStream_getc(stream);
+
+    if (!is_delimiter(next)){
+        LT_ReaderStream_ungetc(stream, next);
+        return 0;
+    }
+
+    if (next != EOF){
+        LT_ReaderStream_ungetc(stream, next);
+    }
+    return 1;
+}
+
 static int read_non_space_char(LT_ReaderStream* stream){
     int ch = LT_ReaderStream_getc(stream);
 
@@ -259,6 +273,10 @@ static LT_Value read_atom(int first, LT_ReaderStream* stream){
 
     if (ch != EOF){
         LT_ReaderStream_ungetc(stream, ch);
+    }
+
+    if (strcmp(LT_StringBuilder_value(builder), ".") == 0){
+        LT_error("Unexpected dot");
     }
 
     if (parse_fixnum_token(LT_StringBuilder_value(builder), &value)){
@@ -528,8 +546,27 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
         if (ch == EOF){
             LT_error("Unterminated list");
         }
-        if (ch == '.'){
-            LT_error("Unexpected dot in list");
+        if (ch == '.' && dot_starts_dotted_pair(stream)){
+            int tail_first;
+            LT_Value tail_value;
+            int closing;
+
+            if (head == LT_NIL){
+                LT_error("Unexpected dot in list");
+            }
+
+            tail_first = read_non_space_char(stream);
+            if (tail_first == EOF){
+                LT_error("Unterminated dotted pair");
+            }
+
+            tail_value = read_object_from_first(reader, stream, tail_first);
+            closing = read_non_space_char(stream);
+            if (closing != ')'){
+                LT_error("Expected ')' after dotted pair tail");
+            }
+            LT_Pair_set_cdr(tail, tail_value);
+            return head;
         }
 
         item = read_object_from_first(reader, stream, ch);
@@ -545,23 +582,6 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
         ch = read_non_space_char(stream);
 
         if (ch == ')'){
-            return head;
-        }
-        if (ch == '.'){
-            int tail_first = read_non_space_char(stream);
-            LT_Value tail_value;
-            int closing;
-
-            if (tail_first == EOF){
-                LT_error("Unterminated dotted pair");
-            }
-
-            tail_value = read_object_from_first(reader, stream, tail_first);
-            closing = read_non_space_char(stream);
-            if (closing != ')'){
-                LT_error("Expected ')' after dotted pair tail");
-            }
-            LT_Pair_set_cdr(tail, tail_value);
             return head;
         }
     }

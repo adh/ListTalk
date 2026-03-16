@@ -539,7 +539,7 @@ static LT_SpecialForm define_special_form = {
 static LT_SpecialForm set_bang_special_form = {
     .function = special_form_set_bang,
     .expand_function = expand_special_form_set_bang,
-    .name = "set!",
+    .name = "%set!",
     .arguments = "(symbol value-expression)",
     .description = "Update existing mutable binding."
 };
@@ -628,7 +628,11 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
         LT_PACKAGE_LISTTALK_IMPLEMENTATION,
         &define_special_form
     );
-    bind_static_special_form(environment, &set_bang_special_form);
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &set_bang_special_form
+    );
     bind_static_special_form(environment, &macro_special_form);
     bind_static_special_form(environment, &throw_special_form);
     bind_static_special_form(environment, &catch_special_form);

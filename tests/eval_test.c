@@ -864,6 +864,36 @@ static int test_assoc_primitives(void){
     );
 }
 
+static int test_cxxxr_primitives(void){
+    LT_Value caar_value = eval_one("(caar '((1 . 2) . 3))");
+    LT_Value cadr_value = eval_one("(cadr '(1 2 3))");
+    LT_Value caddr_value = eval_one("(caddr '(1 2 3 4))");
+    LT_Value cadddr_value = eval_one("(cadddr '(1 2 3 4 5))");
+
+    if (expect(
+        LT_Value_is_fixnum(caar_value) && LT_SmallInteger_value(caar_value) == 1,
+        "caar returns nested car"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(cadr_value) && LT_SmallInteger_value(cadr_value) == 2,
+        "cadr returns second element"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(caddr_value) && LT_SmallInteger_value(caddr_value) == 3,
+        "caddr returns third element"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(cadddr_value) && LT_SmallInteger_value(cadddr_value) == 4,
+        "cadddr returns fourth element"
+    );
+}
+
 static int test_string_predicate_primitive(void){
     LT_Value string_value = eval_one("(string? \"abc\")");
     LT_Value fixnum_value = eval_one("(string? 1)");
@@ -1645,6 +1675,97 @@ static int test_set_bang_parent_binding(void){
     );
 }
 
+static int test_set_bang_macro_dispatches_self_slot(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(
+        read_one("(define-method [Pair setFirst: value] (set! (%self-slot car) value) value)"),
+        env,
+        NULL
+    );
+    result = LT_eval(read_one("['(1 . 2) setFirst: 77]"), env, NULL);
+
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 77,
+        "set! macro dispatches %self-slot target to slot-set!"
+    );
+}
+
+static int test_define_class_macro(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value instance;
+
+    (void)LT_eval(
+        read_one("(define-class Point (Object) (x y))"),
+        env,
+        NULL
+    );
+    instance = LT_eval(read_one("(make-instance Point)"), env, NULL);
+
+    return expect(
+        LT_Value_class(instance) == LT_Class_from_object(
+            LT_eval(read_one("Point"), env, NULL)
+        ),
+        "define-class wraps make-class and define"
+    );
+}
+
+static int test_define_method_macro(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    (void)LT_eval(
+        read_one("(define-method [Pair first] (%self-slot car))"),
+        env,
+        NULL
+    );
+    result = LT_eval(read_one("['(9 . 8) first]"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 9,
+        "define-method installs zero-argument method"
+    )){
+        return 1;
+    }
+
+    (void)LT_eval(
+        read_one("(define-method [Pair setFirst: value] (set! (%self-slot car) value) (%self-slot car))"),
+        env,
+        NULL
+    );
+    result = LT_eval(read_one("['(9 . 8) setFirst: 42]"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "define-method method body can use %self-slot read and write"
+    );
+}
+
+static int test_define_class_and_method_rectangle_example(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    result = LT_eval_sequence_string(
+        "(define-class Rectangle (Object) (width height))\n"
+        "\n"
+        "(define-method [[Rectangle class] width: width height: height]\n"
+        "    (let ((inst [self alloc]))\n"
+        "        (slot-set! inst 'width width)\n"
+        "        (slot-set! inst 'height height)\n"
+        "        inst))\n"
+        "\n"
+        "(define-method [Rectangle area]\n"
+        "    (* .width .height))\n"
+        "\n"
+        "[[Rectangle width: 4 height: 5] area]\n",
+        env
+    );
+
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 20,
+        "rectangle define-class/define-method example evaluates to area 20"
+    );
+}
+
 static int test_define_package_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value value = LT_NIL;
@@ -2309,6 +2430,7 @@ int main(void){
     failures += test_list_constructor_primitive();
     failures += test_list_predicate_primitive();
     failures += test_assoc_primitives();
+    failures += test_cxxxr_primitives();
     failures += test_string_predicate_primitive();
     failures += test_string_length_primitive();
     failures += test_string_ref_primitive();
@@ -2345,6 +2467,10 @@ int main(void){
     failures += test_with_gensyms_macro();
     failures += test_set_bang_special_form();
     failures += test_set_bang_parent_binding();
+    failures += test_set_bang_macro_dispatches_self_slot();
+    failures += test_define_class_macro();
+    failures += test_define_method_macro();
+    failures += test_define_class_and_method_rectangle_example();
     failures += test_define_package_special_form();
     failures += test_in_package_special_form();
     failures += test_use_package_special_form();

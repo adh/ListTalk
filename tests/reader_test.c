@@ -12,6 +12,7 @@
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/Primitive.h>
 
 #include <stdio.h>
 #include <stdint.h>
@@ -52,6 +53,36 @@ static LT_Value read_one(const char* source){
     LT_Reader* reader = LT_Reader_new();
     LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
     return LT_Reader_readObject(reader, stream);
+}
+
+static LT_Value LT__reader_error_tag = LT_NIL;
+
+LT_DEFINE_PRIMITIVE(
+    reader_error_handler,
+    "reader-error-handler",
+    "(condition)",
+    "Throw caught reader condition for tests."
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    LT_throw(LT__reader_error_tag, condition);
+}
+
+static LT_Value read_one_catch_error(const char* source){
+    LT_Value caught = LT_NIL;
+    LT_Reader* reader = LT_Reader_new();
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+
+    LT_CATCH(LT__reader_error_tag, caught, {
+        LT_HANDLER_BIND(LT_Primitive_from_static(&reader_error_handler), {
+            (void)LT_Reader_readObject(reader, stream);
+        });
+    });
+    return caught;
 }
 
 static int test_symbol(void){
@@ -724,6 +755,56 @@ static int test_slot_accessor_syntax(void){
     return expect(LT_cdr(tail) == LT_NIL, "slot accessor arg list end");
 }
 
+static int test_dot_prefixed_tokens_inside_list(void){
+    LT_Value value = read_one("(.slot .123)");
+    LT_Value tail;
+    LT_Value first;
+    LT_Value second;
+
+    if (expect(LT_Pair_p(value), "dot-prefixed list returns pair")){
+        return 1;
+    }
+
+    first = LT_car(value);
+    if (expect(LT_Pair_p(first), "dot-prefixed .slot expands in list")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(first))), "%self-slot") == 0,
+        "dot-prefixed .slot operator in list"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Pair_p(tail), "dot-prefixed second element exists")){
+        return 1;
+    }
+    second = LT_car(tail);
+    if (expect(LT_Float_p(second), "dot-prefixed .123 remains float in list")){
+        return 1;
+    }
+    if (expect(
+        LT_Float_value(second) == 0.123,
+        "dot-prefixed .123 float value in list"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(tail) == LT_NIL, "dot-prefixed list terminates");
+}
+
+static int test_bare_dot_top_level_signals_error(void){
+    LT_Value value = read_one_catch_error(".");
+
+    if (expect(LT_String_p(value), "bare dot signals reader error")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "Unexpected dot") == 0,
+        "bare dot top-level error message"
+    );
+}
+
 static int test_vector_literal_empty(void){
     LT_Value value = read_one("#()");
     LT_Vector* vector;
@@ -785,6 +866,7 @@ int main(void){
     int failures = 0;
 
     LT_init();
+    LT__reader_error_tag = LT_Symbol_new("reader-test-error");
 
     failures += test_symbol();
     failures += test_string();
@@ -820,6 +902,8 @@ int main(void){
     failures += test_bracket_unary_send_syntax();
     failures += test_bracket_keyword_send_syntax();
     failures += test_slot_accessor_syntax();
+    failures += test_dot_prefixed_tokens_inside_list();
+    failures += test_bare_dot_top_level_signals_error();
     failures += test_vector_literal_empty();
     failures += test_vector_literal_values();
 
