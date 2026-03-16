@@ -13,10 +13,17 @@
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
+#include <string.h>
+
 #define LT_COMPILER_MAX_MACROEXPAND_STEPS 256
 
+static LT_Value constant_value_to_expression(
+    LT_Value value,
+    LT_Environment* lexical_environment
+);
 static LT_Value fold_application(LT_Value expression,
                                  LT_Environment* lexical_environment);
+static int is_quote_special_form_value(LT_Value value);
 
 static LT_Value fold_list_items(LT_Value list, LT_Environment* lexical_environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
@@ -37,6 +44,35 @@ static LT_Value fold_list_items(LT_Value list, LT_Environment* lexical_environme
     return LT_ListBuilder_valueWithRest(
         builder,
         LT_compiler_fold_expression(cursor, lexical_environment)
+    );
+}
+
+static int is_quote_special_form_value(LT_Value value){
+    LT_SpecialForm* special_form;
+    char* name;
+
+    if (!LT_SpecialForm_p(value)){
+        return 0;
+    }
+    special_form = LT_SpecialForm_from_value(value);
+    name = LT_SpecialForm_name(special_form);
+    return name != NULL && strcmp(name, "quote") == 0;
+}
+
+static LT_Value constant_value_to_expression(
+    LT_Value value,
+    LT_Environment* lexical_environment
+){
+    if (!LT_Pair_p(value)){
+        return value;
+    }
+
+    return LT_cons(
+        LT_compiler_fold_expression(
+            LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quote"),
+            lexical_environment
+        ),
+        LT_cons(value, LT_NIL)
     );
 }
 
@@ -79,16 +115,17 @@ static LT_Value fold_application(LT_Value expression,
         lexical_environment
     );
 
-    if (folded_operator == LT_INVALID){
-        return LT_INVALID;
-    }
-
     if (LT_SpecialForm_p(folded_operator)){
-        return LT_SpecialForm_expand(
+        LT_Value expanded = LT_SpecialForm_expand(
             folded_operator,
             expression,
             lexical_environment
         );
+
+        if (expanded == LT_INVALID){
+            return expression;
+        }
+        return expanded;
     }
 
     if (LT_Macro_p(folded_operator)){
@@ -106,17 +143,32 @@ static LT_Value fold_application(LT_Value expression,
             && (LT_Primitive_flags(
                 LT_Primitive_from_value(folded_operator)
             ) & LT_PRIMITIVE_FLAG_PURE) != 0){
+            LT_ListBuilder* constant_arguments_builder = LT_ListBuilder_new();
             LT_Value cursor = folded_arguments;
 
             while (LT_Pair_p(cursor)){
-                if (LT_car(cursor) == LT_INVALID){
+                LT_Value constant_value = LT_compiler_expression_constant_value(
+                    LT_car(cursor),
+                    lexical_environment
+                );
+
+                if (constant_value == LT_INVALID){
                     return LT_cons(folded_operator, folded_arguments);
                 }
+                LT_ListBuilder_append(constant_arguments_builder, constant_value);
                 cursor = LT_cdr(cursor);
             }
 
             if (cursor == LT_NIL){
-                return LT_Primitive_call(folded_operator, folded_arguments, NULL);
+                LT_Value constant_result = LT_Primitive_call(
+                    folded_operator,
+                    LT_ListBuilder_value(constant_arguments_builder),
+                    NULL
+                );
+                return constant_value_to_expression(
+                    constant_result,
+                    lexical_environment
+                );
             }
         }
 
@@ -124,15 +176,17 @@ static LT_Value fold_application(LT_Value expression,
     }
 }
 
-LT_Value LT_compiler_fold_expression(LT_Value expression,
-                                     LT_Environment* lexical_environment){
+LT_Value LT_compiler_expression_constant_value(
+    LT_Value folded_expression,
+    LT_Environment* lexical_environment
+){
     LT_Value value;
     unsigned int flags;
 
-    if (LT_Symbol_p(expression)){
+    if (LT_Symbol_p(folded_expression)){
         if (!LT_Environment_lookup(
             lexical_environment,
-            expression,
+            folded_expression,
             &value,
             &flags
         )){
@@ -142,6 +196,45 @@ LT_Value LT_compiler_fold_expression(LT_Value expression,
             return LT_INVALID;
         }
         return value;
+    }
+
+    if (LT_Pair_p(folded_expression)){
+        LT_Value cursor = folded_expression;
+        LT_Value operator_value;
+
+        operator_value = LT_car(cursor);
+        cursor = LT_cdr(cursor);
+
+        if (!is_quote_special_form_value(operator_value)){
+            return LT_INVALID;
+        }
+        if (!LT_Pair_p(cursor)){
+            return LT_INVALID;
+        }
+        value = LT_car(cursor);
+        cursor = LT_cdr(cursor);
+        if (cursor != LT_NIL){
+            return LT_INVALID;
+        }
+        return value;
+    }
+
+    return folded_expression;
+}
+
+LT_Value LT_compiler_fold_expression(LT_Value expression,
+                                     LT_Environment* lexical_environment){
+    LT_Value constant_value;
+
+    if (LT_Symbol_p(expression)){
+        constant_value = LT_compiler_expression_constant_value(
+            expression,
+            lexical_environment
+        );
+        if (constant_value == LT_INVALID){
+            return expression;
+        }
+        return constant_value_to_expression(constant_value, lexical_environment);
     }
 
     if (LT_Pair_p(expression)){

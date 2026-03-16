@@ -23,6 +23,11 @@ LT_Value LT_compiler_fold_expression(
     LT_Environment* lexical_environment
 );
 
+LT_Value LT_compiler_expression_constant_value(
+    LT_Value folded_expression,
+    LT_Environment* lexical_environment
+);
+
 LT__END_DECLS
 
 #endif

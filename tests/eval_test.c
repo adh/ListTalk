@@ -1896,7 +1896,7 @@ static int test_macro_expansion_uses_call_environment(void){
     );
 }
 
-static int test_compiler_fold_non_constant_symbol_returns_invalid(void){
+static int test_compiler_fold_non_constant_symbol_is_unchanged(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value symbol_x = LT_Symbol_new("x");
     LT_Value folded;
@@ -1904,8 +1904,8 @@ static int test_compiler_fold_non_constant_symbol_returns_invalid(void){
     LT_Environment_bind(env, symbol_x, LT_SmallInteger_new(7), 0);
     folded = LT_compiler_fold_expression(symbol_x, env);
     return expect(
-        folded == LT_INVALID,
-        "compiler fold returns invalid for non-constant symbol"
+        folded == symbol_x,
+        "compiler fold keeps non-constant symbol unchanged"
     );
 }
 
@@ -1937,8 +1937,9 @@ static int test_compiler_fold_application_folds_operator_and_arguments(void){
         return 1;
     }
     return expect(
-        LT_car(LT_cdr(args)) == LT_INVALID,
-        "undefined argument is folded to invalid marker"
+        LT_Symbol_p(LT_car(LT_cdr(args)))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(LT_cdr(args)))), "y") == 0,
+        "unresolved argument is kept as expression"
     );
 }
 
@@ -1980,8 +1981,61 @@ static int test_compiler_fold_special_form_uses_special_form_reference(void){
         return 1;
     }
     return expect(
-        LT_car(LT_cdr(LT_cdr(arguments))) == LT_INVALID,
-        "special form expression folds unresolved symbol to invalid"
+        LT_Symbol_p(LT_car(LT_cdr(LT_cdr(arguments))))
+            && strcmp(
+                LT_Symbol_name(
+                    LT_Symbol_from_value(LT_car(LT_cdr(LT_cdr(arguments))))
+                ),
+                "y"
+            ) == 0,
+        "special form expression keeps unresolved symbol as expression"
+    );
+}
+
+static int test_compiler_fold_constant_pair_is_quoted_expression(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value pair_constant = read_one("(1 2)");
+    LT_Value folded;
+    LT_Value arguments;
+
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("x"),
+        pair_constant,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    folded = LT_compiler_fold_expression(read_one("x"), env);
+
+    if (expect(LT_Pair_p(folded), "constant pair fold returns expression form")){
+        return 1;
+    }
+    if (expect(
+        LT_SpecialForm_p(LT_car(folded)),
+        "constant pair fold wraps pair in quote expression"
+    )){
+        return 1;
+    }
+    arguments = LT_cdr(folded);
+    return expect(
+        LT_Pair_p(arguments)
+            && LT_car(arguments) == pair_constant
+            && LT_cdr(arguments) == LT_NIL,
+        "constant pair fold keeps quoted payload"
+    );
+}
+
+static int test_compiler_expression_constant_value_from_quote_expression(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded = LT_compiler_fold_expression(read_one("'(1 2)"), env);
+    LT_Value constant_value = LT_compiler_expression_constant_value(folded, env);
+
+    if (expect(LT_Pair_p(constant_value), "constant value recognizes quoted pair")){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(constant_value))
+            && LT_SmallInteger_value(LT_car(constant_value)) == 1,
+        "constant value returns quoted payload"
     );
 }
 
@@ -2113,8 +2167,9 @@ static int test_fold_expression_special_form(void){
         return 1;
     }
     return expect(
-        LT_car(LT_cdr(arguments)) == LT_INVALID,
-        "fold-expression primitive marks unresolved symbol invalid"
+        LT_Symbol_p(LT_car(LT_cdr(arguments)))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(LT_cdr(arguments)))), "y") == 0,
+        "fold-expression primitive keeps unresolved symbol"
     );
 }
 
@@ -2478,9 +2533,11 @@ int main(void){
     failures += test_macro_special_form_constructs_macro();
     failures += test_macro_expansion_is_evaluated();
     failures += test_macro_expansion_uses_call_environment();
-    failures += test_compiler_fold_non_constant_symbol_returns_invalid();
+    failures += test_compiler_fold_non_constant_symbol_is_unchanged();
     failures += test_compiler_fold_application_folds_operator_and_arguments();
     failures += test_compiler_fold_special_form_uses_special_form_reference();
+    failures += test_compiler_fold_constant_pair_is_quoted_expression();
+    failures += test_compiler_expression_constant_value_from_quote_expression();
     failures += test_compiler_fold_expands_macros();
     failures += test_compiler_fold_pure_primitive_constant_folds();
     failures += test_compiler_fold_impure_primitive_is_not_constant_folded();
