@@ -9,6 +9,7 @@
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/vm/error.h>
 #include <ListTalk/vm/throw_catch.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -63,6 +64,7 @@ static LT_Value repl_error_handler(LT_Value arguments,
         LT_Value_debugPrintOn(condition, stderr);
         fputc('\n', stderr);
     }
+    LT_print_backtrace(stderr);
 
     LT_throw(LT__repl_error_tag, condition);
 }

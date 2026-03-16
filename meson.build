@@ -40,6 +40,7 @@ vm_lib = library(
                 'src/vm/utils.c',
                 'src/vm/init.c',
                 'src/vm/error.c',
+                'src/vm/stack_trace.c',
                 'src/vm/conditions.c',
                 'src/vm/throw_catch.c',
                 'src/classes/Object.c',
@@ -59,6 +60,7 @@ vm_lib = library(
                 'src/classes/SpecialForm.c',
                 'src/classes/Nil.c',
                 'src/classes/Pair.c',
+                'src/classes/StackFrame.c',
                 'src/classes/SmallInteger.c',
                 'src/classes/IdentityDictionary.c',
                 'src/classes/Dictionary.c'

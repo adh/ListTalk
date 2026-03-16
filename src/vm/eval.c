@@ -14,6 +14,7 @@
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/stack_trace.h>
 
 #include <ctype.h>
 #include <setjmp.h>
@@ -22,6 +23,7 @@ struct LT_TailCallUnwindMarker_s {
     jmp_buf jump_buffer;
     LT_Value callable;
     LT_Value arguments;
+    LT_StackFrame* stack_trace_top;
 };
 
 static LT_Value eval_form(LT_Value expression,
@@ -177,16 +179,24 @@ LT_Value LT_apply(LT_Value callable,
                   LT_Value arguments,
                   LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_TailCallUnwindMarker local_tail_call_unwind_marker;
+    LT_StackFrame stack_frame;
     int jump_value;
 
     if (tail_call_unwind_marker != NULL){
         tail_call_unwind_marker->callable = callable;
         tail_call_unwind_marker->arguments = arguments;
+        LT_stack_trace_restore(tail_call_unwind_marker->stack_trace_top);
         longjmp(tail_call_unwind_marker->jump_buffer, 1);
     }
 
+    stack_frame.type = LT_STACK_FRAME_TYPE_APPLY;
+    stack_frame.arguments.apply.callable = callable;
+    stack_frame.arguments.apply.arguments = arguments;
+    LT_stack_trace_push(&stack_frame);
+
     local_tail_call_unwind_marker.callable = callable;
     local_tail_call_unwind_marker.arguments = arguments;
+    local_tail_call_unwind_marker.stack_trace_top = &stack_frame;
 
     while (1){
         jump_value = setjmp(local_tail_call_unwind_marker.jump_buffer);
@@ -194,20 +204,26 @@ LT_Value LT_apply(LT_Value callable,
 
         callable = local_tail_call_unwind_marker.callable;
         arguments = local_tail_call_unwind_marker.arguments;
+        stack_frame.arguments.apply.callable = callable;
+        stack_frame.arguments.apply.arguments = arguments;
 
         if (LT_Primitive_p(callable)){
-            return LT_Primitive_call(
+            LT_Value result = LT_Primitive_call(
                 callable,
                 arguments,
                 &local_tail_call_unwind_marker
             );
+            LT_stack_trace_pop(&stack_frame);
+            return result;
         }
         if (LT_Closure_p(callable)){
-            return apply_closure(
+            LT_Value result = apply_closure(
                 callable,
                 arguments,
                 &local_tail_call_unwind_marker
             );
+            LT_stack_trace_pop(&stack_frame);
+            return result;
         }
 
         LT_error("LT_apply expects primitive or closure callable");
@@ -305,10 +321,22 @@ static LT_Value eval_form(LT_Value expression,
 LT_Value LT_eval(LT_Value expression,
                  LT_Environment* environment,
                  LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_StackFrame stack_frame;
+    LT_Value result;
+
     if (environment == NULL){
         LT_error("Evaluator expects environment");
     }
-    return eval_form(expression, environment, tail_call_unwind_marker);
+
+    stack_frame.type = LT_STACK_FRAME_TYPE_EVAL;
+    stack_frame.arguments.eval.expression = expression;
+    stack_frame.arguments.eval.environment = environment;
+    LT_stack_trace_push(&stack_frame);
+
+    result = eval_form(expression, environment, tail_call_unwind_marker);
+    LT_stack_trace_pop(&stack_frame);
+
+    return result;
 }
 
 LT_Value LT_eval_sequence_string(const char* source, LT_Environment* environment){

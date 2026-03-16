@@ -9,6 +9,7 @@
 #include <ListTalk/macros/env_macros.h>
 
 #include <ListTalk/vm/value.h>
+#include <ListTalk/vm/stack_trace.h>
 
 #include <setjmp.h>
 
@@ -20,6 +21,7 @@ typedef struct LT_ThrowCatchFrame_s {
     LT_Value thrown_tag;
     LT_Value thrown_value;
     int is_unwind_protect;
+    LT_StackFrame* stack_trace_top;
     struct LT_ThrowCatchFrame_s* previous;
 } LT_ThrowCatchFrame;
 
@@ -35,12 +37,14 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value);
         LT__throw_catch_frame.thrown_tag = LT_NIL; \
         LT__throw_catch_frame.thrown_value = LT_NIL; \
         LT__throw_catch_frame.is_unwind_protect = 0; \
+        LT__throw_catch_frame.stack_trace_top = LT_stack_trace_top(); \
         LT__throw_catch_frame.previous = LT__throw_catch_stack; \
         LT__throw_catch_stack = &LT__throw_catch_frame; \
         LT__throw_catch_jump_value = setjmp(LT__throw_catch_frame.jump_buffer); \
         if (LT__throw_catch_jump_value == 0) { \
             BODY \
         } else { \
+            LT_stack_trace_restore(LT__throw_catch_frame.stack_trace_top); \
             (RESULT_LVALUE) = LT__throw_catch_frame.thrown_value; \
         } \
         LT__throw_catch_stack = LT__throw_catch_frame.previous; \
@@ -57,12 +61,14 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value);
         LT__throw_catch_frame.thrown_tag = LT_NIL; \
         LT__throw_catch_frame.thrown_value = LT_NIL; \
         LT__throw_catch_frame.is_unwind_protect = 1; \
+        LT__throw_catch_frame.stack_trace_top = LT_stack_trace_top(); \
         LT__throw_catch_frame.previous = LT__throw_catch_stack; \
         LT__throw_catch_stack = &LT__throw_catch_frame; \
         LT__throw_catch_jump_value = setjmp(LT__throw_catch_frame.jump_buffer); \
         if (LT__throw_catch_jump_value == 0) { \
             PROTECTED \
         } else { \
+            LT_stack_trace_restore(LT__throw_catch_frame.stack_trace_top); \
             LT__throw_catch_rethrow = 1; \
             LT__throw_catch_rethrow_tag = LT__throw_catch_frame.thrown_tag; \
             LT__throw_catch_rethrow_value = LT__throw_catch_frame.thrown_value; \

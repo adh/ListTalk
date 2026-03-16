@@ -5,6 +5,7 @@
 
 #include <ListTalk/vm/throw_catch.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/stack_trace.h>
 
 #include <setjmp.h>
 #include <stdlib.h>
@@ -33,6 +34,7 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value){
         if (frame->is_unwind_protect || frame->tag == tag){
             frame->thrown_tag = tag;
             frame->thrown_value = value;
+            LT_stack_trace_restore(frame->stack_trace_top);
             longjmp(frame->jump_buffer, 1);
         }
         frame = frame->previous;

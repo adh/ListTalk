@@ -10,6 +10,8 @@
 
 #include <ListTalk/vm/value.h>
 
+#include <stdio.h>
+
 LT__BEGIN_DECLS
 
 /* This gets included pretty much everywhere, so it cannot use VM types in 
@@ -21,6 +23,7 @@ LT__BEGIN_DECLS
 void _Noreturn LT_error(const char* message, ...);
 
 void _Noreturn LT_type_error(LT_Value value, LT_Class* expected_class);
+void LT_print_backtrace(FILE* stream);
 
 LT__END_DECLS
 

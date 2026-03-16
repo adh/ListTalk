@@ -6,6 +6,9 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/StackFrame.h>
+#include <ListTalk/vm/stack_trace.h>
 #include <ListTalk/vm/throw_catch.h>
 
 #include <stdio.h>
@@ -102,6 +105,88 @@ static int test_unwind_protect_runs_cleanup_and_rethrows(void){
     );
 }
 
+static LT_Value g_stack_trace_restore_tag = LT_NIL;
+
+static LT_Value throw_from_primitive(LT_Value arguments,
+                                     LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    (void)arguments;
+    (void)tail_call_unwind_marker;
+    LT_throw(g_stack_trace_restore_tag, LT_TRUE);
+}
+
+static int test_non_local_exit_restores_stack_trace_top(void){
+    LT_Value caught = LT_FALSE;
+    LT_Value throwing_primitive;
+
+    g_stack_trace_restore_tag = LT_Symbol_new("stack-trace-restore-tag");
+    throwing_primitive = LT_Primitive_new(
+        "throw-from-primitive",
+        "()",
+        "throw helper",
+        throw_from_primitive
+    );
+
+    if (expect(LT_stack_trace_depth() == 0, "stack trace starts empty")){
+        return 1;
+    }
+
+    LT_CATCH(g_stack_trace_restore_tag, caught, {
+        (void)LT_apply(throwing_primitive, LT_NIL, NULL);
+    });
+
+    if (expect(caught == LT_TRUE, "non-local exit from primitive is caught")){
+        return 1;
+    }
+    return expect(
+        LT_stack_trace_depth() == 0,
+        "stack trace is restored after non-local exit"
+    );
+}
+
+static LT_Value capture_stack_trace_primitive(LT_Value arguments,
+                                              LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    (void)arguments;
+    (void)tail_call_unwind_marker;
+    return LT_stack_trace_capture();
+}
+
+static int test_stack_trace_capture_returns_snapshot_list(void){
+    LT_Value capture_primitive = LT_Primitive_new(
+        "capture-stack-trace",
+        "()",
+        "capture stack trace helper",
+        capture_stack_trace_primitive
+    );
+    LT_Value snapshot = LT_apply(capture_primitive, LT_NIL, NULL);
+    LT_Value first_frame_value;
+    LT_ApplyStackFrame* first_frame;
+
+    if (expect(LT_Pair_p(snapshot), "stack trace capture returns non-empty list")){
+        return 1;
+    }
+
+    first_frame_value = LT_car(snapshot);
+    if (expect(
+        LT_ApplyStackFrame_p(first_frame_value),
+        "first snapshot frame is apply"
+    )){
+        return 1;
+    }
+
+    first_frame = LT_ApplyStackFrame_from_value(first_frame_value);
+    if (expect(
+        LT_ApplyStackFrame_callable(first_frame) == capture_primitive,
+        "apply snapshot stores callable"
+    )){
+        return 1;
+    }
+
+    return expect(
+        LT_ApplyStackFrame_arguments(first_frame) == LT_NIL,
+        "apply snapshot stores arguments"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -111,6 +196,8 @@ int main(void){
     failures += test_catch_uses_nearest_matching_frame();
     failures += test_unwind_protect_runs_cleanup_on_normal_completion();
     failures += test_unwind_protect_runs_cleanup_and_rethrows();
+    failures += test_non_local_exit_restores_stack_trace_top();
+    failures += test_stack_trace_capture_returns_snapshot_list();
 
     if (failures == 0){
         puts("throw/catch tests passed");
