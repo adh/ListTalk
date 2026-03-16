@@ -25,7 +25,6 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value){
 
     if (!has_matching_tag){
         LT_error("Uncaught throw");
-        abort();
     }
 
     frame = LT__throw_catch_stack;
@@ -40,5 +39,4 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value){
     }
 
     LT_error("Uncaught throw");
-    abort();
 }
