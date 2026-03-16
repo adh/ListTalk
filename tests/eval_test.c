@@ -1422,6 +1422,33 @@ static int test_define_function_shorthand(void){
     );
 }
 
+static int test_define_function_shorthand_is_constant(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+
+    (void)LT_eval(read_one("(define (id x) x)"), env, NULL);
+    value = LT_eval(
+        read_one(
+            "(catch :t "
+            "  (handler-bind (lambda (c) (throw :t c)) "
+            "    (set! id (lambda (x) x))))"
+        ),
+        env,
+        NULL
+    );
+
+    if (expect(LT_String_p(value), "set! on function shorthand signals condition")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(value)),
+            "Special form set! expected existing mutable binding"
+        ) == 0,
+        "define function shorthand creates constant binding"
+    );
+}
+
 static int test_define_macro_shorthand(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
@@ -1435,6 +1462,33 @@ static int test_define_macro_shorthand(void){
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
         "define-macro shorthand defines macro with lambda-style parameters"
+    );
+}
+
+static int test_define_macro_shorthand_is_constant(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+
+    (void)LT_eval(read_one("(define-macro (m x) x)"), env, NULL);
+    value = LT_eval(
+        read_one(
+            "(catch :t "
+            "  (handler-bind (lambda (c) (throw :t c)) "
+            "    (set! m (macro (lambda (x) x)))))"
+        ),
+        env,
+        NULL
+    );
+
+    if (expect(LT_String_p(value), "set! on define-macro binding signals condition")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(value)),
+            "Special form set! expected existing mutable binding"
+        ) == 0,
+        "define-macro creates constant binding"
     );
 }
 
@@ -2515,7 +2569,9 @@ int main(void){
     failures += test_let_special_form();
     failures += test_define_special_form();
     failures += test_define_function_shorthand();
+    failures += test_define_function_shorthand_is_constant();
     failures += test_define_macro_shorthand();
+    failures += test_define_macro_shorthand_is_constant();
     failures += test_symbol_uninterned_and_gensym_c_api();
     failures += test_gensym_primitive();
     failures += test_symbol_class_methods_for_uninterned_and_gensym();

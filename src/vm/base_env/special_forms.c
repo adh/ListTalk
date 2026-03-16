@@ -342,6 +342,30 @@ static LT_Value special_form_define(LT_Value arguments,
     return value;
 }
 
+static LT_Value special_form_define_constant(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value symbol;
+    LT_Value value_expression;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, symbol);
+    LT_OBJECT_ARG(cursor, value_expression);
+    (void)tail_call_unwind_marker;
+
+    if (!LT_Symbol_p(symbol)){
+        LT_error("Special form define-constant expects symbol as first argument");
+    }
+    LT_ARG_END(cursor);
+
+    value = LT_eval(value_expression, environment, NULL);
+    LT_Environment_bind(environment, symbol, value, LT_ENV_BINDING_FLAG_CONSTANT);
+    return value;
+}
+
 static LT_Value special_form_set_bang(LT_Value arguments,
                                       LT_Environment* environment,
                                       LT_TailCallUnwindMarker* tail_call_unwind_marker){
@@ -536,6 +560,14 @@ static LT_SpecialForm define_special_form = {
     .description = "Create mutable binding in current environment."
 };
 
+static LT_SpecialForm define_constant_special_form = {
+    .function = special_form_define_constant,
+    .expand_function = expand_special_form_define,
+    .name = "%define-constant",
+    .arguments = "(symbol value-expression)",
+    .description = "Create constant binding in current environment."
+};
+
 static LT_SpecialForm set_bang_special_form = {
     .function = special_form_set_bang,
     .expand_function = expand_special_form_set_bang,
@@ -627,6 +659,11 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
         environment,
         LT_PACKAGE_LISTTALK_IMPLEMENTATION,
         &define_special_form
+    );
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &define_constant_special_form
     );
     bind_static_special_form_in(
         environment,
