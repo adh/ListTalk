@@ -6,6 +6,7 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Character.h>
+#include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Package.h>
@@ -42,6 +43,11 @@ static LT_Value read_one(const char* source){
 static LT_Value eval_one(const char* source){
     LT_Environment* env = LT_new_base_environment();
     return LT_eval(read_one(source), env, NULL);
+}
+
+static const char* condition_message_cstr(LT_Value condition){
+    LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
+    return LT_String_value_cstr(LT_String_from_value(message));
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -480,14 +486,11 @@ static int test_make_instance_non_allocatable_class_errors(void){
         "    (make-instance Pair)))"
     );
 
-    if (expect(LT_String_p(value), "make-instance on Pair signals condition")){
+    if (expect(LT_ErrorCondition_p(value), "make-instance on Pair signals condition")){
         return 1;
     }
     return expect(
-        strcmp(
-            LT_String_value_cstr(LT_String_from_value(value)),
-            "Class is not allocatable"
-        ) == 0,
+        strcmp(condition_message_cstr(value), "Class is not allocatable") == 0,
         "make-instance on non-allocatable class raises error"
     );
 }
@@ -499,14 +502,11 @@ static int test_class_alloc_non_allocatable_class_errors(void){
         "    [Pair alloc]))"
     );
 
-    if (expect(LT_String_p(value), "Class>>alloc on Pair signals condition")){
+    if (expect(LT_ErrorCondition_p(value), "Class>>alloc on Pair signals condition")){
         return 1;
     }
     return expect(
-        strcmp(
-            LT_String_value_cstr(LT_String_from_value(value)),
-            "Class is not allocatable"
-        ) == 0,
+        strcmp(condition_message_cstr(value), "Class is not allocatable") == 0,
         "Class>>alloc on non-allocatable class raises error"
     );
 }
@@ -642,11 +642,11 @@ static int test_numeric_equal_type_error_on_non_number(void){
         "    (= 1 \"1\")))"
     );
 
-    if (expect(LT_String_p(value), "= non-number signals condition")){
+    if (expect(LT_ErrorCondition_p(value), "= non-number signals condition")){
         return 1;
     }
     return expect(
-        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "Type error") == 0,
+        strcmp(condition_message_cstr(value), "Type error") == 0,
         "= non-number raises type error"
     );
 }
@@ -1438,12 +1438,12 @@ static int test_define_function_shorthand_is_constant(void){
         NULL
     );
 
-    if (expect(LT_String_p(value), "set! on function shorthand signals condition")){
+    if (expect(LT_ErrorCondition_p(value), "set! on function shorthand signals condition")){
         return 1;
     }
     return expect(
         strcmp(
-            LT_String_value_cstr(LT_String_from_value(value)),
+            condition_message_cstr(value),
             "Special form set! expected existing mutable binding"
         ) == 0,
         "define function shorthand creates constant binding"
@@ -1481,12 +1481,12 @@ static int test_define_macro_shorthand_is_constant(void){
         NULL
     );
 
-    if (expect(LT_String_p(value), "set! on define-macro binding signals condition")){
+    if (expect(LT_ErrorCondition_p(value), "set! on define-macro binding signals condition")){
         return 1;
     }
     return expect(
         strcmp(
-            LT_String_value_cstr(LT_String_from_value(value)),
+            condition_message_cstr(value),
             "Special form set! expected existing mutable binding"
         ) == 0,
         "define-macro creates constant binding"
@@ -2016,24 +2016,53 @@ static int test_use_package_special_form(void){
 }
 
 static int test_use_package_with_nickname(void){
-    LT_Environment* env = LT_new_base_environment();
-    LT_Value value = LT_NIL;
+    LT_Environment* env = NULL;
+    char source_name[64];
+    char user_name[64];
+    char nickname[32];
+    char source_buffer[480];
+    static unsigned int package_counter = 0;
+    unsigned int suffix = ++package_counter;
+    LT_Package* source_package;
+    LT_Package* user_package;
+    LT_Package* resolved_package;
     int failed = 0;
 
+    snprintf(source_name, sizeof(source_name), "NickSource%u", suffix);
+    snprintf(user_name, sizeof(user_name), "NickUser%u", suffix);
+    snprintf(nickname, sizeof(nickname), "ns%u", suffix);
+    snprintf(
+        source_buffer,
+        sizeof(source_buffer),
+        "(define-package \"%s\") "
+        "(in-package \"%s\") "
+        "(define value 99) "
+        "(in-package \"ListTalk\") "
+        "(define-package \"%s\") "
+        "(in-package \"%s\") "
+        "(use-package \"%s\" \"%s\")",
+        source_name,
+        source_name,
+        user_name,
+        user_name,
+        source_name,
+        nickname
+    );
+
     LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
-        (void)LT_eval_sequence_string(
-            "(define-package \"NickSource\") "
-            "(in-package \"NickSource\") "
-            "(define value 99) "
-            "(in-package \"ListTalk\") "
-            "(define-package \"NickUser\") "
-            "(in-package \"NickUser\") "
-            "(use-package \"NickSource\" \"ns\")",
-            env
-        );
-        value = LT_eval(read_one("ns:value"), env, NULL);
+        env = LT_new_base_environment();
+        (void)LT_eval_sequence_string(source_buffer, env);
+        source_package = LT_Package_find(source_name);
+        user_package = LT_Package_find(user_name);
+        resolved_package = LT_Package_resolve_used_package(user_package, nickname);
+        if (expect(source_package != NULL, "source package exists")){
+            failed = 1;
+        }
+        if (expect(user_package != NULL, "user package exists")){
+            failed = 1;
+        }
         if (expect(
-            LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 99,
+            resolved_package == source_package,
             "use-package nickname resolves package-prefixed symbols"
         )){
             failed = 1;
@@ -2465,11 +2494,11 @@ static int test_handler_bind_special_form_binds_handler_for_body(void){
         "    (error \"boom\")))"
     );
 
-    if (expect(LT_String_p(value), "handler-bind catches error condition")){
+    if (expect(LT_ErrorCondition_p(value), "handler-bind catches error condition")){
         return 1;
     }
     return expect(
-        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "boom") == 0,
+        strcmp(condition_message_cstr(value), "boom") == 0,
         "error forwards string condition through handler-bind"
     );
 }
@@ -2506,13 +2535,13 @@ static int test_symbol_package_slot_is_readonly(void){
         return 1;
     }
     if (expect(
-        LT_String_p(readonly_error),
-        "setting readonly symbol package slot signals string error"
+        LT_ErrorCondition_p(readonly_error),
+        "setting readonly symbol package slot signals error condition"
     )){
         return 1;
     }
     return expect(
-        strcmp(LT_String_value_cstr(LT_String_from_value(readonly_error)), "Readonly slot") == 0,
+        strcmp(condition_message_cstr(readonly_error), "Readonly slot") == 0,
         "symbol package slot is readonly"
     );
 }
@@ -2620,124 +2649,131 @@ int main(void){
     int failures = 0;
 
     LT_init();
+#define RUN_TEST(TEST_FN) \
+    do { \
+        LT_set_current_package(LT_PACKAGE_LISTTALK); \
+        failures += (TEST_FN)(); \
+    } while (0)
 
-    failures += test_add();
-    failures += test_subtract_unary();
-    failures += test_multiply();
-    failures += test_divide();
-    failures += test_add_float_mixed();
-    failures += test_divide_float_mixed();
-    failures += test_subtract_unary_float();
-    failures += test_integer_divide_still_fixnum();
-    failures += test_symbol_lookup();
-    failures += test_display_primitive_returns_argument();
-    failures += test_keyword_self_evaluating_when_unbound();
-    failures += test_type_of_primitive();
-    failures += test_native_class_lookup();
-    failures += test_class_slots_primitive();
-    failures += test_send_primitive_uses_direct_method_dictionary();
-    failures += test_send_primitive_uses_precedence_lookup_and_cache();
-    failures += test_basic_object_and_class_methods();
-    failures += test_basic_pair_methods();
-    failures += test_basic_string_and_vector_methods();
-    failures += test_make_class_primitive();
-    failures += test_make_instance_primitive();
-    failures += test_class_alloc_method();
-    failures += test_make_instance_non_allocatable_class_errors();
-    failures += test_class_alloc_non_allocatable_class_errors();
-    failures += test_class_add_method_with_selector_method();
-    failures += test_class_add_method_invalidates_method_cache();
-    failures += test_cons_primitive();
-    failures += test_car_primitive();
-    failures += test_cdr_primitive();
-    failures += test_pair_predicate_primitive();
-    failures += test_numeric_equal_primitive();
-    failures += test_numeric_equal_type_error_on_non_number();
-    failures += test_eq_primitive();
-    failures += test_eqv_primitive();
-    failures += test_equal_primitive();
-    failures += test_not_primitive();
-    failures += test_core_type_predicates();
-    failures += test_list_constructor_primitive();
-    failures += test_list_predicate_primitive();
-    failures += test_assoc_primitives();
-    failures += test_cxxxr_primitives();
-    failures += test_string_predicate_primitive();
-    failures += test_string_length_primitive();
-    failures += test_string_ref_primitive();
-    failures += test_character_predicate_primitive();
-    failures += test_string_to_character_list_primitive();
-    failures += test_character_list_to_string_primitive();
-    failures += test_string_append_primitive();
-    failures += test_vector_predicate_primitive();
-    failures += test_vector_length_primitive();
-    failures += test_vector_constructor_and_ref_primitive();
-    failures += test_make_vector_primitive();
-    failures += test_vector_set_bang_primitive();
-    failures += test_slot_ref_primitive();
-    failures += test_slot_set_bang_primitive();
-    failures += test_slot_table_includes_superclass_slots();
-    failures += test_metaclass_has_valid_name_slot();
-    failures += test_quote();
-    failures += test_quote_reader_syntax();
-    failures += test_quasiquote_unquote();
-    failures += test_quasiquote_reader_syntax();
-    failures += test_quasiquote_unquote_splicing();
-    failures += test_lambda_application();
-    failures += test_lambda_rest_parameter_dotted();
-    failures += test_lambda_rest_parameter_symbol();
-    failures += test_tail_call_optimization_deep_recursion();
-    failures += test_if_special_form();
-    failures += test_let_special_form();
-    failures += test_define_special_form();
-    failures += test_define_function_shorthand();
-    failures += test_define_function_shorthand_is_constant();
-    failures += test_define_macro_shorthand();
-    failures += test_define_macro_shorthand_is_constant();
-    failures += test_lambda_macro_expands_to_named_nil_closure();
-    failures += test_define_function_shorthand_sets_closure_name();
-    failures += test_closure_debug_print_includes_name();
-    failures += test_anonymous_closure_debug_print_includes_address();
-    failures += test_symbol_uninterned_and_gensym_c_api();
-    failures += test_gensym_primitive();
-    failures += test_symbol_class_methods_for_uninterned_and_gensym();
-    failures += test_with_gensyms_macro();
-    failures += test_set_bang_special_form();
-    failures += test_set_bang_parent_binding();
-    failures += test_set_bang_macro_dispatches_self_slot();
-    failures += test_define_class_macro();
-    failures += test_define_method_macro();
-    failures += test_define_class_and_method_rectangle_example();
-    failures += test_define_package_special_form();
-    failures += test_in_package_special_form();
-    failures += test_use_package_special_form();
-    failures += test_use_package_with_nickname();
-    failures += test_macro_special_form_constructs_macro();
-    failures += test_macro_expansion_is_evaluated();
-    failures += test_macro_expansion_uses_call_environment();
-    failures += test_compiler_fold_non_constant_symbol_is_unchanged();
-    failures += test_compiler_fold_application_folds_operator_and_arguments();
-    failures += test_compiler_fold_special_form_uses_special_form_reference();
-    failures += test_compiler_fold_constant_pair_is_quoted_expression();
-    failures += test_compiler_expression_constant_value_from_quote_expression();
-    failures += test_compiler_fold_expands_macros();
-    failures += test_compiler_fold_pure_primitive_constant_folds();
-    failures += test_compiler_fold_impure_primitive_is_not_constant_folded();
-    failures += test_macroexpand_special_form();
-    failures += test_fold_expression_special_form();
-    failures += test_get_current_environment_special_form();
-    failures += test_catch_returns_body_value_without_throw();
-    failures += test_throw_is_caught_by_matching_tag();
-    failures += test_throw_skips_to_outer_matching_catch();
-    failures += test_unwind_protect_runs_cleanup_on_normal_path();
-    failures += test_unwind_protect_runs_cleanup_on_throw_path();
-    failures += test_handler_bind_special_form_binds_handler_for_body();
-    failures += test_symbol_package_slot_is_readonly();
-    failures += test_symbol_class_inherits_object();
-    failures += test_precedence_list_initialized();
-    failures += test_value_is_instance_of_uses_precedence_list();
-    failures += test_boolean_constants();
-    failures += test_character_api_uses_unicode_codepoints();
+    RUN_TEST(test_add);
+    RUN_TEST(test_subtract_unary);
+    RUN_TEST(test_multiply);
+    RUN_TEST(test_divide);
+    RUN_TEST(test_add_float_mixed);
+    RUN_TEST(test_divide_float_mixed);
+    RUN_TEST(test_subtract_unary_float);
+    RUN_TEST(test_integer_divide_still_fixnum);
+    RUN_TEST(test_symbol_lookup);
+    RUN_TEST(test_display_primitive_returns_argument);
+    RUN_TEST(test_keyword_self_evaluating_when_unbound);
+    RUN_TEST(test_type_of_primitive);
+    RUN_TEST(test_native_class_lookup);
+    RUN_TEST(test_class_slots_primitive);
+    RUN_TEST(test_send_primitive_uses_direct_method_dictionary);
+    RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
+    RUN_TEST(test_basic_object_and_class_methods);
+    RUN_TEST(test_basic_pair_methods);
+    RUN_TEST(test_basic_string_and_vector_methods);
+    RUN_TEST(test_make_class_primitive);
+    RUN_TEST(test_make_instance_primitive);
+    RUN_TEST(test_class_alloc_method);
+    RUN_TEST(test_make_instance_non_allocatable_class_errors);
+    RUN_TEST(test_class_alloc_non_allocatable_class_errors);
+    RUN_TEST(test_class_add_method_with_selector_method);
+    RUN_TEST(test_class_add_method_invalidates_method_cache);
+    RUN_TEST(test_cons_primitive);
+    RUN_TEST(test_car_primitive);
+    RUN_TEST(test_cdr_primitive);
+    RUN_TEST(test_pair_predicate_primitive);
+    RUN_TEST(test_numeric_equal_primitive);
+    RUN_TEST(test_numeric_equal_type_error_on_non_number);
+    RUN_TEST(test_eq_primitive);
+    RUN_TEST(test_eqv_primitive);
+    RUN_TEST(test_equal_primitive);
+    RUN_TEST(test_not_primitive);
+    RUN_TEST(test_core_type_predicates);
+    RUN_TEST(test_list_constructor_primitive);
+    RUN_TEST(test_list_predicate_primitive);
+    RUN_TEST(test_assoc_primitives);
+    RUN_TEST(test_cxxxr_primitives);
+    RUN_TEST(test_string_predicate_primitive);
+    RUN_TEST(test_string_length_primitive);
+    RUN_TEST(test_string_ref_primitive);
+    RUN_TEST(test_character_predicate_primitive);
+    RUN_TEST(test_string_to_character_list_primitive);
+    RUN_TEST(test_character_list_to_string_primitive);
+    RUN_TEST(test_string_append_primitive);
+    RUN_TEST(test_vector_predicate_primitive);
+    RUN_TEST(test_vector_length_primitive);
+    RUN_TEST(test_vector_constructor_and_ref_primitive);
+    RUN_TEST(test_make_vector_primitive);
+    RUN_TEST(test_vector_set_bang_primitive);
+    RUN_TEST(test_slot_ref_primitive);
+    RUN_TEST(test_slot_set_bang_primitive);
+    RUN_TEST(test_slot_table_includes_superclass_slots);
+    RUN_TEST(test_metaclass_has_valid_name_slot);
+    RUN_TEST(test_quote);
+    RUN_TEST(test_quote_reader_syntax);
+    RUN_TEST(test_quasiquote_unquote);
+    RUN_TEST(test_quasiquote_reader_syntax);
+    RUN_TEST(test_quasiquote_unquote_splicing);
+    RUN_TEST(test_lambda_application);
+    RUN_TEST(test_lambda_rest_parameter_dotted);
+    RUN_TEST(test_lambda_rest_parameter_symbol);
+    RUN_TEST(test_tail_call_optimization_deep_recursion);
+    RUN_TEST(test_if_special_form);
+    RUN_TEST(test_let_special_form);
+    RUN_TEST(test_define_special_form);
+    RUN_TEST(test_define_function_shorthand);
+    RUN_TEST(test_define_function_shorthand_is_constant);
+    RUN_TEST(test_define_macro_shorthand);
+    RUN_TEST(test_define_macro_shorthand_is_constant);
+    RUN_TEST(test_lambda_macro_expands_to_named_nil_closure);
+    RUN_TEST(test_define_function_shorthand_sets_closure_name);
+    RUN_TEST(test_closure_debug_print_includes_name);
+    RUN_TEST(test_anonymous_closure_debug_print_includes_address);
+    RUN_TEST(test_symbol_uninterned_and_gensym_c_api);
+    RUN_TEST(test_gensym_primitive);
+    RUN_TEST(test_symbol_class_methods_for_uninterned_and_gensym);
+    RUN_TEST(test_with_gensyms_macro);
+    RUN_TEST(test_set_bang_special_form);
+    RUN_TEST(test_set_bang_parent_binding);
+    RUN_TEST(test_set_bang_macro_dispatches_self_slot);
+    RUN_TEST(test_define_class_macro);
+    RUN_TEST(test_define_method_macro);
+    RUN_TEST(test_define_class_and_method_rectangle_example);
+    RUN_TEST(test_define_package_special_form);
+    RUN_TEST(test_in_package_special_form);
+    RUN_TEST(test_use_package_special_form);
+    RUN_TEST(test_use_package_with_nickname);
+    RUN_TEST(test_macro_special_form_constructs_macro);
+    RUN_TEST(test_macro_expansion_is_evaluated);
+    RUN_TEST(test_macro_expansion_uses_call_environment);
+    RUN_TEST(test_compiler_fold_non_constant_symbol_is_unchanged);
+    RUN_TEST(test_compiler_fold_application_folds_operator_and_arguments);
+    RUN_TEST(test_compiler_fold_special_form_uses_special_form_reference);
+    RUN_TEST(test_compiler_fold_constant_pair_is_quoted_expression);
+    RUN_TEST(test_compiler_expression_constant_value_from_quote_expression);
+    RUN_TEST(test_compiler_fold_expands_macros);
+    RUN_TEST(test_compiler_fold_pure_primitive_constant_folds);
+    RUN_TEST(test_compiler_fold_impure_primitive_is_not_constant_folded);
+    RUN_TEST(test_macroexpand_special_form);
+    RUN_TEST(test_fold_expression_special_form);
+    RUN_TEST(test_get_current_environment_special_form);
+    RUN_TEST(test_catch_returns_body_value_without_throw);
+    RUN_TEST(test_throw_is_caught_by_matching_tag);
+    RUN_TEST(test_throw_skips_to_outer_matching_catch);
+    RUN_TEST(test_unwind_protect_runs_cleanup_on_normal_path);
+    RUN_TEST(test_unwind_protect_runs_cleanup_on_throw_path);
+    RUN_TEST(test_handler_bind_special_form_binds_handler_for_body);
+    RUN_TEST(test_symbol_package_slot_is_readonly);
+    RUN_TEST(test_symbol_class_inherits_object);
+    RUN_TEST(test_precedence_list_initialized);
+    RUN_TEST(test_value_is_instance_of_uses_precedence_list);
+    RUN_TEST(test_boolean_constants);
+    RUN_TEST(test_character_api_uses_unicode_codepoints);
+
+#undef RUN_TEST
 
     if (failures == 0){
         puts("eval tests passed");

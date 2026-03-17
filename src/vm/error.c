@@ -3,21 +3,27 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/classes/Condition.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/stack_trace.h>
-#include <ListTalk/classes/String.h>
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <unistd.h>
 
 void LT_print_backtrace(FILE* stream){
     LT_stack_trace_print(stream);
 }
 
-void _Noreturn LT_error(const char* message, ...) {
-    LT_Value condition = (LT_Value)(uintptr_t)LT_String_new_cstr((char*)message);
+void _Noreturn LT_error_impl(const char* message, ...) {
+    LT_Value condition;
+    va_list args;
+
+    va_start(args, message);
+    condition = LT_Condition_vnew(&LT_ErrorCondition_class, message, args);
+    va_end(args);
     LT_signal(condition);
     fprintf(stderr, "Unrecoverable error: %s\n", message);
     LT_print_backtrace(stderr);
@@ -29,7 +35,10 @@ void _Noreturn LT_error(const char* message, ...) {
 }
 
 void LT_type_error(LT_Value value, LT_Class* expected_class){
-    (void)value;
-    (void)expected_class;
-    LT_error("Type error");
+    LT_error(
+        "Type error",
+        "value", value,
+        "expected-class", (LT_Value)(uintptr_t)expected_class,
+        NULL
+    );
 }

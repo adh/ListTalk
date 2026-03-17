@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -223,12 +224,55 @@ static int test_lt_error_signals_condition_to_handlers(void){
         });
     });
 
-    if (expect(LT_Value_class(caught) == &LT_String_class, "LT_error emits string condition")){
+    if (expect(LT_Value_class(caught) == &LT_ErrorCondition_class, "LT_error emits Error condition")){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(
+                LT_String_from_value(
+                    LT_Object_slot_ref(caught, LT_Symbol_new("message"))
+                )
+            ),
+            "condition-probe"
+        ) == 0,
+        "LT_error forwards condition message through LT_signal"
+    )){
         return 1;
     }
     return expect(
-        strcmp(LT_String_value_cstr(LT_String_from_value(caught)), "condition-probe") == 0,
-        "LT_error forwards condition message through LT_signal"
+        LT_Object_slot_ref(caught, LT_Symbol_new("args")) == LT_NIL,
+        "LT_error emits empty argument list by default"
+    );
+}
+
+static int test_error_builder_collects_named_arguments(void){
+    LT_Value condition = LT_Error(
+        "structured-error",
+        "operator", LT_Symbol_new("quasiquote"),
+        "form", LT_Symbol_new("unquote"),
+        NULL
+    );
+    LT_Value args = LT_Object_slot_ref(condition, LT_Symbol_new("args"));
+
+    if (expect(LT_Value_class(condition) == &LT_ErrorCondition_class, "LT_Error builds Error condition")){
+        return 1;
+    }
+    if (expect(LT_Pair_p(args), "LT_Error stores argument plist")){
+        return 1;
+    }
+    if (expect(LT_car(args) == LT_Symbol_new("operator"), "LT_Error stores first key as symbol")){
+        return 1;
+    }
+    if (expect(LT_car(LT_cdr(args)) == LT_Symbol_new("quasiquote"), "LT_Error stores first value")){
+        return 1;
+    }
+    if (expect(LT_car(LT_cdr(LT_cdr(args))) == LT_Symbol_new("form"), "LT_Error stores second key")){
+        return 1;
+    }
+    return expect(
+        LT_car(LT_cdr(LT_cdr(LT_cdr(args)))) == LT_Symbol_new("unquote"),
+        "LT_Error stores second value"
     );
 }
 
@@ -242,6 +286,7 @@ int main(void){
     failures += test_handler_bind_scope_is_removed_after_body();
     failures += test_handler_bind_scope_is_removed_on_non_local_exit();
     failures += test_lt_error_signals_condition_to_handlers();
+    failures += test_error_builder_collects_named_arguments();
 
     if (failures == 0){
         puts("conditions tests passed");

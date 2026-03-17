@@ -32,12 +32,20 @@ static LT_Value quasiquote_single_argument(LT_Value form, const char* operator_n
     LT_Value argument;
 
     if (!LT_Pair_p(tail)){
-        LT_error("%s expects exactly one argument", operator_name);
+        LT_error(
+            "Operator expects exactly one argument",
+            "operator", LT_Symbol_new((char*)operator_name),
+            NULL
+        );
     }
 
     argument = LT_car(tail);
     if (LT_cdr(tail) != LT_NIL){
-        LT_error("%s expects exactly one argument", operator_name);
+        LT_error(
+            "Operator expects exactly one argument",
+            "operator", LT_Symbol_new((char*)operator_name),
+            NULL
+        );
     }
 
     return argument;

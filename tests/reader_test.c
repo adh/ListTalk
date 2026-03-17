@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Reader.h>
@@ -83,6 +84,11 @@ static LT_Value read_one_catch_error(const char* source){
         });
     });
     return caught;
+}
+
+static const char* condition_message_cstr(LT_Value condition){
+    LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
+    return LT_String_value_cstr(LT_String_from_value(message));
 }
 
 static int test_symbol(void){
@@ -796,11 +802,11 @@ static int test_dot_prefixed_tokens_inside_list(void){
 static int test_bare_dot_top_level_signals_error(void){
     LT_Value value = read_one_catch_error(".");
 
-    if (expect(LT_String_p(value), "bare dot signals reader error")){
+    if (expect(LT_ErrorCondition_p(value), "bare dot signals reader error")){
         return 1;
     }
     return expect(
-        strcmp(LT_String_value_cstr(LT_String_from_value(value)), "Unexpected dot") == 0,
+        strcmp(condition_message_cstr(value), "Unexpected dot") == 0,
         "bare dot top-level error message"
     );
 }

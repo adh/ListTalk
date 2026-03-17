@@ -18,9 +18,10 @@ LT__BEGIN_DECLS
    declarations */
 
 /** Report an error, trailing arguments are key-value pairs consisting of
- *  a const char* key and a LT_Object value. The list is terminated by NULL.
+ *  a const char* key and a LT_Value value. The list is terminated by NULL.
  */
-void _Noreturn LT_error(const char* message, ...);
+void _Noreturn LT_error_impl(const char* message, ...);
+#define LT_error(...) LT_error_impl(__VA_ARGS__, NULL)
 
 void _Noreturn LT_type_error(LT_Value value, LT_Class* expected_class);
 void LT_print_backtrace(FILE* stream);
