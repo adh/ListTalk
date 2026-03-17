@@ -22,7 +22,7 @@ void _Noreturn LT_error_impl(const char* message, ...) {
     va_list args;
 
     va_start(args, message);
-    condition = LT_Condition_vnew(&LT_ErrorCondition_class, message, args);
+    condition = LT_Condition_vnew(&LT_Error_class, message, args);
     va_end(args);
     LT_signal(condition);
     fprintf(stderr, "Unrecoverable error: %s\n", message);

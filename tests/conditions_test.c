@@ -224,7 +224,7 @@ static int test_lt_error_signals_condition_to_handlers(void){
         });
     });
 
-    if (expect(LT_Value_class(caught) == &LT_ErrorCondition_class, "LT_error emits Error condition")){
+    if (expect(LT_Value_class(caught) == &LT_Error_class, "LT_error emits Error condition")){
         return 1;
     }
     if (expect(
@@ -255,7 +255,7 @@ static int test_error_builder_collects_named_arguments(void){
     );
     LT_Value args = LT_Object_slot_ref(condition, LT_Symbol_new("args"));
 
-    if (expect(LT_Value_class(condition) == &LT_ErrorCondition_class, "LT_Error builds Error condition")){
+    if (expect(LT_Value_class(condition) == &LT_Error_class, "LT_Error builds Error condition")){
         return 1;
     }
     if (expect(LT_Pair_p(args), "LT_Error stores argument plist")){

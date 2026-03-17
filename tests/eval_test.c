@@ -486,7 +486,7 @@ static int test_make_instance_non_allocatable_class_errors(void){
         "    (make-instance Pair)))"
     );
 
-    if (expect(LT_ErrorCondition_p(value), "make-instance on Pair signals condition")){
+    if (expect(LT_Error_p(value), "make-instance on Pair signals condition")){
         return 1;
     }
     return expect(
@@ -502,7 +502,7 @@ static int test_class_alloc_non_allocatable_class_errors(void){
         "    [Pair alloc]))"
     );
 
-    if (expect(LT_ErrorCondition_p(value), "Class>>alloc on Pair signals condition")){
+    if (expect(LT_Error_p(value), "Class>>alloc on Pair signals condition")){
         return 1;
     }
     return expect(
@@ -642,7 +642,7 @@ static int test_numeric_equal_type_error_on_non_number(void){
         "    (= 1 \"1\")))"
     );
 
-    if (expect(LT_ErrorCondition_p(value), "= non-number signals condition")){
+    if (expect(LT_Error_p(value), "= non-number signals condition")){
         return 1;
     }
     return expect(
@@ -1438,7 +1438,7 @@ static int test_define_function_shorthand_is_constant(void){
         NULL
     );
 
-    if (expect(LT_ErrorCondition_p(value), "set! on function shorthand signals condition")){
+    if (expect(LT_Error_p(value), "set! on function shorthand signals condition")){
         return 1;
     }
     return expect(
@@ -1481,7 +1481,7 @@ static int test_define_macro_shorthand_is_constant(void){
         NULL
     );
 
-    if (expect(LT_ErrorCondition_p(value), "set! on define-macro binding signals condition")){
+    if (expect(LT_Error_p(value), "set! on define-macro binding signals condition")){
         return 1;
     }
     return expect(
@@ -2494,7 +2494,7 @@ static int test_handler_bind_special_form_binds_handler_for_body(void){
         "    (error \"boom\")))"
     );
 
-    if (expect(LT_ErrorCondition_p(value), "handler-bind catches error condition")){
+    if (expect(LT_Error_p(value), "handler-bind catches error condition")){
         return 1;
     }
     return expect(
@@ -2535,7 +2535,7 @@ static int test_symbol_package_slot_is_readonly(void){
         return 1;
     }
     if (expect(
-        LT_ErrorCondition_p(readonly_error),
+        LT_Error_p(readonly_error),
         "setting readonly symbol package slot signals error condition"
     )){
         return 1;

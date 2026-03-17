@@ -91,6 +91,15 @@ static const char* condition_message_cstr(LT_Value condition){
     return LT_String_value_cstr(LT_String_from_value(message));
 }
 
+static long long slot_fixnum_cstr(LT_Value object, const char* slot_name){
+    LT_Value value = LT_Object_slot_ref(object, LT_Symbol_new((char*)slot_name));
+    return LT_SmallInteger_value(value);
+}
+
+static int value_is_instance_of(LT_Value value, LT_Class* klass){
+    return LT_Value_is_instance_of(value, (LT_Value)(uintptr_t)klass);
+}
+
 static int test_symbol(void){
     LT_Value value = read_one("alpha");
     LT_Symbol* symbol;
@@ -802,12 +811,80 @@ static int test_dot_prefixed_tokens_inside_list(void){
 static int test_bare_dot_top_level_signals_error(void){
     LT_Value value = read_one_catch_error(".");
 
-    if (expect(LT_ErrorCondition_p(value), "bare dot signals reader error")){
+    if (expect(
+        value_is_instance_of(value, &LT_Error_class),
+        "bare dot signals error"
+    )){
+        return 1;
+    }
+    if (expect(LT_ReaderError_p(value), "bare dot signals reader error")){
         return 1;
     }
     return expect(
         strcmp(condition_message_cstr(value), "Unexpected dot") == 0,
         "bare dot top-level error message"
+    );
+}
+
+static int test_incomplete_input_signals_specific_syntax_error(void){
+    LT_Value value = read_one_catch_error("(a\n  (");
+
+    if (expect(
+        LT_IncompleteInputSyntaxError_p(value),
+        "incomplete input signals incomplete syntax error"
+    )){
+        return 1;
+    }
+    if (expect(
+        value_is_instance_of(value, &LT_ReaderError_class),
+        "incomplete input is reader error"
+    )){
+        return 1;
+    }
+    if (expect(
+        value_is_instance_of(value, &LT_Error_class),
+        "incomplete input is error condition"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(condition_message_cstr(value), "Unterminated list") == 0,
+        "incomplete input message"
+    )){
+        return 1;
+    }
+    if (expect(slot_fixnum_cstr(value, "line") == 2, "incomplete input line")){
+        return 1;
+    }
+    if (expect(slot_fixnum_cstr(value, "column") == 3, "incomplete input column")){
+        return 1;
+    }
+    return expect(
+        slot_fixnum_cstr(value, "nesting-depth") == 2,
+        "incomplete input nesting depth"
+    );
+}
+
+static int test_reader_tracks_line_column_and_nesting_depth(void){
+    LT_Reader* reader = LT_Reader_new();
+    LT_ReaderStream* stream = LT_ReaderStream_newForString("(a\n  (b))");
+    LT_Value value = LT_Reader_readObject(reader, stream);
+
+    if (expect(LT_Pair_p(value), "tracked reader still returns parsed object")){
+        return 1;
+    }
+    if (expect(slot_fixnum_cstr((LT_Value)(uintptr_t)reader, "line") == 2, "reader line")){
+        return 1;
+    }
+    if (expect(
+        slot_fixnum_cstr((LT_Value)(uintptr_t)reader, "column") == 6,
+        "reader column"
+    )){
+        return 1;
+    }
+    return expect(
+        slot_fixnum_cstr((LT_Value)(uintptr_t)reader, "nesting-depth") == 0,
+        "reader nesting depth"
     );
 }
 
@@ -910,6 +987,8 @@ int main(void){
     failures += test_slot_accessor_syntax();
     failures += test_dot_prefixed_tokens_inside_list();
     failures += test_bare_dot_top_level_signals_error();
+    failures += test_incomplete_input_signals_specific_syntax_error();
+    failures += test_reader_tracks_line_column_and_nesting_depth();
     failures += test_vector_literal_empty();
     failures += test_vector_literal_values();
 

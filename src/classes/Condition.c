@@ -19,17 +19,47 @@ struct LT_Condition_s {
     LT_Value args;
 };
 
-struct LT_WarningCondition_s {
+struct LT_Warning_s {
     LT_Condition base;
 };
 
-struct LT_ErrorCondition_s {
+struct LT_Error_s {
     LT_Condition base;
+};
+
+struct LT_ReaderError_s {
+    LT_Error base;
+    LT_Value line;
+    LT_Value column;
+    LT_Value nesting_depth;
+};
+
+struct LT_IncompleteInputSyntaxError_s {
+    LT_ReaderError base;
 };
 
 static LT_Slot_Descriptor Condition_slots[] = {
     {"message", offsetof(LT_Condition, message), &LT_SlotType_ReadonlyObject},
     {"args", offsetof(LT_Condition, args), &LT_SlotType_ReadonlyObject},
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
+};
+
+static LT_Slot_Descriptor ReaderError_slots[] = {
+    {
+        "line",
+        offsetof(LT_ReaderError, line),
+        &LT_SlotType_ReadonlyObject
+    },
+    {
+        "column",
+        offsetof(LT_ReaderError, column),
+        &LT_SlotType_ReadonlyObject
+    },
+    {
+        "nesting-depth",
+        offsetof(LT_ReaderError, nesting_depth),
+        &LT_SlotType_ReadonlyObject
+    },
     LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
@@ -59,19 +89,36 @@ LT_DEFINE_CLASS(LT_Condition) {
     .slots = Condition_slots,
 };
 
-LT_DEFINE_CLASS(LT_WarningCondition) {
+LT_DEFINE_CLASS(LT_Warning) {
     .superclass = &LT_Condition_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Warning",
-    .instance_size = sizeof(LT_WarningCondition),
+    .instance_size = sizeof(LT_Warning),
     .debugPrintOn = Condition_debugPrintOn,
 };
 
-LT_DEFINE_CLASS(LT_ErrorCondition) {
+LT_DEFINE_CLASS(LT_Error) {
     .superclass = &LT_Condition_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Error",
-    .instance_size = sizeof(LT_ErrorCondition),
+    .instance_size = sizeof(LT_Error),
+    .debugPrintOn = Condition_debugPrintOn,
+};
+
+LT_DEFINE_CLASS(LT_ReaderError) {
+    .superclass = &LT_Error_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "ReaderError",
+    .instance_size = sizeof(LT_ReaderError),
+    .debugPrintOn = Condition_debugPrintOn,
+    .slots = ReaderError_slots,
+};
+
+LT_DEFINE_CLASS(LT_IncompleteInputSyntaxError) {
+    .superclass = &LT_ReaderError_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "IncompleteInputSyntaxError",
+    .instance_size = sizeof(LT_IncompleteInputSyntaxError),
     .debugPrintOn = Condition_debugPrintOn,
 };
 
@@ -100,6 +147,24 @@ LT_Value LT_Condition_vnew(LT_Class* klass, const char* message, va_list args){
     );
 }
 
+LT_Value LT_ReaderError_new(
+    LT_Class* klass,
+    const char* message,
+    LT_Value args,
+    LT_Value line,
+    LT_Value column,
+    LT_Value nesting_depth
+){
+    LT_Value value = LT_Condition_new(klass, message, args);
+    LT_ReaderError* condition =
+        (LT_ReaderError*)LT_VALUE_POINTER_VALUE(value);
+
+    condition->line = line;
+    condition->column = column;
+    condition->nesting_depth = nesting_depth;
+    return value;
+}
+
 LT_Value LT_Condition_impl(const char* message, ...){
     LT_Value result;
     va_list args;
@@ -115,7 +180,7 @@ LT_Value LT_Warning_impl(const char* message, ...){
     va_list args;
 
     va_start(args, message);
-    result = LT_Condition_vnew(&LT_WarningCondition_class, message, args);
+    result = LT_Condition_vnew(&LT_Warning_class, message, args);
     va_end(args);
     return result;
 }
@@ -125,7 +190,7 @@ LT_Value LT_Error_impl(const char* message, ...){
     va_list args;
 
     va_start(args, message);
-    result = LT_Condition_vnew(&LT_ErrorCondition_class, message, args);
+    result = LT_Condition_vnew(&LT_Error_class, message, args);
     va_end(args);
     return result;
 }

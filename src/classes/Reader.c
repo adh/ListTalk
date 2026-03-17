@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Reader.h>
+#include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/SmallInteger.h>
@@ -12,13 +13,17 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/stack_trace.h>
 
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef struct LT_FileReaderStream_s {
     LT_ReaderStream base;
@@ -35,6 +40,13 @@ typedef struct LT_StringReaderStream_s {
 
 struct LT_Reader_s {
     LT_Object base;
+    LT_Value line;
+    LT_Value column;
+    LT_Value nesting_depth;
+    LT_Value previous_line;
+    LT_Value previous_column;
+    LT_Value previous_nesting_depth;
+    int can_unread;
 };
 
 static LT_Value read_object_from_first(
@@ -44,8 +56,18 @@ static LT_Value read_object_from_first(
 );
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
-static LT_Value read_character_literal(LT_ReaderStream* stream);
-static char* read_token_string(int first, LT_ReaderStream* stream);
+static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream);
+static char* read_token_string(LT_Reader* reader, int first, LT_ReaderStream* stream);
+static void reader_reset_position(LT_Reader* reader);
+static int reader_getc(LT_Reader* reader, LT_ReaderStream* stream);
+static int reader_ungetc(LT_Reader* reader, LT_ReaderStream* stream, int ch);
+static void _Noreturn reader_signal_error(
+    LT_Reader* reader,
+    LT_Class* klass,
+    const char* message
+);
+static void _Noreturn reader_error(LT_Reader* reader, const char* message);
+static void _Noreturn reader_incomplete_input(LT_Reader* reader, const char* message);
 
 static int file_stream_getc(void* stream){
     LT_FileReaderStream* file_stream = (LT_FileReaderStream*)stream;
@@ -116,26 +138,134 @@ static int is_delimiter(int ch){
         || ch == ';';
 }
 
-static int dot_starts_dotted_pair(LT_ReaderStream* stream){
-    int next = LT_ReaderStream_getc(stream);
+static long long reader_small_integer_value(LT_Value value){
+    return LT_SmallInteger_value(value);
+}
+
+static LT_Value reader_small_integer_new(long long value){
+    return LT_SmallInteger_new((int64_t)value);
+}
+
+static void reader_reset_position(LT_Reader* reader){
+    reader->line = reader_small_integer_new(1);
+    reader->column = reader_small_integer_new(0);
+    reader->nesting_depth = reader_small_integer_new(0);
+    reader->previous_line = reader->line;
+    reader->previous_column = reader->column;
+    reader->previous_nesting_depth = reader->nesting_depth;
+    reader->can_unread = 0;
+}
+
+static int reader_getc(LT_Reader* reader, LT_ReaderStream* stream){
+    int ch;
+    long long line;
+    long long column;
+    long long nesting_depth;
+
+    reader->previous_line = reader->line;
+    reader->previous_column = reader->column;
+    reader->previous_nesting_depth = reader->nesting_depth;
+    reader->can_unread = 1;
+
+    ch = LT_ReaderStream_getc(stream);
+    if (ch == EOF){
+        return EOF;
+    }
+
+    line = reader_small_integer_value(reader->line);
+    column = reader_small_integer_value(reader->column);
+    nesting_depth = reader_small_integer_value(reader->nesting_depth);
+
+    if (ch == '\n'){
+        line++;
+        column = 0;
+    } else {
+        column++;
+    }
+
+    if (ch == '(' || ch == '[' || ch == '{'){
+        nesting_depth++;
+    } else if ((ch == ')' || ch == ']' || ch == '}') && nesting_depth > 0){
+        nesting_depth--;
+    }
+
+    reader->line = reader_small_integer_new(line);
+    reader->column = reader_small_integer_new(column);
+    reader->nesting_depth = reader_small_integer_new(nesting_depth);
+    return ch;
+}
+
+static int reader_ungetc(LT_Reader* reader, LT_ReaderStream* stream, int ch){
+    int result = LT_ReaderStream_ungetc(stream, ch);
+
+    if (result == EOF){
+        return EOF;
+    }
+    if (reader->can_unread){
+        reader->line = reader->previous_line;
+        reader->column = reader->previous_column;
+        reader->nesting_depth = reader->previous_nesting_depth;
+        reader->can_unread = 0;
+    }
+    return result;
+}
+
+static void _Noreturn reader_signal_error(
+    LT_Reader* reader,
+    LT_Class* klass,
+    const char* message
+){
+    LT_Value condition = LT_ReaderError_new(
+        klass,
+        message,
+        LT_NIL,
+        reader->line,
+        reader->column,
+        reader->nesting_depth
+    );
+
+    LT_signal(condition);
+    fprintf(stderr, "Unrecoverable error: %s\n", message);
+    LT_print_backtrace(stderr);
+#ifdef __APPLE__
+    _exit(1);
+#else
+    abort();
+#endif
+}
+
+static void _Noreturn reader_error(LT_Reader* reader, const char* message){
+    reader_signal_error(reader, &LT_ReaderError_class, message);
+}
+
+static void _Noreturn reader_incomplete_input(LT_Reader* reader, const char* message){
+    reader_signal_error(
+        reader,
+        &LT_IncompleteInputSyntaxError_class,
+        message
+    );
+}
+
+static int dot_starts_dotted_pair(LT_Reader* reader, LT_ReaderStream* stream){
+    int next = reader_getc(reader, stream);
 
     if (!is_delimiter(next)){
-        LT_ReaderStream_ungetc(stream, next);
+        reader_ungetc(reader, stream, next);
         return 0;
     }
 
     if (next != EOF){
-        LT_ReaderStream_ungetc(stream, next);
+        reader_ungetc(reader, stream, next);
     }
     return 1;
 }
 
-static int read_non_space_char(LT_ReaderStream* stream){
-    int ch = LT_ReaderStream_getc(stream);
+static int read_non_space_char(LT_Reader* reader, LT_ReaderStream* stream){
+    int ch = reader_getc(reader, stream);
 
     while (1){
         while (ch != EOF && isspace((unsigned char)ch)){
-            ch = LT_ReaderStream_getc(stream);
+            ch = reader_getc(reader, stream);
         }
 
         if (ch != ';'){
@@ -143,18 +273,18 @@ static int read_non_space_char(LT_ReaderStream* stream){
         }
 
         while (ch != EOF && ch != '\n'){
-            ch = LT_ReaderStream_getc(stream);
+            ch = reader_getc(reader, stream);
         }
     }
 }
 
-static LT_String* read_string_literal(LT_ReaderStream* stream){
+static LT_String* read_string_literal(LT_Reader* reader, LT_ReaderStream* stream){
     LT_StringBuilder* builder = LT_StringBuilder_new();
-    int ch = LT_ReaderStream_getc(stream);
+    int ch = reader_getc(reader, stream);
 
     while (ch != EOF && ch != '"'){
         if (ch == '\\'){
-            int escaped = LT_ReaderStream_getc(stream);
+            int escaped = reader_getc(reader, stream);
             switch (escaped){
                 case 'n':
                     LT_StringBuilder_append_char(builder, '\n');
@@ -170,7 +300,10 @@ static LT_String* read_string_literal(LT_ReaderStream* stream){
                     LT_StringBuilder_append_char(builder, (char)escaped);
                     break;
                 case EOF:
-                    LT_error("Unterminated escape sequence in string literal");
+                    reader_incomplete_input(
+                        reader,
+                        "Unterminated escape sequence in string literal"
+                    );
                     break;
                 default:
                     LT_StringBuilder_append_char(builder, (char)escaped);
@@ -179,11 +312,11 @@ static LT_String* read_string_literal(LT_ReaderStream* stream){
         } else {
             LT_StringBuilder_append_char(builder, (char)ch);
         }
-        ch = LT_ReaderStream_getc(stream);
+        ch = reader_getc(reader, stream);
     }
 
     if (ch != '"'){
-        LT_error("Unterminated string literal");
+        reader_incomplete_input(reader, "Unterminated string literal");
     }
 
     return LT_String_new(
@@ -260,7 +393,7 @@ static LT_Value expand_self_slot_accessor(char* token){
     );
 }
 
-static LT_Value read_atom(int first, LT_ReaderStream* stream){
+static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     LT_Value value;
     LT_Value expanded;
@@ -268,15 +401,15 @@ static LT_Value read_atom(int first, LT_ReaderStream* stream){
 
     while (!is_delimiter(ch)){
         LT_StringBuilder_append_char(builder, ch);
-        ch = LT_ReaderStream_getc(stream);
+        ch = reader_getc(reader, stream);
     }
 
     if (ch != EOF){
-        LT_ReaderStream_ungetc(stream, ch);
+        reader_ungetc(reader, stream, ch);
     }
 
     if (strcmp(LT_StringBuilder_value(builder), ".") == 0){
-        LT_error("Unexpected dot");
+        reader_error(reader, "Unexpected dot");
     }
 
     if (parse_fixnum_token(LT_StringBuilder_value(builder), &value)){
@@ -295,34 +428,35 @@ static LT_Value read_atom(int first, LT_ReaderStream* stream){
 }
 
 static void consume_dispatch_suffix_or_short(
+    LT_Reader* reader,
     LT_ReaderStream* stream,
     const char* suffix
 ){
-    int ch = LT_ReaderStream_getc(stream);
+    int ch = reader_getc(reader, stream);
 
     if (is_delimiter(ch)){
         if (ch != EOF){
-            LT_ReaderStream_ungetc(stream, ch);
+            reader_ungetc(reader, stream, ch);
         }
         return;
     }
 
     while (*suffix != '\0'){
         if (ch != (unsigned char)(*suffix)){
-            LT_error("Invalid dispatch macro spelling");
+            reader_error(reader, "Invalid dispatch macro spelling");
         }
         suffix++;
         if (*suffix != '\0'){
-            ch = LT_ReaderStream_getc(stream);
+            ch = reader_getc(reader, stream);
         }
     }
 
-    ch = LT_ReaderStream_getc(stream);
+    ch = reader_getc(reader, stream);
     if (!is_delimiter(ch)){
-        LT_error("Invalid dispatch macro spelling");
+        reader_error(reader, "Invalid dispatch macro spelling");
     }
     if (ch != EOF){
-        LT_ReaderStream_ungetc(stream, ch);
+        reader_ungetc(reader, stream, ch);
     }
 }
 
@@ -330,59 +464,65 @@ static LT_Value read_dispatch_macro(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
-    int ch = LT_ReaderStream_getc(stream);
+    int ch = reader_getc(reader, stream);
 
     if (ch == EOF){
-        LT_error("Expected dispatch token after '#'");
+        reader_incomplete_input(reader, "Expected dispatch token after '#'");
     }
     if (isdigit((unsigned char)ch)){
-        LT_error("Dispatch token after '#' must start with non-numeric character");
+        reader_error(
+            reader,
+            "Dispatch token after '#' must start with non-numeric character"
+        );
     }
 
     switch (ch){
         case '(':
             return read_vector_literal(reader, stream);
         case '\\':
-            return read_character_literal(stream);
+            return read_character_literal(reader, stream);
         case '!':
-            ch = LT_ReaderStream_getc(stream);
+            ch = reader_getc(reader, stream);
             while (ch != EOF && ch != '\n'){
-                ch = LT_ReaderStream_getc(stream);
+                ch = reader_getc(reader, stream);
             }
-            ch = read_non_space_char(stream);
+            ch = read_non_space_char(reader, stream);
             if (ch == EOF){
-                LT_error("Unexpected end of input");
+                reader_incomplete_input(reader, "Unexpected end of input");
             }
             return read_object_from_first(reader, stream, ch);
         case '<':
-            LT_error("Unreadable object in input");
+            reader_error(reader, "Unreadable object in input");
             return LT_NIL;
         case 't':
-            consume_dispatch_suffix_or_short(stream, "rue");
+            consume_dispatch_suffix_or_short(reader, stream, "rue");
             return LT_TRUE;
         case 'f':
-            consume_dispatch_suffix_or_short(stream, "alse");
+            consume_dispatch_suffix_or_short(reader, stream, "alse");
             return LT_FALSE;
         case 'n':
-            consume_dispatch_suffix_or_short(stream, "il");
+            consume_dispatch_suffix_or_short(reader, stream, "il");
             return LT_NIL;
         default:
-            LT_error("Unknown dispatch macro character");
+            reader_error(reader, "Unknown dispatch macro character");
             return LT_NIL;
     }
 }
 
-static LT_Value read_character_literal(LT_ReaderStream* stream){
-    int ch = LT_ReaderStream_getc(stream);
+static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream){
+    int ch = reader_getc(reader, stream);
     char* token;
     char* end;
     unsigned long parsed;
 
     if (ch == EOF || is_delimiter(ch)){
-        LT_error("Character literal expects token after '#\\\\'");
+        reader_incomplete_input(
+            reader,
+            "Character literal expects token after '#\\\\'"
+        );
     }
 
-    token = read_token_string(ch, stream);
+    token = read_token_string(reader, ch, stream);
 
     if (token[0] != '\0' && token[1] == '\0'){
         return LT_Character_new((uint32_t)(unsigned char)token[0]);
@@ -406,12 +546,12 @@ static LT_Value read_character_literal(LT_ReaderStream* stream){
         parsed = strtoul(token + 2, &end, 16);
         if (errno != 0 || *end != '\0'
             || !LT_Character_codepoint_is_valid((uint32_t)parsed)){
-            LT_error("Invalid Unicode code point in character literal");
+            reader_error(reader, "Invalid Unicode code point in character literal");
         }
         return LT_Character_new((uint32_t)parsed);
     }
 
-    LT_error("Invalid character literal");
+    reader_error(reader, "Invalid character literal");
     return LT_NIL;
 }
 
@@ -425,7 +565,7 @@ static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream){
     size_t length = 0;
     size_t i = 0;
     LT_Vector* vector;
-    int ch = read_non_space_char(stream);
+    int ch = read_non_space_char(reader, stream);
 
     if (ch == ')'){
         return LT_Value_from_object((LT_Object*)LT_Vector_new(0));
@@ -435,17 +575,17 @@ static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream){
         LT_Value item;
 
         if (ch == EOF){
-            LT_error("Unterminated vector literal");
+            reader_incomplete_input(reader, "Unterminated vector literal");
         }
         if (ch == '.'){
-            LT_error("Unexpected dot in vector literal");
+            reader_error(reader, "Unexpected dot in vector literal");
         }
 
         item = read_object_from_first(reader, stream, ch);
         LT_ListBuilder_append(builder, item);
         length++;
 
-        ch = read_non_space_char(stream);
+        ch = read_non_space_char(reader, stream);
         if (ch == ')'){
             break;
         }
@@ -466,11 +606,11 @@ static LT_Value read_quote_syntax(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
-    int first = read_non_space_char(stream);
+    int first = read_non_space_char(reader, stream);
     LT_Value quoted;
 
     if (first == EOF){
-        LT_error("Unexpected end of input after quote");
+        reader_incomplete_input(reader, "Unexpected end of input after quote");
     }
 
     quoted = read_object_from_first(reader, stream, first);
@@ -485,11 +625,14 @@ static LT_Value read_quasiquote_syntax(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
-    int first = read_non_space_char(stream);
+    int first = read_non_space_char(reader, stream);
     LT_Value quoted;
 
     if (first == EOF){
-        LT_error("Unexpected end of input after quasiquote");
+        reader_incomplete_input(
+            reader,
+            "Unexpected end of input after quasiquote"
+        );
     }
 
     quoted = read_object_from_first(reader, stream, first);
@@ -504,7 +647,7 @@ static LT_Value read_unquote_syntax(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
-    int first = LT_ReaderStream_getc(stream);
+    int first = reader_getc(reader, stream);
     LT_Value quoted;
     LT_Value operator_symbol;
 
@@ -513,13 +656,13 @@ static LT_Value read_unquote_syntax(
     } else {
         operator_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "unquote");
         if (first != EOF){
-            LT_ReaderStream_ungetc(stream, first);
+            reader_ungetc(reader, stream, first);
         }
     }
 
-    first = read_non_space_char(stream);
+    first = read_non_space_char(reader, stream);
     if (first == EOF){
-        LT_error("Unexpected end of input after unquote");
+        reader_incomplete_input(reader, "Unexpected end of input after unquote");
     }
 
     quoted = read_object_from_first(reader, stream, first);
@@ -533,7 +676,7 @@ static LT_Value read_unquote_syntax(
 static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
     LT_Value head = LT_NIL;
     LT_Value tail = LT_NIL;
-    int ch = read_non_space_char(stream);
+    int ch = read_non_space_char(reader, stream);
 
     if (ch == ')'){
         return LT_NIL;
@@ -544,26 +687,26 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
         LT_Value node;
 
         if (ch == EOF){
-            LT_error("Unterminated list");
+            reader_incomplete_input(reader, "Unterminated list");
         }
-        if (ch == '.' && dot_starts_dotted_pair(stream)){
+        if (ch == '.' && dot_starts_dotted_pair(reader, stream)){
             int tail_first;
             LT_Value tail_value;
             int closing;
 
             if (head == LT_NIL){
-                LT_error("Unexpected dot in list");
+                reader_error(reader, "Unexpected dot in list");
             }
 
-            tail_first = read_non_space_char(stream);
+            tail_first = read_non_space_char(reader, stream);
             if (tail_first == EOF){
-                LT_error("Unterminated dotted pair");
+                reader_incomplete_input(reader, "Unterminated dotted pair");
             }
 
             tail_value = read_object_from_first(reader, stream, tail_first);
-            closing = read_non_space_char(stream);
+            closing = read_non_space_char(reader, stream);
             if (closing != ')'){
-                LT_error("Expected ')' after dotted pair tail");
+                reader_error(reader, "Expected ')' after dotted pair tail");
             }
             LT_Pair_set_cdr(tail, tail_value);
             return head;
@@ -579,7 +722,7 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
         }
         tail = node;
 
-        ch = read_non_space_char(stream);
+        ch = read_non_space_char(reader, stream);
 
         if (ch == ')'){
             return head;
@@ -587,17 +730,17 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
     }
 }
 
-static char* read_token_string(int first, LT_ReaderStream* stream){
+static char* read_token_string(LT_Reader* reader, int first, LT_ReaderStream* stream){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     int ch = first;
 
     while (!is_delimiter(ch)){
         LT_StringBuilder_append_char(builder, (char)ch);
-        ch = LT_ReaderStream_getc(stream);
+        ch = reader_getc(reader, stream);
     }
 
     if (ch != EOF){
-        LT_ReaderStream_ungetc(stream, ch);
+        reader_ungetc(reader, stream, ch);
     }
 
     return LT_StringBuilder_value(builder);
@@ -609,7 +752,7 @@ static int token_ends_with_colon(char* token){
 }
 
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
-    int ch = read_non_space_char(stream);
+    int ch = read_non_space_char(reader, stream);
     LT_Value receiver;
     LT_ListBuilder* arguments;
     LT_StringBuilder* selector;
@@ -617,26 +760,26 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     char* message_token;
 
     if (ch == EOF){
-        LT_error("Unterminated bracket form");
+        reader_incomplete_input(reader, "Unterminated bracket form");
     }
     if (ch == ']'){
-        LT_error("Bracket form expects receiver");
+        reader_error(reader, "Bracket form expects receiver");
     }
 
     receiver = read_object_from_first(reader, stream, ch);
-    ch = read_non_space_char(stream);
+    ch = read_non_space_char(reader, stream);
     if (ch == EOF){
-        LT_error("Unterminated bracket form");
+        reader_incomplete_input(reader, "Unterminated bracket form");
     }
     if (ch == ']'){
-        LT_error("Bracket form expects message");
+        reader_error(reader, "Bracket form expects message");
     }
     if (is_delimiter(ch)){
-        LT_error("Bracket form expects token message");
+        reader_error(reader, "Bracket form expects token message");
     }
 
-    message_token = read_token_string(ch, stream);
-    ch = read_non_space_char(stream);
+    message_token = read_token_string(reader, ch, stream);
+    ch = read_non_space_char(reader, stream);
 
     if (ch == ']'){
         return LT_list(
@@ -648,7 +791,10 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     }
 
     if (!token_ends_with_colon(message_token)){
-        LT_error("Keyword bracket send expects selector parts ending with ':'");
+        reader_error(
+            reader,
+            "Keyword bracket send expects selector parts ending with ':'"
+        );
     }
 
     selector = LT_StringBuilder_new();
@@ -660,30 +806,33 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
         char* next_selector_token;
 
         if (ch == EOF){
-            LT_error("Unterminated bracket form");
+            reader_incomplete_input(reader, "Unterminated bracket form");
         }
 
         argument = read_object_from_first(reader, stream, ch);
         LT_ListBuilder_append(arguments, argument);
 
-        ch = read_non_space_char(stream);
+        ch = read_non_space_char(reader, stream);
         if (ch == EOF){
-            LT_error("Unterminated bracket form");
+            reader_incomplete_input(reader, "Unterminated bracket form");
         }
         if (ch == ']'){
             break;
         }
         if (is_delimiter(ch)){
-            LT_error("Keyword bracket send expects token selector parts");
+            reader_error(reader, "Keyword bracket send expects token selector parts");
         }
 
-        next_selector_token = read_token_string(ch, stream);
+        next_selector_token = read_token_string(reader, ch, stream);
         if (!token_ends_with_colon(next_selector_token)){
-            LT_error("Keyword bracket send expects selector parts ending with ':'");
+            reader_error(
+                reader,
+                "Keyword bracket send expects selector parts ending with ':'"
+            );
         }
         LT_StringBuilder_append_str(selector, next_selector_token);
 
-        ch = read_non_space_char(stream);
+        ch = read_non_space_char(reader, stream);
     }
 
     selector_symbol = LT_Symbol_new_in(
@@ -706,10 +855,10 @@ static LT_Value read_object_from_first(
     int first
 ){
     if (first == EOF){
-        LT_error("Unexpected end of input");
+        reader_incomplete_input(reader, "Unexpected end of input");
     }
     if (first == '"'){
-        return LT_Value_from_object((LT_Object*)read_string_literal(stream));
+        return LT_Value_from_object((LT_Object*)read_string_literal(reader, stream));
     }
     if (first == '('){
         return read_list(reader, stream);
@@ -718,10 +867,10 @@ static LT_Value read_object_from_first(
         return read_bracket_form(reader, stream);
     }
     if (first == ')'){
-        LT_error("Unexpected ')'");
+        reader_error(reader, "Unexpected ')'");
     }
     if (first == ']'){
-        LT_error("Unexpected ']'");
+        reader_error(reader, "Unexpected ']'");
     }
     if (first == '\''){
         return read_quote_syntax(reader, stream);
@@ -736,14 +885,26 @@ static LT_Value read_object_from_first(
         return read_dispatch_macro(reader, stream);
     }
 
-    return read_atom(first, stream);
+    return read_atom(reader, first, stream);
 }
+
+static LT_Slot_Descriptor Reader_slots[] = {
+    {"line", offsetof(LT_Reader, line), &LT_SlotType_ReadonlyObject},
+    {"column", offsetof(LT_Reader, column), &LT_SlotType_ReadonlyObject},
+    {
+        "nesting-depth",
+        offsetof(LT_Reader, nesting_depth),
+        &LT_SlotType_ReadonlyObject
+    },
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
+};
 
 LT_DEFINE_CLASS(LT_Reader) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Reader",
     .instance_size = sizeof(LT_Reader),
+    .slots = Reader_slots,
 };
 
 LT_ReaderStream* LT_ReaderStream_newForFile(FILE* file){
@@ -764,22 +925,31 @@ LT_ReaderStream* LT_ReaderStream_newForString(const char* str){
 }
 
 LT_Reader* LT_Reader_new(void){
-    return LT_Class_ALLOC(LT_Reader);
+    LT_Reader* reader = LT_Class_ALLOC(LT_Reader);
+    reader_reset_position(reader);
+    return reader;
 }
 
 LT_Reader* LT_Reader_clone(LT_Reader* reader){
-    (void)reader;
-    return LT_Reader_new();
+    LT_Reader* clone = LT_Class_ALLOC(LT_Reader);
+
+    clone->line = reader->line;
+    clone->column = reader->column;
+    clone->nesting_depth = reader->nesting_depth;
+    clone->previous_line = reader->previous_line;
+    clone->previous_column = reader->previous_column;
+    clone->previous_nesting_depth = reader->previous_nesting_depth;
+    clone->can_unread = reader->can_unread;
+    return clone;
 }
 
 LT_Value LT_Reader_readObject(LT_Reader* reader, LT_ReaderStream* stream){
     int first;
 
-    (void)reader;
-    first = read_non_space_char(stream);
+    first = read_non_space_char(reader, stream);
 
     if (first == EOF){
-        LT_error("Unexpected end of input");
+        reader_incomplete_input(reader, "Unexpected end of input");
     }
 
     return read_object_from_first(reader, stream, first);
