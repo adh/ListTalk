@@ -74,7 +74,9 @@ static LT_Value expand_special_form_lambda(LT_Value form,
         environment
     );
     LT_SpecialForm* special_form;
-    LT_Value arguments = LT_cdr(form);
+    LT_Value cursor = LT_cdr(form);
+    LT_Value name = LT_NIL;
+    LT_Value folded_name = LT_NIL;
     LT_Value parameters = LT_NIL;
     LT_Value body = LT_NIL;
 
@@ -83,14 +85,19 @@ static LT_Value expand_special_form_lambda(LT_Value form,
     }
     special_form = LT_SpecialForm_from_value(special_form_value);
 
-    if (LT_Pair_p(arguments)){
-        parameters = LT_car(arguments);
-        body = fold_argument_list(LT_cdr(arguments), environment);
+    if (LT_Pair_p(cursor)){
+        name = LT_car(cursor);
+        folded_name = LT_compiler_fold_expression(name, environment);
+        cursor = LT_cdr(cursor);
+    }
+    if (LT_Pair_p(cursor)){
+        parameters = LT_car(cursor);
+        body = fold_argument_list(LT_cdr(cursor), environment);
     }
 
     return LT_cons(
         LT_SpecialForm_from_static(special_form),
-        LT_cons(parameters, body)
+        LT_cons(folded_name, LT_cons(parameters, body))
     );
 }
 
@@ -197,35 +204,43 @@ static LT_Value special_form_lambda(LT_Value arguments,
                                     LT_Environment* environment,
                                     LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
+    LT_Value name_expression;
+    LT_Value name;
     LT_Value parameters;
     LT_Value body;
     LT_Value parameter_cursor;
 
+    LT_OBJECT_ARG(cursor, name_expression);
     LT_OBJECT_ARG(cursor, parameters);
     LT_ARG_REST(cursor, body);
     if (body == LT_NIL){
-        LT_error("Special form lambda expects body");
+        LT_error("Special form %lambda expects body");
     }
     (void)tail_call_unwind_marker;
+    if (name_expression == LT_NIL){
+        name = LT_NIL;
+    } else {
+        name = LT_eval(name_expression, environment, NULL);
+    }
 
     parameter_cursor = parameters;
     if (LT_Symbol_p(parameter_cursor)){
-        return LT_Closure_new(parameters, body, environment);
+        return LT_Closure_new(name, parameters, body, environment);
     }
 
     while (LT_Pair_p(parameter_cursor)){
         LT_Value parameter;
         parameter = LT_car(parameter_cursor);
         if (!LT_Symbol_p(parameter)){
-            LT_error("Lambda parameter must be symbol");
+            LT_error("%lambda parameter must be symbol");
         }
         parameter_cursor = LT_cdr(parameter_cursor);
     }
     if (parameter_cursor != LT_NIL && !LT_Symbol_p(parameter_cursor)){
-        LT_error("Lambda parameters must be proper or dotted with symbol");
+        LT_error("%lambda parameters must be proper or dotted with symbol");
     }
 
-    return LT_Closure_new(parameters, body, environment);
+    return LT_Closure_new(name, parameters, body, environment);
 }
 
 static LT_Value special_form_if(LT_Value arguments,
@@ -531,8 +546,8 @@ static LT_SpecialForm quasiquote_special_form = {
 static LT_SpecialForm lambda_special_form = {
     .function = special_form_lambda,
     .expand_function = expand_special_form_lambda,
-    .name = "lambda",
-    .arguments = "((arg ...) body ...)",
+    .name = "%lambda",
+    .arguments = "(name (arg ...) body ...)",
     .description = "Create closure with lexical scope."
 };
 
@@ -652,9 +667,13 @@ static void bind_static_special_form_in(LT_Environment* environment,
 void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &quote_special_form);
     bind_static_special_form(environment, &quasiquote_special_form);
-    bind_static_special_form(environment, &lambda_special_form);
     bind_static_special_form(environment, &if_special_form);
     bind_static_special_form(environment, &let_special_form);
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &lambda_special_form
+    );
     bind_static_special_form_in(
         environment,
         LT_PACKAGE_LISTTALK_IMPLEMENTATION,

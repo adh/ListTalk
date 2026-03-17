@@ -11,16 +11,19 @@
 
 (%define ListTalk:define-macro
   (macro
-    (lambda (target . body)
+    (%lambda 'define-macro (target . body)
       (if (pair? target)
           `(%define-constant
              ,(car target)
-             (macro (lambda ,(cdr target) ,@body)))
+             (macro (%lambda ',(list 'macro (car target)) ,(cdr target) ,@body)))
           `(%define-constant ,target (macro ,(car body)))))))
+
+(ListTalk:define-macro (ListTalk:lambda parameters . body)
+  `(%lambda '() ,parameters ,@body))
 
 (ListTalk:define-macro (ListTalk:define target . body)
   (if (pair? target)
-      `(%define-constant ,(car target) (lambda ,(cdr target) ,@body))
+      `(%define-constant ,(car target) (%lambda ',(car target) ,(cdr target) ,@body))
       `(%define ,target ,(car body))))
 
 (ListTalk:define-macro (ListTalk:%self-slot slot-name)
@@ -45,7 +48,8 @@
   (if (pair? signature)
       (if (eq? (car signature) 'send)
           `[,(cadr signature)
-            addMethod: (lambda (ListTalk:self ,@(cdddr signature))
+            addMethod: (%lambda '(,(cadr signature) >> ,(caddr signature))
+                                (ListTalk:self ,@(cdddr signature))
                          ,@body)
             withSelector: ,(caddr signature)]
           (error "define-method expects [Class selector ...] signature"))

@@ -17,10 +17,12 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Closure);
 
 LT_Value LT_Closure_new(
+    LT_Value name,
     LT_Value parameters,
     LT_Value body,
     LT_Environment* environment
 );
+LT_Value LT_Closure_name(LT_Closure* closure);
 LT_Value LT_Closure_parameters(LT_Closure* closure);
 LT_Value LT_Closure_body(LT_Closure* closure);
 LT_Environment* LT_Closure_environment(LT_Closure* closure);

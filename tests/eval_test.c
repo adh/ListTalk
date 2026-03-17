@@ -17,6 +17,7 @@
 #include <ListTalk/macros/arg_macros.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -1492,6 +1493,79 @@ static int test_define_macro_shorthand_is_constant(void){
     );
 }
 
+static int test_lambda_macro_expands_to_named_nil_closure(void){
+    LT_Value value = eval_one("(lambda (x) x)");
+    LT_Closure* closure;
+
+    if (expect(LT_Closure_p(value), "lambda returns closure via macro expansion")){
+        return 1;
+    }
+    closure = LT_Closure_from_value(value);
+    return expect(
+        LT_Closure_name(closure) == LT_NIL,
+        "lambda macro expands to %lambda with nil name"
+    );
+}
+
+static int test_define_function_shorthand_sets_closure_name(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+    LT_Closure* closure;
+
+    (void)LT_eval(read_one("(define (named-add x y) (+ x y))"), env, NULL);
+    value = LT_eval(read_one("named-add"), env, NULL);
+    if (expect(LT_Closure_p(value), "define shorthand binds closure value")){
+        return 1;
+    }
+    closure = LT_Closure_from_value(value);
+    return expect(
+        LT_Symbol_p(LT_Closure_name(closure))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_Closure_name(closure))),
+                "named-add"
+            ) == 0,
+        "define shorthand preserves function name on closure"
+    );
+}
+
+static int test_closure_debug_print_includes_name(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+    char* printed;
+    int result;
+
+    (void)LT_eval(read_one("(define (named-debug x) x)"), env, NULL);
+    value = LT_eval(read_one("named-debug"), env, NULL);
+    printed = debug_string_for_value(value);
+    if (printed == NULL){
+        return 1;
+    }
+
+    result = expect(
+        strcmp(printed, "#<Closure named-debug>") == 0,
+        "closure debug print includes name"
+    );
+    free(printed);
+    return result;
+}
+
+static int test_anonymous_closure_debug_print_includes_address(void){
+    LT_Value value = eval_one("(lambda (x) x)");
+    char* printed = debug_string_for_value(value);
+    int result;
+
+    if (printed == NULL){
+        return 1;
+    }
+
+    result = expect(
+        string_starts_with(printed, "#<Closure at 0x"),
+        "anonymous closure debug print includes address"
+    );
+    free(printed);
+    return result;
+}
+
 static int test_symbol_uninterned_and_gensym_c_api(void){
     LT_Value uninterned = LT_Symbol_new_uninterned("temp");
     LT_Value generated = LT_Symbol_gensym(NULL);
@@ -1768,6 +1842,9 @@ static int test_define_class_macro(void){
 static int test_define_method_macro(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
+    LT_Value method;
+    LT_Value method_name;
+    LT_Value cursor;
 
     (void)LT_eval(
         read_one("(define-method [Pair first] (%self-slot car))"),
@@ -1778,6 +1855,51 @@ static int test_define_method_macro(void){
     if (expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 9,
         "define-method installs zero-argument method"
+    )){
+        return 1;
+    }
+
+    method = LT_eval(read_one("[Pair lookupSelector: :first]"), env, NULL);
+    if (expect(LT_Closure_p(method), "define-method installs closure method")){
+        return 1;
+    }
+    method_name = LT_Closure_name(LT_Closure_from_value(method));
+    if (expect(LT_Pair_p(method_name), "define-method assigns structured closure name")){
+        return 1;
+    }
+    cursor = method_name;
+    if (expect(
+        LT_Symbol_p(LT_car(cursor))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(cursor))),
+                "Pair"
+            ) == 0,
+        "define-method closure name starts with class"
+    )){
+        return 1;
+    }
+    cursor = LT_cdr(cursor);
+    if (expect(
+        LT_Pair_p(cursor)
+            && LT_Symbol_p(LT_car(cursor))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(cursor))),
+                ">>"
+            ) == 0,
+        "define-method closure name includes >> separator"
+    )){
+        return 1;
+    }
+    cursor = LT_cdr(cursor);
+    if (expect(
+        LT_Pair_p(cursor)
+            && LT_Symbol_p(LT_car(cursor))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(cursor))),
+                "first"
+            ) == 0
+            && LT_cdr(cursor) == LT_NIL,
+        "define-method closure name ends with selector"
     )){
         return 1;
     }
@@ -2572,6 +2694,10 @@ int main(void){
     failures += test_define_function_shorthand_is_constant();
     failures += test_define_macro_shorthand();
     failures += test_define_macro_shorthand_is_constant();
+    failures += test_lambda_macro_expands_to_named_nil_closure();
+    failures += test_define_function_shorthand_sets_closure_name();
+    failures += test_closure_debug_print_includes_name();
+    failures += test_anonymous_closure_debug_print_includes_address();
     failures += test_symbol_uninterned_and_gensym_c_api();
     failures += test_gensym_primitive();
     failures += test_symbol_class_methods_for_uninterned_and_gensym();
