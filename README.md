@@ -9,6 +9,10 @@ meson setup build
 meson compile -C build
 ```
 
+If `libedit` is available when configuring the build, the REPL links against it
+for editable line input and history support. Builds without `libedit` keep using
+standard line input.
+
 ## Run
 
 ```sh

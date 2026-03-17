@@ -924,6 +924,11 @@ LT_ReaderStream* LT_ReaderStream_newForString(const char* str){
     return &stream->base;
 }
 
+size_t LT_ReaderStream_stringOffset(LT_ReaderStream* stream){
+    LT_StringReaderStream* string_stream = (LT_StringReaderStream*)stream;
+    return string_stream->index;
+}
+
 LT_Reader* LT_Reader_new(void){
     LT_Reader* reader = LT_Class_ALLOC(LT_Reader);
     reader_reset_position(reader);

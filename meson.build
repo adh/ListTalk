@@ -3,6 +3,21 @@ project('ListTalk', 'c',
 
 bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
+cc = meson.get_compiler('c')
+
+listtalk_deps = [bdwgc]
+listtalk_c_args = []
+libedit_dep = dependency('libedit', required : false)
+
+if libedit_dep.found()
+    if cc.has_header('editline/readline.h', dependencies : libedit_dep)
+        listtalk_deps += [libedit_dep]
+        listtalk_c_args += ['-DLT_HAVE_LIBEDIT=1', '-DLT_HAVE_EDITLINE_READLINE_H=1']
+    elif cc.has_header('readline/readline.h', dependencies : libedit_dep)
+        listtalk_deps += [libedit_dep]
+        listtalk_c_args += ['-DLT_HAVE_LIBEDIT=1']
+    endif
+endif
 
 runtime_init_embedded = custom_target(
         'runtime_init_embedded.c',
@@ -72,7 +87,8 @@ executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
         link_with: [vm_lib], 
-        dependencies : [bdwgc], 
+        dependencies : listtalk_deps,
+        c_args : listtalk_c_args,
         install : true
 )
 

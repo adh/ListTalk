@@ -34,6 +34,7 @@ static inline int LT_ReaderStream_ungetc(LT_ReaderStream* stream, int c){
 
 extern LT_ReaderStream* LT_ReaderStream_newForFile(FILE* file);
 extern LT_ReaderStream* LT_ReaderStream_newForString(const char* str);
+extern size_t LT_ReaderStream_stringOffset(LT_ReaderStream* stream);
 
 extern LT_Reader* LT_Reader_new();
 extern LT_Reader* LT_Reader_clone(LT_Reader* reader);
