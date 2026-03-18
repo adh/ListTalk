@@ -6,9 +6,15 @@
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
 
 #include <stddef.h>
+
+static int immutable_list_like_p(LT_Value value){
+    return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_List));
+}
 
 static LT_Value immutable_list_terminator(unsigned int flags){
     return LT_VALUE_MAKE_IMMEDIATE(LT_VALUE_IMMEDIATE_TAG_INVALID, flags);
@@ -58,6 +64,69 @@ static void ImmutableList_debugPrintOn(LT_Value obj, FILE* stream){
     LT_List_debugPrintOn(obj, stream);
 }
 
+LT_DEFINE_PRIMITIVE(
+    immutable_list_class_method_from_list,
+    "ImmutableList class>>fromList:",
+    "(self list)",
+    "Return an immutable list copy of list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value list;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_ImmutableList_class){
+        LT_error("fromList: class method is only supported on ImmutableList");
+    }
+
+    return LT_ImmutableList_fromList(list);
+}
+
+LT_DEFINE_PRIMITIVE(
+    immutable_list_method_car,
+    "ImmutableList>>car",
+    "(self)",
+    "Return immutable list car."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_ImmutableList_car(self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    immutable_list_method_cdr,
+    "ImmutableList>>cdr",
+    "(self)",
+    "Return immutable list cdr."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_ImmutableList_cdr(self);
+}
+
+static LT_Method_Descriptor ImmutableList_methods[] = {
+    {"car", &immutable_list_method_car},
+    {"cdr", &immutable_list_method_cdr},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor ImmutableList_class_methods[] = {
+    {"fromList:", &immutable_list_class_method_from_list},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_ImmutableList) {
     .superclass = &LT_List_class,
     .metaclass_superclass = &LT_Class_class,
@@ -67,6 +136,8 @@ LT_DEFINE_CLASS(LT_ImmutableList) {
     .hash = ImmutableList_hash,
     .equal_p = ImmutableList_equal_p,
     .debugPrintOn = ImmutableList_debugPrintOn,
+    .methods = ImmutableList_methods,
+    .class_methods = ImmutableList_class_methods,
 };
 
 LT_Value LT_ImmutableList_new(size_t count, const LT_Value* values){
@@ -98,6 +169,36 @@ LT_Value LT_ImmutableList_new_with_tail(
     }
 
     return ((LT_Value)(uintptr_t)storage) | LT_VALUE_POINTER_TAG_IMMUTABLE_LIST;
+}
+
+LT_Value LT_ImmutableList_fromList(LT_Value list){
+    LT_Value cursor = list;
+    LT_Value tail;
+    LT_Value* values;
+    size_t count = 0;
+    size_t i;
+
+    if (list == LT_NIL || LT_ImmutableList_p(list)){
+        return list;
+    }
+    if (!immutable_list_like_p(list)){
+        LT_type_error(list, &LT_List_class);
+    }
+
+    while (immutable_list_like_p(cursor)){
+        count++;
+        cursor = LT_cdr(cursor);
+    }
+    tail = cursor;
+
+    values = GC_MALLOC(sizeof(LT_Value) * count);
+    cursor = list;
+    for (i = 0; i < count; i++){
+        values[i] = LT_car(cursor);
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_ImmutableList_new_with_tail(count, values, tail);
 }
 
 LT_Value LT_ImmutableList_car(LT_Value value){

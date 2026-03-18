@@ -33,6 +33,7 @@ LT_Value LT_ImmutableList_new_with_tail(
     const LT_Value* values,
     LT_Value tail
 );
+LT_Value LT_ImmutableList_fromList(LT_Value list);
 LT_Value LT_ImmutableList_car(LT_Value value);
 LT_Value LT_ImmutableList_cdr(LT_Value value);
 

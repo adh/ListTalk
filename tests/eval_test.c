@@ -884,6 +884,76 @@ static int test_immutable_list_interops_with_pairs(void){
     );
 }
 
+static int test_immutable_list_methods(void){
+    LT_Value values[] = {
+        LT_SmallInteger_new(4),
+        LT_SmallInteger_new(5),
+    };
+    LT_Value immutable_list = LT_ImmutableList_new(2, values);
+    LT_Value selector_car = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "car");
+    LT_Value selector_cdr = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "cdr");
+    LT_Value car_value = LT_send(immutable_list, selector_car, LT_NIL, NULL);
+    LT_Value cdr_value = LT_send(immutable_list, selector_cdr, LT_NIL, NULL);
+
+    if (expect(
+        LT_Value_is_fixnum(car_value) && LT_SmallInteger_value(car_value) == 4,
+        "ImmutableList>>car dispatches correctly"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(cdr_value))
+            && LT_SmallInteger_value(LT_car(cdr_value)) == 5,
+        "ImmutableList>>cdr dispatches correctly"
+    );
+}
+
+static int test_immutable_list_from_list(void){
+    LT_Value proper_list = LT_cons(
+        LT_SmallInteger_new(6),
+        LT_cons(LT_SmallInteger_new(7), LT_NIL)
+    );
+    LT_Value dotted_list = LT_cons(
+        LT_SmallInteger_new(8),
+        LT_cons(LT_SmallInteger_new(9), LT_SmallInteger_new(10))
+    );
+    LT_Value converted = LT_ImmutableList_fromList(proper_list);
+    LT_Value dotted_converted = LT_ImmutableList_fromList(dotted_list);
+    LT_Value class_converted = eval_one("[ImmutableList fromList: '(11 12)]");
+
+    if (expect(LT_ImmutableList_p(converted), "LT_ImmutableList_fromList returns immutable list")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(converted))
+            && LT_SmallInteger_value(LT_car(converted)) == 6,
+        "LT_ImmutableList_fromList preserves first element"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_cdr(LT_cdr(converted)) == LT_NIL,
+        "LT_ImmutableList_fromList preserves proper list terminator"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_cdr(LT_cdr(dotted_converted)))
+            && LT_SmallInteger_value(LT_cdr(LT_cdr(dotted_converted))) == 10,
+        "LT_ImmutableList_fromList preserves dotted tail"
+    )){
+        return 1;
+    }
+    if (expect(LT_ImmutableList_p(class_converted), "ImmutableList class>>fromList: returns immutable list")){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(class_converted)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(class_converted))) == 12,
+        "ImmutableList class>>fromList: preserves list contents"
+    );
+}
+
 static int test_assoc_primitives(void){
     LT_Value assoc_value = eval_one("(assoc \"ab\" '((\"ab\" . 3) (\"cd\" . 4)))");
     LT_Value assq_value = eval_one("(assq 'b '((a . 1) (b . 2)))");
@@ -2751,6 +2821,8 @@ int main(void){
     RUN_TEST(test_list_constructor_primitive);
     RUN_TEST(test_list_predicate_primitive);
     RUN_TEST(test_immutable_list_interops_with_pairs);
+    RUN_TEST(test_immutable_list_methods);
+    RUN_TEST(test_immutable_list_from_list);
     RUN_TEST(test_assoc_primitives);
     RUN_TEST(test_cxxxr_primitives);
     RUN_TEST(test_string_predicate_primitive);
