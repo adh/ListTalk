@@ -12,11 +12,6 @@
 #include <stddef.h>
 #include <stdarg.h>
 
-struct LT_Pair_s {
-    LT_Value car;
-    LT_Value cdr;
-};
-
 static size_t Pair_hash(LT_Value value){
     return LT_List_hash(value);
 }
@@ -173,20 +168,6 @@ LT_Value LT_list_with_rest(LT_Value first, ...){
     rest = va_arg(args, LT_Value);
     va_end(args);
     return LT_ListBuilder_valueWithRest(builder, rest);
-}
-
-LT_Value LT_car(LT_Value pair){
-    if (LT_ImmutableList_p(pair)){
-        return LT_ImmutableList_car(pair);
-    }
-    return LT_Pair_from_value(pair)->car;
-}
-
-LT_Value LT_cdr(LT_Value pair){
-    if (LT_ImmutableList_p(pair)){
-        return LT_ImmutableList_cdr(pair);
-    }
-    return LT_Pair_from_value(pair)->cdr;
 }
 
 void LT_Pair_set_car(LT_Value pair, LT_Value value){

@@ -19,8 +19,6 @@ LT_DECLARE_CLASS(LT_Pair);
 LT_Value LT_cons(LT_Value car, LT_Value cdr);
 LT_Value LT_list(LT_Value first, ...);
 LT_Value LT_list_with_rest(LT_Value first, ...);
-LT_Value LT_car(LT_Value pair);
-LT_Value LT_cdr(LT_Value pair);
 void LT_Pair_set_car(LT_Value pair, LT_Value value);
 void LT_Pair_set_cdr(LT_Value pair, LT_Value value);
 
