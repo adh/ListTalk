@@ -828,6 +828,62 @@ static int test_list_predicate_primitive(void){
     );
 }
 
+static int test_immutable_list_interops_with_pairs(void){
+    LT_Value values[] = {
+        LT_SmallInteger_new(1),
+        LT_SmallInteger_new(2),
+    };
+    LT_Value immutable_list = LT_ImmutableList_new(2, values);
+    LT_Value dotted_immutable = LT_ImmutableList_new_with_tail(
+        2,
+        values,
+        LT_SmallInteger_new(3)
+    );
+    LT_Value pair_list = LT_cons(
+        LT_SmallInteger_new(1),
+        LT_cons(LT_SmallInteger_new(2), LT_NIL)
+    );
+    LT_Value dotted_pair = LT_cons(
+        LT_SmallInteger_new(1),
+        LT_cons(LT_SmallInteger_new(2), LT_SmallInteger_new(3))
+    );
+
+    if (expect(
+        LT_Value_is_fixnum(LT_car(immutable_list))
+            && LT_SmallInteger_value(LT_car(immutable_list)) == 1,
+        "immutable list car returns first item"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(immutable_list)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(immutable_list))) == 2,
+        "immutable list cdr advances within compact storage"
+    )){
+        return 1;
+    }
+    if (expect(LT_cdr(LT_cdr(immutable_list)) == LT_NIL, "immutable list ends with nil")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_cdr(LT_cdr(dotted_immutable)))
+            && LT_SmallInteger_value(LT_cdr(LT_cdr(dotted_immutable))) == 3,
+        "immutable list dotted tail preserved"
+    )){
+        return 1;
+    }
+    if (expect(LT_Value_equal_p(immutable_list, pair_list), "pair equals immutable list")){
+        return 1;
+    }
+    if (expect(LT_Value_equal_p(dotted_immutable, dotted_pair), "dotted pair equals immutable list")){
+        return 1;
+    }
+    return expect(
+        LT_Value_hash(immutable_list) == LT_Value_hash(pair_list),
+        "equal pair and immutable list share hash"
+    );
+}
+
 static int test_assoc_primitives(void){
     LT_Value assoc_value = eval_one("(assoc \"ab\" '((\"ab\" . 3) (\"cd\" . 4)))");
     LT_Value assq_value = eval_one("(assq 'b '((a . 1) (b . 2)))");
@@ -2694,6 +2750,7 @@ int main(void){
     RUN_TEST(test_core_type_predicates);
     RUN_TEST(test_list_constructor_primitive);
     RUN_TEST(test_list_predicate_primitive);
+    RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_assoc_primitives);
     RUN_TEST(test_cxxxr_primitives);
     RUN_TEST(test_string_predicate_primitive);

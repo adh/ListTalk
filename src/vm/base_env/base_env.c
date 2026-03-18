@@ -14,6 +14,8 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/List.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/Closure.h>
@@ -52,6 +54,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Number", &LT_Number_class},
     {"SmallInteger", &LT_SmallInteger_class},
     {"Float", &LT_Float_class},
+    {"List", &LT_List_class},
+    {"ImmutableList", &LT_ImmutableList_class},
     {"Pair", &LT_Pair_class},
     {"Vector", &LT_Vector_class},
     {"String", &LT_String_class},

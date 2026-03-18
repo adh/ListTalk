@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/vm/Class.h>
 
@@ -17,20 +18,11 @@ struct LT_Pair_s {
 };
 
 static size_t Pair_hash(LT_Value value){
-    LT_Pair* pair = LT_Pair_from_value(value);
-    size_t car_hash = LT_Value_hash(pair->car);
-    size_t cdr_hash = LT_Value_hash(pair->cdr);
-
-    return (car_hash * (size_t)33) ^ (cdr_hash + (size_t)0x9e3779b1);
+    return LT_List_hash(value);
 }
 
 static int Pair_equal_p(LT_Value left, LT_Value right){
-    if (!LT_Pair_p(right)){
-        return 0;
-    }
-
-    return LT_Value_equal_p(LT_car(left), LT_car(right))
-        && LT_Value_equal_p(LT_cdr(left), LT_cdr(right));
+    return LT_List_equal_p(left, right);
 }
 
 static LT_Slot_Descriptor Pair_slots[] = {
@@ -40,25 +32,7 @@ static LT_Slot_Descriptor Pair_slots[] = {
 };
 
 static void Pair_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Pair* pair = LT_Pair_from_value(obj);
-    fputc('(', stream);
-    while (1){
-        LT_Value_debugPrintOn(pair->car, stream);
-
-        if (pair->cdr == LT_NIL){
-            break;
-        }
-        if (LT_Pair_p(pair->cdr)){
-            fputc(' ', stream);
-            pair = LT_Pair_from_value(pair->cdr);
-            continue;
-        }
-
-        fputs(" . ", stream);
-        LT_Value_debugPrintOn(pair->cdr, stream);
-        break;
-    }
-    fputc(')', stream);
+    LT_List_debugPrintOn(obj, stream);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -136,7 +110,7 @@ static LT_Method_Descriptor Pair_methods[] = {
 };
 
 LT_DEFINE_CLASS(LT_Pair) {
-    .superclass = &LT_Object_class,
+    .superclass = &LT_List_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Pair",
     .instance_size = sizeof(LT_Pair),
@@ -202,10 +176,16 @@ LT_Value LT_list_with_rest(LT_Value first, ...){
 }
 
 LT_Value LT_car(LT_Value pair){
+    if (LT_ImmutableList_p(pair)){
+        return LT_ImmutableList_car(pair);
+    }
     return LT_Pair_from_value(pair)->car;
 }
 
 LT_Value LT_cdr(LT_Value pair){
+    if (LT_ImmutableList_p(pair)){
+        return LT_ImmutableList_cdr(pair);
+    }
     return LT_Pair_from_value(pair)->cdr;
 }
 

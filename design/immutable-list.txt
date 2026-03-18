@@ -1,0 +1,9 @@
+ImmutableList pointer points to array of consecutive LT_Values terminateed
+by LT_INVALID_FLAGS value (MSB tag 0xbf). Flags are interpreted as bitmask
+of which values follow the terminator marker:
+
+- CDR tail
+- Source location
+- Original expression before macro expansion
+
+values that are not present according to flags are skipped

@@ -11,6 +11,7 @@
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Closure.h>
@@ -31,7 +32,7 @@ LT_Class* const LT__Immediate_classes[64] = {
 };
 LT_Class* const LT__Pointer_classes[8] = {
     &LT_Class_class,
-    &LT_Class_class,
+    &LT_ImmutableList_class,
     &LT_Pair_class,
     &LT_Symbol_class,
     &LT_Closure_class,
