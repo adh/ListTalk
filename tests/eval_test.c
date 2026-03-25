@@ -2253,7 +2253,7 @@ static int test_compiler_fold_application_folds_operator_and_arguments(void){
     );
     folded = LT_compiler_fold_expression(read_one("(+ x y)"), env);
 
-    if (expect(LT_Pair_p(folded), "compiler fold returns folded application")){
+    if (expect(LT_ImmutableList_p(folded), "compiler fold returns immutable folded application")){
         return 1;
     }
     if (expect(LT_Primitive_p(LT_car(folded)), "folded operator becomes value")){
@@ -2287,7 +2287,7 @@ static int test_compiler_fold_special_form_uses_special_form_reference(void){
     );
     folded = LT_compiler_fold_expression(read_one("(if x (+ 1 2) y)"), env);
 
-    if (expect(LT_Pair_p(folded), "special form fold returns list form")){
+    if (expect(LT_ImmutableList_p(folded), "special form fold returns immutable list form")){
         return 1;
     }
     if (expect(
@@ -2337,7 +2337,7 @@ static int test_compiler_fold_constant_pair_is_quoted_expression(void){
     );
     folded = LT_compiler_fold_expression(read_one("x"), env);
 
-    if (expect(LT_Pair_p(folded), "constant pair fold returns expression form")){
+    if (expect(LT_ImmutableList_p(folded), "constant pair fold returns immutable expression form")){
         return 1;
     }
     if (expect(
@@ -2348,7 +2348,7 @@ static int test_compiler_fold_constant_pair_is_quoted_expression(void){
     }
     arguments = LT_cdr(folded);
     return expect(
-        LT_Pair_p(arguments)
+        LT_ImmutableList_p(arguments)
             && LT_car(arguments) == pair_constant
             && LT_cdr(arguments) == LT_NIL,
         "constant pair fold keeps quoted payload"
@@ -2406,8 +2406,8 @@ static int test_compiler_fold_impure_primitive_is_not_constant_folded(void){
     LT_Value folded = LT_compiler_fold_expression(read_one("(error \"boom\")"), env);
 
     if (expect(
-        LT_Pair_p(folded),
-        "compiler fold keeps impure primitive as application"
+        LT_ImmutableList_p(folded),
+        "compiler fold keeps impure primitive as immutable application"
     )){
         return 1;
     }
@@ -2479,7 +2479,7 @@ static int test_fold_expression_special_form(void){
         env,
         NULL
     );
-    if (expect(LT_Pair_p(folded), "fold-expression primitive returns form")){
+    if (expect(LT_ImmutableList_p(folded), "fold-expression primitive returns immutable form")){
         return 1;
     }
     if (expect(
@@ -2526,7 +2526,7 @@ static int test_get_current_environment_special_form(void){
         env,
         NULL
     );
-    if (expect(LT_Pair_p(folded), "captured environment can be reused")){
+    if (expect(LT_ImmutableList_p(folded), "captured environment can be reused")){
         return 1;
     }
     arguments = LT_cdr(folded);

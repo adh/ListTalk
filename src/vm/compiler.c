@@ -24,12 +24,32 @@ static LT_Value constant_value_to_expression(
 static LT_Value fold_application(LT_Value expression,
                                  LT_Environment* lexical_environment);
 static int is_quote_special_form_value(LT_Value value);
+static int compiler_list_p(LT_Value value);
+static LT_Value immutable_list_with_rest(
+    LT_Value first,
+    LT_Value second,
+    LT_Value rest
+);
+
+static int compiler_list_p(LT_Value value){
+    return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_List));
+}
+
+static LT_Value immutable_list_with_rest(
+    LT_Value first,
+    LT_Value second,
+    LT_Value rest
+){
+    LT_Value values[2] = {first, second};
+    return LT_ImmutableList_new_with_tail(2, values, rest);
+}
 
 static LT_Value fold_list_items(LT_Value list, LT_Environment* lexical_environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     LT_Value cursor = list;
+    LT_Value result;
 
-    while (LT_Pair_p(cursor)){
+    while (compiler_list_p(cursor)){
         LT_ListBuilder_append(
             builder,
             LT_compiler_fold_expression(LT_car(cursor), lexical_environment)
@@ -38,13 +58,15 @@ static LT_Value fold_list_items(LT_Value list, LT_Environment* lexical_environme
     }
 
     if (cursor == LT_NIL){
-        return LT_ListBuilder_value(builder);
+        result = LT_ListBuilder_value(builder);
+        return LT_ImmutableList_fromList(result);
     }
 
-    return LT_ListBuilder_valueWithRest(
+    result = LT_ListBuilder_valueWithRest(
         builder,
         LT_compiler_fold_expression(cursor, lexical_environment)
     );
+    return LT_ImmutableList_fromList(result);
 }
 
 static int is_quote_special_form_value(LT_Value value){
@@ -63,16 +85,17 @@ static LT_Value constant_value_to_expression(
     LT_Value value,
     LT_Environment* lexical_environment
 ){
-    if (!LT_Pair_p(value)){
+    if (!compiler_list_p(value)){
         return value;
     }
 
-    return LT_cons(
+    return immutable_list_with_rest(
         LT_compiler_fold_expression(
             LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quote"),
             lexical_environment
         ),
-        LT_cons(value, LT_NIL)
+        value,
+        LT_NIL
     );
 }
 
@@ -81,7 +104,7 @@ LT_Value LT_compiler_macroexpand(LT_Value expression,
     LT_Value expanded = expression;
     size_t expansion_count = 0;
 
-    while (LT_Pair_p(expanded)){
+    while (compiler_list_p(expanded)){
         LT_Value operator_value = LT_compiler_fold_expression(
             LT_car(expanded),
             lexical_environment
@@ -123,9 +146,9 @@ static LT_Value fold_application(LT_Value expression,
         );
 
         if (expanded == LT_INVALID){
-            return expression;
+            return LT_ImmutableList_fromList(expression);
         }
-        return expanded;
+        return LT_ImmutableList_fromList(expanded);
     }
 
     if (LT_Macro_p(folded_operator)){
@@ -146,14 +169,18 @@ static LT_Value fold_application(LT_Value expression,
             LT_ListBuilder* constant_arguments_builder = LT_ListBuilder_new();
             LT_Value cursor = folded_arguments;
 
-            while (LT_Pair_p(cursor)){
+            while (compiler_list_p(cursor)){
                 LT_Value constant_value = LT_compiler_expression_constant_value(
                     LT_car(cursor),
                     lexical_environment
                 );
 
                 if (constant_value == LT_INVALID){
-                    return LT_cons(folded_operator, folded_arguments);
+                    return LT_ImmutableList_new_with_tail(
+                        1,
+                        &folded_operator,
+                        folded_arguments
+                    );
                 }
                 LT_ListBuilder_append(constant_arguments_builder, constant_value);
                 cursor = LT_cdr(cursor);
@@ -172,7 +199,11 @@ static LT_Value fold_application(LT_Value expression,
             }
         }
 
-        return LT_cons(folded_operator, folded_arguments);
+        return LT_ImmutableList_new_with_tail(
+            1,
+            &folded_operator,
+            folded_arguments
+        );
     }
 }
 
@@ -198,7 +229,7 @@ LT_Value LT_compiler_expression_constant_value(
         return value;
     }
 
-    if (LT_Pair_p(folded_expression)){
+    if (compiler_list_p(folded_expression)){
         LT_Value cursor = folded_expression;
         LT_Value operator_value;
 
@@ -208,7 +239,7 @@ LT_Value LT_compiler_expression_constant_value(
         if (!is_quote_special_form_value(operator_value)){
             return LT_INVALID;
         }
-        if (!LT_Pair_p(cursor)){
+        if (!compiler_list_p(cursor)){
             return LT_INVALID;
         }
         value = LT_car(cursor);
@@ -237,7 +268,7 @@ LT_Value LT_compiler_fold_expression(LT_Value expression,
         return constant_value_to_expression(constant_value, lexical_environment);
     }
 
-    if (LT_Pair_p(expression)){
+    if (compiler_list_p(expression)){
         return fold_application(expression, lexical_environment);
     }
 
