@@ -248,6 +248,102 @@ static int test_symbol_not_number(void){
     );
 }
 
+static int test_symbol_backslash_escape_allows_delimiters(void){
+    LT_Value value = read_one("alpha\\ beta");
+
+    if (expect(LT_Symbol_p(value), "escaped delimiter token is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "alpha beta") == 0,
+        "escaped delimiter is part of symbol"
+    );
+}
+
+static int test_symbol_backslash_escape_allows_pipe_and_backslash(void){
+    LT_Value value = read_one("alpha\\|beta\\\\gamma");
+
+    if (expect(LT_Symbol_p(value), "escaped pipe token is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "alpha|beta\\gamma") == 0,
+        "escaped pipe and backslash are preserved in symbol"
+    );
+}
+
+static int test_symbol_bar_quote_allows_delimiters(void){
+    LT_Value value = read_one("|alpha beta|");
+
+    if (expect(LT_Symbol_p(value), "bar-quoted token is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "alpha beta") == 0,
+        "bar-quoted delimiter is part of symbol"
+    );
+}
+
+static int test_symbol_bar_quote_preserves_quoted_colon_in_name(void){
+    LT_Value value = read_one("|foo:bar|");
+
+    if (expect(LT_Symbol_p(value), "bar-quoted colon token is symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(value)) == LT_PACKAGE_LISTTALK,
+        "bar-quoted colon stays in current package"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "foo:bar") == 0,
+        "bar-quoted colon stays in symbol name"
+    );
+}
+
+static int test_symbol_backslash_escape_preserves_colon_in_name(void){
+    LT_Value value = read_one("foo\\:bar");
+
+    if (expect(LT_Symbol_p(value), "escaped colon token is symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(value)) == LT_PACKAGE_LISTTALK,
+        "escaped colon stays in current package"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "foo:bar") == 0,
+        "escaped colon stays in symbol name"
+    );
+}
+
+static int test_quoted_dot_reads_as_symbol(void){
+    LT_Value value = read_one("\\.");
+
+    if (expect(LT_Symbol_p(value), "escaped dot token is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), ".") == 0,
+        "escaped dot avoids dotted-pair syntax"
+    );
+}
+
+static int test_escaped_dot_prefixed_symbol_does_not_expand_slot_accessor(void){
+    LT_Value value = read_one("\\.foo");
+
+    if (expect(LT_Symbol_p(value), "escaped dot-prefixed token is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), ".foo") == 0,
+        "escaped dot-prefixed token stays literal"
+    );
+}
+
 static int test_dispatch_boolean_true(void){
     LT_Value value = read_one("#t");
     return expect(value == LT_TRUE, "dispatch #t");
@@ -961,6 +1057,13 @@ int main(void){
     failures += test_negative_fixnum_literal();
     failures += test_float_literal();
     failures += test_symbol_not_number();
+    failures += test_symbol_backslash_escape_allows_delimiters();
+    failures += test_symbol_backslash_escape_allows_pipe_and_backslash();
+    failures += test_symbol_bar_quote_allows_delimiters();
+    failures += test_symbol_bar_quote_preserves_quoted_colon_in_name();
+    failures += test_symbol_backslash_escape_preserves_colon_in_name();
+    failures += test_quoted_dot_reads_as_symbol();
+    failures += test_escaped_dot_prefixed_symbol_does_not_expand_slot_accessor();
     failures += test_dispatch_boolean_true();
     failures += test_dispatch_boolean_false();
     failures += test_dispatch_nil();

@@ -325,6 +325,101 @@ static LT_String* read_string_literal(LT_Reader* reader, LT_ReaderStream* stream
     );
 }
 
+typedef struct LT_ReadTokenResult_s {
+    char* token;
+    size_t last_unescaped_colon;
+    int has_unescaped_colon;
+    int has_symbol_quoting;
+    int first_char_is_unescaped_colon;
+} LT_ReadTokenResult;
+
+static LT_ReadTokenResult read_token(
+    LT_Reader* reader,
+    int first,
+    LT_ReaderStream* stream
+){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    LT_ReadTokenResult result = {0};
+    int ch = first;
+    int in_bar_quote = 0;
+
+    while (1){
+        if (in_bar_quote){
+            if (ch == EOF){
+                reader_incomplete_input(reader, "Unterminated |...| symbol quote");
+            }
+            if (ch == '\\'){
+                int escaped = reader_getc(reader, stream);
+
+                if (escaped == EOF){
+                    reader_incomplete_input(
+                        reader,
+                        "Unterminated escape sequence in symbol token"
+                    );
+                }
+                LT_StringBuilder_append_char(builder, (char)escaped);
+                result.has_symbol_quoting = 1;
+                ch = reader_getc(reader, stream);
+                continue;
+            }
+            if (ch == '|'){
+                result.has_symbol_quoting = 1;
+                in_bar_quote = 0;
+                ch = reader_getc(reader, stream);
+                continue;
+            }
+
+            LT_StringBuilder_append_char(builder, (char)ch);
+            ch = reader_getc(reader, stream);
+            continue;
+        }
+
+        if (ch == '\\'){
+            int escaped = reader_getc(reader, stream);
+
+            if (escaped == EOF){
+                reader_incomplete_input(
+                    reader,
+                    "Unterminated escape sequence in symbol token"
+                );
+            }
+            LT_StringBuilder_append_char(builder, (char)escaped);
+            result.has_symbol_quoting = 1;
+            ch = reader_getc(reader, stream);
+            continue;
+        }
+
+        if (ch == '|'){
+            result.has_symbol_quoting = 1;
+            in_bar_quote = 1;
+            ch = reader_getc(reader, stream);
+            continue;
+        }
+
+        if (is_delimiter(ch)){
+            break;
+        }
+
+        if (ch == ':'){
+            result.last_unescaped_colon = LT_StringBuilder_length(builder);
+            result.has_unescaped_colon = 1;
+            if (LT_StringBuilder_length(builder) == 0){
+                result.first_char_is_unescaped_colon = 1;
+            }
+        }
+
+        LT_StringBuilder_append_char(builder, (char)ch);
+        ch = reader_getc(reader, stream);
+    }
+
+    if (ch != EOF){
+        reader_ungetc(reader, stream, ch);
+    }
+
+    result.token = LT_StringBuilder_value(builder);
+    return result;
+}
+
 static int parse_fixnum_token(const char* token, LT_Value* value){
     char* end = NULL;
     long long parsed;
@@ -375,8 +470,44 @@ static int parse_float_token(const char* token, LT_Value* value){
     return 1;
 }
 
-static LT_Value parse_symbol_token(char* token){
-    return LT_Symbol_parse_token(token);
+static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_result){
+    char* token = token_result.token;
+
+    if (token[0] == '\0'){
+        LT_error("Symbol token must not be empty");
+    }
+
+    if (token_result.first_char_is_unescaped_colon){
+        if (token[1] == '\0'){
+            LT_error("Keyword symbol must not be empty");
+        }
+        return LT_Symbol_new_in(LT_PACKAGE_KEYWORD, token + 1);
+    }
+
+    if (!token_result.has_unescaped_colon){
+        return LT_Package_intern_symbol(LT_get_current_package(), token);
+    }
+
+    if (token[token_result.last_unescaped_colon + 1] == '\0'){
+        LT_error("Package-prefixed symbol must have non-empty name");
+    }
+
+    {
+        size_t package_len = token_result.last_unescaped_colon;
+        char* package_name = GC_MALLOC_ATOMIC(package_len + 1);
+        LT_Package* package;
+
+        memcpy(package_name, token, package_len);
+        package_name[package_len] = '\0';
+        package = LT_Package_resolve_used_package(
+            LT_get_current_package(),
+            package_name
+        );
+        if (package == NULL){
+            package = LT_Package_new(package_name);
+        }
+        return LT_Symbol_new_in(package, token + token_result.last_unescaped_colon + 1);
+    }
 }
 
 static LT_Value expand_self_slot_accessor(char* token){
@@ -394,37 +525,30 @@ static LT_Value expand_self_slot_accessor(char* token){
 }
 
 static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream){
-    LT_StringBuilder* builder = LT_StringBuilder_new();
+    LT_ReadTokenResult token_result = read_token(reader, first, stream);
     LT_Value value;
     LT_Value expanded;
-    int ch = first;
+    char* token = token_result.token;
 
-    while (!is_delimiter(ch)){
-        LT_StringBuilder_append_char(builder, ch);
-        ch = reader_getc(reader, stream);
-    }
-
-    if (ch != EOF){
-        reader_ungetc(reader, stream, ch);
-    }
-
-    if (strcmp(LT_StringBuilder_value(builder), ".") == 0){
+    if (!token_result.has_symbol_quoting && strcmp(token, ".") == 0){
         reader_error(reader, "Unexpected dot");
     }
 
-    if (parse_fixnum_token(LT_StringBuilder_value(builder), &value)){
+    if (!token_result.has_symbol_quoting && parse_fixnum_token(token, &value)){
         return value;
     }
-    if (parse_float_token(LT_StringBuilder_value(builder), &value)){
+    if (!token_result.has_symbol_quoting && parse_float_token(token, &value)){
         return value;
     }
 
-    expanded = expand_self_slot_accessor(LT_StringBuilder_value(builder));
-    if (expanded != 0){
-        return expanded;
+    if (!token_result.has_symbol_quoting){
+        expanded = expand_self_slot_accessor(token);
+        if (expanded != 0){
+            return expanded;
+        }
     }
 
-    return parse_symbol_token(LT_StringBuilder_value(builder));
+    return parse_symbol_token_from_reader_token(token_result);
 }
 
 static void consume_dispatch_suffix_or_short(
@@ -731,19 +855,7 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
 }
 
 static char* read_token_string(LT_Reader* reader, int first, LT_ReaderStream* stream){
-    LT_StringBuilder* builder = LT_StringBuilder_new();
-    int ch = first;
-
-    while (!is_delimiter(ch)){
-        LT_StringBuilder_append_char(builder, (char)ch);
-        ch = reader_getc(reader, stream);
-    }
-
-    if (ch != EOF){
-        reader_ungetc(reader, stream, ch);
-    }
-
-    return LT_StringBuilder_value(builder);
+    return read_token(reader, first, stream).token;
 }
 
 static int token_ends_with_colon(char* token){
