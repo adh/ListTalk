@@ -3,8 +3,9 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include "BigInteger_internal.h"
+
 #include <ListTalk/classes/Number.h>
-#include <ListTalk/classes/BigInteger.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/SmallFraction.h>
@@ -16,16 +17,8 @@
 #include <math.h>
 #include <string.h>
 
-typedef __int128 LT_Int128;
-typedef unsigned __int128 LT_UInt128;
-
 struct LT_Number_s {
     LT_Object base;
-};
-
-struct LT_BigInteger_s {
-    LT_Object base;
-    LT_Int128 value;
 };
 
 struct LT_Fraction_s {
@@ -35,8 +28,8 @@ struct LT_Fraction_s {
 };
 
 typedef struct LT_ExactRational_s {
-    LT_Int128 numerator;
-    LT_UInt128 denominator;
+    LT_Value numerator;
+    LT_Value denominator;
 } LT_ExactRational;
 
 static size_t hash_uint64(uint64_t value){
@@ -52,28 +45,8 @@ static int Number_class_equal_p(LT_Value left, LT_Value right){
     return LT_Number_equal_p(left, right);
 }
 
-static LT_UInt128 uabs_i128(LT_Int128 value){
-    if (value < 0){
-        return (LT_UInt128)(-(value + 1)) + 1;
-    }
-    return (LT_UInt128)value;
-}
-
-static LT_Int128 i128_from_u128(LT_UInt128 value){
-    LT_UInt128 min_magnitude = (LT_UInt128)1 << 127;
-
-    if (value == min_magnitude){
-        return (((LT_Int128)1) << 126) * (-2);
-    }
-    return (LT_Int128)value;
-}
-
-static LT_Int128 big_integer_value(LT_Value value){
-    return LT_BigInteger_from_value(value)->value;
-}
-
 static bool value_is_exact_integer(LT_Value value){
-    return LT_Value_is_fixnum(value) || LT_BigInteger_p(value);
+    return LT_Integer_p(value);
 }
 
 static bool value_is_exact_number(LT_Value value){
@@ -82,205 +55,144 @@ static bool value_is_exact_number(LT_Value value){
         || LT_Fraction_p(value);
 }
 
-static LT_Int128 integer_value_i128(LT_Value value){
-    if (LT_Value_is_fixnum(value)){
-        return (LT_Int128)LT_SmallInteger_value(value);
-    }
-    if (LT_BigInteger_p(value)){
-        return big_integer_value(value);
-    }
+static LT_Value exact_integer_divide(LT_Value dividend, LT_Value divisor){
+    LT_Value quotient;
+    LT_Value remainder;
 
-    LT_type_error(value, &LT_Number_class);
-    return 0;
+    LT_Integer_divmod(dividend, divisor, &quotient, &remainder);
+    if (!LT_Integer_is_zero(remainder)){
+        LT_error("Expected exact integer division");
+    }
+    return quotient;
 }
 
-static LT_UInt128 gcd_u128(LT_UInt128 left, LT_UInt128 right){
-    while (right != 0){
-        LT_UInt128 remainder = left % right;
-        left = right;
-        right = remainder;
-    }
-    return left;
-}
-
-static LT_Value make_integer_i128(LT_Int128 value){
-    LT_BigInteger* integer;
-
-    if (value >= (LT_Int128)LT_VALUE_FIXNUM_MIN
-        && value <= (LT_Int128)LT_VALUE_FIXNUM_MAX){
-        return LT_SmallInteger_new((int64_t)value);
-    }
-
-    integer = LT_Class_ALLOC(LT_BigInteger);
-    integer->value = value;
-    return (LT_Value)(uintptr_t)integer;
-}
-
-static LT_Value make_fraction_i128(LT_Int128 numerator, LT_UInt128 denominator){
-    LT_UInt128 divisor;
+static LT_Value make_fraction(LT_Value numerator, LT_Value denominator){
+    LT_Value divisor;
     LT_Fraction* fraction;
-    LT_Value canonical_numerator;
-    LT_Value canonical_denominator;
+    int64_t small_numerator;
+    uint32_t small_denominator;
 
-    if (denominator == 0){
+    if (LT_Integer_is_zero(denominator)){
         LT_error("Division by zero");
     }
-    if (numerator == 0){
+    if (LT_Integer_is_zero(numerator)){
         return LT_SmallInteger_new(0);
     }
-
-    divisor = gcd_u128(uabs_i128(numerator), denominator);
-    numerator /= i128_from_u128(divisor);
-    denominator /= divisor;
-
-    if (denominator == 1){
-        return make_integer_i128(numerator);
+    if (LT_Integer_negative_p(denominator)){
+        numerator = LT_Integer_negate(numerator);
+        denominator = LT_Integer_negate(denominator);
     }
 
-    if (denominator <= (LT_UInt128)LT_SMALL_FRACTION_DENOMINATOR_MAX
-        && numerator >= (LT_Int128)LT_SMALL_FRACTION_NUMERATOR_MIN
-        && numerator <= (LT_Int128)LT_SMALL_FRACTION_NUMERATOR_MAX){
-        return LT_SmallFraction_new((int64_t)numerator, (uint32_t)denominator);
+    divisor = LT_Integer_gcd(LT_Integer_abs(numerator), denominator);
+    numerator = exact_integer_divide(numerator, divisor);
+    denominator = exact_integer_divide(denominator, divisor);
+
+    if (LT_Integer_compare(denominator, LT_SmallInteger_new(1)) == 0){
+        return numerator;
+    }
+    if (LT_Integer_to_int64(numerator, &small_numerator)
+        && LT_Integer_to_uint32(denominator, &small_denominator)
+        && LT_SmallFraction_in_range(small_numerator, small_denominator)){
+        return LT_SmallFraction_new(small_numerator, small_denominator);
     }
 
-    canonical_numerator = make_integer_i128(numerator);
-    canonical_denominator = make_integer_i128((LT_Int128)denominator);
     fraction = LT_Class_ALLOC(LT_Fraction);
-    fraction->numerator = canonical_numerator;
-    fraction->denominator = canonical_denominator;
+    fraction->numerator = numerator;
+    fraction->denominator = denominator;
     return (LT_Value)(uintptr_t)fraction;
 }
 
 static LT_ExactRational exact_rational_from_value(LT_Value value){
     LT_ExactRational result;
 
-    if (LT_Value_is_fixnum(value)){
-        result.numerator = (LT_Int128)LT_SmallInteger_value(value);
-        result.denominator = 1;
-        return result;
-    }
-    if (LT_BigInteger_p(value)){
-        result.numerator = big_integer_value(value);
-        result.denominator = 1;
+    if (LT_Integer_p(value)){
+        result.numerator = value;
+        result.denominator = LT_SmallInteger_new(1);
         return result;
     }
     if (LT_SmallFraction_p(value)){
-        result.numerator = (LT_Int128)LT_SmallFraction_numerator(value);
-        result.denominator = (LT_UInt128)LT_SmallFraction_denominator(value);
+        result.numerator = LT_SmallInteger_new(LT_SmallFraction_numerator(value));
+        result.denominator = LT_SmallInteger_new((int64_t)LT_SmallFraction_denominator(value));
         return result;
     }
     if (LT_Fraction_p(value)){
-        result.numerator = integer_value_i128(LT_Fraction_numerator(value));
-        result.denominator = (LT_UInt128)integer_value_i128(
-            LT_Fraction_denominator(value)
-        );
+        result.numerator = LT_Fraction_numerator(value);
+        result.denominator = LT_Fraction_denominator(value);
         return result;
     }
 
     LT_type_error(value, &LT_Number_class);
-    result.numerator = 0;
-    result.denominator = 1;
+    result.numerator = LT_SmallInteger_new(0);
+    result.denominator = LT_SmallInteger_new(1);
     return result;
 }
 
 static double exact_to_double(LT_Value value){
     LT_ExactRational rational = exact_rational_from_value(value);
-    return (double)rational.numerator / (double)rational.denominator;
+    return LT_Integer_to_double(rational.numerator)
+        / LT_Integer_to_double(rational.denominator);
 }
 
 static LT_Value checked_exact_add(LT_Value left, LT_Value right){
     LT_ExactRational lhs = exact_rational_from_value(left);
     LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Int128 numerator;
-    LT_UInt128 denominator;
-    LT_Int128 left_scaled;
-    LT_Int128 right_scaled;
+    LT_Value left_scaled = LT_Integer_multiply(lhs.numerator, rhs.denominator);
+    LT_Value right_scaled = LT_Integer_multiply(rhs.numerator, lhs.denominator);
+    LT_Value numerator = LT_Integer_add(left_scaled, right_scaled);
+    LT_Value denominator = LT_Integer_multiply(lhs.denominator, rhs.denominator);
 
-    if (__builtin_mul_overflow(lhs.numerator, i128_from_u128(rhs.denominator), &left_scaled)
-        || __builtin_mul_overflow(rhs.numerator, i128_from_u128(lhs.denominator), &right_scaled)
-        || __builtin_add_overflow(left_scaled, right_scaled, &numerator)){
-        LT_error("Exact arithmetic overflow");
-    }
-
-    denominator = lhs.denominator * rhs.denominator;
-    return make_fraction_i128(numerator, denominator);
+    return make_fraction(numerator, denominator);
 }
 
 static LT_Value checked_exact_subtract(LT_Value left, LT_Value right){
     LT_ExactRational lhs = exact_rational_from_value(left);
     LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Int128 numerator;
-    LT_UInt128 denominator;
-    LT_Int128 left_scaled;
-    LT_Int128 right_scaled;
+    LT_Value left_scaled = LT_Integer_multiply(lhs.numerator, rhs.denominator);
+    LT_Value right_scaled = LT_Integer_multiply(rhs.numerator, lhs.denominator);
+    LT_Value numerator = LT_Integer_subtract(left_scaled, right_scaled);
+    LT_Value denominator = LT_Integer_multiply(lhs.denominator, rhs.denominator);
 
-    if (__builtin_mul_overflow(lhs.numerator, i128_from_u128(rhs.denominator), &left_scaled)
-        || __builtin_mul_overflow(rhs.numerator, i128_from_u128(lhs.denominator), &right_scaled)
-        || __builtin_sub_overflow(left_scaled, right_scaled, &numerator)){
-        LT_error("Exact arithmetic overflow");
-    }
-
-    denominator = lhs.denominator * rhs.denominator;
-    return make_fraction_i128(numerator, denominator);
+    return make_fraction(numerator, denominator);
 }
 
 static LT_Value checked_exact_multiply(LT_Value left, LT_Value right){
     LT_ExactRational lhs = exact_rational_from_value(left);
     LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Int128 numerator;
-    LT_UInt128 denominator;
+    LT_Value numerator = LT_Integer_multiply(lhs.numerator, rhs.numerator);
+    LT_Value denominator = LT_Integer_multiply(lhs.denominator, rhs.denominator);
 
-    if (__builtin_mul_overflow(lhs.numerator, rhs.numerator, &numerator)){
-        LT_error("Exact arithmetic overflow");
-    }
-    denominator = lhs.denominator * rhs.denominator;
-    return make_fraction_i128(numerator, denominator);
+    return make_fraction(numerator, denominator);
 }
 
 static LT_Value checked_exact_divide(LT_Value left, LT_Value right){
     LT_ExactRational lhs = exact_rational_from_value(left);
     LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Int128 numerator;
-    LT_UInt128 denominator;
-    LT_Int128 rhs_numerator = rhs.numerator;
+    LT_Value numerator;
+    LT_Value denominator;
 
-    if (rhs_numerator == 0){
+    if (LT_Integer_is_zero(rhs.numerator)){
         LT_error("Division by zero");
     }
-    if (rhs_numerator < 0){
-        lhs.numerator = -lhs.numerator;
-        rhs_numerator = -rhs_numerator;
-    }
 
-    if (__builtin_mul_overflow(lhs.numerator, i128_from_u128(rhs.denominator), &numerator)){
-        LT_error("Exact arithmetic overflow");
-    }
-    denominator = lhs.denominator * (LT_UInt128)rhs_numerator;
-    return make_fraction_i128(numerator, denominator);
+    numerator = LT_Integer_multiply(lhs.numerator, rhs.denominator);
+    denominator = LT_Integer_multiply(lhs.denominator, rhs.numerator);
+    return make_fraction(numerator, denominator);
 }
 
 static LT_Value checked_exact_negate(LT_Value value){
     LT_ExactRational rational = exact_rational_from_value(value);
-    LT_Int128 numerator;
-
-    if (__builtin_sub_overflow((LT_Int128)0, rational.numerator, &numerator)){
-        LT_error("Exact arithmetic overflow");
-    }
-    return make_fraction_i128(numerator, rational.denominator);
+    return make_fraction(LT_Integer_negate(rational.numerator), rational.denominator);
 }
 
 static size_t exact_number_hash(LT_Value value){
     LT_ExactRational rational = exact_rational_from_value(value);
 
-    if (rational.denominator == 1){
-        return hash_uint64((uint64_t)rational.numerator)
-            ^ (hash_uint64((uint64_t)(rational.numerator >> 64)) << 1);
+    if (LT_Integer_compare(rational.denominator, LT_SmallInteger_new(1)) == 0){
+        return LT_Integer_hash(rational.numerator);
     }
 
-    return hash_uint64((uint64_t)rational.numerator)
-        ^ (hash_uint64((uint64_t)(rational.numerator >> 64)) << 1)
-        ^ (hash_uint64((uint64_t)rational.denominator) << 2)
-        ^ (hash_uint64((uint64_t)(rational.denominator >> 64)) << 3);
+    return LT_Integer_hash(rational.numerator)
+        ^ (LT_Integer_hash(rational.denominator) << 1);
 }
 
 static size_t Number_class_hash(LT_Value value){
@@ -322,57 +234,24 @@ LT_DEFINE_CLASS(LT_Number) {
         | LT_CLASS_FLAG_SCALAR,
 };
 
-static bool parse_integer_token_i128(const char* token, LT_Int128* value){
+int LT_Number_parse_integer_token(const char* token, LT_Value* value){
     const char* cursor = token;
-    LT_UInt128 magnitude = 0;
-    LT_UInt128 limit;
-    int negative = 0;
 
     if (*cursor == '+' || *cursor == '-'){
-        negative = *cursor == '-';
         cursor++;
     }
-
     if (*cursor == '\0'){
-        return false;
-    }
-
-    limit = negative ? ((LT_UInt128)1 << 127) : (((LT_UInt128)1 << 127) - 1);
-    while (*cursor != '\0'){
-        unsigned char ch = (unsigned char)*cursor;
-
-        if (ch < '0' || ch > '9'){
-            return false;
-        }
-        if (magnitude > (limit - (LT_UInt128)(ch - '0')) / 10){
-            LT_error("Integer literal out of range");
-        }
-        magnitude = magnitude * 10 + (LT_UInt128)(ch - '0');
-        cursor++;
-    }
-
-    if (!negative){
-        *value = (LT_Int128)magnitude;
-        return true;
-    }
-
-    if (magnitude == ((LT_UInt128)1 << 127)){
-        *value = (((LT_Int128)1) << 126) * (-2);
-        return true;
-    }
-
-    *value = -(LT_Int128)magnitude;
-    return true;
-}
-
-int LT_Number_parse_integer_token(const char* token, LT_Value* value){
-    LT_Int128 parsed;
-
-    if (!parse_integer_token_i128(token, &parsed)){
         return 0;
     }
 
-    *value = make_integer_i128(parsed);
+    while (*cursor != '\0'){
+        if (*cursor < '0' || *cursor > '9'){
+            return 0;
+        }
+        cursor++;
+    }
+
+    *value = LT_BigInteger_new_from_digits(token);
     return 1;
 }
 
@@ -381,8 +260,8 @@ int LT_Number_parse_fraction_token(const char* token, LT_Value* value){
     char* numerator_token;
     char* denominator_token;
     size_t numerator_length;
-    LT_Int128 numerator;
-    LT_Int128 denominator;
+    LT_Value numerator;
+    LT_Value denominator;
 
     if (slash == NULL || strchr(slash + 1, '/') != NULL){
         return 0;
@@ -399,65 +278,13 @@ int LT_Number_parse_fraction_token(const char* token, LT_Value* value){
     denominator_token = GC_MALLOC_ATOMIC(strlen(slash + 1) + 1);
     strcpy(denominator_token, slash + 1);
 
-    if (!parse_integer_token_i128(numerator_token, &numerator)
-        || !parse_integer_token_i128(denominator_token, &denominator)){
+    if (!LT_Number_parse_integer_token(numerator_token, &numerator)
+        || !LT_Number_parse_integer_token(denominator_token, &denominator)){
         return 0;
     }
 
-    if (denominator == 0){
-        LT_error("Division by zero");
-    }
-    if (denominator < 0){
-        numerator = -numerator;
-        denominator = -denominator;
-    }
-
-    *value = make_fraction_i128(numerator, (LT_UInt128)denominator);
+    *value = make_fraction(numerator, denominator);
     return 1;
-}
-
-char* LT_BigInteger_to_decimal_cstr(LT_Value value){
-    LT_Int128 integer;
-    LT_UInt128 magnitude;
-    char* buffer;
-    size_t index = 0;
-    int negative = 0;
-
-    if (!LT_BigInteger_p(value)){
-        LT_type_error(value, &LT_BigInteger_class);
-    }
-
-    integer = big_integer_value(value);
-    magnitude = uabs_i128(integer);
-    negative = integer < 0;
-    buffer = GC_MALLOC_ATOMIC(64);
-
-    do {
-        buffer[index++] = (char)('0' + (int)(magnitude % 10));
-        magnitude /= 10;
-    } while (magnitude != 0);
-
-    if (negative){
-        buffer[index++] = '-';
-    }
-    buffer[index] = '\0';
-
-    for (size_t left = 0, right = index - 1; left < right; left++, right--){
-        char tmp = buffer[left];
-        buffer[left] = buffer[right];
-        buffer[right] = tmp;
-    }
-
-    return buffer;
-}
-
-LT_Value LT_BigInteger_new_from_digits(const char* digits){
-    LT_Value value;
-
-    if (!LT_Number_parse_integer_token(digits, &value)){
-        LT_error("Invalid integer literal");
-    }
-    return value;
 }
 
 LT_Value LT_Fraction_numerator(LT_Value value){
@@ -472,7 +299,9 @@ bool LT_Number_equal_p(LT_Value left, LT_Value right){
     if (value_is_exact_number(left) && value_is_exact_number(right)){
         LT_ExactRational lhs = exact_rational_from_value(left);
         LT_ExactRational rhs = exact_rational_from_value(right);
-        return lhs.numerator == rhs.numerator && lhs.denominator == rhs.denominator;
+
+        return LT_Integer_compare(lhs.numerator, rhs.numerator) == 0
+            && LT_Integer_compare(lhs.denominator, rhs.denominator) == 0;
     }
 
     if (LT_Float_p(left) && LT_Float_p(right)){

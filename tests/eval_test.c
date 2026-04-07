@@ -204,14 +204,17 @@ static int test_integer_divide_still_fixnum(void){
 }
 
 static int test_fixnum_overflow_promotes_to_big_integer(void){
-    LT_Value value = eval_one("(+ 36028797018963967 1)");
+    LT_Value value = eval_one("(+ 340282366920938463463374607431768211456 1)");
     char* printed;
 
     if (expect(LT_Value_class(value) == &LT_BigInteger_class, "overflow promotes to big integer")){
         return 1;
     }
     printed = debug_string_for_value(value);
-    return expect(strcmp(printed, "36028797018963968") == 0, "big integer value");
+    return expect(
+        strcmp(printed, "340282366920938463463374607431768211457") == 0,
+        "big integer value"
+    );
 }
 
 static int test_fraction_addition_is_reduced(void){
@@ -222,6 +225,22 @@ static int test_fraction_addition_is_reduced(void){
             && LT_SmallFraction_numerator(value) == 5
             && LT_SmallFraction_denominator(value) == 6,
         "fraction addition stays reduced"
+    );
+}
+
+static int test_big_integer_multiplication_beyond_int128(void){
+    LT_Value value = eval_one(
+        "(* 18446744073709551616 18446744073709551616)"
+    );
+    char* printed;
+
+    if (expect(LT_Value_class(value) == &LT_BigInteger_class, "large multiplication returns big integer")){
+        return 1;
+    }
+    printed = debug_string_for_value(value);
+    return expect(
+        strcmp(printed, "340282366920938463463374607431768211456") == 0,
+        "large multiplication value"
     );
 }
 
@@ -2827,6 +2846,7 @@ int main(void){
     RUN_TEST(test_integer_divide_still_fixnum);
     RUN_TEST(test_fixnum_overflow_promotes_to_big_integer);
     RUN_TEST(test_fraction_addition_is_reduced);
+    RUN_TEST(test_big_integer_multiplication_beyond_int128);
     RUN_TEST(test_fraction_multiplication_canonicalizes_to_integer);
     RUN_TEST(test_symbol_lookup);
     RUN_TEST(test_display_primitive_returns_argument);

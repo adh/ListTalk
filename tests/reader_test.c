@@ -250,7 +250,7 @@ static int test_float_literal(void){
 }
 
 static int test_big_integer_literal(void){
-    LT_Value value = read_one("36028797018963968");
+    LT_Value value = read_one("340282366920938463463374607431768211456");
     char* printed;
 
     if (expect(LT_Value_class(value) == &LT_BigInteger_class, "big integer class")){
@@ -259,7 +259,7 @@ static int test_big_integer_literal(void){
 
     printed = debug_string_for_value(value);
     return expect(
-        strcmp(printed, "36028797018963968") == 0,
+        strcmp(printed, "340282366920938463463374607431768211456") == 0,
         "big integer print"
     );
 }
