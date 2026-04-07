@@ -4,6 +4,9 @@ project('ListTalk', 'c',
 bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
+libm = cc.find_library('m', required : false)
+
+add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 
 listtalk_deps = [bdwgc]
 listtalk_c_args = []
@@ -86,7 +89,7 @@ vm_lib = library(
                 'src/classes/IdentityDictionary.c',
                 'src/classes/Dictionary.c'
         ], 
-        install : true, dependencies : [bdwgc])
+        install : true, dependencies : [bdwgc, libm])
 
 executable(
         'listtalk', 

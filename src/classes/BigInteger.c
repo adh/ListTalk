@@ -28,14 +28,6 @@ typedef struct LT_IntegerRef_s {
     uint32_t small[2];
 } LT_IntegerRef;
 
-static size_t hash_uint64(uint64_t value){
-    value ^= value >> 33;
-    value *= UINT64_C(0xff51afd7ed558ccd);
-    value ^= value >> 33;
-    value *= UINT64_C(0xc4ceb9fe1a85ec53);
-    value ^= value >> 33;
-    return (size_t)value;
-}
 
 static size_t trim_limb_count(size_t limb_count, const uint32_t* limbs){
     while (limb_count > 0 && limbs[limb_count - 1] == 0){
@@ -44,37 +36,34 @@ static size_t trim_limb_count(size_t limb_count, const uint32_t* limbs){
     return limb_count;
 }
 
-static LT_IntegerRef integer_ref(LT_Value value){
-    LT_IntegerRef ref;
-
+static void integer_ref_init(LT_IntegerRef* ref, LT_Value value){
     if (LT_Value_is_fixnum(value)){
         int64_t small = LT_SmallInteger_value(value);
         uint64_t magnitude;
 
-        ref.negative = small < 0;
-        magnitude = ref.negative ? (uint64_t)(-(small + 1)) + 1 : (uint64_t)small;
+        ref->negative = small < 0;
+        magnitude = ref->negative ? (uint64_t)(-(small + 1)) + 1 : (uint64_t)small;
         if (magnitude == 0){
-            ref.limb_count = 0;
+            ref->limb_count = 0;
         } else if ((magnitude >> 32) != 0){
-            ref.small[0] = (uint32_t)magnitude;
-            ref.small[1] = (uint32_t)(magnitude >> 32);
-            ref.limb_count = 2;
+            ref->small[0] = (uint32_t)magnitude;
+            ref->small[1] = (uint32_t)(magnitude >> 32);
+            ref->limb_count = 2;
         } else {
-            ref.small[0] = (uint32_t)magnitude;
-            ref.limb_count = 1;
+            ref->small[0] = (uint32_t)magnitude;
+            ref->limb_count = 1;
         }
-        ref.limbs = ref.small;
-        return ref;
+        ref->limbs = ref->small;
+        return;
     }
 
     if (!LT_BigInteger_p(value)){
         LT_type_error(value, &LT_BigInteger_class);
     }
 
-    ref.negative = LT_BigInteger_from_value(value)->negative != 0;
-    ref.limb_count = LT_BigInteger_from_value(value)->limb_count;
-    ref.limbs = LT_BigInteger_from_value(value)->limbs;
-    return ref;
+    ref->negative = LT_BigInteger_from_value(value)->negative != 0;
+    ref->limb_count = LT_BigInteger_from_value(value)->limb_count;
+    ref->limbs = LT_BigInteger_from_value(value)->limbs;
 }
 
 static int compare_abs_limbs(
@@ -409,11 +398,54 @@ static void divide_abs_values(
     if (divisor_count == 0){
         LT_error("Division by zero");
     }
+
+    dividend_count = trim_limb_count(dividend_count, dividend_limbs);
+    divisor_count = trim_limb_count(divisor_count, divisor_limbs);
+
+    if (divisor_count == 0){
+        LT_error("Division by zero");
+    }
+
+    /* Single-limb divisor: O(n) linear scan with 64-bit arithmetic */
+    if (divisor_count == 1){
+        uint64_t d = divisor_limbs[0];
+        uint64_t rem = 0;
+        size_t i;
+
+        if (dividend_count == 0){
+            *quotient_count = 0;
+            *quotient_limbs = NULL;
+            *remainder_count = 0;
+            *remainder_limbs = NULL;
+            return;
+        }
+
+        quotient = GC_MALLOC_ATOMIC(sizeof(uint32_t) * dividend_count);
+        for (i = dividend_count; i > 0; i--){
+            uint64_t cur = (rem << 32) | dividend_limbs[i - 1];
+            quotient[i - 1] = (uint32_t)(cur / d);
+            rem = cur % d;
+        }
+        *quotient_count = trim_limb_count(dividend_count, quotient);
+        *quotient_limbs = quotient;
+
+        if (rem != 0){
+            uint32_t* rem_limbs = GC_MALLOC_ATOMIC(sizeof(uint32_t));
+            rem_limbs[0] = (uint32_t)rem;
+            *remainder_count = 1;
+            *remainder_limbs = rem_limbs;
+        } else {
+            *remainder_count = 0;
+            *remainder_limbs = NULL;
+        }
+        return;
+    }
+
     if (compare_abs_limbs(dividend_count, dividend_limbs, divisor_count, divisor_limbs) < 0){
         *quotient_count = 0;
         *quotient_limbs = NULL;
-        *remainder_count = trim_limb_count(dividend_count, dividend_limbs);
-        *remainder_limbs = copy_limbs(*remainder_count, dividend_limbs);
+        *remainder_count = dividend_count;
+        *remainder_limbs = copy_limbs(dividend_count, dividend_limbs);
         return;
     }
 
@@ -462,18 +494,28 @@ bool LT_Integer_p(LT_Value value){
 }
 
 bool LT_Integer_is_zero(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    if (LT_Value_is_fixnum(value)){
+        return LT_SmallInteger_value(value) == 0;
+    }
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
     return ref.limb_count == 0;
 }
 
 bool LT_Integer_negative_p(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    if (LT_Value_is_fixnum(value)){
+        return LT_SmallInteger_value(value) < 0;
+    }
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
     return ref.negative && ref.limb_count != 0;
 }
 
 int LT_Integer_compare(LT_Value left, LT_Value right){
-    LT_IntegerRef lhs = integer_ref(left);
-    LT_IntegerRef rhs = integer_ref(right);
+    LT_IntegerRef lhs;
+    integer_ref_init(&lhs, left);
+    LT_IntegerRef rhs;
+    integer_ref_init(&rhs, right);
     int abs_compare;
 
     if (lhs.limb_count == 0 && rhs.limb_count == 0){
@@ -488,7 +530,11 @@ int LT_Integer_compare(LT_Value left, LT_Value right){
 }
 
 size_t LT_Integer_hash(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    if (LT_Value_is_fixnum(value)){
+        return hash_uint64((uint64_t)LT_SmallInteger_value(value));
+    }
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
     size_t hash = ref.negative ? hash_uint64(UINT64_C(0x9e3779b97f4a7c15)) : 0;
     size_t index;
 
@@ -503,7 +549,25 @@ size_t LT_Integer_hash(LT_Value value){
 }
 
 LT_Value LT_Integer_abs(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    if (LT_Value_is_fixnum(value)){
+        int64_t v = LT_SmallInteger_value(value);
+        if (v >= 0){
+            return value;
+        }
+        /* INT64_MIN cannot be negated as a fixnum — it needs a BigInteger.
+           But LT_VALUE_FIXNUM_MIN == -(2^55), so -LT_VALUE_FIXNUM_MIN == 2^55
+           which exceeds LT_VALUE_FIXNUM_MAX (2^55-1). */
+        if (v == LT_VALUE_FIXNUM_MIN){
+            uint32_t limbs[2];
+            uint64_t magnitude = (uint64_t)LT_VALUE_FIXNUM_MAX + 1;
+            limbs[0] = (uint32_t)magnitude;
+            limbs[1] = (uint32_t)(magnitude >> 32);
+            return make_integer_from_limbs(0, 2, limbs);
+        }
+        return LT_SmallInteger_new(-v);
+    }
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
 
     if (!ref.negative){
         return value;
@@ -513,7 +577,24 @@ LT_Value LT_Integer_abs(LT_Value value){
 }
 
 LT_Value LT_Integer_negate(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    if (LT_Value_is_fixnum(value)){
+        int64_t v = LT_SmallInteger_value(value);
+        if (v == 0){
+            return value;
+        }
+        if (v == LT_VALUE_FIXNUM_MIN){
+            uint32_t limbs[2];
+            uint64_t magnitude = (uint64_t)LT_VALUE_FIXNUM_MAX + 1;
+            limbs[0] = (uint32_t)magnitude;
+            limbs[1] = (uint32_t)(magnitude >> 32);
+            return make_integer_from_limbs(0, 2, limbs);
+        }
+        if (LT_SmallInteger_in_range(-v)){
+            return LT_SmallInteger_new(-v);
+        }
+    }
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
 
     if (ref.limb_count == 0){
         return value;
@@ -523,11 +604,25 @@ LT_Value LT_Integer_negate(LT_Value value){
 }
 
 LT_Value LT_Integer_add(LT_Value left, LT_Value right){
-    LT_IntegerRef lhs = integer_ref(left);
-    LT_IntegerRef rhs = integer_ref(right);
+    LT_IntegerRef lhs;
+    integer_ref_init(&lhs, left);
+    LT_IntegerRef rhs;
+    integer_ref_init(&rhs, right);
     size_t result_count;
     uint32_t* result_limbs;
     int compare;
+
+    if (lhs.limb_count <= 2 && rhs.limb_count <= 2){
+        int64_t a, b;
+        if (limbs_fit_fixnum(lhs.negative, lhs.limb_count, lhs.limbs, &a)
+            && limbs_fit_fixnum(rhs.negative, rhs.limb_count, rhs.limbs, &b)){
+            /* Both fit in int64_t; 56-bit fixnums can't overflow int64_t on add */
+            int64_t sum = a + b;
+            if (LT_SmallInteger_in_range(sum)){
+                return LT_SmallInteger_new(sum);
+            }
+        }
+    }
 
     if (lhs.negative == rhs.negative){
         result_limbs = add_abs_limbs(
@@ -566,14 +661,86 @@ LT_Value LT_Integer_add(LT_Value left, LT_Value right){
 }
 
 LT_Value LT_Integer_subtract(LT_Value left, LT_Value right){
-    return LT_Integer_add(left, LT_Integer_negate(right));
+    LT_IntegerRef lhs;
+    integer_ref_init(&lhs, left);
+    LT_IntegerRef rhs;
+    integer_ref_init(&rhs, right);
+    size_t result_count;
+    uint32_t* result_limbs;
+    int compare;
+
+    if (lhs.limb_count <= 2 && rhs.limb_count <= 2){
+        int64_t a, b;
+        if (limbs_fit_fixnum(lhs.negative, lhs.limb_count, lhs.limbs, &a)
+            && limbs_fit_fixnum(rhs.negative, rhs.limb_count, rhs.limbs, &b)){
+            int64_t diff = a - b;
+            if (LT_SmallInteger_in_range(diff)){
+                return LT_SmallInteger_new(diff);
+            }
+        }
+    }
+
+    /* Subtraction is addition with the sign of rhs flipped */
+    if (lhs.negative != rhs.negative){
+        result_limbs = add_abs_limbs(
+            lhs.limb_count,
+            lhs.limbs,
+            rhs.limb_count,
+            rhs.limbs,
+            &result_count
+        );
+        return make_integer_from_limbs(lhs.negative, result_count, result_limbs);
+    }
+
+    compare = compare_abs_limbs(lhs.limb_count, lhs.limbs, rhs.limb_count, rhs.limbs);
+    if (compare == 0){
+        return LT_SmallInteger_new(0);
+    }
+    if (compare > 0){
+        result_limbs = subtract_abs_limbs(
+            lhs.limb_count,
+            lhs.limbs,
+            rhs.limb_count,
+            rhs.limbs,
+            &result_count
+        );
+        return make_integer_from_limbs(lhs.negative, result_count, result_limbs);
+    }
+
+    result_limbs = subtract_abs_limbs(
+        rhs.limb_count,
+        rhs.limbs,
+        lhs.limb_count,
+        lhs.limbs,
+        &result_count
+    );
+    return make_integer_from_limbs(!rhs.negative, result_count, result_limbs);
 }
 
 LT_Value LT_Integer_multiply(LT_Value left, LT_Value right){
-    LT_IntegerRef lhs = integer_ref(left);
-    LT_IntegerRef rhs = integer_ref(right);
+    LT_IntegerRef lhs;
+    integer_ref_init(&lhs, left);
+    LT_IntegerRef rhs;
+    integer_ref_init(&rhs, right);
     size_t result_count;
     uint32_t* result_limbs;
+
+    if (lhs.limb_count == 0 || rhs.limb_count == 0){
+        return LT_SmallInteger_new(0);
+    }
+
+    if (lhs.limb_count == 1 && rhs.limb_count == 1){
+        uint64_t product = (uint64_t)lhs.limbs[0] * (uint64_t)rhs.limbs[0];
+        int negative = lhs.negative != rhs.negative;
+        int64_t small_value;
+        uint32_t limbs[2];
+        limbs[0] = (uint32_t)product;
+        limbs[1] = (uint32_t)(product >> 32);
+        if (limbs_fit_fixnum(negative, 2, limbs, &small_value)){
+            return LT_SmallInteger_new(small_value);
+        }
+        return make_integer_from_limbs(negative, limbs[1] ? 2 : 1, limbs);
+    }
 
     result_limbs = multiply_abs_limbs(
         lhs.limb_count,
@@ -591,8 +758,10 @@ void LT_Integer_divmod(
     LT_Value* quotient,
     LT_Value* remainder
 ){
-    LT_IntegerRef lhs = integer_ref(dividend);
-    LT_IntegerRef rhs = integer_ref(divisor);
+    LT_IntegerRef lhs;
+    integer_ref_init(&lhs, dividend);
+    LT_IntegerRef rhs;
+    integer_ref_init(&rhs, divisor);
     size_t quotient_count;
     size_t remainder_count;
     uint32_t* quotient_limbs;
@@ -621,6 +790,19 @@ LT_Value LT_Integer_gcd(LT_Value left, LT_Value right){
     LT_Value a = LT_Integer_abs(left);
     LT_Value b = LT_Integer_abs(right);
 
+    /* Fast path: both fit in int64_t — use plain 64-bit Euclidean algorithm */
+    if (LT_Value_is_fixnum(a) && LT_Value_is_fixnum(b)){
+        int64_t x = LT_SmallInteger_value(a);
+        int64_t y = LT_SmallInteger_value(b);
+
+        while (y != 0){
+            int64_t t = y;
+            y = x % y;
+            x = t;
+        }
+        return LT_SmallInteger_new(x);
+    }
+
     while (!LT_Integer_is_zero(b)){
         LT_Value quotient;
         LT_Value remainder;
@@ -629,13 +811,27 @@ LT_Value LT_Integer_gcd(LT_Value left, LT_Value right){
         (void)quotient;
         a = b;
         b = LT_Integer_abs(remainder);
+
+        /* Drop back to the fast path as soon as both fit in a fixnum */
+        if (LT_Value_is_fixnum(a) && LT_Value_is_fixnum(b)){
+            int64_t x = LT_SmallInteger_value(a);
+            int64_t y = LT_SmallInteger_value(b);
+
+            while (y != 0){
+                int64_t t = y;
+                y = x % y;
+                x = t;
+            }
+            return LT_SmallInteger_new(x);
+        }
     }
 
     return a;
 }
 
 bool LT_Integer_to_int64(LT_Value value, int64_t* result){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
     uint64_t magnitude = 0;
 
     if (ref.limb_count > 2){
@@ -669,7 +865,8 @@ bool LT_Integer_to_int64(LT_Value value, int64_t* result){
 }
 
 bool LT_Integer_to_uint32(LT_Value value, uint32_t* result){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
 
     if (ref.negative || ref.limb_count > 1){
         return false;
@@ -684,7 +881,8 @@ bool LT_Integer_to_uint32(LT_Value value, uint32_t* result){
 }
 
 double LT_Integer_to_double(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
     double result = 0.0;
     size_t index;
 
@@ -693,6 +891,32 @@ double LT_Integer_to_double(LT_Value value){
     }
 
     return ref.negative ? -result : result;
+}
+
+/* Multiply a non-negative integer by a small constant (fits in uint32_t).
+   Uses a single O(n) carry loop instead of the full two-dimensional
+   multiply_abs_limbs. */
+static LT_Value integer_multiply_by_small(LT_Value value, uint32_t factor){
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
+    uint32_t* result;
+    size_t result_count;
+    size_t index;
+    uint64_t carry = 0;
+
+    if (ref.limb_count == 0 || factor == 0){
+        return LT_SmallInteger_new(0);
+    }
+
+    result = GC_MALLOC_ATOMIC(sizeof(uint32_t) * (ref.limb_count + 1));
+    for (index = 0; index < ref.limb_count; index++){
+        uint64_t product = (uint64_t)ref.limbs[index] * factor + carry;
+        result[index] = (uint32_t)product;
+        carry = product >> 32;
+    }
+    result[ref.limb_count] = (uint32_t)carry;
+    result_count = trim_limb_count(ref.limb_count + 1, result);
+    return make_integer_from_limbs(ref.negative, result_count, result);
 }
 
 LT_Value LT_BigInteger_new_from_digits(const char* digits){
@@ -715,7 +939,7 @@ LT_Value LT_BigInteger_new_from_digits(const char* digits){
             LT_error("Invalid integer literal");
         }
 
-        result = LT_Integer_multiply(result, LT_SmallInteger_new(10));
+        result = integer_multiply_by_small(result, 10);
         result = LT_Integer_add(result, LT_SmallInteger_new((int64_t)(ch - '0')));
         cursor++;
     }
@@ -728,7 +952,8 @@ LT_Value LT_BigInteger_new_from_digits(const char* digits){
 }
 
 char* LT_BigInteger_to_decimal_cstr(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
     uint32_t* limbs;
     size_t limb_count;
     uint32_t* chunks;

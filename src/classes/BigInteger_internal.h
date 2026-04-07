@@ -10,6 +10,17 @@
 #include <ListTalk/classes/SmallInteger.h>
 
 #include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+
+static inline size_t hash_uint64(uint64_t value){
+    value ^= value >> 33;
+    value *= UINT64_C(0xff51afd7ed558ccd);
+    value ^= value >> 33;
+    value *= UINT64_C(0xc4ceb9fe1a85ec53);
+    value ^= value >> 33;
+    return (size_t)value;
+}
 
 bool LT_Integer_p(LT_Value value);
 bool LT_Integer_is_zero(LT_Value value);
