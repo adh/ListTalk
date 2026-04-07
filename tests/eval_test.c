@@ -3,6 +3,8 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Character.h>

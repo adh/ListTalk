@@ -44,37 +44,34 @@ static size_t trim_limb_count(size_t limb_count, const uint32_t* limbs){
     return limb_count;
 }
 
-static LT_IntegerRef integer_ref(LT_Value value){
-    LT_IntegerRef ref;
-
+static void integer_ref_init(LT_IntegerRef* ref, LT_Value value){
     if (LT_Value_is_fixnum(value)){
         int64_t small = LT_SmallInteger_value(value);
         uint64_t magnitude;
 
-        ref.negative = small < 0;
-        magnitude = ref.negative ? (uint64_t)(-(small + 1)) + 1 : (uint64_t)small;
+        ref->negative = small < 0;
+        magnitude = ref->negative ? (uint64_t)(-(small + 1)) + 1 : (uint64_t)small;
         if (magnitude == 0){
-            ref.limb_count = 0;
+            ref->limb_count = 0;
         } else if ((magnitude >> 32) != 0){
-            ref.small[0] = (uint32_t)magnitude;
-            ref.small[1] = (uint32_t)(magnitude >> 32);
-            ref.limb_count = 2;
+            ref->small[0] = (uint32_t)magnitude;
+            ref->small[1] = (uint32_t)(magnitude >> 32);
+            ref->limb_count = 2;
         } else {
-            ref.small[0] = (uint32_t)magnitude;
-            ref.limb_count = 1;
+            ref->small[0] = (uint32_t)magnitude;
+            ref->limb_count = 1;
         }
-        ref.limbs = ref.small;
-        return ref;
+        ref->limbs = ref->small;
+        return;
     }
 
     if (!LT_BigInteger_p(value)){
         LT_type_error(value, &LT_BigInteger_class);
     }
 
-    ref.negative = LT_BigInteger_from_value(value)->negative != 0;
-    ref.limb_count = LT_BigInteger_from_value(value)->limb_count;
-    ref.limbs = LT_BigInteger_from_value(value)->limbs;
-    return ref;
+    ref->negative = LT_BigInteger_from_value(value)->negative != 0;
+    ref->limb_count = LT_BigInteger_from_value(value)->limb_count;
+    ref->limbs = LT_BigInteger_from_value(value)->limbs;
 }
 
 static int compare_abs_limbs(
@@ -462,18 +459,18 @@ bool LT_Integer_p(LT_Value value){
 }
 
 bool LT_Integer_is_zero(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
     return ref.limb_count == 0;
 }
 
 bool LT_Integer_negative_p(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
     return ref.negative && ref.limb_count != 0;
 }
 
 int LT_Integer_compare(LT_Value left, LT_Value right){
-    LT_IntegerRef lhs = integer_ref(left);
-    LT_IntegerRef rhs = integer_ref(right);
+    LT_IntegerRef lhs; integer_ref_init(&lhs, left);
+    LT_IntegerRef rhs; integer_ref_init(&rhs, right);
     int abs_compare;
 
     if (lhs.limb_count == 0 && rhs.limb_count == 0){
@@ -488,7 +485,7 @@ int LT_Integer_compare(LT_Value left, LT_Value right){
 }
 
 size_t LT_Integer_hash(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
     size_t hash = ref.negative ? hash_uint64(UINT64_C(0x9e3779b97f4a7c15)) : 0;
     size_t index;
 
@@ -503,7 +500,7 @@ size_t LT_Integer_hash(LT_Value value){
 }
 
 LT_Value LT_Integer_abs(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
 
     if (!ref.negative){
         return value;
@@ -513,7 +510,7 @@ LT_Value LT_Integer_abs(LT_Value value){
 }
 
 LT_Value LT_Integer_negate(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
 
     if (ref.limb_count == 0){
         return value;
@@ -523,8 +520,8 @@ LT_Value LT_Integer_negate(LT_Value value){
 }
 
 LT_Value LT_Integer_add(LT_Value left, LT_Value right){
-    LT_IntegerRef lhs = integer_ref(left);
-    LT_IntegerRef rhs = integer_ref(right);
+    LT_IntegerRef lhs; integer_ref_init(&lhs, left);
+    LT_IntegerRef rhs; integer_ref_init(&rhs, right);
     size_t result_count;
     uint32_t* result_limbs;
     int compare;
@@ -570,8 +567,8 @@ LT_Value LT_Integer_subtract(LT_Value left, LT_Value right){
 }
 
 LT_Value LT_Integer_multiply(LT_Value left, LT_Value right){
-    LT_IntegerRef lhs = integer_ref(left);
-    LT_IntegerRef rhs = integer_ref(right);
+    LT_IntegerRef lhs; integer_ref_init(&lhs, left);
+    LT_IntegerRef rhs; integer_ref_init(&rhs, right);
     size_t result_count;
     uint32_t* result_limbs;
 
@@ -591,8 +588,8 @@ void LT_Integer_divmod(
     LT_Value* quotient,
     LT_Value* remainder
 ){
-    LT_IntegerRef lhs = integer_ref(dividend);
-    LT_IntegerRef rhs = integer_ref(divisor);
+    LT_IntegerRef lhs; integer_ref_init(&lhs, dividend);
+    LT_IntegerRef rhs; integer_ref_init(&rhs, divisor);
     size_t quotient_count;
     size_t remainder_count;
     uint32_t* quotient_limbs;
@@ -635,7 +632,7 @@ LT_Value LT_Integer_gcd(LT_Value left, LT_Value right){
 }
 
 bool LT_Integer_to_int64(LT_Value value, int64_t* result){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
     uint64_t magnitude = 0;
 
     if (ref.limb_count > 2){
@@ -669,7 +666,7 @@ bool LT_Integer_to_int64(LT_Value value, int64_t* result){
 }
 
 bool LT_Integer_to_uint32(LT_Value value, uint32_t* result){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
 
     if (ref.negative || ref.limb_count > 1){
         return false;
@@ -684,7 +681,7 @@ bool LT_Integer_to_uint32(LT_Value value, uint32_t* result){
 }
 
 double LT_Integer_to_double(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
     double result = 0.0;
     size_t index;
 
@@ -728,7 +725,7 @@ LT_Value LT_BigInteger_new_from_digits(const char* digits){
 }
 
 char* LT_BigInteger_to_decimal_cstr(LT_Value value){
-    LT_IntegerRef ref = integer_ref(value);
+    LT_IntegerRef ref; integer_ref_init(&ref, value);
     uint32_t* limbs;
     size_t limb_count;
     uint32_t* chunks;
