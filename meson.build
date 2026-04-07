@@ -6,6 +6,8 @@ python3 = find_program('python3')
 cc = meson.get_compiler('c')
 libm = cc.find_library('m', required : false)
 
+add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
+
 listtalk_deps = [bdwgc]
 listtalk_c_args = []
 libedit_dep = dependency('libedit', required : false)
