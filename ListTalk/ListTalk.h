@@ -21,6 +21,9 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/SmallFraction.h>
+#include <ListTalk/classes/BigInteger.h>
+#include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>

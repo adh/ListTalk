@@ -5,8 +5,12 @@
 
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/Condition.h>
+#include <ListTalk/classes/BigInteger.h>
+#include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Character.h>
+#include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
@@ -420,24 +424,6 @@ static LT_ReadTokenResult read_token(
     return result;
 }
 
-static int parse_fixnum_token(const char* token, LT_Value* value){
-    char* end = NULL;
-    long long parsed;
-
-    errno = 0;
-    parsed = strtoll(token, &end, 10);
-
-    if (errno == ERANGE || end == token || *end != '\0'){
-        return 0;
-    }
-    if (!LT_SmallInteger_in_range((int64_t)parsed)){
-        return 0;
-    }
-
-    *value = LT_SmallInteger_new((int64_t)parsed);
-    return 1;
-}
-
 static int token_looks_float(const char* token){
     const char* cursor = token;
 
@@ -534,7 +520,10 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
         reader_error(reader, "Unexpected dot");
     }
 
-    if (!token_result.has_symbol_quoting && parse_fixnum_token(token, &value)){
+    if (!token_result.has_symbol_quoting && LT_Number_parse_fraction_token(token, &value)){
+        return value;
+    }
+    if (!token_result.has_symbol_quoting && LT_Number_parse_integer_token(token, &value)){
         return value;
     }
     if (!token_result.has_symbol_quoting && parse_float_token(token, &value)){

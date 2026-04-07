@@ -12,7 +12,10 @@
 #include <ListTalk/classes/Nil.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/BigInteger.h>
+#include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/Float.h>
+#include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
@@ -52,7 +55,10 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Nil", &LT_Nil_class},
     {"Character", &LT_Character_class},
     {"Number", &LT_Number_class},
+    {"BigInteger", &LT_BigInteger_class},
+    {"Fraction", &LT_Fraction_class},
     {"SmallInteger", &LT_SmallInteger_class},
+    {"SmallFraction", &LT_SmallFraction_class},
     {"Float", &LT_Float_class},
     {"List", &LT_List_class},
     {"ImmutableList", &LT_ImmutableList_class},

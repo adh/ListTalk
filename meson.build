@@ -66,6 +66,8 @@ vm_lib = library(
                 'src/classes/Package.c',
                 'src/classes/Symbol.c',
                 'src/classes/Number.c',
+                'src/classes/BigInteger.c',
+                'src/classes/Fraction.c',
                 'src/classes/Float.c',
                 'src/classes/List.c',
                 'src/classes/String.c',
@@ -80,6 +82,7 @@ vm_lib = library(
                 'src/classes/Pair.c',
                 'src/classes/StackFrame.c',
                 'src/classes/SmallInteger.c',
+                'src/classes/SmallFraction.c',
                 'src/classes/IdentityDictionary.c',
                 'src/classes/Dictionary.c'
         ], 

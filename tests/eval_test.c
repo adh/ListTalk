@@ -191,9 +191,45 @@ static int test_subtract_unary_float(void){
 
 static int test_integer_divide_still_fixnum(void){
     LT_Value value = eval_one("(/ 5 2)");
+    char* printed;
+
+    if (expect(LT_Value_class(value) == &LT_SmallFraction_class, "integer division returns fraction")){
+        return 1;
+    }
+    printed = debug_string_for_value(value);
     return expect(
-        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
-        "integer division remains fixnum"
+        strcmp(printed, "5/2") == 0,
+        "integer division remains exact"
+    );
+}
+
+static int test_fixnum_overflow_promotes_to_big_integer(void){
+    LT_Value value = eval_one("(+ 36028797018963967 1)");
+    char* printed;
+
+    if (expect(LT_Value_class(value) == &LT_BigInteger_class, "overflow promotes to big integer")){
+        return 1;
+    }
+    printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "36028797018963968") == 0, "big integer value");
+}
+
+static int test_fraction_addition_is_reduced(void){
+    LT_Value value = eval_one("(+ 1/2 1/3)");
+
+    return expect(
+        LT_Value_class(value) == &LT_SmallFraction_class
+            && LT_SmallFraction_numerator(value) == 5
+            && LT_SmallFraction_denominator(value) == 6,
+        "fraction addition stays reduced"
+    );
+}
+
+static int test_fraction_multiplication_canonicalizes_to_integer(void){
+    LT_Value value = eval_one("(* 2 3/2)");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "fraction multiplication canonicalizes to integer"
     );
 }
 
@@ -2789,6 +2825,9 @@ int main(void){
     RUN_TEST(test_divide_float_mixed);
     RUN_TEST(test_subtract_unary_float);
     RUN_TEST(test_integer_divide_still_fixnum);
+    RUN_TEST(test_fixnum_overflow_promotes_to_big_integer);
+    RUN_TEST(test_fraction_addition_is_reduced);
+    RUN_TEST(test_fraction_multiplication_canonicalizes_to_integer);
     RUN_TEST(test_symbol_lookup);
     RUN_TEST(test_display_primitive_returns_argument);
     RUN_TEST(test_keyword_self_evaluating_when_unbound);

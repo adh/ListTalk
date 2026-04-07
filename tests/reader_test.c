@@ -50,6 +50,20 @@ static int expect_symbol_print(LT_Value symbol, const char* expected, const char
     return expect(strcmp(buffer, expected) == 0, message);
 }
 
+static char* debug_string_for_value(LT_Value value){
+    char* buffer = NULL;
+    size_t size = 0;
+    FILE* stream = open_memstream(&buffer, &size);
+
+    if (stream == NULL){
+        fail("open_memstream failed");
+        return NULL;
+    }
+    LT_Value_debugPrintOn(value, stream);
+    fclose(stream);
+    return buffer;
+}
+
 static LT_Value read_one(const char* source){
     LT_Reader* reader = LT_Reader_new();
     LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
@@ -232,6 +246,43 @@ static int test_float_literal(void){
     return expect(
         LT_Float_value(value) == 3.5,
         "float value"
+    );
+}
+
+static int test_big_integer_literal(void){
+    LT_Value value = read_one("36028797018963968");
+    char* printed;
+
+    if (expect(LT_Value_class(value) == &LT_BigInteger_class, "big integer class")){
+        return 1;
+    }
+
+    printed = debug_string_for_value(value);
+    return expect(
+        strcmp(printed, "36028797018963968") == 0,
+        "big integer print"
+    );
+}
+
+static int test_fraction_literal(void){
+    LT_Value value = read_one("6/8");
+
+    if (expect(LT_Value_class(value) == &LT_SmallFraction_class, "small fraction class")){
+        return 1;
+    }
+
+    return expect(
+        LT_SmallFraction_numerator(value) == 3
+            && LT_SmallFraction_denominator(value) == 4,
+        "fraction literal is reduced"
+    );
+}
+
+static int test_fraction_canonicalizes_to_small_integer(void){
+    LT_Value value = read_one("6/3");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
+        "fraction canonicalizes to integer"
     );
 }
 
@@ -1056,6 +1107,9 @@ int main(void){
     failures += test_fixnum_literal();
     failures += test_negative_fixnum_literal();
     failures += test_float_literal();
+    failures += test_big_integer_literal();
+    failures += test_fraction_literal();
+    failures += test_fraction_canonicalizes_to_small_integer();
     failures += test_symbol_not_number();
     failures += test_symbol_backslash_escape_allows_delimiters();
     failures += test_symbol_backslash_escape_allows_pipe_and_backslash();

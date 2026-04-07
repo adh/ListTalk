@@ -34,9 +34,8 @@ Upper byte of immediate objects:
 
 
 SmallFraction:
-- 1 bit sign
-- 25 bits numerator
-- 26 bits denominator
+- 31 bits signed numerator (two's complement)
+- 24 bits denominator
 
 Boolean:
 0 - false
