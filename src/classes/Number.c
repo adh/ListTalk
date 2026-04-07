@@ -32,15 +32,6 @@ typedef struct LT_ExactRational_s {
     LT_Value denominator;
 } LT_ExactRational;
 
-static size_t hash_uint64(uint64_t value){
-    value ^= value >> 33;
-    value *= UINT64_C(0xff51afd7ed558ccd);
-    value ^= value >> 33;
-    value *= UINT64_C(0xc4ceb9fe1a85ec53);
-    value ^= value >> 33;
-    return (size_t)value;
-}
-
 static int Number_class_equal_p(LT_Value left, LT_Value right){
     return LT_Number_equal_p(left, right);
 }
@@ -87,7 +78,7 @@ static LT_Value make_fraction(LT_Value numerator, LT_Value denominator){
     numerator = exact_integer_divide(numerator, divisor);
     denominator = exact_integer_divide(denominator, divisor);
 
-    if (LT_Integer_compare(denominator, LT_SmallInteger_new(1)) == 0){
+    if (denominator == LT_SmallInteger_new(1)){
         return numerator;
     }
     if (LT_Integer_to_int64(numerator, &small_numerator)
@@ -134,52 +125,100 @@ static double exact_to_double(LT_Value value){
 }
 
 static LT_Value checked_exact_add(LT_Value left, LT_Value right){
-    LT_ExactRational lhs = exact_rational_from_value(left);
-    LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Value left_scaled = LT_Integer_multiply(lhs.numerator, rhs.denominator);
-    LT_Value right_scaled = LT_Integer_multiply(rhs.numerator, lhs.denominator);
-    LT_Value numerator = LT_Integer_add(left_scaled, right_scaled);
-    LT_Value denominator = LT_Integer_multiply(lhs.denominator, rhs.denominator);
+    LT_ExactRational lhs;
+    LT_ExactRational rhs;
+    LT_Value g, left_scaled, right_scaled, numerator, denominator;
+
+    /* Integer + Integer: avoid all the fraction machinery */
+    if (LT_Integer_p(left) && LT_Integer_p(right)){
+        return make_fraction(LT_Integer_add(left, right), LT_SmallInteger_new(1));
+    }
+
+    lhs = exact_rational_from_value(left);
+    rhs = exact_rational_from_value(right);
+
+    /* GCD-optimised rational addition:
+       g = gcd(b, d); result = (a*(d/g) + c*(b/g)) / (b*(d/g)) */
+    g = LT_Integer_gcd(lhs.denominator, rhs.denominator);
+    left_scaled  = LT_Integer_multiply(lhs.numerator,
+                       exact_integer_divide(rhs.denominator, g));
+    right_scaled = LT_Integer_multiply(rhs.numerator,
+                       exact_integer_divide(lhs.denominator, g));
+    numerator   = LT_Integer_add(left_scaled, right_scaled);
+    denominator = LT_Integer_multiply(lhs.denominator,
+                      exact_integer_divide(rhs.denominator, g));
 
     return make_fraction(numerator, denominator);
 }
 
 static LT_Value checked_exact_subtract(LT_Value left, LT_Value right){
-    LT_ExactRational lhs = exact_rational_from_value(left);
-    LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Value left_scaled = LT_Integer_multiply(lhs.numerator, rhs.denominator);
-    LT_Value right_scaled = LT_Integer_multiply(rhs.numerator, lhs.denominator);
-    LT_Value numerator = LT_Integer_subtract(left_scaled, right_scaled);
-    LT_Value denominator = LT_Integer_multiply(lhs.denominator, rhs.denominator);
+    LT_ExactRational lhs;
+    LT_ExactRational rhs;
+    LT_Value g, left_scaled, right_scaled, numerator, denominator;
+
+    if (LT_Integer_p(left) && LT_Integer_p(right)){
+        return make_fraction(LT_Integer_subtract(left, right), LT_SmallInteger_new(1));
+    }
+
+    lhs = exact_rational_from_value(left);
+    rhs = exact_rational_from_value(right);
+
+    g = LT_Integer_gcd(lhs.denominator, rhs.denominator);
+    left_scaled  = LT_Integer_multiply(lhs.numerator,
+                       exact_integer_divide(rhs.denominator, g));
+    right_scaled = LT_Integer_multiply(rhs.numerator,
+                       exact_integer_divide(lhs.denominator, g));
+    numerator   = LT_Integer_subtract(left_scaled, right_scaled);
+    denominator = LT_Integer_multiply(lhs.denominator,
+                      exact_integer_divide(rhs.denominator, g));
 
     return make_fraction(numerator, denominator);
 }
 
 static LT_Value checked_exact_multiply(LT_Value left, LT_Value right){
-    LT_ExactRational lhs = exact_rational_from_value(left);
-    LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Value numerator = LT_Integer_multiply(lhs.numerator, rhs.numerator);
-    LT_Value denominator = LT_Integer_multiply(lhs.denominator, rhs.denominator);
+    LT_ExactRational lhs;
+    LT_ExactRational rhs;
 
-    return make_fraction(numerator, denominator);
+    if (LT_Integer_p(left) && LT_Integer_p(right)){
+        return make_fraction(LT_Integer_multiply(left, right), LT_SmallInteger_new(1));
+    }
+
+    lhs = exact_rational_from_value(left);
+    rhs = exact_rational_from_value(right);
+    return make_fraction(
+        LT_Integer_multiply(lhs.numerator, rhs.numerator),
+        LT_Integer_multiply(lhs.denominator, rhs.denominator)
+    );
 }
 
 static LT_Value checked_exact_divide(LT_Value left, LT_Value right){
-    LT_ExactRational lhs = exact_rational_from_value(left);
-    LT_ExactRational rhs = exact_rational_from_value(right);
-    LT_Value numerator;
-    LT_Value denominator;
+    LT_ExactRational lhs;
+    LT_ExactRational rhs;
+
+    if (LT_Integer_p(left) && LT_Integer_p(right)){
+        if (LT_Integer_is_zero(right)){
+            LT_error("Division by zero");
+        }
+        return make_fraction(left, right);
+    }
+
+    lhs = exact_rational_from_value(left);
+    rhs = exact_rational_from_value(right);
 
     if (LT_Integer_is_zero(rhs.numerator)){
         LT_error("Division by zero");
     }
 
-    numerator = LT_Integer_multiply(lhs.numerator, rhs.denominator);
-    denominator = LT_Integer_multiply(lhs.denominator, rhs.numerator);
-    return make_fraction(numerator, denominator);
+    return make_fraction(
+        LT_Integer_multiply(lhs.numerator, rhs.denominator),
+        LT_Integer_multiply(lhs.denominator, rhs.numerator)
+    );
 }
 
 static LT_Value checked_exact_negate(LT_Value value){
+    if (LT_Integer_p(value)){
+        return LT_Integer_negate(value);
+    }
     LT_ExactRational rational = exact_rational_from_value(value);
     return make_fraction(LT_Integer_negate(rational.numerator), rational.denominator);
 }
@@ -187,7 +226,7 @@ static LT_Value checked_exact_negate(LT_Value value){
 static size_t exact_number_hash(LT_Value value){
     LT_ExactRational rational = exact_rational_from_value(value);
 
-    if (LT_Integer_compare(rational.denominator, LT_SmallInteger_new(1)) == 0){
+    if (rational.denominator == LT_SmallInteger_new(1)){
         return LT_Integer_hash(rational.numerator);
     }
 
