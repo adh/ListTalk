@@ -78,6 +78,7 @@ static LT_Value make_fraction(LT_Value numerator, LT_Value denominator){
     numerator = exact_integer_divide(numerator, divisor);
     denominator = exact_integer_divide(denominator, divisor);
 
+    /* SmallIntegers are immediate values (fixed bit pattern), so == is exact. */
     if (denominator == LT_SmallInteger_new(1)){
         return numerator;
     }
@@ -226,6 +227,7 @@ static LT_Value checked_exact_negate(LT_Value value){
 static size_t exact_number_hash(LT_Value value){
     LT_ExactRational rational = exact_rational_from_value(value);
 
+    /* SmallIntegers are immediate values (fixed bit pattern), so == is exact. */
     if (rational.denominator == LT_SmallInteger_new(1)){
         return LT_Integer_hash(rational.numerator);
     }
