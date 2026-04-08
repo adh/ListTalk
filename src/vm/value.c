@@ -21,6 +21,7 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Vector.h>
 
@@ -114,16 +115,18 @@ bool LT_Value_is_instance_of(LT_Value value, LT_Value class_value){
     LT_Class* value_class = LT_Value_class(value);
     LT_Class* expected = LT_Class_from_object(class_value);
     LT_Value expected_value = (LT_Value)(uintptr_t)expected;
-    size_t i;
+    LT_Value precedence_cursor;
 
-    if (value_class == NULL || value_class->precedence_list == NULL){
+    if (value_class == NULL || LT_Class_precedence_list(value_class) == LT_NIL){
         return false;
     }
 
-    for (i = 0; value_class->precedence_list[i] != LT_INVALID; i++){
-        if (value_class->precedence_list[i] == expected_value){
+    precedence_cursor = LT_Class_precedence_list(value_class);
+    while (precedence_cursor != LT_NIL){
+        if (LT_ImmutableList_car(precedence_cursor) == expected_value){
             return true;
         }
+        precedence_cursor = LT_ImmutableList_cdr(precedence_cursor);
     }
 
     return false;

@@ -48,7 +48,7 @@ typedef struct LT_Class_Descriptor_s LT_Class_Descriptor;
 struct LT_Class_s {
     LT_Object base;
     LT_Class** superclasses; /* NULL terminated */
-    LT_Value* precedence_list; /* LT_INVALID terminated list of class objects */
+    LT_Value precedence_list; /* ImmutableList value or untagged ImmutableList storage */
     size_t instance_size;
     unsigned int class_flags;
     size_t slot_count;
@@ -63,6 +63,20 @@ struct LT_Class_s {
     LT_Value documentation;
     LT_Class_Descriptor* native_descriptor; /* Native class descriptor */
 };
+
+static inline LT_Value LT_Class_precedence_list(LT_Class* klass){
+    LT_Value precedence_list = klass->precedence_list;
+
+    if (precedence_list == LT_INVALID || precedence_list == LT_NIL){
+        return LT_NIL;
+    }
+
+    if (LT_VALUE_POINTER_TAG(precedence_list) == LT_VALUE_POINTER_TAG_IMMUTABLE_LIST){
+        return precedence_list;
+    }
+
+    return precedence_list | LT_VALUE_POINTER_TAG_IMMUTABLE_LIST;
+}
 
 /* Inlined here in order to resolve circular dependencies */
 extern LT_Class LT_Object_class;
@@ -131,6 +145,11 @@ LT_Class_Slot* LT_Class_lookup_slot(LT_Class* klass, LT_Value slot_name);
 LT_Value LT_Class_slots(LT_Class* klass);
 void LT_Class_addMethod(LT_Class* klass, LT_Value selector, LT_Value method);
 LT_Value LT_Class_lookup_method(LT_Class* klass, LT_Value selector);
+LT_Value LT_Class_lookup_method_with_next(
+    LT_Class* klass,
+    LT_Value selector,
+    LT_Value* next_precedence_out
+);
 
 LT__END_DECLS
 #endif

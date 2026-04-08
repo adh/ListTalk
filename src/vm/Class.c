@@ -5,6 +5,7 @@
 
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Symbol.h>
@@ -144,27 +145,37 @@ static LT_Class** make_single_superclass_list(LT_Class* superclass){
     return superclasses;
 }
 
-static LT_Value* make_single_inheritance_precedence_list(LT_Class* klass,
-                                                         LT_Class* superclass){
-    size_t superclass_length = 0;
-    LT_Value* precedence_list;
-    size_t i;
+static LT_Value precedence_list_storage(LT_Value precedence_list){
+    return (LT_Value)(uintptr_t)LT_VALUE_POINTER_VALUE(precedence_list);
+}
 
-    if (superclass != NULL && superclass->precedence_list != NULL){
-        while (superclass->precedence_list[superclass_length] != LT_INVALID){
+static LT_Value make_single_inheritance_precedence_list(LT_Class* klass,
+                                                        LT_Class* superclass){
+    size_t superclass_length = 0;
+    LT_Value* values;
+    LT_Value precedence_list;
+    size_t i;
+    LT_Value superclass_precedence = LT_NIL;
+
+    if (superclass != NULL && LT_Class_precedence_list(superclass) != LT_NIL){
+        superclass_precedence = LT_Class_precedence_list(superclass);
+        while (superclass_precedence != LT_NIL){
             superclass_length++;
+            superclass_precedence = LT_ImmutableList_cdr(superclass_precedence);
         }
     }
 
-    precedence_list = GC_MALLOC(
-        sizeof(LT_Value) * (superclass_length + 2)
-    );
-    precedence_list[0] = (LT_Value)(uintptr_t)klass;
+    values = GC_MALLOC(sizeof(LT_Value) * (superclass_length + 1));
+    values[0] = (LT_Value)(uintptr_t)klass;
+    superclass_precedence = (superclass != NULL)
+        ? LT_Class_precedence_list(superclass)
+        : LT_NIL;
     for (i = 0; i < superclass_length; i++){
-        precedence_list[i + 1] = superclass->precedence_list[i];
+        values[i + 1] = LT_ImmutableList_car(superclass_precedence);
+        superclass_precedence = LT_ImmutableList_cdr(superclass_precedence);
     }
-    precedence_list[superclass_length + 1] = LT_INVALID;
-    return precedence_list;
+    precedence_list = LT_ImmutableList_new(superclass_length + 1, values);
+    return precedence_list_storage(precedence_list);
 }
 
 static size_t count_slot_descriptors(LT_Slot_Descriptor* descriptor_slots){
@@ -341,13 +352,12 @@ static LT_Class** materialize_metaclass_superclass_array(LT_Class** superclasses
     return metaclass_superclasses;
 }
 
-static LT_Value* make_precedence_list(LT_Class* self, LT_Class** direct_superclasses){
+static LT_Value make_precedence_list(LT_Class* self, LT_Class** direct_superclasses){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     LT_InlineHash seen;
     LT_Value self_value = (LT_Value)(uintptr_t)self;
-    LT_Value* precedence_list;
+    LT_Value precedence_list;
     LT_Value cursor;
-    size_t count;
     size_t i;
 
     LT_InlineHash_init(&seen);
@@ -356,31 +366,25 @@ static LT_Value* make_precedence_list(LT_Class* self, LT_Class** direct_supercla
 
     for (i = 0; direct_superclasses[i] != NULL; i++){
         LT_Class* superclass = direct_superclasses[i];
-        size_t j = 0;
+        LT_Value superclass_precedence = LT_Class_precedence_list(superclass);
 
-        if (superclass->precedence_list == NULL){
+        if (superclass_precedence == LT_NIL){
             continue;
         }
 
-        while (superclass->precedence_list[j] != LT_INVALID){
-            LT_Value klass_value = superclass->precedence_list[j];
+        while (superclass_precedence != LT_NIL){
+            LT_Value klass_value = LT_ImmutableList_car(superclass_precedence);
             if (!LT_PointerHash_at(&seen, (void*)(uintptr_t)klass_value)){
                 LT_PointerHash_at_put(&seen, (void*)(uintptr_t)klass_value, (void*)1);
                 LT_ListBuilder_append(builder, klass_value);
             }
-            j++;
+            superclass_precedence = LT_ImmutableList_cdr(superclass_precedence);
         }
     }
 
-    count = LT_ListBuilder_length(builder);
-    precedence_list = GC_MALLOC(sizeof(LT_Value) * (count + 1));
     cursor = LT_ListBuilder_value(builder);
-    for (i = 0; i < count; i++){
-        precedence_list[i] = LT_car(cursor);
-        cursor = LT_cdr(cursor);
-    }
-    precedence_list[count] = LT_INVALID;
-    return precedence_list;
+    precedence_list = LT_ImmutableList_fromList(cursor);
+    return precedence_list_storage(precedence_list);
 }
 
 static void materialize_dynamic_slots(LT_Class* klass,
@@ -702,9 +706,16 @@ void LT_Class_addMethod(LT_Class* klass, LT_Value selector, LT_Value method){
 }
 
 LT_Value LT_Class_lookup_method(LT_Class* klass, LT_Value selector){
+    return LT_Class_lookup_method_with_next(klass, selector, NULL);
+}
+
+LT_Value LT_Class_lookup_method_with_next(LT_Class* klass,
+                                          LT_Value selector,
+                                          LT_Value* next_precedence_out){
     LT_IdentityDictionary* method_cache;
+    LT_Value precedence_cursor;
     LT_Value method;
-    size_t i;
+    int method_cached;
 
     if (!LT_Symbol_p(selector)){
         LT_type_error(selector, &LT_Symbol_class);
@@ -716,22 +727,36 @@ LT_Value LT_Class_lookup_method(LT_Class* klass, LT_Value selector){
     }
 
     method_cache = LT_IdentityDictionary_from_value(klass->method_cache);
-    if (LT_IdentityDictionary_at(method_cache, selector, &method)){
-        return method;
+    method_cached = LT_IdentityDictionary_at(method_cache, selector, &method);
+    if (method_cached){
+        precedence_cursor = LT_Class_precedence_list(klass);
+    } else {
+        precedence_cursor = LT_Class_precedence_list(klass);
     }
 
-    for (i = 0; klass->precedence_list[i] != LT_INVALID; i++){
-        LT_Class* current = LT_Class_from_object(klass->precedence_list[i]);
+    while (precedence_cursor != LT_NIL){
+        LT_Value class_value = LT_ImmutableList_car(precedence_cursor);
+        LT_Class* current = LT_Class_from_object(class_value);
         LT_IdentityDictionary* methods = LT_IdentityDictionary_from_value(
             current->methods
         );
 
         if (LT_IdentityDictionary_at(methods, selector, &method)){
-            LT_IdentityDictionary_atPut(method_cache, selector, method);
+            if (!method_cached){
+                LT_IdentityDictionary_atPut(method_cache, selector, method);
+            }
+            if (next_precedence_out != NULL){
+                *next_precedence_out = LT_ImmutableList_cdr(precedence_cursor);
+            }
             return method;
         }
+
+        precedence_cursor = LT_ImmutableList_cdr(precedence_cursor);
     }
 
+    if (next_precedence_out != NULL){
+        *next_precedence_out = LT_NIL;
+    }
     return LT_INVALID;
 }
 

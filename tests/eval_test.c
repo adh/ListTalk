@@ -110,6 +110,22 @@ LT_DEFINE_PRIMITIVE(
     return invocation_context_kind;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_test_invocation_context_data_method,
+    "test-invocation-context-data-method",
+    "(self)",
+    "Test helper method: return invocation context data."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)self;
+    (void)invocation_context_kind;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return invocation_context_data;
+}
+
 static int list_contains_symbol_name(LT_Value list, const char* name){
     LT_Value cursor = list;
 
@@ -448,6 +464,29 @@ static int test_send_passes_invocation_context_kind_to_primitive_method(void){
     return expect(
         result == (LT_Value)(uintptr_t)&LT_send_invocation_context,
         "send passes send invocation context kind to method"
+    );
+}
+
+static int test_send_passes_next_precedence_tail_as_invocation_context_data(void){
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "next-precedence-tail");
+    LT_Value result;
+
+    LT_Class_addMethod(
+        &LT_Integer_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_invocation_context_data_method)
+    );
+
+    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    if (expect(
+        LT_ImmutableList_p(result),
+        "send passes immutable precedence tail as invocation context data"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_ImmutableList_car(result) == LT_STATIC_CLASS(LT_RationalNumber),
+        "send invocation context data begins after matched class"
     );
 }
 
@@ -2804,56 +2843,63 @@ static int test_symbol_package_slot_is_readonly(void){
 }
 
 static int test_precedence_list_initialized(void){
-    LT_Value* precedence_list = LT_SmallInteger_class.precedence_list;
+    LT_Value precedence_list = LT_Class_precedence_list(&LT_SmallInteger_class);
 
-    if (expect(precedence_list != NULL, "class precedence list exists")){
+    if (expect(precedence_list != LT_NIL, "class precedence list exists")){
         return 1;
     }
     if (expect(
-        precedence_list[0] == LT_STATIC_CLASS(LT_SmallInteger),
+        LT_ImmutableList_car(precedence_list) == LT_STATIC_CLASS(LT_SmallInteger),
         "precedence list starts with class itself"
     )){
         return 1;
     }
+    precedence_list = LT_ImmutableList_cdr(precedence_list);
     if (expect(
-        precedence_list[1] == LT_STATIC_CLASS(LT_Integer),
+        LT_ImmutableList_car(precedence_list) == LT_STATIC_CLASS(LT_Integer),
         "precedence list contains Integer"
     )){
         return 1;
     }
+    precedence_list = LT_ImmutableList_cdr(precedence_list);
     if (expect(
-        precedence_list[2] == LT_STATIC_CLASS(LT_RationalNumber),
+        LT_ImmutableList_car(precedence_list) == LT_STATIC_CLASS(LT_RationalNumber),
         "precedence list contains RationalNumber"
     )){
         return 1;
     }
+    precedence_list = LT_ImmutableList_cdr(precedence_list);
     if (expect(
-        precedence_list[3] == LT_STATIC_CLASS(LT_RealNumber),
+        LT_ImmutableList_car(precedence_list) == LT_STATIC_CLASS(LT_RealNumber),
         "precedence list contains RealNumber"
     )){
         return 1;
     }
+    precedence_list = LT_ImmutableList_cdr(precedence_list);
     if (expect(
-        precedence_list[4] == LT_STATIC_CLASS(LT_ComplexNumber),
+        LT_ImmutableList_car(precedence_list) == LT_STATIC_CLASS(LT_ComplexNumber),
         "precedence list contains ComplexNumber"
     )){
         return 1;
     }
+    precedence_list = LT_ImmutableList_cdr(precedence_list);
     if (expect(
-        precedence_list[5] == LT_STATIC_CLASS(LT_Number),
+        LT_ImmutableList_car(precedence_list) == LT_STATIC_CLASS(LT_Number),
         "precedence list contains Number"
     )){
         return 1;
     }
+    precedence_list = LT_ImmutableList_cdr(precedence_list);
     if (expect(
-        precedence_list[6] == LT_STATIC_CLASS(LT_Object),
+        LT_ImmutableList_car(precedence_list) == LT_STATIC_CLASS(LT_Object),
         "precedence list contains root object class"
     )){
         return 1;
     }
+    precedence_list = LT_ImmutableList_cdr(precedence_list);
     return expect(
-        precedence_list[7] == LT_INVALID,
-        "precedence list is LT_INVALID terminated"
+        precedence_list == LT_NIL,
+        "precedence list is nil terminated"
     );
 }
 
@@ -3016,6 +3062,7 @@ int main(void){
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
+    RUN_TEST(test_send_passes_next_precedence_tail_as_invocation_context_data);
     RUN_TEST(test_basic_object_and_class_methods);
     RUN_TEST(test_basic_pair_methods);
     RUN_TEST(test_basic_string_and_vector_methods);

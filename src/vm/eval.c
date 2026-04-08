@@ -247,7 +247,12 @@ LT_Value LT_send(LT_Value receiver,
                  LT_Value arguments,
                  LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Class* receiver_class = LT_Value_class(receiver);
-    LT_Value method = LT_Class_lookup_method(receiver_class, selector);
+    LT_Value next_precedence = LT_NIL;
+    LT_Value method = LT_Class_lookup_method_with_next(
+        receiver_class,
+        selector,
+        &next_precedence
+    );
 
     if (method == LT_INVALID){
         LT_error("Message not understood");
@@ -257,7 +262,7 @@ LT_Value LT_send(LT_Value receiver,
         method,
         LT_cons(receiver, arguments),
         (LT_Value)(uintptr_t)&LT_send_invocation_context,
-        LT_NIL,
+        next_precedence,
         tail_call_unwind_marker
     );
 }
