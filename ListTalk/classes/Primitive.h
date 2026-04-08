@@ -17,6 +17,8 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Primitive);
 
 typedef LT_Value(*LT_Primitive_Func)(LT_Value arguments,
+                                     LT_Value invocation_context_kind,
+                                     LT_Value invocation_context_data,
                                      LT_TailCallUnwindMarker* tail_call_unwind_marker);
 
 #define LT_PRIMITIVE_FLAG_PURE 0x1
@@ -33,6 +35,8 @@ struct LT_Primitive_s {
 
 #define LT_PRIMITIVE_HEAD(primitive_object_name) \
     static LT_Value LT_PRIMITIVE_IMPL_NAME(primitive_object_name)(LT_Value arguments, \
+                                                                  LT_Value invocation_context_kind, \
+                                                                  LT_Value invocation_context_data, \
                                                                   LT_TailCallUnwindMarker* tail_call_unwind_marker)
 
 #define LT_DECLARE_PRIMITIVE(primitive_object_name, primitive_name, primitive_arguments, primitive_description) \
@@ -97,6 +101,8 @@ LT_Primitive_Func LT_Primitive_function(LT_Primitive* primitive);
 unsigned int LT_Primitive_flags(LT_Primitive* primitive);
 LT_Value LT_Primitive_call(LT_Value primitive,
                            LT_Value arguments,
+                           LT_Value invocation_context_kind,
+                           LT_Value invocation_context_data,
                            LT_TailCallUnwindMarker* tail_call_unwind_marker);
 
 LT__END_DECLS

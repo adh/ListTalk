@@ -58,6 +58,16 @@ LT_Value LT_Closure_new(LT_Value name,
     return ((LT_Value)(uintptr_t)closure) | LT_VALUE_POINTER_TAG_CLOSURE;
 }
 
+LT_Value LT_Closure_invocation_context_of_kind(
+    LT_Closure* closure,
+    LT_Value invocation_context_kind
+){
+    return LT_Environment_invocation_context_of_kind(
+        closure->environment,
+        invocation_context_kind
+    );
+}
+
 LT_Value LT_Closure_name(LT_Closure* closure){
     return closure->name;
 }

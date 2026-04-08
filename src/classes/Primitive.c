@@ -94,9 +94,16 @@ unsigned int LT_Primitive_flags(LT_Primitive* primitive){
 
 LT_Value LT_Primitive_call(LT_Value primitive,
                            LT_Value arguments,
+                           LT_Value invocation_context_kind,
+                           LT_Value invocation_context_data,
                            LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Primitive_Func function = LT_Primitive_function(
         LT_Primitive_from_value(primitive)
     );
-    return function(arguments, tail_call_unwind_marker);
+    return function(
+        arguments,
+        invocation_context_kind,
+        invocation_context_data,
+        tail_call_unwind_marker
+    );
 }

@@ -44,9 +44,13 @@ static void reset_state(void){
 }
 
 static LT_Value inner_handler_impl(LT_Value arguments,
+                                   LT_Value invocation_context_kind,
+                                   LT_Value invocation_context_data,
                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, condition);
@@ -60,9 +64,13 @@ static LT_Value inner_handler_impl(LT_Value arguments,
 }
 
 static LT_Value outer_handler_impl(LT_Value arguments,
+                                   LT_Value invocation_context_kind,
+                                   LT_Value invocation_context_data,
                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, condition);
@@ -76,9 +84,13 @@ static LT_Value outer_handler_impl(LT_Value arguments,
 }
 
 static LT_Value throwing_handler_impl(LT_Value arguments,
+                                      LT_Value invocation_context_kind,
+                                      LT_Value invocation_context_data,
                                       LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, condition);
@@ -87,9 +99,13 @@ static LT_Value throwing_handler_impl(LT_Value arguments,
 }
 
 static LT_Value catch_error_handler_impl(LT_Value arguments,
+                                         LT_Value invocation_context_kind,
+                                         LT_Value invocation_context_data,
                                          LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, condition);

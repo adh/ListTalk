@@ -12,7 +12,7 @@ void LT_signal(LT_Value condition){
     LT_ConditionHandlerFrame* frame = LT__condition_handler_stack;
 
     while (frame != NULL){
-        (void)LT_apply(frame->handler, LT_cons(condition, LT_NIL), NULL);
+        (void)LT_apply(frame->handler, LT_cons(condition, LT_NIL), LT_NIL, LT_NIL, NULL);
         frame = frame->previous;
     }
 }

@@ -72,9 +72,13 @@ static void print_condition(LT_Value condition){
 }
 
 static LT_Value repl_error_handler(LT_Value arguments,
+                                   LT_Value invocation_context_kind,
+                                   LT_Value invocation_context_data,
                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, condition);
@@ -88,9 +92,13 @@ static LT_Value repl_error_handler(LT_Value arguments,
 }
 
 static LT_Value script_error_handler(LT_Value arguments,
+                                     LT_Value invocation_context_kind,
+                                     LT_Value invocation_context_data,
                                      LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Value cursor = arguments;
     LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, condition);

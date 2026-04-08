@@ -82,6 +82,7 @@ vm_lib = library(
                 'src/classes/String.c',
                 'src/classes/Vector.c',
                 'src/classes/Condition.c',
+                'src/classes/InvocationContextKind.c',
                 'src/classes/Closure.c',
                 'src/classes/Primitive.c',
                 'src/classes/Macro.c',

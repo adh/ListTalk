@@ -156,10 +156,14 @@ LT_Value LT_eval_sequence(LT_Value body,
 
 static LT_Value apply_closure(LT_Value closure_value,
                               LT_Value evaluated_arguments,
+                              LT_Value invocation_context_kind,
+                              LT_Value invocation_context_data,
                               LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_Closure* closure = LT_Closure_from_value(closure_value);
     LT_Environment* application_environment = LT_Environment_new(
-        LT_Closure_environment(closure)
+        LT_Closure_environment(closure),
+        invocation_context_kind,
+        invocation_context_data
     );
 
     bind_closure_parameters(
@@ -177,6 +181,8 @@ static LT_Value apply_closure(LT_Value closure_value,
 
 LT_Value LT_apply(LT_Value callable,
                   LT_Value arguments,
+                  LT_Value invocation_context_kind,
+                  LT_Value invocation_context_data,
                   LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_TailCallUnwindMarker local_tail_call_unwind_marker;
     LT_StackFrame stack_frame;
@@ -211,6 +217,8 @@ LT_Value LT_apply(LT_Value callable,
             LT_Value result = LT_Primitive_call(
                 callable,
                 arguments,
+                invocation_context_kind,
+                invocation_context_data,
                 &local_tail_call_unwind_marker
             );
             LT_stack_trace_pop(&stack_frame);
@@ -220,6 +228,8 @@ LT_Value LT_apply(LT_Value callable,
             LT_Value result = apply_closure(
                 callable,
                 arguments,
+                invocation_context_kind,
+                invocation_context_data,
                 &local_tail_call_unwind_marker
             );
             LT_stack_trace_pop(&stack_frame);
@@ -246,6 +256,8 @@ LT_Value LT_send(LT_Value receiver,
     return LT_apply(
         method,
         LT_cons(receiver, arguments),
+        (LT_Value)(uintptr_t)&LT_send_invocation_context,
+        LT_NIL,
         tail_call_unwind_marker
     );
 }
@@ -265,6 +277,8 @@ static LT_Value apply_form(LT_Value operator,
         expansion = LT_apply(
             implementation,
             argument_expressions,
+            LT_NIL,
+            LT_NIL,
             NULL
         );
         return eval_form(expansion, environment, tail_call_unwind_marker);
@@ -282,6 +296,8 @@ static LT_Value apply_form(LT_Value operator,
     return LT_apply(
         evaluated_operator,
         eval_list_items(argument_expressions, environment),
+        LT_NIL,
+        LT_NIL,
         tail_call_unwind_marker
     );
 }

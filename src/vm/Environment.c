@@ -5,6 +5,7 @@
 
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/InvocationContextKind.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
 
@@ -20,8 +21,12 @@ struct LT_Environment_s {
     LT_Environment* parent;
     LT_InlineHash bindings;
     unsigned int frame_flags;
-    unsigned int invocation_context_kind;
-    void* invocation_context_data;
+    LT_Value invocation_context_kind;
+    LT_Value invocation_context_data;
+};
+
+LT_InvocationContextKind LT_send_invocation_context = {
+    .base = {.klass = &LT_InvocationContextKind_class},
 };
 
 static LT_Slot_Descriptor Environment_slots[] = {
@@ -47,18 +52,39 @@ static void* environment_symbol_key(LT_Value symbol){
     return (void*)(symbol);
 }
 
-LT_Environment* LT_Environment_new(LT_Environment* parent){
+LT_Environment* LT_Environment_new(LT_Environment* parent,
+                                   LT_Value invocation_context_kind,
+                                   LT_Value invocation_context_data){
     LT_Environment* environment = LT_Class_ALLOC(LT_Environment);
     environment->parent = parent;
     environment->frame_flags = 0;
-    environment->invocation_context_kind = 0;
-    environment->invocation_context_data = NULL;
+    environment->invocation_context_kind = invocation_context_kind;
+    environment->invocation_context_data = invocation_context_data;
     LT_InlineHash_init(&environment->bindings);
     return environment;
 }
 
 LT_Environment* LT_Environment_parent(LT_Environment* environment){
     return environment->parent;
+}
+
+LT_Value LT_Environment_invocation_context_of_kind(
+    LT_Environment* environment,
+    LT_Value invocation_context_kind
+){
+    if (invocation_context_kind != LT_NIL
+        && !LT_InvocationContextKind_p(invocation_context_kind)){
+        LT_type_error(invocation_context_kind, &LT_InvocationContextKind_class);
+    }
+
+    while (environment != NULL){
+        if (environment->invocation_context_kind == invocation_context_kind){
+            return environment->invocation_context_data;
+        }
+        environment = environment->parent;
+    }
+
+    return LT_NIL;
 }
 
 void LT_Environment_bind(LT_Environment* environment,

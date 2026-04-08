@@ -108,8 +108,12 @@ static int test_unwind_protect_runs_cleanup_and_rethrows(void){
 static LT_Value g_stack_trace_restore_tag = LT_NIL;
 
 static LT_Value throw_from_primitive(LT_Value arguments,
+                                     LT_Value invocation_context_kind,
+                                     LT_Value invocation_context_data,
                                      LT_TailCallUnwindMarker* tail_call_unwind_marker){
     (void)arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
     LT_throw(g_stack_trace_restore_tag, LT_TRUE);
 }
@@ -131,7 +135,7 @@ static int test_non_local_exit_restores_stack_trace_top(void){
     }
 
     LT_CATCH(g_stack_trace_restore_tag, caught, {
-        (void)LT_apply(throwing_primitive, LT_NIL, NULL);
+        (void)LT_apply(throwing_primitive, LT_NIL, LT_NIL, LT_NIL, NULL);
     });
 
     if (expect(caught == LT_TRUE, "non-local exit from primitive is caught")){
@@ -144,8 +148,12 @@ static int test_non_local_exit_restores_stack_trace_top(void){
 }
 
 static LT_Value capture_stack_trace_primitive(LT_Value arguments,
+                                              LT_Value invocation_context_kind,
+                                              LT_Value invocation_context_data,
                                               LT_TailCallUnwindMarker* tail_call_unwind_marker){
     (void)arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
     (void)tail_call_unwind_marker;
     return LT_stack_trace_capture();
 }
@@ -157,7 +165,7 @@ static int test_stack_trace_capture_returns_snapshot_list(void){
         "capture stack trace helper",
         capture_stack_trace_primitive
     );
-    LT_Value snapshot = LT_apply(capture_primitive, LT_NIL, NULL);
+    LT_Value snapshot = LT_apply(capture_primitive, LT_NIL, LT_NIL, LT_NIL, NULL);
     LT_Value first_frame_value;
     LT_ApplyStackFrame* first_frame;
 

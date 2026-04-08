@@ -29,6 +29,7 @@
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/InvocationContextKind.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/String.h>
@@ -81,6 +82,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Package", &LT_Package_class},
     {"Closure", &LT_Closure_class},
     {"Primitive", &LT_Primitive_class},
+    {"InvocationContextKind", &LT_InvocationContextKind_class},
     {"Macro", &LT_Macro_class},
     {"SpecialForm", &LT_SpecialForm_class},
     {"Reader", &LT_Reader_class},
@@ -118,7 +120,7 @@ void LT_base_env_bind_native_classes(LT_Environment* environment){
 }
 
 LT_Environment* LT_new_base_environment(void){
-    LT_Environment* environment = LT_Environment_new(NULL);
+    LT_Environment* environment = LT_Environment_new(NULL, LT_NIL, LT_NIL);
     char* runtime_init_source;
     LT_Package* previous_package = LT_get_current_package();
 

@@ -9,6 +9,7 @@
 #include <ListTalk/macros/env_macros.h>
 
 #include <ListTalk/vm/value.h>
+#include <ListTalk/classes/InvocationContextKind.h>
 #include <ListTalk/macros/decl_macros.h>
 
 LT__BEGIN_DECLS
@@ -19,8 +20,16 @@ LT_DECLARE_CLASS(LT_Environment);
 
 #define LT_ENV_FRAME_FLAG_RECYCLABLE 0x1
 
-LT_Environment* LT_Environment_new(LT_Environment* parent);
+extern LT_InvocationContextKind LT_send_invocation_context;
+
+LT_Environment* LT_Environment_new(LT_Environment* parent,
+                                   LT_Value invocation_context_kind,
+                                   LT_Value invocation_context_data);
 LT_Environment* LT_Environment_parent(LT_Environment* environment);
+LT_Value LT_Environment_invocation_context_of_kind(
+    LT_Environment* environment,
+    LT_Value invocation_context_kind
+);
 
 void LT_Environment_bind(
     LT_Environment* environment,

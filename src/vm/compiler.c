@@ -119,6 +119,8 @@ LT_Value LT_compiler_macroexpand(LT_Value expression,
         expanded = LT_apply(
             implementation,
             LT_cdr(expanded),
+            LT_NIL,
+            LT_NIL,
             NULL
         );
         expansion_count++;
@@ -190,6 +192,8 @@ static LT_Value fold_application(LT_Value expression,
                 LT_Value constant_result = LT_Primitive_call(
                     folded_operator,
                     LT_ListBuilder_value(constant_arguments_builder),
+                    LT_NIL,
+                    LT_NIL,
                     NULL
                 );
                 return constant_value_to_expression(

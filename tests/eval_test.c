@@ -94,6 +94,22 @@ LT_DEFINE_PRIMITIVE(
     return LT_Symbol_new("PairOverride");
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_test_invocation_context_kind_method,
+    "test-invocation-context-kind-method",
+    "(self)",
+    "Test helper method: return invocation context kind."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)self;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return invocation_context_kind;
+}
+
 static int list_contains_symbol_name(LT_Value list, const char* name){
     LT_Value cursor = list;
 
@@ -396,6 +412,42 @@ static int test_send_primitive_uses_precedence_lookup_and_cache(void){
     return expect(
         cached == LT_Primitive_from_static(&primitive_test_object_class_name_method),
         "method_cache stores resolved method"
+    );
+}
+
+static int test_environment_invocation_context_lookup_walks_parent_frames(void){
+    LT_Environment* root = LT_Environment_new(NULL, LT_NIL, LT_NIL);
+    LT_Value kind = (LT_Value)(uintptr_t)&LT_send_invocation_context;
+    LT_Value data = LT_Symbol_new("send-context-data");
+    LT_Environment* middle = LT_Environment_new(root, kind, data);
+    LT_Environment* leaf = LT_Environment_new(middle, LT_NIL, LT_NIL);
+
+    if (expect(
+        LT_Environment_invocation_context_of_kind(leaf, kind) == data,
+        "environment lookup finds invocation context in parent frame"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Environment_invocation_context_of_kind(leaf, LT_NIL) == LT_NIL,
+        "environment lookup returns nil when invocation context kind is absent"
+    );
+}
+
+static int test_send_passes_invocation_context_kind_to_primitive_method(void){
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "invocation-context-kind");
+    LT_Value result;
+
+    LT_Class_addMethod(
+        &LT_Object_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_invocation_context_kind_method)
+    );
+
+    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    return expect(
+        result == (LT_Value)(uintptr_t)&LT_send_invocation_context,
+        "send passes send invocation context kind to method"
     );
 }
 
@@ -2962,6 +3014,8 @@ int main(void){
     RUN_TEST(test_class_slots_primitive);
     RUN_TEST(test_send_primitive_uses_direct_method_dictionary);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
+    RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
+    RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
     RUN_TEST(test_basic_object_and_class_methods);
     RUN_TEST(test_basic_pair_methods);
     RUN_TEST(test_basic_string_and_vector_methods);

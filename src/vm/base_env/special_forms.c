@@ -317,7 +317,7 @@ static LT_Value special_form_let(LT_Value arguments,
         binding_cursor = LT_cdr(binding_cursor);
     }
 
-    let_environment = LT_Environment_new(environment);
+    let_environment = LT_Environment_new(environment, LT_NIL, LT_NIL);
     binding_cursor = LT_ListBuilder_value(symbols);
     cursor = LT_ListBuilder_value(values);
 

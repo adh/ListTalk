@@ -38,6 +38,7 @@
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/InvocationContextKind.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/IdentityDictionary.h>
@@ -74,6 +75,8 @@ extern LT_Value LT_eval_sequence_string(
 extern LT_Value LT_apply(
     LT_Value callable,
     LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 

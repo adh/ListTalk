@@ -22,6 +22,10 @@ LT_Value LT_Closure_new(
     LT_Value body,
     LT_Environment* environment
 );
+LT_Value LT_Closure_invocation_context_of_kind(
+    LT_Closure* closure,
+    LT_Value invocation_context_kind
+);
 LT_Value LT_Closure_name(LT_Closure* closure);
 LT_Value LT_Closure_parameters(LT_Closure* closure);
 LT_Value LT_Closure_body(LT_Closure* closure);
