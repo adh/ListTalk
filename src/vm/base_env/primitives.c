@@ -17,6 +17,7 @@
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Object.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -247,6 +248,26 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
     return LT_Symbol_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_symbol_name,
+    "symbol-name",
+    "(value)",
+    "Return symbol name as string.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(value)){
+        LT_type_error(value, &LT_Symbol_class);
+    }
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(
+        LT_Symbol_name(LT_Symbol_from_value(value))
+    );
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -704,6 +725,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_boolean_p);
     LT_base_env_bind_static_primitive(environment, &primitive_number_p);
     LT_base_env_bind_static_primitive(environment, &primitive_symbol_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_symbol_name);
     LT_base_env_bind_static_primitive(environment, &primitive_primitive_p);
     LT_base_env_bind_static_primitive(environment, &primitive_closure_p);
     LT_base_env_bind_static_primitive(environment, &primitive_macro_p);

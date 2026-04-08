@@ -526,6 +526,58 @@ static LT_Value special_form_get_current_environment(
     return (LT_Value)(uintptr_t)environment;
 }
 
+static LT_Value special_form_send(LT_Value arguments,
+                                  LT_Environment* environment,
+                                  LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value receiver_expression;
+    LT_Value selector_expression;
+    LT_Value message_argument_expressions;
+
+    LT_OBJECT_ARG(cursor, receiver_expression);
+    LT_OBJECT_ARG(cursor, selector_expression);
+    LT_ARG_REST(cursor, message_argument_expressions);
+
+    return LT_send(
+        LT_eval(receiver_expression, environment, NULL),
+        LT_eval(selector_expression, environment, NULL),
+        LT_eval_argument_list(message_argument_expressions, environment),
+        tail_call_unwind_marker
+    );
+}
+
+static LT_Value special_form_super_send(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value receiver_expression;
+    LT_Value selector_expression;
+    LT_Value message_argument_expressions;
+    LT_Value precedence_list;
+
+    LT_OBJECT_ARG(cursor, receiver_expression);
+    LT_OBJECT_ARG(cursor, selector_expression);
+    LT_ARG_REST(cursor, message_argument_expressions);
+
+    precedence_list = LT_Environment_invocation_context_of_kind(
+        environment,
+        (LT_Value)(uintptr_t)&LT_send_invocation_context
+    );
+    if (precedence_list == LT_NIL){
+        LT_error("%super-send requires send invocation context");
+    }
+
+    return LT_super_send(
+        LT_eval(receiver_expression, environment, NULL),
+        precedence_list,
+        LT_eval(selector_expression, environment, NULL),
+        LT_eval_argument_list(message_argument_expressions, environment),
+        tail_call_unwind_marker
+    );
+}
+
 
 static LT_SpecialForm quote_special_form = {
     .function = special_form_quote,
@@ -639,6 +691,22 @@ static LT_SpecialForm get_current_environment_special_form = {
     .description = "Return current lexical environment."
 };
 
+static LT_SpecialForm send_special_form = {
+    .function = special_form_send,
+    .expand_function = expand_special_form_default,
+    .name = "%send",
+    .arguments = "(receiver selector argument ...)",
+    .description = "Evaluate and send selector to receiver."
+};
+
+static LT_SpecialForm super_send_special_form = {
+    .function = special_form_super_send,
+    .expand_function = expand_special_form_default,
+    .name = "%super-send",
+    .arguments = "(receiver selector argument ...)",
+    .description = "Evaluate and send selector using send invocation context."
+};
+
 static void bind_static_special_form(LT_Environment* environment,
                                      LT_SpecialForm* special_form){
     LT_Value special_form_value = LT_SpecialForm_from_static(special_form);
@@ -695,4 +763,14 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &unwind_protect_special_form);
     bind_static_special_form(environment, &handler_bind_special_form);
     bind_static_special_form(environment, &get_current_environment_special_form);
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &send_special_form
+    );
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &super_send_special_form
+    );
 }

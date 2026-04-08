@@ -126,6 +126,40 @@ LT_DEFINE_PRIMITIVE(
     return invocation_context_data;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_test_small_integer_marker_method,
+    "test-small-integer-marker-method",
+    "(self)",
+    "Test helper method: return SmallInteger marker."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)self;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Symbol_new("SmallIntegerMarker");
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_integer_marker_method,
+    "test-integer-marker-method",
+    "(self)",
+    "Test helper method: return Integer marker."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)self;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Symbol_new("IntegerMarker");
+}
+
 static int list_contains_symbol_name(LT_Value list, const char* name){
     LT_Value cursor = list;
 
@@ -487,6 +521,38 @@ static int test_send_passes_next_precedence_tail_as_invocation_context_data(void
     return expect(
         LT_ImmutableList_car(result) == LT_STATIC_CLASS(LT_RationalNumber),
         "send invocation context data begins after matched class"
+    );
+}
+
+static int test_super_send_c_api_uses_explicit_precedence_list(void){
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "super-marker");
+    LT_Value precedence_tail = LT_ImmutableList_cdr(
+        LT_Class_precedence_list(&LT_SmallInteger_class)
+    );
+    LT_Value result;
+
+    LT_Class_addMethod(
+        &LT_SmallInteger_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_small_integer_marker_method)
+    );
+    LT_Class_addMethod(
+        &LT_Integer_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_integer_marker_method)
+    );
+
+    result = LT_super_send(
+        LT_SmallInteger_new(1),
+        precedence_tail,
+        selector,
+        LT_NIL,
+        NULL
+    );
+    return expect(
+        LT_Symbol_p(result)
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(result)), "IntegerMarker") == 0,
+        "LT_super_send starts lookup from explicit precedence tail"
     );
 }
 
@@ -2026,6 +2092,16 @@ static int test_symbol_class_methods_for_uninterned_and_gensym(void){
     );
 }
 
+static int test_symbol_name_method(void){
+    LT_Value value = eval_one("['sample name]");
+
+    return expect(
+        LT_String_p(value)
+            && strcmp(LT_String_value_cstr(LT_String_from_value(value)), "sample") == 0,
+        "Symbol>>name returns symbol name string"
+    );
+}
+
 static int test_with_gensyms_macro(void){
     LT_Value result = eval_one(
         "(with-gensyms (a b) "
@@ -2235,6 +2311,25 @@ static int test_define_class_and_method_rectangle_example(void){
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 20,
         "rectangle define-class/define-method example evaluates to area 20"
+    );
+}
+
+static int test_send_macro_rewrites_literal_super_to_super_send(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    result = LT_eval_sequence_string(
+        "(define-class Parent (Object) ())\n"
+        "(define-class Child (Parent) ())\n"
+        "(define-method [Parent answer] 11)\n"
+        "(define-method [Child answer] [ListTalk:super answer])\n"
+        "[(make-instance Child) answer]\n",
+        env
+    );
+
+    return expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 11,
+        "send macro rewrites literal super receiver to super send"
     );
 }
 
@@ -3063,6 +3158,7 @@ int main(void){
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
     RUN_TEST(test_send_passes_next_precedence_tail_as_invocation_context_data);
+    RUN_TEST(test_super_send_c_api_uses_explicit_precedence_list);
     RUN_TEST(test_basic_object_and_class_methods);
     RUN_TEST(test_basic_pair_methods);
     RUN_TEST(test_basic_string_and_vector_methods);
@@ -3130,6 +3226,7 @@ int main(void){
     RUN_TEST(test_symbol_uninterned_and_gensym_c_api);
     RUN_TEST(test_gensym_primitive);
     RUN_TEST(test_symbol_class_methods_for_uninterned_and_gensym);
+    RUN_TEST(test_symbol_name_method);
     RUN_TEST(test_with_gensyms_macro);
     RUN_TEST(test_set_bang_special_form);
     RUN_TEST(test_set_bang_parent_binding);
@@ -3137,6 +3234,7 @@ int main(void){
     RUN_TEST(test_define_class_macro);
     RUN_TEST(test_define_method_macro);
     RUN_TEST(test_define_class_and_method_rectangle_example);
+    RUN_TEST(test_send_macro_rewrites_literal_super_to_super_send);
     RUN_TEST(test_define_package_special_form);
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);

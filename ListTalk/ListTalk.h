@@ -87,6 +87,14 @@ extern LT_Value LT_send(
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 
+extern LT_Value LT_super_send(
+    LT_Value receiver,
+    LT_Value precedence_list,
+    LT_Value selector,
+    LT_Value arguments,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+);
+
 LT__END_DECLS
 
 #endif

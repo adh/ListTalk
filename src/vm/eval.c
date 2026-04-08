@@ -23,12 +23,46 @@ struct LT_TailCallUnwindMarker_s {
     jmp_buf jump_buffer;
     LT_Value callable;
     LT_Value arguments;
+    LT_Value invocation_context_kind;
+    LT_Value invocation_context_data;
     LT_StackFrame* stack_trace_top;
 };
 
 static LT_Value eval_form(LT_Value expression,
                           LT_Environment* environment,
                           LT_TailCallUnwindMarker* tail_call_unwind_marker);
+
+static LT_Value send_from_precedence(LT_Value receiver,
+                                     LT_Value precedence_list,
+                                     LT_Value selector,
+                                     LT_Value arguments,
+                                     LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = precedence_list;
+
+    while (cursor != LT_NIL){
+        LT_Value class_value = LT_ImmutableList_car(cursor);
+        LT_Class* current = LT_Class_from_object(class_value);
+        LT_IdentityDictionary* methods = LT_IdentityDictionary_from_value(
+            current->methods
+        );
+        LT_Value method;
+
+        if (LT_IdentityDictionary_at(methods, selector, &method)){
+            return LT_apply(
+                method,
+                LT_cons(receiver, arguments),
+                (LT_Value)(uintptr_t)&LT_send_invocation_context,
+                LT_ImmutableList_cdr(cursor),
+                tail_call_unwind_marker
+            );
+        }
+
+        cursor = LT_ImmutableList_cdr(cursor);
+    }
+
+    LT_error("Message not understood");
+    return LT_NIL;
+}
 
 static int stream_has_next_form(LT_ReaderStream* stream){
     int ch = LT_ReaderStream_getc(stream);
@@ -55,7 +89,7 @@ static int stream_has_next_form(LT_ReaderStream* stream){
     }
 }
 
-static LT_Value eval_list_items(LT_Value list, LT_Environment* environment){
+LT_Value LT_eval_argument_list(LT_Value list, LT_Environment* environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     LT_Value cursor = list;
 
@@ -191,6 +225,8 @@ LT_Value LT_apply(LT_Value callable,
     if (tail_call_unwind_marker != NULL){
         tail_call_unwind_marker->callable = callable;
         tail_call_unwind_marker->arguments = arguments;
+        tail_call_unwind_marker->invocation_context_kind = invocation_context_kind;
+        tail_call_unwind_marker->invocation_context_data = invocation_context_data;
         LT_stack_trace_restore(tail_call_unwind_marker->stack_trace_top);
         longjmp(tail_call_unwind_marker->jump_buffer, 1);
     }
@@ -202,6 +238,8 @@ LT_Value LT_apply(LT_Value callable,
 
     local_tail_call_unwind_marker.callable = callable;
     local_tail_call_unwind_marker.arguments = arguments;
+    local_tail_call_unwind_marker.invocation_context_kind = invocation_context_kind;
+    local_tail_call_unwind_marker.invocation_context_data = invocation_context_data;
     local_tail_call_unwind_marker.stack_trace_top = &stack_frame;
 
     while (1){
@@ -210,6 +248,10 @@ LT_Value LT_apply(LT_Value callable,
 
         callable = local_tail_call_unwind_marker.callable;
         arguments = local_tail_call_unwind_marker.arguments;
+        invocation_context_kind =
+            local_tail_call_unwind_marker.invocation_context_kind;
+        invocation_context_data =
+            local_tail_call_unwind_marker.invocation_context_data;
         stack_frame.arguments.apply.callable = callable;
         stack_frame.arguments.apply.arguments = arguments;
 
@@ -267,6 +309,24 @@ LT_Value LT_send(LT_Value receiver,
     );
 }
 
+LT_Value LT_super_send(LT_Value receiver,
+                       LT_Value precedence_list,
+                       LT_Value selector,
+                       LT_Value arguments,
+                       LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    if (precedence_list != LT_NIL && !LT_ImmutableList_p(precedence_list)){
+        LT_type_error(precedence_list, &LT_ImmutableList_class);
+    }
+
+    return send_from_precedence(
+        receiver,
+        precedence_list,
+        selector,
+        arguments,
+        tail_call_unwind_marker
+    );
+}
+
 static LT_Value apply_form(LT_Value operator,
                            LT_Value argument_expressions,
                            LT_Environment* environment,
@@ -300,7 +360,7 @@ static LT_Value apply_form(LT_Value operator,
 
     return LT_apply(
         evaluated_operator,
-        eval_list_items(argument_expressions, environment),
+        LT_eval_argument_list(argument_expressions, environment),
         LT_NIL,
         LT_NIL,
         tail_call_unwind_marker

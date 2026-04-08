@@ -46,7 +46,7 @@
 
 (ListTalk:define-macro (ListTalk:define-method signature . body)
   (if (pair? signature)
-      (if (eq? (car signature) 'send)
+      (if (eq? (car signature) 'ListTalk:send)
           `[,(cadr signature)
             addMethod: (%lambda '(,(cadr signature) >> ,(caddr signature))
                                 (ListTalk:self ,@(cdddr signature))
@@ -54,6 +54,19 @@
             withSelector: ,(caddr signature)]
           (error "define-method expects [Class selector ...] signature"))
       (error "define-method expects [Class selector ...] signature")))
+
+(ListTalk:define-macro (ListTalk-implementation:send receiver selector . arguments)
+  (if (if (symbol? receiver)
+          (equal? (symbol-name receiver) "super")
+          #false)
+      `(ListTalk-implementation:%super-send
+         ListTalk:self
+         ,selector
+         ,@arguments)
+      `(ListTalk-implementation:%send ,receiver ,selector ,@arguments)))
+
+(ListTalk:define-macro (ListTalk:send receiver selector . arguments)
+  `(ListTalk-implementation:send ,receiver ,selector ,@arguments))
 
 ; TODO: delalamoize this
 (ListTalk:define-macro (ListTalk:with-gensyms symbols . body)

@@ -76,6 +76,26 @@ static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_PRIMITIVE(
+    symbol_method_name,
+    "Symbol>>name",
+    "(self)",
+    "Return symbol name as string."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(self)){
+        LT_type_error(self, &LT_Symbol_class);
+    }
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(
+        LT_Symbol_name(LT_Symbol_from_value(self))
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     symbol_class_method_gensym,
     "Symbol class>>gensym",
     "(self [name])",
@@ -125,6 +145,11 @@ LT_DEFINE_PRIMITIVE(
     return LT_Symbol_new_uninterned(name);
 }
 
+static LT_Method_Descriptor Symbol_methods[] = {
+    {"name", &symbol_method_name},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 static LT_Method_Descriptor Symbol_class_methods[] = {
     {"gensym", &symbol_class_method_gensym},
     {"uninterned:", &symbol_class_method_uninterned},
@@ -139,6 +164,7 @@ LT_DEFINE_CLASS(LT_Symbol) {
     .instance_size = sizeof(LT_Symbol),
     .debugPrintOn = Symbol_debugPrintOn,
     .slots = Symbol_slots,
+    .methods = Symbol_methods,
     .class_methods = Symbol_class_methods,
 };
 

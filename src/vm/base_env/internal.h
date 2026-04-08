@@ -8,11 +8,16 @@
 
 #include <ListTalk/vm/base_env.h>
 
+#include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SpecialForm.h>
 
 void LT_base_env_bind_static_primitive(LT_Environment* environment,
                                        LT_Primitive* primitive);
+void LT_base_env_bind_static_primitive_in(LT_Environment* environment,
+                                          LT_Package* package,
+                                          LT_Primitive* primitive);
+LT_Value LT_eval_argument_list(LT_Value arguments, LT_Environment* environment);
 
 void LT_base_env_bind_numbers(LT_Environment* environment);
 void LT_base_env_bind_native_classes(LT_Environment* environment);

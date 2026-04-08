@@ -93,11 +93,21 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
 
 void LT_base_env_bind_static_primitive(LT_Environment* environment,
                                        LT_Primitive* primitive){
+    LT_base_env_bind_static_primitive_in(
+        environment,
+        LT_PACKAGE_LISTTALK,
+        primitive
+    );
+}
+
+void LT_base_env_bind_static_primitive_in(LT_Environment* environment,
+                                          LT_Package* package,
+                                          LT_Primitive* primitive){
     LT_Value primitive_value = LT_Primitive_from_static(primitive);
 
     LT_Environment_bind(
         environment,
-        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, primitive->name),
+        LT_Symbol_new_in(package, primitive->name),
         primitive_value,
         LT_ENV_BINDING_FLAG_CONSTANT
     );
