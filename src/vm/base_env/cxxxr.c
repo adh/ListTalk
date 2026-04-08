@@ -11,9 +11,7 @@
 
 #include <string.h>
 
-static LT_Value apply_cxr_path(LT_Value value,
-                               const char* path,
-                               const char* primitive_name){
+static LT_Value apply_cxr_path(LT_Value value, const char* path){
     size_t index = strlen(path);
 
     while (index > 0){
@@ -28,7 +26,6 @@ static LT_Value apply_cxr_path(LT_Value value,
         } else if (op == 'd'){
             value = LT_cdr(value);
         } else {
-            (void)primitive_name;
             LT_error("Invalid cxxxr primitive path");
         }
     }
@@ -48,7 +45,7 @@ static LT_Value apply_cxr_path(LT_Value value,
                                                                             \
         LT_OBJECT_ARG(cursor, value);                                       \
         LT_ARG_END(cursor);                                                 \
-        return apply_cxr_path(value, path_spec, symbol_name);              \
+        return apply_cxr_path(value, path_spec);              \
     }
 
 LT_DEFINE_CXR_PRIMITIVE(primitive_caar, "caar", "aa")

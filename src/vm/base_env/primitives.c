@@ -32,6 +32,16 @@ static int class_object_p(LT_Value value){
     return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Class));
 }
 
+static const char* name_from_symbol_or_string(LT_Value designator){
+    if (LT_Symbol_p(designator)){
+        return LT_Symbol_name(LT_Symbol_from_value(designator));
+    }
+    if (LT_String_p(designator)){
+        return LT_String_value_cstr(LT_String_from_value(designator));
+    }
+    return NULL;
+}
+
 static LT_Package* package_from_designator(LT_Value designator, int create_missing){
     const char* package_name = NULL;
     LT_Package* package;
@@ -39,11 +49,8 @@ static LT_Package* package_from_designator(LT_Value designator, int create_missi
     if (LT_Package_p(designator)){
         return LT_Package_from_value(designator);
     }
-    if (LT_Symbol_p(designator)){
-        package_name = LT_Symbol_name(LT_Symbol_from_value(designator));
-    } else if (LT_String_p(designator)){
-        package_name = LT_String_value_cstr(LT_String_from_value(designator));
-    } else {
+    package_name = name_from_symbol_or_string(designator);
+    if (package_name == NULL){
         LT_error("Package designator must be package, symbol, or string");
     }
 
@@ -59,14 +66,11 @@ static LT_Package* package_from_designator(LT_Value designator, int create_missi
 }
 
 static const char* package_nickname_from_designator(LT_Value designator){
-    if (LT_Symbol_p(designator)){
-        return LT_Symbol_name(LT_Symbol_from_value(designator));
+    const char* name = name_from_symbol_or_string(designator);
+    if (name == NULL){
+        LT_error("Package nickname must be symbol or string");
     }
-    if (LT_String_p(designator)){
-        return LT_String_value_cstr(LT_String_from_value(designator));
-    }
-    LT_error("Package nickname must be symbol or string");
-    return NULL;
+    return name;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(

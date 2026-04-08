@@ -10,14 +10,6 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
 
-static size_t checked_nonnegative_from_fixnum(int64_t value, const char* primitive_name){
-    (void)primitive_name;
-    if (value < 0){
-        LT_error("Expected non-negative fixnum");
-    }
-    return (size_t)value;
-}
-
 LT_DEFINE_PRIMITIVE(
     primitive_vector_p,
     "vector?",
@@ -68,7 +60,7 @@ LT_DEFINE_PRIMITIVE(
 
     return LT_Vector_at(
         vector,
-        checked_nonnegative_from_fixnum(index_value, "vector-ref")
+        checked_nonnegative_from_fixnum(index_value)
     );
 }
 
@@ -90,7 +82,7 @@ LT_DEFINE_PRIMITIVE(
 
     LT_Vector_atPut(
         vector,
-        checked_nonnegative_from_fixnum(index_value, "vector-set!"),
+        checked_nonnegative_from_fixnum(index_value),
         value
     );
     return value;
@@ -113,7 +105,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG_OPT(cursor, fill_value, LT_NIL);
     LT_ARG_END(cursor);
 
-    length = checked_nonnegative_from_fixnum(length_value, "make-vector");
+    length = checked_nonnegative_from_fixnum(length_value);
     vector = LT_Vector_new(length);
     for (i = 0; i < length; i++){
         LT_Vector_atPut(vector, i, fill_value);

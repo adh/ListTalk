@@ -11,17 +11,6 @@
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
-static size_t checked_index_from_fixnum(int64_t value, const char* primitive_name){
-    if (value < 0){
-        LT_error("Negative index");
-    }
-    if (!LT_SmallInteger_in_range((int64_t)(size_t)value)){
-        (void)primitive_name;
-        LT_error("Index out of supported range");
-    }
-    return (size_t)value;
-}
-
 LT_DEFINE_PRIMITIVE(
     primitive_character_p,
     "character?",
@@ -87,7 +76,7 @@ LT_DEFINE_PRIMITIVE(
 
     ch = LT_String_at(
         string,
-        checked_index_from_fixnum(index_value, "string-ref")
+        checked_nonnegative_from_fixnum(index_value)
     );
     return LT_Character_new(ch);
 }
