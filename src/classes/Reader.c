@@ -6,10 +6,14 @@
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/BigInteger.h>
+#include <ListTalk/classes/ExactComplexNumber.h>
 #include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/Float.h>
+#include <ListTalk/classes/InexactComplexNumber.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/RealNumber.h>
+#include <ListTalk/classes/RationalNumber.h>
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Pair.h>
@@ -61,6 +65,10 @@ static LT_Value read_object_from_first(
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_complex_dispatch_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+);
 static LT_Value read_number_token_with_radix(
     LT_Reader* reader,
     LT_ReaderStream* stream,
@@ -461,6 +469,128 @@ static int parse_float_token(const char* token, LT_Value* value){
     return 1;
 }
 
+static int parse_real_number_token(const char* token, LT_Value* value){
+    if (LT_Number_parse_token_with_radix(token, 10, value)){
+        return 1;
+    }
+    return parse_float_token(token, value);
+}
+
+static int parse_complex_rectangular_token(const char* token, LT_Value* value){
+    size_t length = strlen(token);
+    size_t index;
+    size_t split = 0;
+    char* real_token;
+    char* imag_token;
+    LT_Value real_part;
+    LT_Value imaginary_part;
+
+    if (length < 2 || token[length - 1] != 'i'){
+        return 0;
+    }
+
+    for (index = 1; index + 1 < length; index++){
+        if ((token[index] == '+' || token[index] == '-')
+            && token[index - 1] != 'e'
+            && token[index - 1] != 'E'){
+            split = index;
+        }
+    }
+
+    if (split == 0){
+        real_token = GC_MALLOC_ATOMIC(2);
+        real_token[0] = '0';
+        real_token[1] = '\0';
+
+        imag_token = GC_MALLOC_ATOMIC(length + 2);
+        memcpy(imag_token, token, length - 1);
+        imag_token[length - 1] = '\0';
+        if (imag_token[0] == '\0'){
+            strcpy(imag_token, "1");
+        } else if (strcmp(imag_token, "+") == 0){
+            strcpy(imag_token, "1");
+        } else if (strcmp(imag_token, "-") == 0){
+            strcpy(imag_token, "-1");
+        }
+    } else {
+        real_token = GC_MALLOC_ATOMIC(split + 1);
+        memcpy(real_token, token, split);
+        real_token[split] = '\0';
+
+        imag_token = GC_MALLOC_ATOMIC(length - split);
+        memcpy(imag_token, token + split, length - split - 1);
+        imag_token[length - split - 1] = '\0';
+        if (strcmp(imag_token, "+") == 0){
+            strcpy(imag_token, "1");
+        } else if (strcmp(imag_token, "-") == 0){
+            strcpy(imag_token, "-1");
+        }
+    }
+
+    if (!parse_real_number_token(real_token, &real_part)
+        || !parse_real_number_token(imag_token, &imaginary_part)){
+        return 0;
+    }
+
+    if (LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RationalNumber))
+        && LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RationalNumber))){
+        *value = LT_ExactComplexNumber_new(real_part, imaginary_part);
+        return 1;
+    }
+
+    if (!LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RealNumber))
+        || !LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RealNumber))){
+        return 0;
+    }
+
+    *value = LT_InexactComplexNumber_new(
+        LT_Number_to_double(real_part),
+        LT_Number_to_double(imaginary_part)
+    );
+    return 1;
+}
+
+static int parse_complex_polar_token(const char* token, LT_Value* value){
+    const char* at = strchr(token, '@');
+    char* radius_token;
+    char* angle_token;
+    size_t radius_length;
+    LT_Value radius;
+    LT_Value angle;
+    double radius_value;
+    double angle_value;
+
+    if (at == NULL || strchr(at + 1, '@') != NULL){
+        return 0;
+    }
+
+    radius_length = (size_t)(at - token);
+    if (radius_length == 0 || at[1] == '\0'){
+        return 0;
+    }
+
+    radius_token = GC_MALLOC_ATOMIC(radius_length + 1);
+    memcpy(radius_token, token, radius_length);
+    radius_token[radius_length] = '\0';
+    angle_token = GC_MALLOC_ATOMIC(strlen(at + 1) + 1);
+    strcpy(angle_token, at + 1);
+
+    if (!parse_real_number_token(radius_token, &radius)
+        || !parse_real_number_token(angle_token, &angle)
+        || !LT_Value_is_instance_of(radius, LT_STATIC_CLASS(LT_RealNumber))
+        || !LT_Value_is_instance_of(angle, LT_STATIC_CLASS(LT_RealNumber))){
+        return 0;
+    }
+
+    radius_value = LT_Number_to_double(radius);
+    angle_value = LT_Number_to_double(angle);
+    *value = LT_InexactComplexNumber_new(
+        radius_value * cos(angle_value),
+        radius_value * sin(angle_value)
+    );
+    return 1;
+}
+
 static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_result){
     char* token = token_result.token;
 
@@ -525,6 +655,12 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
         reader_error(reader, "Unexpected dot");
     }
 
+    if (!token_result.has_symbol_quoting && parse_complex_rectangular_token(token, &value)){
+        return value;
+    }
+    if (!token_result.has_symbol_quoting && parse_complex_polar_token(token, &value)){
+        return value;
+    }
     if (!token_result.has_symbol_quoting
         && LT_Number_parse_token_with_radix(token, 10, &value)){
         return value;
@@ -602,6 +738,51 @@ static LT_Value read_number_token_with_radix(
     return value;
 }
 
+static LT_Value read_complex_dispatch_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    int ch = read_non_space_char(reader, stream);
+    LT_Value real_part;
+    LT_Value imaginary_part;
+
+    if (ch != '('){
+        reader_error(reader, "#C expects list syntax");
+    }
+
+    ch = read_non_space_char(reader, stream);
+    if (ch == EOF || ch == ')'){
+        reader_error(reader, "#C expects two parts");
+    }
+    real_part = read_object_from_first(reader, stream, ch);
+
+    ch = read_non_space_char(reader, stream);
+    if (ch == EOF || ch == ')'){
+        reader_error(reader, "#C expects imaginary part");
+    }
+    imaginary_part = read_object_from_first(reader, stream, ch);
+
+    ch = read_non_space_char(reader, stream);
+    if (ch != ')'){
+        reader_error(reader, "#C expects exactly two parts");
+    }
+
+    if (LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RationalNumber))
+        && LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RationalNumber))){
+        return LT_ExactComplexNumber_new(real_part, imaginary_part);
+    }
+    if (LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RealNumber))
+        && LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RealNumber))){
+        return LT_InexactComplexNumber_new(
+            LT_Number_to_double(real_part),
+            LT_Number_to_double(imaginary_part)
+        );
+    }
+
+    reader_error(reader, "#C parts must be real numbers");
+    return LT_NIL;
+}
+
 static LT_Value read_dispatch_macro(
     LT_Reader* reader,
     LT_ReaderStream* stream
@@ -667,6 +848,10 @@ static LT_Value read_dispatch_macro(
         case 'X':
             ensure_dispatch_argument_unused(reader, argument);
             return read_number_token_with_radix(reader, stream, 16);
+        case 'c':
+        case 'C':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_complex_dispatch_literal(reader, stream);
         case 'r':
         case 'R':
             if (argument == -1){

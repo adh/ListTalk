@@ -12,9 +12,12 @@
 #include <ListTalk/classes/Nil.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/ComplexNumber.h>
 #include <ListTalk/classes/RealNumber.h>
 #include <ListTalk/classes/RationalNumber.h>
 #include <ListTalk/classes/Integer.h>
+#include <ListTalk/classes/InexactComplexNumber.h>
+#include <ListTalk/classes/ExactComplexNumber.h>
 #include <ListTalk/classes/BigInteger.h>
 #include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/Float.h>
@@ -58,9 +61,12 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Nil", &LT_Nil_class},
     {"Character", &LT_Character_class},
     {"Number", &LT_Number_class},
+    {"ComplexNumber", &LT_ComplexNumber_class},
     {"RealNumber", &LT_RealNumber_class},
     {"RationalNumber", &LT_RationalNumber_class},
     {"Integer", &LT_Integer_class},
+    {"InexactComplexNumber", &LT_InexactComplexNumber_class},
+    {"ExactComplexNumber", &LT_ExactComplexNumber_class},
     {"BigInteger", &LT_BigInteger_class},
     {"Fraction", &LT_Fraction_class},
     {"SmallInteger", &LT_SmallInteger_class},

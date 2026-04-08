@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <math.h>
 #include <string.h>
 
 static int fail(const char* message){
@@ -503,6 +504,52 @@ static int test_dispatch_argument_rejected_for_non_argument_macro(void){
         strcmp(condition_message_cstr(value), "Dispatch macro does not accept numeric argument") == 0,
         "unsupported dispatch argument message"
     );
+}
+
+static int test_rectangular_complex_literal(void){
+    LT_Value value = read_one("0+1i");
+    char* printed;
+
+    if (expect(LT_Value_class(value) == &LT_ExactComplexNumber_class, "rectangular complex is exact")){
+        return 1;
+    }
+    printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "0+1i") == 0, "rectangular complex print");
+}
+
+static int test_pure_imaginary_complex_literal(void){
+    LT_Value value = read_one("-2i");
+    char* printed;
+
+    if (expect(LT_Value_class(value) == &LT_ExactComplexNumber_class, "pure imaginary complex is exact")){
+        return 1;
+    }
+    printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "0-2i") == 0, "pure imaginary complex print");
+}
+
+static int test_polar_complex_literal(void){
+    LT_Value value = read_one("1@3.14");
+
+    if (expect(LT_Value_class(value) == &LT_InexactComplexNumber_class, "polar complex is inexact")){
+        return 1;
+    }
+    return expect(
+        fabs(LT_InexactComplexNumber_real(value) + 0.9999987317275395) < 1e-12
+            && fabs(LT_InexactComplexNumber_imaginary(value) - 0.0015926529164868282) < 1e-12,
+        "polar complex value"
+    );
+}
+
+static int test_dispatch_complex_literal(void){
+    LT_Value value = read_one("#C(1 1)");
+    char* printed;
+
+    if (expect(LT_Value_class(value) == &LT_ExactComplexNumber_class, "#C exact complex class")){
+        return 1;
+    }
+    printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "1+1i") == 0, "#C exact complex print");
 }
 
 static int test_quote_syntax(void){
@@ -1177,6 +1224,10 @@ int main(void){
     failures += test_dispatch_hex_fraction();
     failures += test_dispatch_explicit_radix_number();
     failures += test_dispatch_argument_rejected_for_non_argument_macro();
+    failures += test_rectangular_complex_literal();
+    failures += test_pure_imaginary_complex_literal();
+    failures += test_polar_complex_literal();
+    failures += test_dispatch_complex_literal();
     failures += test_quote_syntax();
     failures += test_quasiquote_syntax();
     failures += test_unquote_syntax();

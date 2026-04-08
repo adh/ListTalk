@@ -244,6 +244,30 @@ static int test_big_integer_multiplication_beyond_int128(void){
     );
 }
 
+static int test_complex_addition(void){
+    LT_Value value = eval_one("(+ 1+2i 3+4i)");
+    char* printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "4+6i") == 0, "complex addition");
+}
+
+static int test_complex_multiplication(void){
+    LT_Value value = eval_one("(* 1+2i 3+4i)");
+    char* printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "-5+10i") == 0, "complex multiplication");
+}
+
+static int test_complex_division(void){
+    LT_Value value = eval_one("(/ 1+2i 3+4i)");
+    char* printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "11/25+2/25i") == 0, "complex division");
+}
+
+static int test_real_complex_mixed_addition(void){
+    LT_Value value = eval_one("(+ 2 1+3i)");
+    char* printed = debug_string_for_value(value);
+    return expect(strcmp(printed, "3+3i") == 0, "real and complex mixed addition");
+}
+
 static int test_fraction_multiplication_canonicalizes_to_integer(void){
     LT_Value value = eval_one("(* 2 3/2)");
     return expect(
@@ -2758,19 +2782,25 @@ static int test_precedence_list_initialized(void){
         return 1;
     }
     if (expect(
-        precedence_list[4] == LT_STATIC_CLASS(LT_Number),
+        precedence_list[4] == LT_STATIC_CLASS(LT_ComplexNumber),
+        "precedence list contains ComplexNumber"
+    )){
+        return 1;
+    }
+    if (expect(
+        precedence_list[5] == LT_STATIC_CLASS(LT_Number),
         "precedence list contains Number"
     )){
         return 1;
     }
     if (expect(
-        precedence_list[5] == LT_STATIC_CLASS(LT_Object),
+        precedence_list[6] == LT_STATIC_CLASS(LT_Object),
         "precedence list contains root object class"
     )){
         return 1;
     }
     return expect(
-        precedence_list[6] == LT_INVALID,
+        precedence_list[7] == LT_INVALID,
         "precedence list is LT_INVALID terminated"
     );
 }
@@ -2804,6 +2834,12 @@ static int test_value_is_instance_of_uses_precedence_list(void){
         return 1;
     }
     if (expect(
+        LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_ComplexNumber)),
+        "fixnum is instance of ComplexNumber"
+    )){
+        return 1;
+    }
+    if (expect(
         LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_Number)),
         "fixnum is instance of Number"
     )){
@@ -2831,10 +2867,17 @@ static int test_value_is_instance_of_uses_precedence_list(void){
 }
 
 static int test_numeric_abstract_classes_are_bound(void){
+    LT_Value complex_class = eval_one("ComplexNumber");
     LT_Value integer_class = eval_one("Integer");
     LT_Value rational_class = eval_one("RationalNumber");
     LT_Value real_class = eval_one("RealNumber");
 
+    if (expect(
+        (LT_Class*)LT_VALUE_POINTER_VALUE(complex_class) == &LT_ComplexNumber_class,
+        "ComplexNumber class is bound"
+    )){
+        return 1;
+    }
     if (expect(
         (LT_Class*)LT_VALUE_POINTER_VALUE(integer_class) == &LT_Integer_class,
         "Integer class is bound"
@@ -2906,6 +2949,10 @@ int main(void){
     RUN_TEST(test_fixnum_overflow_promotes_to_big_integer);
     RUN_TEST(test_fraction_addition_is_reduced);
     RUN_TEST(test_big_integer_multiplication_beyond_int128);
+    RUN_TEST(test_complex_addition);
+    RUN_TEST(test_complex_multiplication);
+    RUN_TEST(test_complex_division);
+    RUN_TEST(test_real_complex_mixed_addition);
     RUN_TEST(test_fraction_multiplication_canonicalizes_to_integer);
     RUN_TEST(test_symbol_lookup);
     RUN_TEST(test_display_primitive_returns_argument);
