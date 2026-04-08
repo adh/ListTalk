@@ -61,6 +61,11 @@ static LT_Value read_object_from_first(
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_number_token_with_radix(
+    LT_Reader* reader,
+    LT_ReaderStream* stream,
+    unsigned int radix
+);
 static char* read_token_string(LT_Reader* reader, int first, LT_ReaderStream* stream);
 static void reader_reset_position(LT_Reader* reader);
 static int reader_getc(LT_Reader* reader, LT_ReaderStream* stream);
@@ -520,10 +525,8 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
         reader_error(reader, "Unexpected dot");
     }
 
-    if (!token_result.has_symbol_quoting && LT_Number_parse_fraction_token(token, &value)){
-        return value;
-    }
-    if (!token_result.has_symbol_quoting && LT_Number_parse_integer_token(token, &value)){
+    if (!token_result.has_symbol_quoting
+        && LT_Number_parse_token_with_radix(token, 10, &value)){
         return value;
     }
     if (!token_result.has_symbol_quoting && parse_float_token(token, &value)){
@@ -573,28 +576,60 @@ static void consume_dispatch_suffix_or_short(
     }
 }
 
+static void ensure_dispatch_argument_unused(LT_Reader* reader, int argument){
+    if (argument != -1){
+        reader_error(reader, "Dispatch macro does not accept numeric argument");
+    }
+}
+
+static LT_Value read_number_token_with_radix(
+    LT_Reader* reader,
+    LT_ReaderStream* stream,
+    unsigned int radix
+){
+    int ch = reader_getc(reader, stream);
+    char* token;
+    LT_Value value;
+
+    if (ch == EOF || is_delimiter(ch)){
+        reader_incomplete_input(reader, "Numeric dispatch macro expects token");
+    }
+
+    token = read_token_string(reader, ch, stream);
+    if (!LT_Number_parse_token_with_radix(token, radix, &value)){
+        reader_error(reader, "Invalid numeric token");
+    }
+    return value;
+}
+
 static LT_Value read_dispatch_macro(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
     int ch = reader_getc(reader, stream);
+    int argument = -1;
 
     if (ch == EOF){
         reader_incomplete_input(reader, "Expected dispatch token after '#'");
     }
+
     if (isdigit((unsigned char)ch)){
-        reader_error(
-            reader,
-            "Dispatch token after '#' must start with non-numeric character"
-        );
+        argument = 0;
+        do {
+            argument = argument * 10 + (ch - '0');
+            ch = reader_getc(reader, stream);
+        } while (isdigit((unsigned char)ch));
     }
 
     switch (ch){
         case '(':
+            ensure_dispatch_argument_unused(reader, argument);
             return read_vector_literal(reader, stream);
         case '\\':
+            ensure_dispatch_argument_unused(reader, argument);
             return read_character_literal(reader, stream);
         case '!':
+            ensure_dispatch_argument_unused(reader, argument);
             ch = reader_getc(reader, stream);
             while (ch != EOF && ch != '\n'){
                 ch = reader_getc(reader, stream);
@@ -605,17 +640,39 @@ static LT_Value read_dispatch_macro(
             }
             return read_object_from_first(reader, stream, ch);
         case '<':
+            ensure_dispatch_argument_unused(reader, argument);
             reader_error(reader, "Unreadable object in input");
             return LT_NIL;
         case 't':
+            ensure_dispatch_argument_unused(reader, argument);
             consume_dispatch_suffix_or_short(reader, stream, "rue");
             return LT_TRUE;
         case 'f':
+            ensure_dispatch_argument_unused(reader, argument);
             consume_dispatch_suffix_or_short(reader, stream, "alse");
             return LT_FALSE;
         case 'n':
+            ensure_dispatch_argument_unused(reader, argument);
             consume_dispatch_suffix_or_short(reader, stream, "il");
             return LT_NIL;
+        case 'b':
+        case 'B':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_number_token_with_radix(reader, stream, 2);
+        case 'o':
+        case 'O':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_number_token_with_radix(reader, stream, 8);
+        case 'x':
+        case 'X':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_number_token_with_radix(reader, stream, 16);
+        case 'r':
+        case 'R':
+            if (argument == -1){
+                reader_error(reader, "Radix dispatch macro expects numeric argument");
+            }
+            return read_number_token_with_radix(reader, stream, (unsigned int)argument);
         default:
             reader_error(reader, "Unknown dispatch macro character");
             return LT_NIL;

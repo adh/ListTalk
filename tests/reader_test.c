@@ -459,6 +459,52 @@ static int test_dispatch_bang_comment(void){
     );
 }
 
+static int test_dispatch_binary_number(void){
+    LT_Value value = read_one("#b101010");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
+        "dispatch #b parses binary integer"
+    );
+}
+
+static int test_dispatch_octal_number(void){
+    LT_Value value = read_one("#o52");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
+        "dispatch #o parses octal integer"
+    );
+}
+
+static int test_dispatch_hex_fraction(void){
+    LT_Value value = read_one("#x10/c");
+    return expect(
+        LT_Value_class(value) == &LT_SmallFraction_class
+            && LT_SmallFraction_numerator(value) == 4
+            && LT_SmallFraction_denominator(value) == 3,
+        "dispatch #x parses hexadecimal fraction"
+    );
+}
+
+static int test_dispatch_explicit_radix_number(void){
+    LT_Value value = read_one("#16r2a");
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
+        "dispatch #16r parses explicit radix integer"
+    );
+}
+
+static int test_dispatch_argument_rejected_for_non_argument_macro(void){
+    LT_Value value = read_one_catch_error("#2x2a");
+
+    if (expect(LT_ReaderError_p(value), "unsupported dispatch argument signals reader error")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Dispatch macro does not accept numeric argument") == 0,
+        "unsupported dispatch argument message"
+    );
+}
+
 static int test_quote_syntax(void){
     LT_Value value = read_one("'a");
     LT_Value tail;
@@ -1126,6 +1172,11 @@ int main(void){
     failures += test_dispatch_character_named();
     failures += test_dispatch_character_unicode();
     failures += test_dispatch_bang_comment();
+    failures += test_dispatch_binary_number();
+    failures += test_dispatch_octal_number();
+    failures += test_dispatch_hex_fraction();
+    failures += test_dispatch_explicit_radix_number();
+    failures += test_dispatch_argument_rejected_for_non_argument_macro();
     failures += test_quote_syntax();
     failures += test_quasiquote_syntax();
     failures += test_unquote_syntax();

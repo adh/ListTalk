@@ -920,10 +920,27 @@ static LT_Value integer_multiply_by_small(LT_Value value, uint32_t factor){
     return make_integer_from_limbs(ref.negative, result_count, result);
 }
 
-LT_Value LT_BigInteger_new_from_digits(const char* digits){
+static int digit_value(int ch){
+    if (ch >= '0' && ch <= '9'){
+        return ch - '0';
+    }
+    if (ch >= 'a' && ch <= 'z'){
+        return ch - 'a' + 10;
+    }
+    if (ch >= 'A' && ch <= 'Z'){
+        return ch - 'A' + 10;
+    }
+    return -1;
+}
+
+LT_Value LT_BigInteger_new_from_digits(const char* digits, unsigned int radix){
     const char* cursor = digits;
     LT_Value result = LT_SmallInteger_new(0);
     int negative = 0;
+
+    if (radix < 2 || radix > 36){
+        LT_error("Invalid integer radix");
+    }
 
     if (*cursor == '+' || *cursor == '-'){
         negative = *cursor == '-';
@@ -934,14 +951,14 @@ LT_Value LT_BigInteger_new_from_digits(const char* digits){
     }
 
     while (*cursor != '\0'){
-        unsigned char ch = (unsigned char)*cursor;
+        int value = digit_value((unsigned char)*cursor);
 
-        if (ch < '0' || ch > '9'){
+        if (value < 0 || (unsigned int)value >= radix){
             LT_error("Invalid integer literal");
         }
 
-        result = integer_multiply_by_small(result, 10);
-        result = LT_Integer_add(result, LT_SmallInteger_new((int64_t)(ch - '0')));
+        result = integer_multiply_by_small(result, (uint32_t)radix);
+        result = LT_Integer_add(result, LT_SmallInteger_new((int64_t)value));
         cursor++;
     }
 

@@ -18,8 +18,7 @@ typedef struct LT_Number_s LT_Number;
 extern LT_Class LT_Number_class;
 extern LT_Class LT_Number_class_class;
 
-int LT_Number_parse_integer_token(const char* token, LT_Value* value);
-int LT_Number_parse_fraction_token(const char* token, LT_Value* value);
+int LT_Number_parse_token_with_radix(const char* token, unsigned int radix, LT_Value* value);
 LT_Value LT_Number_add2(LT_Value left, LT_Value right);
 LT_Value LT_Number_subtract2(LT_Value left, LT_Value right);
 LT_Value LT_Number_multiply2(LT_Value left, LT_Value right);

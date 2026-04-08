@@ -275,7 +275,20 @@ LT_DEFINE_CLASS(LT_Number) {
         | LT_CLASS_FLAG_SCALAR,
 };
 
-int LT_Number_parse_integer_token(const char* token, LT_Value* value){
+static int token_char_digit_value(int ch){
+    if (ch >= '0' && ch <= '9'){
+        return ch - '0';
+    }
+    if (ch >= 'a' && ch <= 'z'){
+        return ch - 'a' + 10;
+    }
+    if (ch >= 'A' && ch <= 'Z'){
+        return ch - 'A' + 10;
+    }
+    return -1;
+}
+
+static int token_is_integer_for_radix(const char* token, unsigned int radix){
     const char* cursor = token;
 
     if (*cursor == '+' || *cursor == '-'){
@@ -286,17 +299,18 @@ int LT_Number_parse_integer_token(const char* token, LT_Value* value){
     }
 
     while (*cursor != '\0'){
-        if (*cursor < '0' || *cursor > '9'){
+        int value = token_char_digit_value((unsigned char)*cursor);
+
+        if (value < 0 || (unsigned int)value >= radix){
             return 0;
         }
         cursor++;
     }
 
-    *value = LT_BigInteger_new_from_digits(token);
     return 1;
 }
 
-int LT_Number_parse_fraction_token(const char* token, LT_Value* value){
+int LT_Number_parse_token_with_radix(const char* token, unsigned int radix, LT_Value* value){
     const char* slash = strchr(token, '/');
     char* numerator_token;
     char* denominator_token;
@@ -304,7 +318,19 @@ int LT_Number_parse_fraction_token(const char* token, LT_Value* value){
     LT_Value numerator;
     LT_Value denominator;
 
-    if (slash == NULL || strchr(slash + 1, '/') != NULL){
+    if (radix < 2 || radix > 36){
+        LT_error("Invalid number radix");
+    }
+
+    if (slash == NULL){
+        if (!token_is_integer_for_radix(token, radix)){
+            return 0;
+        }
+        *value = LT_BigInteger_new_from_digits(token, radix);
+        return 1;
+    }
+
+    if (strchr(slash + 1, '/') != NULL){
         return 0;
     }
 
@@ -319,11 +345,13 @@ int LT_Number_parse_fraction_token(const char* token, LT_Value* value){
     denominator_token = GC_MALLOC_ATOMIC(strlen(slash + 1) + 1);
     strcpy(denominator_token, slash + 1);
 
-    if (!LT_Number_parse_integer_token(numerator_token, &numerator)
-        || !LT_Number_parse_integer_token(denominator_token, &denominator)){
+    if (!token_is_integer_for_radix(numerator_token, radix)
+        || !token_is_integer_for_radix(denominator_token, radix)){
         return 0;
     }
 
+    numerator = LT_BigInteger_new_from_digits(numerator_token, radix);
+    denominator = LT_BigInteger_new_from_digits(denominator_token, radix);
     *value = make_fraction(numerator, denominator);
     return 1;
 }

@@ -12,7 +12,7 @@ LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_BigInteger)
 
-LT_Value LT_BigInteger_new_from_digits(const char* digits);
+LT_Value LT_BigInteger_new_from_digits(const char* digits, unsigned int radix);
 char* LT_BigInteger_to_decimal_cstr(LT_Value value);
 
 LT__END_DECLS
