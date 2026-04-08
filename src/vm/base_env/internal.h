@@ -18,7 +18,7 @@
 
 static inline size_t checked_nonnegative_from_fixnum(int64_t value){
     if (value < 0){
-        LT_error("Expected non-negative index");
+        LT_error("Negative index");
     }
     if (!LT_SmallInteger_in_range((int64_t)(size_t)value)){
         LT_error("Index out of supported range");
