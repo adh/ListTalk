@@ -5,6 +5,7 @@
 
 #include "BigInteger_internal.h"
 
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/error.h>
@@ -481,7 +482,7 @@ static void BigInteger_debugPrintOn(LT_Value value, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_BigInteger) {
-    .superclass = &LT_Number_class,
+    .superclass = &LT_Integer_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "BigInteger",
     .instance_size = sizeof(LT_BigInteger),
@@ -489,7 +490,7 @@ LT_DEFINE_CLASS(LT_BigInteger) {
     .debugPrintOn = BigInteger_debugPrintOn,
 };
 
-bool LT_Integer_p(LT_Value value){
+bool LT_Integer_value_p(LT_Value value){
     return LT_Value_is_fixnum(value) || LT_BigInteger_p(value);
 }
 

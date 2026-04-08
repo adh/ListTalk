@@ -19,6 +19,9 @@
 #include <ListTalk/classes/Nil.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/RealNumber.h>
+#include <ListTalk/classes/RationalNumber.h>
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/SmallFraction.h>

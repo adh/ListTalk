@@ -22,7 +22,7 @@ static inline size_t hash_uint64(uint64_t value){
     return (size_t)value;
 }
 
-bool LT_Integer_p(LT_Value value);
+bool LT_Integer_value_p(LT_Value value);
 bool LT_Integer_is_zero(LT_Value value);
 bool LT_Integer_negative_p(LT_Value value);
 int LT_Integer_compare(LT_Value left, LT_Value right);

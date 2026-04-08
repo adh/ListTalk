@@ -5,6 +5,7 @@
 
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/RealNumber.h>
 #include <ListTalk/macros/decl_macros.h>
 
 #include <stdio.h>
@@ -18,7 +19,7 @@ static void Float_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_Float) {
-    .superclass = &LT_Number_class,
+    .superclass = &LT_RealNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Float",
     .instance_size = sizeof(LT_Float),

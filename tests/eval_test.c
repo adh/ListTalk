@@ -2740,19 +2740,37 @@ static int test_precedence_list_initialized(void){
         return 1;
     }
     if (expect(
-        precedence_list[1] == LT_STATIC_CLASS(LT_Number),
-        "precedence list contains direct superclass"
+        precedence_list[1] == LT_STATIC_CLASS(LT_Integer),
+        "precedence list contains Integer"
     )){
         return 1;
     }
     if (expect(
-        precedence_list[2] == LT_STATIC_CLASS(LT_Object),
+        precedence_list[2] == LT_STATIC_CLASS(LT_RationalNumber),
+        "precedence list contains RationalNumber"
+    )){
+        return 1;
+    }
+    if (expect(
+        precedence_list[3] == LT_STATIC_CLASS(LT_RealNumber),
+        "precedence list contains RealNumber"
+    )){
+        return 1;
+    }
+    if (expect(
+        precedence_list[4] == LT_STATIC_CLASS(LT_Number),
+        "precedence list contains Number"
+    )){
+        return 1;
+    }
+    if (expect(
+        precedence_list[5] == LT_STATIC_CLASS(LT_Object),
         "precedence list contains root object class"
     )){
         return 1;
     }
     return expect(
-        precedence_list[3] == LT_INVALID,
+        precedence_list[6] == LT_INVALID,
         "precedence list is LT_INVALID terminated"
     );
 }
@@ -2764,6 +2782,24 @@ static int test_value_is_instance_of_uses_precedence_list(void){
     if (expect(
         LT_Value_is_instance_of(one, small_integer_class),
         "fixnum is instance of SmallInteger"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_Integer)),
+        "fixnum is instance of Integer"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_RationalNumber)),
+        "fixnum is instance of RationalNumber"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(one, LT_STATIC_CLASS(LT_RealNumber)),
+        "fixnum is instance of RealNumber"
     )){
         return 1;
     }
@@ -2791,6 +2827,29 @@ static int test_value_is_instance_of_uses_precedence_list(void){
             LT_STATIC_CLASS(LT_Class)
         ),
         "class object is instance of Class"
+    );
+}
+
+static int test_numeric_abstract_classes_are_bound(void){
+    LT_Value integer_class = eval_one("Integer");
+    LT_Value rational_class = eval_one("RationalNumber");
+    LT_Value real_class = eval_one("RealNumber");
+
+    if (expect(
+        (LT_Class*)LT_VALUE_POINTER_VALUE(integer_class) == &LT_Integer_class,
+        "Integer class is bound"
+    )){
+        return 1;
+    }
+    if (expect(
+        (LT_Class*)LT_VALUE_POINTER_VALUE(rational_class) == &LT_RationalNumber_class,
+        "RationalNumber class is bound"
+    )){
+        return 1;
+    }
+    return expect(
+        (LT_Class*)LT_VALUE_POINTER_VALUE(real_class) == &LT_RealNumber_class,
+        "RealNumber class is bound"
     );
 }
 
@@ -2958,6 +3017,7 @@ int main(void){
     RUN_TEST(test_symbol_class_inherits_object);
     RUN_TEST(test_precedence_list_initialized);
     RUN_TEST(test_value_is_instance_of_uses_precedence_list);
+    RUN_TEST(test_numeric_abstract_classes_are_bound);
     RUN_TEST(test_boolean_constants);
     RUN_TEST(test_character_api_uses_unicode_codepoints);
 

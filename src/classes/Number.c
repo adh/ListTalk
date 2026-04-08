@@ -37,7 +37,7 @@ static int Number_class_equal_p(LT_Value left, LT_Value right){
 }
 
 static bool value_is_exact_integer(LT_Value value){
-    return LT_Integer_p(value);
+    return LT_Integer_value_p(value);
 }
 
 static bool value_is_exact_number(LT_Value value){
@@ -97,7 +97,7 @@ static LT_Value make_fraction(LT_Value numerator, LT_Value denominator){
 static LT_ExactRational exact_rational_from_value(LT_Value value){
     LT_ExactRational result;
 
-    if (LT_Integer_p(value)){
+    if (LT_Integer_value_p(value)){
         result.numerator = value;
         result.denominator = LT_SmallInteger_new(1);
         return result;
@@ -131,7 +131,7 @@ static LT_Value checked_exact_add(LT_Value left, LT_Value right){
     LT_Value g, left_scaled, right_scaled, numerator, denominator;
 
     /* Integer + Integer: avoid all the fraction machinery */
-    if (LT_Integer_p(left) && LT_Integer_p(right)){
+    if (LT_Integer_value_p(left) && LT_Integer_value_p(right)){
         return make_fraction(LT_Integer_add(left, right), LT_SmallInteger_new(1));
     }
 
@@ -157,7 +157,7 @@ static LT_Value checked_exact_subtract(LT_Value left, LT_Value right){
     LT_ExactRational rhs;
     LT_Value g, left_scaled, right_scaled, numerator, denominator;
 
-    if (LT_Integer_p(left) && LT_Integer_p(right)){
+    if (LT_Integer_value_p(left) && LT_Integer_value_p(right)){
         return make_fraction(LT_Integer_subtract(left, right), LT_SmallInteger_new(1));
     }
 
@@ -180,7 +180,7 @@ static LT_Value checked_exact_multiply(LT_Value left, LT_Value right){
     LT_ExactRational lhs;
     LT_ExactRational rhs;
 
-    if (LT_Integer_p(left) && LT_Integer_p(right)){
+    if (LT_Integer_value_p(left) && LT_Integer_value_p(right)){
         return make_fraction(LT_Integer_multiply(left, right), LT_SmallInteger_new(1));
     }
 
@@ -196,7 +196,7 @@ static LT_Value checked_exact_divide(LT_Value left, LT_Value right){
     LT_ExactRational lhs;
     LT_ExactRational rhs;
 
-    if (LT_Integer_p(left) && LT_Integer_p(right)){
+    if (LT_Integer_value_p(left) && LT_Integer_value_p(right)){
         if (LT_Integer_is_zero(right)){
             LT_error("Division by zero");
         }
@@ -217,7 +217,7 @@ static LT_Value checked_exact_divide(LT_Value left, LT_Value right){
 }
 
 static LT_Value checked_exact_negate(LT_Value value){
-    if (LT_Integer_p(value)){
+    if (LT_Integer_value_p(value)){
         return LT_Integer_negate(value);
     }
     LT_ExactRational rational = exact_rational_from_value(value);

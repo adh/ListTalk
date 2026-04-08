@@ -3,8 +3,8 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/SmallInteger.h>
-#include <ListTalk/classes/Number.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/Class.h>
 
@@ -24,7 +24,7 @@ static void SmallInteger_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_SmallInteger) {
-    .superclass = &LT_Number_class,
+    .superclass = &LT_Integer_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SmallInteger",
     .instance_size = sizeof(LT_SmallInteger),
