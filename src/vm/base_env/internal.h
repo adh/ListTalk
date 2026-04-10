@@ -10,7 +10,21 @@
 
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/SpecialForm.h>
+#include <ListTalk/vm/error.h>
+
+#include <stdint.h>
+
+static inline size_t checked_nonnegative_from_fixnum(int64_t value){
+    if (value < 0){
+        LT_error("Negative index");
+    }
+    if (!LT_SmallInteger_in_range((int64_t)(size_t)value)){
+        LT_error("Index out of supported range");
+    }
+    return (size_t)value;
+}
 
 void LT_base_env_bind_static_primitive(LT_Environment* environment,
                                        LT_Primitive* primitive);
