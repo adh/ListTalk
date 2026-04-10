@@ -56,6 +56,7 @@ vm_lib = library(
                 'src/vm/base_env/vectors.c',
                 'src/vm/base_env/special_forms.c',
                 'src/vm/utils.c',
+                'src/vm/cmdopts.c',
                 'src/vm/init.c',
                 'src/vm/error.c',
                 'src/vm/stack_trace.c',
@@ -149,6 +150,13 @@ dictionary_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+cmdopts_test_exe = executable(
+        'cmdopts_test',
+        'tests/cmdopts_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -177,6 +185,11 @@ test(
 test(
         'dictionary_test',
         dictionary_test_exe
+)
+
+test(
+        'cmdopts_test',
+        cmdopts_test_exe
 )
 
 install_subdir(

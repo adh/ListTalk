@@ -10,6 +10,7 @@
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/cmdopts.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/throw_catch.h>
@@ -283,18 +284,6 @@ static int eval_repl(LT_Value error_handler,
     return 0;
 }
 
-static LT_Value build_command_line_list(int argc, char** argv){
-    LT_Value args = LT_NIL;
-    int index;
-
-    for (index = argc - 1; index >= 1; index--){
-        LT_Value argument = (LT_Value)(uintptr_t)LT_String_new_cstr(argv[index]);
-        args = LT_cons(argument, args);
-    }
-
-    return args;
-}
-
 int main(int argc, char**argv){
     LT_Reader* reader;
     LT_Value repl_handler;
@@ -302,6 +291,9 @@ int main(int argc, char**argv){
     LT_Environment* base_environment;
     FILE* source_file;
     int eval_status;
+    LT_CmdOpts* cmdopts;
+    char* source_path = NULL;
+    LT_Value command_line_list = LT_NIL;
 
     LT_init();
     LT_set_current_package(LT_PACKAGE_LISTTALK_USER);
@@ -321,14 +313,18 @@ int main(int argc, char**argv){
     );
     base_environment = LT_get_shared_base_environment();
 
-    if (argc <= 1){
+    cmdopts = LT_CmdOpts_new(LT_CMDOPTS_STRICT_ORDER);
+    LT_CmdOpts_addStringArgument(cmdopts, 0, &source_path);
+    LT_CmdOpts_addStringListArgument(cmdopts, 0, &command_line_list);
+    LT_CmdOpts_parseArgv(cmdopts, argc - 1, argv + 1);
+
+    if (source_path == NULL){
         (void)reader;
         return eval_repl(repl_handler, file_handler, base_environment);
     }
 
     {
         LT_Value command_line_symbol = LT_Symbol_new("*command-line*");
-        LT_Value command_line_list = build_command_line_list(argc, argv);
 
         LT_Environment_bind(
             base_environment,
@@ -337,9 +333,9 @@ int main(int argc, char**argv){
             0
         );
 
-        source_file = fopen(argv[1], "r");
+        source_file = fopen(source_path, "r");
         if (source_file == NULL){
-            fprintf(stderr, "Error: unable to open source file '%s'\n", argv[1]);
+            fprintf(stderr, "Error: unable to open source file '%s'\n", source_path);
             return 1;
         }
 
