@@ -57,7 +57,7 @@
 
 (ListTalk:define-macro (ListTalk-implementation:send receiver selector . arguments)
   (if (if (symbol? receiver)
-          (equal? (symbol-name receiver) "super")
+          (eq? receiver 'ListTalk:super)
           #false)
       `(ListTalk-implementation:%super-send
          ListTalk:self
