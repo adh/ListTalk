@@ -1902,6 +1902,31 @@ static int test_cond_special_form(void){
     );
 }
 
+static int test_begin_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+
+    value = LT_eval(read_one("(begin)"), env, NULL);
+    if (expect(value == LT_NIL, "begin with no forms returns nil")){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(begin 1 2 3)"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "begin returns last body value"
+    )){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(begin (define begin-defined 26))"), env, NULL);
+    value = LT_eval(read_one("begin-defined"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 26,
+        "begin evaluates body in current environment"
+    );
+}
+
 static int test_let_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value value;
@@ -3553,6 +3578,7 @@ int main(void){
     RUN_TEST(test_and_special_form);
     RUN_TEST(test_or_special_form);
     RUN_TEST(test_cond_special_form);
+    RUN_TEST(test_begin_special_form);
     RUN_TEST(test_let_special_form);
     RUN_TEST(test_define_special_form);
     RUN_TEST(test_define_function_shorthand);

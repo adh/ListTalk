@@ -398,6 +398,12 @@ static LT_Value special_form_cond(LT_Value arguments,
     return LT_FALSE;
 }
 
+static LT_Value special_form_begin(LT_Value arguments,
+                                   LT_Environment* environment,
+                                   LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    return LT_eval_sequence(arguments, environment, tail_call_unwind_marker);
+}
+
 static LT_Value special_form_let(LT_Value arguments,
                                  LT_Environment* environment,
                                  LT_TailCallUnwindMarker* tail_call_unwind_marker){
@@ -766,6 +772,14 @@ static LT_SpecialForm cond_special_form = {
     .description = "Evaluate the body of the first clause with a truthy test."
 };
 
+static LT_SpecialForm begin_special_form = {
+    .function = special_form_begin,
+    .expand_function = expand_special_form_default,
+    .name = "begin",
+    .arguments = "(body ...)",
+    .description = "Evaluate body forms in order in the current environment."
+};
+
 static LT_SpecialForm let_special_form = {
     .function = special_form_let,
     .expand_function = expand_special_form_default,
@@ -894,6 +908,7 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &and_special_form);
     bind_static_special_form(environment, &or_special_form);
     bind_static_special_form(environment, &cond_special_form);
+    bind_static_special_form(environment, &begin_special_form);
     bind_static_special_form(environment, &let_special_form);
     bind_static_special_form_in(
         environment,
