@@ -115,13 +115,15 @@ int LT_loader_load_file(char* path,
 
     reader = LT_Reader_new();
     stream = LT_ReaderStream_newForFile(file);
-    while (stream_has_next_form(stream)){
-        result = LT_eval(
-            LT_Reader_readObject(reader, stream),
-            target_environment,
-            NULL
-        );
-    }
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_USER, {
+        while (stream_has_next_form(stream)){
+            result = LT_eval(
+                LT_Reader_readObject(reader, stream),
+                target_environment,
+                NULL
+            );
+        }
+    });
     fclose(file);
 
     if (result_out != NULL){

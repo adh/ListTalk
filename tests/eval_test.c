@@ -3049,7 +3049,9 @@ static int test_load_bang_loads_first_matching_module(void){
     );
 
     env = LT_new_base_environment();
-    value = LT_eval_sequence_string(source, env);
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_USER, {
+        value = LT_eval_sequence_string(source, env);
+    });
     failed |= expect(
         LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
         "load! loads module file into target environment"
@@ -3106,7 +3108,9 @@ static int test_load_bang_call_resolvers_do_not_mutate_global_resolvers(void){
     );
 
     env = LT_new_base_environment();
-    value = LT_eval_sequence_string(source, env);
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_USER, {
+        value = LT_eval_sequence_string(source, env);
+    });
     failed |= expect(
         LT_Pair_p(value)
             && LT_Value_is_fixnum(LT_car(value))
