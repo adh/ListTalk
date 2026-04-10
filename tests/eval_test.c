@@ -1770,6 +1770,138 @@ static int test_if_special_form(void){
     );
 }
 
+static int test_and_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+
+    value = LT_eval(read_one("(and)"), env, NULL);
+    if (expect(value == LT_TRUE, "and with no expressions returns true")){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(and 1 2 3)"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "and returns last truthy value"
+    )){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(and 1 () (error \"skipped\"))"), env, NULL);
+    if (expect(value == LT_NIL, "and returns first falsey value")){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(define x 0)"), env, NULL);
+    value = LT_eval(
+        read_one("(let () (and #false (set! x 1)) x)"),
+        env,
+        NULL
+    );
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 0,
+        "and short-circuits after falsey value"
+    )){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(and #true (define and-defined 23))"), env, NULL);
+    value = LT_eval(read_one("and-defined"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 23,
+        "and does not wrap later forms in a lexical environment"
+    );
+}
+
+static int test_or_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+
+    value = LT_eval(read_one("(or)"), env, NULL);
+    if (expect(value == LT_FALSE, "or with no expressions returns false")){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(or () #false 7 (error \"skipped\"))"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 7,
+        "or returns first truthy value"
+    )){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(or () #false)"), env, NULL);
+    if (expect(value == LT_FALSE, "or returns last falsey value")){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(define x 0)"), env, NULL);
+    value = LT_eval(
+        read_one("(let () (or 5 (set! x 1)) x)"),
+        env,
+        NULL
+    );
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 0,
+        "or short-circuits after truthy value"
+    )){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(define foo #false)"), env, NULL);
+    (void)LT_eval(read_one("(or foo (define or-defined 24))"), env, NULL);
+    value = LT_eval(read_one("or-defined"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 24,
+        "or does not wrap later forms in a lexical environment"
+    );
+}
+
+static int test_cond_special_form(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value;
+
+    value = LT_eval(
+        read_one("(cond (() (error \"skipped\")) ((= 1 1) 42) (else 99))"),
+        env,
+        NULL
+    );
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
+        "cond evaluates first truthy clause body"
+    )){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(cond (() 1) (else 2 3))"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "cond else clause evaluates body sequence"
+    )){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(cond ((+ 1 2)))"), env, NULL);
+    if (expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 3,
+        "cond clause without body returns test value"
+    )){
+        return 1;
+    }
+
+    value = LT_eval(read_one("(cond (() 1))"), env, NULL);
+    if (expect(value == LT_FALSE, "cond without matching clause returns false")){
+        return 1;
+    }
+
+    (void)LT_eval(read_one("(cond (#true (define cond-defined 25)))"), env, NULL);
+    value = LT_eval(read_one("cond-defined"), env, NULL);
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 25,
+        "cond does not wrap clause bodies in a lexical environment"
+    );
+}
+
 static int test_let_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value value;
@@ -3418,6 +3550,9 @@ int main(void){
     RUN_TEST(test_lambda_rest_parameter_symbol);
     RUN_TEST(test_tail_call_optimization_deep_recursion);
     RUN_TEST(test_if_special_form);
+    RUN_TEST(test_and_special_form);
+    RUN_TEST(test_or_special_form);
+    RUN_TEST(test_cond_special_form);
     RUN_TEST(test_let_special_form);
     RUN_TEST(test_define_special_form);
     RUN_TEST(test_define_function_shorthand);

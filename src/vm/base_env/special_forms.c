@@ -15,6 +15,8 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/throw_catch.h>
 
+#include <string.h>
+
 static LT_Value fold_argument_list(LT_Value arguments,
                                    LT_Environment* environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
@@ -265,6 +267,135 @@ static LT_Value special_form_if(LT_Value arguments,
         return LT_NIL;
     }
     return LT_eval(else_expression, environment, tail_call_unwind_marker);
+}
+
+static LT_Value special_form_and(LT_Value arguments,
+                                 LT_Environment* environment,
+                                 LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+
+    if (cursor == LT_NIL){
+        return LT_TRUE;
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value expression;
+        LT_Value next_cursor;
+        LT_Value value;
+
+        if (!LT_Pair_p(cursor)){
+            LT_error("Special form and expects proper list of forms");
+        }
+
+        expression = LT_car(cursor);
+        next_cursor = LT_cdr(cursor);
+        value = LT_eval(
+            expression,
+            environment,
+            (next_cursor == LT_NIL) ? tail_call_unwind_marker : NULL
+        );
+
+        if (!LT_Value_truthy_p(value)){
+            return value;
+        }
+
+        if (next_cursor == LT_NIL){
+            return value;
+        }
+        cursor = next_cursor;
+    }
+
+    return LT_TRUE;
+}
+
+static LT_Value special_form_or(LT_Value arguments,
+                                LT_Environment* environment,
+                                LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+
+    if (cursor == LT_NIL){
+        return LT_FALSE;
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value expression;
+        LT_Value next_cursor;
+        LT_Value value;
+
+        if (!LT_Pair_p(cursor)){
+            LT_error("Special form or expects proper list of forms");
+        }
+
+        expression = LT_car(cursor);
+        next_cursor = LT_cdr(cursor);
+        value = LT_eval(
+            expression,
+            environment,
+            (next_cursor == LT_NIL) ? tail_call_unwind_marker : NULL
+        );
+
+        if (LT_Value_truthy_p(value) || next_cursor == LT_NIL){
+            return value;
+        }
+        cursor = next_cursor;
+    }
+
+    return LT_FALSE;
+}
+
+static int cond_else_clause_p(LT_Value test_expression){
+    if (!LT_Symbol_p(test_expression)){
+        return 0;
+    }
+
+    return strcmp(
+        LT_Symbol_name(LT_Symbol_from_value(test_expression)),
+        "else"
+    ) == 0;
+}
+
+static LT_Value special_form_cond(LT_Value arguments,
+                                  LT_Environment* environment,
+                                  LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+
+    while (cursor != LT_NIL){
+        LT_Value clause;
+        LT_Value test_expression;
+        LT_Value body;
+        LT_Value test_value;
+
+        if (!LT_Pair_p(cursor)){
+            LT_error("Special form cond expects proper list of clauses");
+        }
+
+        clause = LT_car(cursor);
+        if (!LT_Pair_p(clause)){
+            LT_error("Special form cond clause must be list");
+        }
+
+        test_expression = LT_car(clause);
+        body = LT_cdr(clause);
+
+        if (cond_else_clause_p(test_expression)){
+            if (body == LT_NIL){
+                LT_error("Special form cond else clause expects body");
+            }
+            return LT_eval_sequence(body, environment, tail_call_unwind_marker);
+        }
+
+        test_value = LT_eval(test_expression, environment, NULL);
+        if (LT_Value_truthy_p(test_value)){
+            if (body == LT_NIL){
+                return test_value;
+            }
+            return LT_eval_sequence(body, environment, tail_call_unwind_marker);
+        }
+
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_FALSE;
 }
 
 static LT_Value special_form_let(LT_Value arguments,
@@ -611,6 +742,30 @@ static LT_SpecialForm if_special_form = {
     .description = "Evaluate then or else based on condition."
 };
 
+static LT_SpecialForm and_special_form = {
+    .function = special_form_and,
+    .expand_function = expand_special_form_default,
+    .name = "and",
+    .arguments = "(expression ...)",
+    .description = "Evaluate expressions until one is falsey, else return last value."
+};
+
+static LT_SpecialForm or_special_form = {
+    .function = special_form_or,
+    .expand_function = expand_special_form_default,
+    .name = "or",
+    .arguments = "(expression ...)",
+    .description = "Evaluate expressions until one is truthy, else return last value."
+};
+
+static LT_SpecialForm cond_special_form = {
+    .function = special_form_cond,
+    .expand_function = expand_special_form_default,
+    .name = "cond",
+    .arguments = "((test body ...) ...)",
+    .description = "Evaluate the body of the first clause with a truthy test."
+};
+
 static LT_SpecialForm let_special_form = {
     .function = special_form_let,
     .expand_function = expand_special_form_default,
@@ -736,6 +891,9 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &quote_special_form);
     bind_static_special_form(environment, &quasiquote_special_form);
     bind_static_special_form(environment, &if_special_form);
+    bind_static_special_form(environment, &and_special_form);
+    bind_static_special_form(environment, &or_special_form);
+    bind_static_special_form(environment, &cond_special_form);
     bind_static_special_form(environment, &let_special_form);
     bind_static_special_form_in(
         environment,

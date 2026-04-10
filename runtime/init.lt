@@ -55,18 +55,14 @@
           (error "define-method expects [Class selector ...] signature"))
       (error "define-method expects [Class selector ...] signature")))
 
-(ListTalk:define-macro (ListTalk-implementation:send receiver selector . arguments)
-  (if (if (symbol? receiver)
-          (eq? receiver 'ListTalk:super)
-          #false)
+(ListTalk:define-macro (ListTalk:send receiver selector . arguments)
+  (if (and (symbol? receiver)
+          (eq? receiver 'ListTalk:super))
       `(ListTalk-implementation:%super-send
          ListTalk:self
          ,selector
          ,@arguments)
       `(ListTalk-implementation:%send ,receiver ,selector ,@arguments)))
-
-(ListTalk:define-macro (ListTalk:send receiver selector . arguments)
-  `(ListTalk-implementation:send ,receiver ,selector ,@arguments))
 
 (ListTalk:define-macro (ListTalk:provide module)
   `(if (memq ',module ListTalk:%modules)
