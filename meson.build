@@ -42,6 +42,7 @@ vm_lib = library(
         [
                 runtime_init_embedded,
                 'src/vm/eval.c',
+                'src/vm/loader.c',
                 'src/vm/quasiquote.c',
                 'src/vm/compiler.c',
                 'src/vm/value.c',
@@ -55,6 +56,7 @@ vm_lib = library(
                 'src/vm/base_env/strings.c',
                 'src/vm/base_env/vectors.c',
                 'src/vm/base_env/special_forms.c',
+                'src/vm/base_env/loader.c',
                 'src/vm/utils.c',
                 'src/vm/cmdopts.c',
                 'src/vm/init.c',

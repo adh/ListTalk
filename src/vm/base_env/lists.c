@@ -138,6 +138,69 @@ LT_DEFINE_PRIMITIVE(
     return value == LT_NIL ? LT_TRUE : LT_FALSE;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_append,
+    "append",
+    "(list ...)",
+    "Concatenate lists, sharing the final argument tail."
+){
+    LT_Value cursor = arguments;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    if (cursor == LT_NIL){
+        return LT_NIL;
+    }
+
+    while (LT_Pair_p(cursor)){
+        LT_Value list = LT_car(cursor);
+        LT_Value next = LT_cdr(cursor);
+
+        if (next == LT_NIL){
+            return LT_ListBuilder_valueWithRest(builder, list);
+        }
+
+        while (LT_Pair_p(list)){
+            LT_ListBuilder_append(builder, LT_car(list));
+            list = LT_cdr(list);
+        }
+        if (list != LT_NIL){
+            LT_error("append expects proper lists before final argument");
+        }
+        cursor = next;
+    }
+
+    LT_error("Malformed argument list while appending lists");
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_memq,
+    "memq",
+    "(value list)",
+    "Return list tail whose car is value by identity, else false.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    LT_Value list;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+
+    while (list != LT_NIL){
+        if (!LT_Pair_p(list)){
+            LT_error("memq expects proper list");
+        }
+        if (LT_car(list) == value){
+            return list;
+        }
+        list = LT_cdr(list);
+    }
+
+    return LT_FALSE;
+}
+
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_assoc,
     "assoc",
@@ -199,6 +262,8 @@ void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_pair_p);
     LT_base_env_bind_static_primitive(environment, &primitive_list);
     LT_base_env_bind_static_primitive(environment, &primitive_list_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_append);
+    LT_base_env_bind_static_primitive(environment, &primitive_memq);
     LT_base_env_bind_static_primitive(environment, &primitive_assoc);
     LT_base_env_bind_static_primitive(environment, &primitive_assq);
     LT_base_env_bind_static_primitive(environment, &primitive_assv);

@@ -91,6 +91,14 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Dictionary", &LT_Dictionary_class},
 };
 
+static LT_Value modules_symbol(void){
+    return LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%modules");
+}
+
+static LT_Value module_resolvers_symbol(void){
+    return LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "module-resolvers");
+}
+
 void LT_base_env_bind_static_primitive(LT_Environment* environment,
                                        LT_Primitive* primitive){
     LT_base_env_bind_static_primitive_in(
@@ -129,6 +137,39 @@ void LT_base_env_bind_native_classes(LT_Environment* environment){
     }
 }
 
+static void LT_base_env_bind_module_variables(LT_Environment* environment){
+    LT_Environment_bind(
+        environment,
+        modules_symbol(),
+        LT_NIL,
+        0
+    );
+    LT_Environment_bind(
+        environment,
+        module_resolvers_symbol(),
+        LT_cons((LT_Value)(uintptr_t)LT_String_new_cstr("."), LT_NIL),
+        0
+    );
+}
+
+void LT_base_environment_prepend_module_resolver(LT_Environment* environment,
+                                                 char* resolver){
+    LT_Value symbol = module_resolvers_symbol();
+    LT_Value resolvers;
+
+    if (!LT_Environment_lookup(environment, symbol, &resolvers, NULL)){
+        LT_error("Module resolver variable is not bound");
+    }
+
+    if (!LT_Environment_set(
+        environment,
+        symbol,
+        LT_cons((LT_Value)(uintptr_t)LT_String_new_cstr(resolver), resolvers)
+    )){
+        LT_error("Unable to update module resolver variable");
+    }
+}
+
 LT_Environment* LT_new_base_environment(void){
     LT_Environment* environment = LT_Environment_new(NULL, LT_NIL, LT_NIL);
     char* runtime_init_source;
@@ -143,6 +184,8 @@ LT_Environment* LT_new_base_environment(void){
         LT_base_env_bind_strings(environment);
         LT_base_env_bind_vectors(environment);
         LT_base_env_bind_special_forms(environment);
+        LT_base_env_bind_loader(environment);
+        LT_base_env_bind_module_variables(environment);
         runtime_init_source = GC_MALLOC_ATOMIC(LT_runtime_init_source_length + 1);
         memcpy(runtime_init_source, LT_runtime_init_source, LT_runtime_init_source_length);
         runtime_init_source[LT_runtime_init_source_length] = '\0';

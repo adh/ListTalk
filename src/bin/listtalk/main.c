@@ -13,6 +13,7 @@
 #include <ListTalk/cmdopts.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/loader.h>
 #include <ListTalk/vm/throw_catch.h>
 #include <ctype.h>
 #include <stdlib.h>
@@ -26,34 +27,6 @@
 #include <readline/readline.h>
 #endif
 #endif
-
-/* this does not belong here but in the actual reader implementation,
- * but implementation in reader would require working condition system, 
- * so here it is for now */
-static int stream_has_next_form(FILE* stream){
-    int ch = fgetc(stream);
-
-    while (1){
-        while (ch != EOF && isspace((unsigned char)ch)){
-            ch = fgetc(stream);
-        }
-
-        if (ch == ';'){
-            while (ch != EOF && ch != '\n'){
-                ch = fgetc(stream);
-            }
-            ch = fgetc(stream);
-            continue;
-        }
-
-        if (ch == EOF){
-            return 0;
-        }
-
-        ungetc(ch, stream);
-        return 1;
-    }
-}
 
 static LT_Value LT__repl_error_tag = LT_NIL;
 
@@ -108,38 +81,6 @@ static LT_Value script_error_handler(LT_Value arguments,
     print_condition(condition);
 
     LT_throw(LT__repl_error_tag, condition);
-}
-
-static int eval_stream(FILE* file,
-                       LT_Reader* reader,
-                       LT_Value error_handler,
-                       LT_Environment* environment,
-                       int print_result,
-                       int stop_on_error){
-    LT_ReaderStream* stream = LT_ReaderStream_newForFile(file);
-
-    while (stream_has_next_form(file)){
-        LT_Value object;
-        LT_Value result;
-        LT_Value caught = LT_NIL;
-
-        LT_CATCH(LT__repl_error_tag, caught, {
-            LT_HANDLER_BIND(error_handler, {
-                object = LT_Reader_readObject(reader, stream);
-                result = LT_eval(object, environment, NULL);
-                if (print_result){
-                    LT_printer_print_object(result);
-                    fputc('\n', stdout);
-                }
-            });
-        });
-
-        if (caught != LT_NIL && stop_on_error){
-            return 1;
-        }
-    }
-
-    return 0;
 }
 
 static int source_has_next_form(const char* source, size_t* offset){
@@ -284,12 +225,19 @@ static int eval_repl(LT_Value error_handler,
     return 0;
 }
 
+static void load_path_option_callback(LT_CmdOpts* parser,
+                                      void* baton,
+                                      char* value){
+    LT_Environment* environment = baton;
+    (void)parser;
+
+    LT_base_environment_prepend_module_resolver(environment, value);
+}
+
 int main(int argc, char**argv){
-    LT_Reader* reader;
     LT_Value repl_handler;
     LT_Value file_handler;
     LT_Environment* base_environment;
-    FILE* source_file;
     int eval_status;
     LT_CmdOpts* cmdopts;
     char* source_path = NULL;
@@ -297,7 +245,6 @@ int main(int argc, char**argv){
 
     LT_init();
     LT_set_current_package(LT_PACKAGE_LISTTALK_USER);
-    reader = LT_Reader_new();
     LT__repl_error_tag = LT_Symbol_new("repl-error");
     repl_handler = LT_Primitive_new(
         "repl-error-handler",
@@ -314,12 +261,19 @@ int main(int argc, char**argv){
     base_environment = LT_get_shared_base_environment();
 
     cmdopts = LT_CmdOpts_new(LT_CMDOPTS_STRICT_ORDER);
+    LT_CmdOpts_addOption(
+        cmdopts,
+        1,
+        'L',
+        "load-path",
+        load_path_option_callback,
+        base_environment
+    );
     LT_CmdOpts_addStringArgument(cmdopts, 0, &source_path);
     LT_CmdOpts_addStringListArgument(cmdopts, 0, &command_line_list);
     LT_CmdOpts_parseArgv(cmdopts, argc - 1, argv + 1);
 
     if (source_path == NULL){
-        (void)reader;
         return eval_repl(repl_handler, file_handler, base_environment);
     }
 
@@ -333,21 +287,34 @@ int main(int argc, char**argv){
             0
         );
 
-        source_file = fopen(source_path, "r");
-        if (source_file == NULL){
-            fprintf(stderr, "Error: unable to open source file '%s'\n", source_path);
+        LT_Value caught = LT_NIL;
+        LT_Value result = LT_NIL;
+
+        LT_CATCH(LT__repl_error_tag, caught, {
+            LT_HANDLER_BIND(file_handler, {
+                if (!LT_loader_load_file(
+                    source_path,
+                    base_environment,
+                    &result
+                )){
+                    fprintf(
+                        stderr,
+                        "Error: unable to open source file '%s'\n",
+                        source_path
+                    );
+                    eval_status = 1;
+                } else {
+                    eval_status = 0;
+                }
+            });
+        });
+
+        if (caught != LT_NIL){
+            eval_status = 1;
+        }
+        if (eval_status != 0){
             return 1;
         }
-
-        eval_status = eval_stream(
-            source_file,
-            reader,
-            file_handler,
-            base_environment,
-            0,
-            1
-        );
-        fclose(source_file);
     }
     return eval_status;
 }

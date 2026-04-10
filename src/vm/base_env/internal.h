@@ -27,5 +27,6 @@ void LT_base_env_bind_cxxxr(LT_Environment* environment);
 void LT_base_env_bind_strings(LT_Environment* environment);
 void LT_base_env_bind_vectors(LT_Environment* environment);
 void LT_base_env_bind_special_forms(LT_Environment* environment);
+void LT_base_env_bind_loader(LT_Environment* environment);
 
 #endif

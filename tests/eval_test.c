@@ -21,6 +21,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -1224,6 +1226,48 @@ static int test_assoc_primitives(void){
             && LT_Value_is_fixnum(LT_cdr(assv_value))
             && LT_SmallInteger_value(LT_cdr(assv_value)) == 9,
         "assv matches numerically equivalent keys"
+    );
+}
+
+static int test_append_primitive(void){
+    LT_Value value = eval_one("(append '(1 2) '(3 4))");
+
+    if (expect(
+        LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 1,
+        "append preserves first element"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(LT_cdr(value))))
+            && LT_SmallInteger_value(LT_car(LT_cdr(LT_cdr(value)))) == 3,
+        "append includes later list elements"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(LT_cdr(LT_cdr(value)))))
+            && LT_SmallInteger_value(LT_car(LT_cdr(LT_cdr(LT_cdr(value))))) == 4,
+        "append reaches final element"
+    );
+}
+
+static int test_memq_primitive(void){
+    LT_Value hit = eval_one("(memq 'b '(a b c))");
+    LT_Value miss = eval_one("(memq (string-append \"a\" \"\") '(\"a\"))");
+
+    if (expect(
+        LT_Pair_p(hit)
+            && LT_Symbol_p(LT_car(hit))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(hit))), "b") == 0,
+        "memq returns matching tail"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(miss) && !LT_Value_boolean_value(miss),
+        "memq returns false on identity miss"
     );
 }
 
@@ -2802,6 +2846,118 @@ static int test_get_current_environment_special_form(void){
     );
 }
 
+static int test_load_bang_loads_first_matching_module(void){
+    char directory[512];
+    char module_path[512];
+    char source[1024];
+    FILE* file;
+    LT_Environment* env;
+    LT_Value value;
+    int failed = 0;
+
+    snprintf(
+        directory,
+        sizeof(directory),
+        "/tmp/listtalk-load-test-%ld",
+        (long)getpid()
+    );
+    if (mkdir(directory, 0700) != 0){
+        return fail("unable to create module fixture directory");
+    }
+
+    snprintf(module_path, sizeof(module_path), "%s/foo.lt", directory);
+    file = fopen(module_path, "w");
+    if (file == NULL){
+        rmdir(directory);
+        return fail("unable to create module fixture");
+    }
+    fputs("(provide :foo)\n(define loaded-from-module 42)\n", file);
+    fclose(file);
+
+    snprintf(
+        source,
+        sizeof(source),
+        "(load! :foo \"%s\")\nloaded-from-module",
+        directory
+    );
+
+    env = LT_new_base_environment();
+    value = LT_eval_sequence_string(source, env);
+    failed |= expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
+        "load! loads module file into target environment"
+    );
+
+    value = LT_eval_sequence_string("(memq :foo ListTalk:%modules)", env);
+    failed |= expect(
+        LT_Pair_p(value)
+            && LT_car(value) == LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "foo"),
+        "provide records loaded module"
+    );
+
+    remove(module_path);
+    rmdir(directory);
+    return failed;
+}
+
+static int test_load_bang_call_resolvers_do_not_mutate_global_resolvers(void){
+    char directory[512];
+    char module_path[512];
+    char source[1024];
+    FILE* file;
+    LT_Environment* env;
+    LT_Value value;
+    int failed = 0;
+
+    snprintf(
+        directory,
+        sizeof(directory),
+        "/tmp/listtalk-load-local-resolver-test-%ld",
+        (long)getpid()
+    );
+    if (mkdir(directory, 0700) != 0){
+        return fail("unable to create local resolver fixture directory");
+    }
+
+    snprintf(module_path, sizeof(module_path), "%s/bar.lt", directory);
+    file = fopen(module_path, "w");
+    if (file == NULL){
+        rmdir(directory);
+        return fail("unable to create local resolver module fixture");
+    }
+    fputs("(provide :bar)\n(define loaded-from-local-resolver 91)\n", file);
+    fclose(file);
+
+    snprintf(
+        source,
+        sizeof(source),
+        "(define saved-resolvers ListTalk:module-resolvers)\n"
+        "(load! :bar \"%s\")\n"
+        "(list loaded-from-local-resolver "
+        "      (eq? saved-resolvers ListTalk:module-resolvers))",
+        directory
+    );
+
+    env = LT_new_base_environment();
+    value = LT_eval_sequence_string(source, env);
+    failed |= expect(
+        LT_Pair_p(value)
+            && LT_Value_is_fixnum(LT_car(value))
+            && LT_SmallInteger_value(LT_car(value)) == 91,
+        "load! uses call-local resolvers"
+    );
+    failed |= expect(
+        LT_Pair_p(LT_cdr(value))
+            && LT_Value_is_boolean(LT_car(LT_cdr(value)))
+            && LT_Value_boolean_value(LT_car(LT_cdr(value))),
+        "load! call-local resolvers do not mutate module-resolvers"
+    );
+
+    remove(module_path);
+    rmdir(directory);
+    return failed;
+}
+
 static int test_catch_returns_body_value_without_throw(void){
     LT_Value value = eval_one("(catch :t (+ 1 2))");
     return expect(
@@ -3185,6 +3341,8 @@ int main(void){
     RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_immutable_list_methods);
     RUN_TEST(test_immutable_list_from_list);
+    RUN_TEST(test_append_primitive);
+    RUN_TEST(test_memq_primitive);
     RUN_TEST(test_assoc_primitives);
     RUN_TEST(test_cxxxr_primitives);
     RUN_TEST(test_string_predicate_primitive);
@@ -3253,6 +3411,8 @@ int main(void){
     RUN_TEST(test_macroexpand_special_form);
     RUN_TEST(test_fold_expression_special_form);
     RUN_TEST(test_get_current_environment_special_form);
+    RUN_TEST(test_load_bang_loads_first_matching_module);
+    RUN_TEST(test_load_bang_call_resolvers_do_not_mutate_global_resolvers);
     RUN_TEST(test_catch_returns_body_value_without_throw);
     RUN_TEST(test_throw_is_caught_by_matching_tag);
     RUN_TEST(test_throw_skips_to_outer_matching_catch);

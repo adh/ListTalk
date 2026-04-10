@@ -68,6 +68,39 @@
 (ListTalk:define-macro (ListTalk:send receiver selector . arguments)
   `(ListTalk-implementation:send ,receiver ,selector ,@arguments))
 
+(ListTalk:define-macro (ListTalk:provide module)
+  `(if (memq ',module ListTalk:%modules)
+       ',module
+       (let ()
+         (set! ListTalk:%modules (cons ',module ListTalk:%modules))
+         ',module)))
+
+(ListTalk:define-macro (ListTalk:load! module . resolvers)
+  (if (null? resolvers)
+      `(ListTalk-implementation:%load!
+         (get-current-environment)
+         ',module
+         ListTalk:module-resolvers)
+      `(ListTalk-implementation:%load!
+         (get-current-environment)
+         ',module
+         (append ',resolvers ListTalk:module-resolvers))))
+
+(ListTalk:define-macro (ListTalk:require module . resolvers)
+  (if (null? resolvers)
+      `(if (memq ',module ListTalk:%modules)
+           ',module
+           (ListTalk-implementation:%load!
+             (get-current-environment)
+             ',module
+             ListTalk:module-resolvers))
+      `(if (memq ',module ListTalk:%modules)
+           ',module
+           (ListTalk-implementation:%load!
+             (get-current-environment)
+             ',module
+             (append ',resolvers ListTalk:module-resolvers)))))
+
 ; TODO: delalamoize this
 (ListTalk:define-macro (ListTalk:with-gensyms symbols . body)
   (let ()
