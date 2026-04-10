@@ -563,27 +563,6 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    primitive_exit,
-    "exit",
-    "([status])",
-    "Terminate process with optional fixnum status code."
-){
-    LT_Value cursor = arguments;
-    LT_Value status = LT_SmallInteger_new(0);
-    (void)tail_call_unwind_marker;
-
-    LT_OBJECT_ARG_OPT(cursor, status, status);
-    LT_ARG_END(cursor);
-
-    if (!LT_Value_is_fixnum(status)){
-        LT_type_error(status, &LT_SmallInteger_class);
-    }
-
-    exit((int)LT_SmallInteger_value(status));
-    return LT_NIL;
-}
-
-LT_DEFINE_PRIMITIVE(
     primitive_macroexpand,
     "macroexpand",
     "(form environment)",
@@ -742,7 +721,6 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_error);
     LT_base_env_bind_static_primitive(environment, &primitive_display);
     LT_base_env_bind_static_primitive(environment, &primitive_read);
-    LT_base_env_bind_static_primitive(environment, &primitive_exit);
     LT_base_env_bind_static_primitive(environment, &primitive_macroexpand);
     LT_base_env_bind_static_primitive(environment, &primitive_fold_expression);
     LT_base_env_bind_static_primitive(environment, &primitive_define_package);

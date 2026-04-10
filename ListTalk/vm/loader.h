@@ -24,6 +24,11 @@ LT_Value LT_loader_load(
     LT_Value resolvers
 );
 
+void LT_loader_provide(
+    LT_Environment* target_environment,
+    char* module_name
+);
+
 LT__END_DECLS
 
 #endif

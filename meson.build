@@ -101,6 +101,16 @@ vm_lib = library(
         ], 
         install : true, dependencies : [bdwgc, libm])
 
+os_module = shared_module(
+        'os',
+        'src/modules/os.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true
+)
+
 executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -166,7 +176,8 @@ test(
 
 test(
         'eval_test',
-        eval_test_exe
+        eval_test_exe,
+        depends : [os_module]
 )
 
 test(

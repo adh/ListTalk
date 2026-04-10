@@ -201,6 +201,16 @@ static char* debug_string_for_value(LT_Value value){
     return buffer;
 }
 
+static const char* os_module_resolver_path(void){
+    if (access("os.ltm", R_OK) == 0){
+        return ".";
+    }
+    if (access("builddir/os.ltm", R_OK) == 0){
+        return "builddir";
+    }
+    return NULL;
+}
+
 static int test_add(void){
     LT_Value value = eval_one("(+ 1 2 3)");
     return expect(
@@ -2958,6 +2968,43 @@ static int test_load_bang_call_resolvers_do_not_mutate_global_resolvers(void){
     return failed;
 }
 
+static int test_load_bang_loads_native_module(void){
+    const char* resolver = os_module_resolver_path();
+    char source[512];
+    LT_Environment* env;
+    LT_Value value;
+    LT_Value provided;
+    int failed = 0;
+
+    if (resolver == NULL){
+        return fail("unable to locate os.ltm fixture");
+    }
+
+    snprintf(
+        source,
+        sizeof(source),
+        "(load! :os \"%s\")\n"
+        "(primitive? ListTalk-OS:exit)",
+        resolver
+    );
+
+    env = LT_new_base_environment();
+    value = LT_eval_sequence_string(source, env);
+    failed |= expect(
+        LT_Value_is_boolean(value) && LT_Value_boolean_value(value),
+        "load! loads native module primitive"
+    );
+
+    provided = LT_eval_sequence_string("(memq :os ListTalk:%modules)", env);
+    failed |= expect(
+        LT_Pair_p(provided)
+            && LT_car(provided) == LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "os"),
+        "native module records provided module"
+    );
+
+    return failed;
+}
+
 static int test_catch_returns_body_value_without_throw(void){
     LT_Value value = eval_one("(catch :t (+ 1 2))");
     return expect(
@@ -3413,6 +3460,7 @@ int main(void){
     RUN_TEST(test_get_current_environment_special_form);
     RUN_TEST(test_load_bang_loads_first_matching_module);
     RUN_TEST(test_load_bang_call_resolvers_do_not_mutate_global_resolvers);
+    RUN_TEST(test_load_bang_loads_native_module);
     RUN_TEST(test_catch_returns_body_value_without_throw);
     RUN_TEST(test_throw_is_caught_by_matching_tag);
     RUN_TEST(test_throw_skips_to_outer_matching_catch);

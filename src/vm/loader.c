@@ -13,8 +13,11 @@
 #include <ListTalk/vm/error.h>
 
 #include <ctype.h>
+#include <dlfcn.h>
 #include <stdio.h>
 #include <string.h>
+
+typedef void (*LT_NativeModuleLoadFunction)(LT_Environment* environment);
 
 static int stream_has_next_form(LT_ReaderStream* stream){
     int ch = LT_ReaderStream_getc(stream);
@@ -65,6 +68,36 @@ static char* path_for_module_in_directory(char* directory, char* module_name){
     return LT_StringBuilder_value(builder);
 }
 
+static char* native_path_for_module_in_directory(char* directory,
+                                                 char* module_name){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    size_t directory_length = strlen(directory);
+
+    LT_StringBuilder_append_str(builder, directory);
+    if (directory_length > 0 && directory[directory_length - 1] != '/'){
+        LT_StringBuilder_append_char(builder, '/');
+    }
+    LT_StringBuilder_append_str(builder, module_name);
+    LT_StringBuilder_append_str(builder, ".ltm");
+    return LT_StringBuilder_value(builder);
+}
+
+static char* native_loader_symbol_name(char* module_name){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    char* cursor = module_name;
+
+    LT_StringBuilder_append_str(builder, "ListTalk_");
+    while (*cursor != '\0'){
+        LT_StringBuilder_append_char(
+            builder,
+            *cursor == '-' ? '_' : *cursor
+        );
+        cursor++;
+    }
+    LT_StringBuilder_append_str(builder, "_load");
+    return LT_StringBuilder_value(builder);
+}
+
 int LT_loader_load_file(char* path,
                         LT_Environment* target_environment,
                         LT_Value* result_out){
@@ -97,12 +130,44 @@ int LT_loader_load_file(char* path,
     return 1;
 }
 
+static int load_native_file(char* path,
+                            char* module_name,
+                            LT_Environment* target_environment,
+                            LT_Value* result_out){
+    void* handle;
+    LT_NativeModuleLoadFunction load_function;
+
+    if (target_environment == NULL){
+        LT_error("Loader expects environment");
+    }
+
+    handle = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+    if (handle == NULL){
+        return 0;
+    }
+
+    load_function = (LT_NativeModuleLoadFunction)dlsym(
+        handle,
+        native_loader_symbol_name(module_name)
+    );
+    if (load_function == NULL){
+        LT_error("Native module does not define load function");
+    }
+
+    load_function(target_environment);
+    if (result_out != NULL){
+        *result_out = LT_TRUE;
+    }
+    return 1;
+}
+
 static int string_resolver_load(LT_Value resolver,
                                 char* module_name,
                                 LT_Environment* target_environment,
                                 LT_Value* result_out){
     char* directory;
     char* path;
+    char* native_path;
 
     if (!LT_String_p(resolver)){
         return 0;
@@ -110,7 +175,17 @@ static int string_resolver_load(LT_Value resolver,
 
     directory = (char*)LT_String_value_cstr(LT_String_from_value(resolver));
     path = path_for_module_in_directory(directory, module_name);
-    return LT_loader_load_file(path, target_environment, result_out);
+    if (LT_loader_load_file(path, target_environment, result_out)){
+        return 1;
+    }
+
+    native_path = native_path_for_module_in_directory(directory, module_name);
+    return load_native_file(
+        native_path,
+        module_name,
+        target_environment,
+        result_out
+    );
 }
 
 static int resolver_load(LT_Value resolver,
@@ -180,4 +255,44 @@ LT_Value LT_loader_load(LT_Environment* target_environment,
     }
 
     return load_from_resolvers(target_environment, module_name, resolvers);
+}
+
+void LT_loader_provide(LT_Environment* target_environment, char* module_name){
+    LT_Value modules_symbol;
+    LT_Value module_symbol;
+    LT_Value modules = LT_NIL;
+    LT_Value cursor;
+
+    if (target_environment == NULL){
+        LT_error("Loader expects environment");
+    }
+    if (module_name == NULL){
+        LT_error("Loader provide expects module name");
+    }
+
+    modules_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%modules");
+    module_symbol = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, module_name);
+
+    if (!LT_Environment_lookup(target_environment, modules_symbol, &modules, NULL)){
+        LT_error("Module list variable is not bound");
+    }
+
+    cursor = modules;
+    while (cursor != LT_NIL){
+        if (!LT_Pair_p(cursor)){
+            LT_error("Module list must be proper");
+        }
+        if (LT_car(cursor) == module_symbol){
+            return;
+        }
+        cursor = LT_cdr(cursor);
+    }
+
+    if (!LT_Environment_set(
+        target_environment,
+        modules_symbol,
+        LT_cons(module_symbol, modules)
+    )){
+        LT_error("Unable to update module list");
+    }
 }
