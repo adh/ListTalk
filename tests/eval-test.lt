@@ -5,13 +5,13 @@
 
 ;;; Test framework
 
-(define *test-failures* 0)
+(define test-failures 0)
 
 (define (check condition description)
   (if condition
       #true
       (begin
-        (set! *test-failures* (+ *test-failures* 1))
+        (set! test-failures (+ test-failures 1))
         (display (string-append "FAIL: " description))
         #false)))
 
@@ -524,9 +524,9 @@
 
 ;;; Report results
 
-(if (> *test-failures* 0)
+(if (> test-failures 0)
     (begin
-      (display (string-append (number->string *test-failures*)
+      (display (string-append (number->string test-failures)
                               " eval test(s) failed"))
       (ListTalk-OS:exit 1))
     (display "eval tests passed"))
