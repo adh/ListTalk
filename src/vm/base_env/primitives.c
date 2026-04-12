@@ -129,7 +129,6 @@ LT_DEFINE_PRIMITIVE_FLAGS(
         if (first != next){
             return LT_FALSE;
         }
-        first = next;
     }
 
     return LT_TRUE;
@@ -157,7 +156,6 @@ LT_DEFINE_PRIMITIVE_FLAGS(
         if (!LT_Value_eqv_p(first, next)){
             return LT_FALSE;
         }
-        first = next;
     }
 
     return LT_TRUE;
@@ -185,7 +183,6 @@ LT_DEFINE_PRIMITIVE_FLAGS(
         if (!LT_Value_equal_p(first, next)){
             return LT_FALSE;
         }
-        first = next;
     }
 
     return LT_TRUE;
