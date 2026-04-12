@@ -59,10 +59,29 @@ LT_DEFINE_PRIMITIVE(
     return LT_Object_slot_set(self, slot_name, value);
 }
 
+LT_DEFINE_PRIMITIVE_FLAGS(
+    object_method_identity_equal,
+    "Object>>==",
+    "(self other)",
+    "Return true when receiver and argument are identical (same object).",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return self == other ? LT_TRUE : LT_FALSE;
+}
+
 static LT_Method_Descriptor Object_methods[] = {
     {"class", &object_method_class},
     {"slot:", &object_method_slot},
     {"slot:put:", &object_method_slot_put},
+    {"==", &object_method_identity_equal},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

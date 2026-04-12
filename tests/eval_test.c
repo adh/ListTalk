@@ -598,6 +598,129 @@ static int test_basic_object_and_class_methods(void){
     );
 }
 
+static int test_binary_methods_on_number(void){
+    LT_Value sum = eval_one("[3 + 4]");
+    LT_Value diff = eval_one("[10 - 3]");
+    LT_Value prod = eval_one("[3 * 4]");
+    LT_Value quot = eval_one("[10 / 2]");
+    LT_Value eq_true = eval_one("[5 = 5]");
+    LT_Value eq_false = eval_one("[5 = 6]");
+    LT_Value lt_true = eval_one("[3 < 5]");
+    LT_Value lt_false = eval_one("[5 < 3]");
+    LT_Value gt_true = eval_one("[5 > 3]");
+    LT_Value gt_false = eval_one("[3 > 5]");
+    LT_Value le_true = eval_one("[3 <= 3]");
+    LT_Value le_false = eval_one("[4 <= 3]");
+    LT_Value ge_true = eval_one("[4 >= 4]");
+    LT_Value ge_false = eval_one("[3 >= 4]");
+    LT_Value float_sum = eval_one("[1.5 + 2.5]");
+
+    if (expect(
+        LT_Value_is_fixnum(sum) && LT_SmallInteger_value(sum) == 7,
+        "Number>>+ integer addition"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(diff) && LT_SmallInteger_value(diff) == 7,
+        "Number>>- integer subtraction"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(prod) && LT_SmallInteger_value(prod) == 12,
+        "Number>>* integer multiplication"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(quot) && LT_SmallInteger_value(quot) == 5,
+        "Number>>/ integer division"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(eq_true) && LT_Value_boolean_value(eq_true),
+        "Number>>= equal returns true"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(eq_false) && !LT_Value_boolean_value(eq_false),
+        "Number>>= unequal returns false"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(lt_true) && LT_Value_boolean_value(lt_true),
+        "Number>>< less-than true"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(lt_false) && !LT_Value_boolean_value(lt_false),
+        "Number>>< less-than false"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(gt_true) && LT_Value_boolean_value(gt_true),
+        "Number>>> greater-than true"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(gt_false) && !LT_Value_boolean_value(gt_false),
+        "Number>>> greater-than false"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(le_true) && LT_Value_boolean_value(le_true),
+        "Number>><= less-than-or-equal true"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(le_false) && !LT_Value_boolean_value(le_false),
+        "Number>><= less-than-or-equal false"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(ge_true) && LT_Value_boolean_value(ge_true),
+        "Number>>>= greater-than-or-equal true"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(ge_false) && !LT_Value_boolean_value(ge_false),
+        "Number>>>= greater-than-or-equal false"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Float_p(float_sum) && LT_Float_value(float_sum) == 4.0,
+        "Number>>+ float addition"
+    );
+}
+
+static int test_identity_equal_method_on_object(void){
+    LT_Value same_sym = eval_one("[':a == :a]");
+    LT_Value diff_sym = eval_one("[':a == :b]");
+
+    if (expect(
+        LT_Value_is_boolean(same_sym) && LT_Value_boolean_value(same_sym),
+        "Object>>== same symbol returns true"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(diff_sym) && !LT_Value_boolean_value(diff_sym),
+        "Object>>== different symbols returns false"
+    );
+}
+
 static int test_basic_pair_methods(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
@@ -3524,6 +3647,8 @@ int main(void){
     RUN_TEST(test_send_passes_next_precedence_tail_as_invocation_context_data);
     RUN_TEST(test_super_send_c_api_uses_explicit_precedence_list);
     RUN_TEST(test_basic_object_and_class_methods);
+    RUN_TEST(test_binary_methods_on_number);
+    RUN_TEST(test_identity_equal_method_on_object);
     RUN_TEST(test_basic_pair_methods);
     RUN_TEST(test_basic_string_and_vector_methods);
     RUN_TEST(test_make_class_primitive);

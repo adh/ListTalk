@@ -983,6 +983,99 @@ static int test_bracket_keyword_send_syntax(void){
     return expect(LT_cdr(args) == LT_NIL, "keyword argument list end");
 }
 
+static int test_bracket_binary_send_syntax(void){
+    LT_Value value = read_one("[obj + other]");
+    LT_Value tail;
+    LT_Value selector;
+    LT_Value args;
+
+    if (expect(LT_Pair_p(value), "bracket binary expands to list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "send"
+            ) == 0,
+        "bracket binary has send head"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_Pair_p(tail), "bracket binary has receiver")){
+        return 1;
+    }
+    selector = LT_car(LT_cdr(tail));
+    if (expect(LT_Symbol_p(selector), "bracket binary selector symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(selector)) == LT_PACKAGE_KEYWORD,
+        "bracket binary selector package"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(selector)), "+") == 0,
+        "bracket binary selector name"
+    )){
+        return 1;
+    }
+
+    args = LT_cdr(LT_cdr(tail));
+    if (expect(LT_Pair_p(args), "bracket binary has argument")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(args))), "other") == 0,
+        "bracket binary argument value"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(args) == LT_NIL, "bracket binary argument list end");
+}
+
+static int test_bracket_binary_send_multi_char_selector(void){
+    LT_Value value = read_one("[a == b]");
+    LT_Value selector;
+
+    if (expect(LT_Pair_p(value), "bracket binary == expands to list")){
+        return 1;
+    }
+
+    selector = LT_car(LT_cdr(LT_cdr(value)));
+    if (expect(LT_Symbol_p(selector), "bracket binary == selector symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(selector)) == LT_PACKAGE_KEYWORD,
+        "bracket binary == selector package"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(selector)), "==") == 0,
+        "bracket binary == selector name"
+    );
+}
+
+static int test_bracket_binary_send_too_many_args_signals_error(void){
+    LT_Value value = read_one_catch_error("[a + b c]");
+
+    if (expect(LT_ReaderError_p(value), "binary send with extra token signals error")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            condition_message_cstr(value),
+            "Binary bracket send expects exactly one argument"
+        ) == 0,
+        "binary send extra arg error message"
+    );
+}
+
 static int test_slot_accessor_syntax(void){
     LT_Value value = read_one(".slot");
     LT_Value tail;
@@ -1243,6 +1336,9 @@ int main(void){
     failures += test_keyword_prefix_symbol();
     failures += test_bracket_unary_send_syntax();
     failures += test_bracket_keyword_send_syntax();
+    failures += test_bracket_binary_send_syntax();
+    failures += test_bracket_binary_send_multi_char_selector();
+    failures += test_bracket_binary_send_too_many_args_signals_error();
     failures += test_slot_accessor_syntax();
     failures += test_dot_prefixed_tokens_inside_list();
     failures += test_bare_dot_top_level_signals_error();
