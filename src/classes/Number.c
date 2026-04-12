@@ -14,6 +14,8 @@
 #include <ListTalk/classes/RealNumber.h>
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/error.h>
 
@@ -363,6 +365,218 @@ static size_t Number_class_hash(LT_Value value){
     return 0;
 }
 
+static int compare_real_numbers(LT_Value left, LT_Value right){
+    double l;
+    double r;
+
+    if (value_is_exact_number(left) && value_is_exact_number(right)){
+        LT_ExactRational lhs = exact_rational_from_value(left);
+        LT_ExactRational rhs = exact_rational_from_value(right);
+        LT_Value lhs_scaled = LT_Integer_multiply(lhs.numerator, rhs.denominator);
+        LT_Value rhs_scaled = LT_Integer_multiply(rhs.numerator, lhs.denominator);
+        return LT_Integer_compare(lhs_scaled, rhs_scaled);
+    }
+
+    if (LT_Float_p(left) && LT_Float_p(right)){
+        l = LT_Float_value(left);
+        r = LT_Float_value(right);
+        return l < r ? -1 : (l > r ? 1 : 0);
+    }
+
+    if (value_is_exact_number(left) && LT_Float_p(right)){
+        l = exact_to_double(left);
+        r = LT_Float_value(right);
+        return l < r ? -1 : (l > r ? 1 : 0);
+    }
+
+    if (LT_Float_p(left) && value_is_exact_number(right)){
+        l = LT_Float_value(left);
+        r = exact_to_double(right);
+        return l < r ? -1 : (l > r ? 1 : 0);
+    }
+
+    LT_type_error(
+        !value_is_exact_number(left) && !LT_Float_p(left) ? left : right,
+        &LT_RealNumber_class
+    );
+    return 0;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_equal,
+    "Number>>=",
+    "(self other)",
+    "Return true when receiver equals argument numerically.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Number_equal_p(self, other) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_add,
+    "Number>>+",
+    "(self other)",
+    "Return sum of receiver and argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Number_add2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_subtract,
+    "Number>>-",
+    "(self other)",
+    "Return difference of receiver and argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Number_subtract2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_multiply,
+    "Number>>*",
+    "(self other)",
+    "Return product of receiver and argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Number_multiply2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_divide,
+    "Number>>/",
+    "(self other)",
+    "Return quotient of receiver divided by argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Number_divide2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_less_than,
+    "Number>><",
+    "(self other)",
+    "Return true when receiver is less than argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return compare_real_numbers(self, other) < 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_greater_than,
+    "Number>>>",
+    "(self other)",
+    "Return true when receiver is greater than argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return compare_real_numbers(self, other) > 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_less_than_or_equal,
+    "Number>><=",
+    "(self other)",
+    "Return true when receiver is less than or equal to argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return compare_real_numbers(self, other) <= 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_greater_than_or_equal,
+    "Number>>>=",
+    "(self other)",
+    "Return true when receiver is greater than or equal to argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return compare_real_numbers(self, other) >= 0 ? LT_TRUE : LT_FALSE;
+}
+
+static LT_Method_Descriptor Number_methods[] = {
+    {"=",  &number_method_equal},
+    {"+",  &number_method_add},
+    {"-",  &number_method_subtract},
+    {"*",  &number_method_multiply},
+    {"/",  &number_method_divide},
+    {"<",  &number_method_less_than},
+    {">",  &number_method_greater_than},
+    {"<=", &number_method_less_than_or_equal},
+    {">=", &number_method_greater_than_or_equal},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Number) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -373,6 +587,7 @@ LT_DEFINE_CLASS(LT_Number) {
     .class_flags = LT_CLASS_FLAG_ABSTRACT
         | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,
+    .methods = Number_methods,
 };
 
 static int token_char_digit_value(int ch){
@@ -519,6 +734,10 @@ bool LT_Number_equal_p(LT_Value left, LT_Value right){
     }
 
     return false;
+}
+
+int LT_Number_compare(LT_Value left, LT_Value right){
+    return compare_real_numbers(left, right);
 }
 
 LT_Value LT_Number_add2(LT_Value left, LT_Value right){

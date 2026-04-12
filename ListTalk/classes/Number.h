@@ -26,6 +26,7 @@ LT_Value LT_Number_multiply2(LT_Value left, LT_Value right);
 LT_Value LT_Number_divide2(LT_Value left, LT_Value right);
 LT_Value LT_Number_negate(LT_Value value);
 bool LT_Number_equal_p(LT_Value left, LT_Value right);
+int LT_Number_compare(LT_Value left, LT_Value right);
 
 LT__END_DECLS
 

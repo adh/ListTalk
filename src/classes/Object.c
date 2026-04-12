@@ -7,6 +7,7 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
+#include <ListTalk/vm/value.h>
 
 LT_DEFINE_PRIMITIVE(
     object_method_class,
@@ -59,10 +60,48 @@ LT_DEFINE_PRIMITIVE(
     return LT_Object_slot_set(self, slot_name, value);
 }
 
+LT_DEFINE_PRIMITIVE_FLAGS(
+    object_method_identity_equal,
+    "Object>>==",
+    "(self other)",
+    "Return true when receiver and argument are identical (same object).",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return self == other ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    object_method_equal,
+    "Object>>=",
+    "(self other)",
+    "Return true when receiver and argument are structurally equal (equal?).",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Value_equal_p(self, other) ? LT_TRUE : LT_FALSE;
+}
+
 static LT_Method_Descriptor Object_methods[] = {
     {"class", &object_method_class},
     {"slot:", &object_method_slot},
     {"slot:put:", &object_method_slot_put},
+    {"==", &object_method_identity_equal},
+    {"=",  &object_method_equal},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

@@ -76,7 +76,7 @@ static const char* package_nickname_from_designator(LT_Value designator){
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_numeric_equal,
     "=",
-    "(n ...)",
+    "(n n ...)",
     "Return true when all numeric arguments are equal.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -86,6 +86,9 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     LT_OBJECT_ARG(cursor, first);
     if (!LT_Value_is_fixnum(first) && !LT_Float_p(first)){
         LT_type_error(first, &LT_Number_class);
+    }
+    if (cursor == LT_NIL){
+        LT_error("= requires at least two arguments");
     }
 
     while (cursor != LT_NIL){
@@ -107,52 +110,82 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_eq_p,
     "eq?",
-    "(left right)",
-    "Return true when both arguments are the same value identity.",
+    "(left right ...)",
+    "Return true when all arguments are the same value identity.",
     LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
-    LT_Value left;
-    LT_Value right;
+    LT_Value first;
 
-    LT_OBJECT_ARG(cursor, left);
-    LT_OBJECT_ARG(cursor, right);
-    LT_ARG_END(cursor);
-    return left == right ? LT_TRUE : LT_FALSE;
+    LT_OBJECT_ARG(cursor, first);
+    if (cursor == LT_NIL){
+        LT_error("eq? requires at least two arguments");
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (first != next){
+            return LT_FALSE;
+        }
+    }
+
+    return LT_TRUE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_eqv_p,
     "eqv?",
-    "(left right)",
-    "Return true for identical values or numerically equivalent numbers.",
+    "(left right ...)",
+    "Return true when all arguments are numerically equivalent or identical.",
     LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
-    LT_Value left;
-    LT_Value right;
+    LT_Value first;
 
-    LT_OBJECT_ARG(cursor, left);
-    LT_OBJECT_ARG(cursor, right);
-    LT_ARG_END(cursor);
-    return LT_Value_eqv_p(left, right) ? LT_TRUE : LT_FALSE;
+    LT_OBJECT_ARG(cursor, first);
+    if (cursor == LT_NIL){
+        LT_error("eqv? requires at least two arguments");
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (!LT_Value_eqv_p(first, next)){
+            return LT_FALSE;
+        }
+    }
+
+    return LT_TRUE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_equal_p,
     "equal?",
-    "(left right)",
-    "Return true when two values are structurally equal.",
+    "(left right ...)",
+    "Return true when all arguments are structurally equal.",
     LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
-    LT_Value left;
-    LT_Value right;
+    LT_Value first;
 
-    LT_OBJECT_ARG(cursor, left);
-    LT_OBJECT_ARG(cursor, right);
-    LT_ARG_END(cursor);
-    return LT_Value_equal_p(left, right) ? LT_TRUE : LT_FALSE;
+    LT_OBJECT_ARG(cursor, first);
+    if (cursor == LT_NIL){
+        LT_error("equal? requires at least two arguments");
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (!LT_Value_equal_p(first, next)){
+            return LT_FALSE;
+        }
+    }
+
+    return LT_TRUE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(

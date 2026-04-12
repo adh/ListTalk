@@ -1094,6 +1094,28 @@ static int token_ends_with_colon(char* token){
     return length > 0 && token[length - 1] == ':';
 }
 
+static int token_is_binary_selector(const char* token){
+    const char* cursor = token;
+    size_t length;
+
+    if (*cursor == '\0'){
+        return 0;
+    }
+
+    length = strlen(token);
+    if (token[length - 1] == ':'){
+        return 0;
+    }
+
+    while (*cursor != '\0'){
+        if (isalnum((unsigned char)*cursor)){
+            return 0;
+        }
+        cursor++;
+    }
+    return 1;
+}
+
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     int ch = read_non_space_char(reader, stream);
     LT_Value receiver;
@@ -1129,6 +1151,32 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
             LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send"),
             receiver,
             LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token),
+            LT_INVALID
+        );
+    }
+
+    if (token_is_binary_selector(message_token)){
+        LT_Value argument;
+
+        if (ch == EOF){
+            reader_incomplete_input(reader, "Unterminated bracket form");
+        }
+
+        argument = read_object_from_first(reader, stream, ch);
+        ch = read_non_space_char(reader, stream);
+
+        if (ch != ']'){
+            if (ch == EOF){
+                reader_incomplete_input(reader, "Unterminated bracket form");
+            }
+            reader_error(reader, "Binary bracket send expects exactly one argument");
+        }
+
+        return LT_list(
+            LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send"),
+            receiver,
+            LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token),
+            argument,
             LT_INVALID
         );
     }
