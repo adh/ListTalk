@@ -1030,6 +1030,11 @@ static int test_pair_predicate_primitive(void){
 static int test_numeric_equal_primitive(void){
     LT_Value true_value = eval_one("(= 1 1 1.0)");
     LT_Value false_value = eval_one("(= 1 2)");
+    LT_Value one_arg_error = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (= 1)))"
+    );
 
     if (expect(
         LT_Value_is_boolean(true_value) && LT_Value_boolean_value(true_value),
@@ -1037,10 +1042,13 @@ static int test_numeric_equal_primitive(void){
     )){
         return 1;
     }
-    return expect(
+    if (expect(
         LT_Value_is_boolean(false_value) && !LT_Value_boolean_value(false_value),
         "= false when numbers differ"
-    );
+    )){
+        return 1;
+    }
+    return expect(LT_Error_p(one_arg_error), "= one argument signals error");
 }
 
 static int test_numeric_equal_type_error_on_non_number(void){
@@ -1060,35 +1068,134 @@ static int test_numeric_equal_type_error_on_non_number(void){
 }
 
 static int test_eq_primitive(void){
-    LT_Value true_value = eval_one("(eq? 'a 'a)");
+    LT_Value true_value = eval_one("(eq? 'a 'a 'a)");
     LT_Value false_value = eval_one("(eq? (cons 1 2) (cons 1 2))");
+    LT_Value one_arg_error = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (eq? 'a)))"
+    );
 
     if (expect(
         LT_Value_is_boolean(true_value) && LT_Value_boolean_value(true_value),
-        "eq? true for same identity"
+        "eq? true for same identity with multiple args"
     )){
         return 1;
     }
-    return expect(
+    if (expect(
         LT_Value_is_boolean(false_value) && !LT_Value_boolean_value(false_value),
         "eq? false for distinct objects"
-    );
+    )){
+        return 1;
+    }
+    return expect(LT_Error_p(one_arg_error), "eq? one argument signals error");
 }
 
 static int test_eqv_primitive(void){
-    LT_Value value = eval_one("(eqv? 1 1.0)");
-    return expect(
-        LT_Value_is_boolean(value) && LT_Value_boolean_value(value),
-        "eqv? compares numeric values"
+    LT_Value true_value = eval_one("(eqv? 1 1.0 1)");
+    LT_Value one_arg_error = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (eqv? 1)))"
     );
+
+    if (expect(
+        LT_Value_is_boolean(true_value) && LT_Value_boolean_value(true_value),
+        "eqv? compares numeric values with multiple args"
+    )){
+        return 1;
+    }
+    return expect(LT_Error_p(one_arg_error), "eqv? one argument signals error");
 }
 
 static int test_equal_primitive(void){
-    LT_Value value = eval_one("(equal? '(1 (2 3)) '(1 (2 3)))");
-    return expect(
-        LT_Value_is_boolean(value) && LT_Value_boolean_value(value),
-        "equal? compares nested lists structurally"
+    LT_Value true_value = eval_one("(equal? '(1 (2 3)) '(1 (2 3)) '(1 (2 3)))");
+    LT_Value false_value = eval_one("(equal? '(1 2) '(1 2) '(1 3))");
+    LT_Value one_arg_error = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (equal? '(1 2))))"
     );
+
+    if (expect(
+        LT_Value_is_boolean(true_value) && LT_Value_boolean_value(true_value),
+        "equal? compares nested lists structurally with multiple args"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(false_value) && !LT_Value_boolean_value(false_value),
+        "equal? false when last arg differs"
+    )){
+        return 1;
+    }
+    return expect(LT_Error_p(one_arg_error), "equal? one argument signals error");
+}
+
+static int test_ordering_primitives(void){
+    LT_Value lt_true = eval_one("(< 1 2 3)");
+    LT_Value lt_false = eval_one("(< 1 2 2)");
+    LT_Value gt_true = eval_one("(> 3 2 1)");
+    LT_Value gt_false = eval_one("(> 3 2 2)");
+    LT_Value le_true = eval_one("(<= 1 2 2 3)");
+    LT_Value le_false = eval_one("(<= 1 3 2)");
+    LT_Value ge_true = eval_one("(>= 3 2 2 1)");
+    LT_Value ge_false = eval_one("(>= 3 2 3)");
+    LT_Value lt_one_arg = eval_one(
+        "(catch :t "
+        "  (handler-bind (lambda (c) (throw :t c)) "
+        "    (< 1)))"
+    );
+
+    if (expect(
+        LT_Value_is_boolean(lt_true) && LT_Value_boolean_value(lt_true),
+        "< true for strictly ascending args"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(lt_false) && !LT_Value_boolean_value(lt_false),
+        "< false when args not strictly ascending"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(gt_true) && LT_Value_boolean_value(gt_true),
+        "> true for strictly descending args"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(gt_false) && !LT_Value_boolean_value(gt_false),
+        "> false when args not strictly descending"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(le_true) && LT_Value_boolean_value(le_true),
+        "<= true for non-descending args"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(le_false) && !LT_Value_boolean_value(le_false),
+        "<= false when args descend"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(ge_true) && LT_Value_boolean_value(ge_true),
+        ">= true for non-ascending args"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(ge_false) && !LT_Value_boolean_value(ge_false),
+        ">= false when args ascend"
+    )){
+        return 1;
+    }
+    return expect(LT_Error_p(lt_one_arg), "< one argument signals error");
 }
 
 static int test_not_primitive(void){
@@ -3705,6 +3812,7 @@ int main(void){
     RUN_TEST(test_eq_primitive);
     RUN_TEST(test_eqv_primitive);
     RUN_TEST(test_equal_primitive);
+    RUN_TEST(test_ordering_primitives);
     RUN_TEST(test_not_primitive);
     RUN_TEST(test_core_type_predicates);
     RUN_TEST(test_list_constructor_primitive);

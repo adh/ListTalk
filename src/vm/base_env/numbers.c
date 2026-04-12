@@ -94,9 +94,125 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return result;
 }
 
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_less_than,
+    "<",
+    "(n n ...)",
+    "Return true when numeric arguments are in strictly ascending order.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value prev;
+
+    LT_OBJECT_ARG(cursor, prev);
+    if (cursor == LT_NIL){
+        LT_error("< requires at least two arguments");
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (LT_Number_compare(prev, next) >= 0){
+            return LT_FALSE;
+        }
+        prev = next;
+    }
+
+    return LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_greater_than,
+    ">",
+    "(n n ...)",
+    "Return true when numeric arguments are in strictly descending order.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value prev;
+
+    LT_OBJECT_ARG(cursor, prev);
+    if (cursor == LT_NIL){
+        LT_error("> requires at least two arguments");
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (LT_Number_compare(prev, next) <= 0){
+            return LT_FALSE;
+        }
+        prev = next;
+    }
+
+    return LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_less_than_or_equal,
+    "<=",
+    "(n n ...)",
+    "Return true when numeric arguments are in non-descending order.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value prev;
+
+    LT_OBJECT_ARG(cursor, prev);
+    if (cursor == LT_NIL){
+        LT_error("<= requires at least two arguments");
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (LT_Number_compare(prev, next) > 0){
+            return LT_FALSE;
+        }
+        prev = next;
+    }
+
+    return LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_greater_than_or_equal,
+    ">=",
+    "(n n ...)",
+    "Return true when numeric arguments are in non-ascending order.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value prev;
+
+    LT_OBJECT_ARG(cursor, prev);
+    if (cursor == LT_NIL){
+        LT_error(">= requires at least two arguments");
+    }
+
+    while (cursor != LT_NIL){
+        LT_Value next;
+        LT_OBJECT_ARG(cursor, next);
+
+        if (LT_Number_compare(prev, next) < 0){
+            return LT_FALSE;
+        }
+        prev = next;
+    }
+
+    return LT_TRUE;
+}
+
 void LT_base_env_bind_numbers(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_add);
     LT_base_env_bind_static_primitive(environment, &primitive_subtract);
     LT_base_env_bind_static_primitive(environment, &primitive_multiply);
     LT_base_env_bind_static_primitive(environment, &primitive_divide);
+    LT_base_env_bind_static_primitive(environment, &primitive_less_than);
+    LT_base_env_bind_static_primitive(environment, &primitive_greater_than);
+    LT_base_env_bind_static_primitive(environment, &primitive_less_than_or_equal);
+    LT_base_env_bind_static_primitive(environment, &primitive_greater_than_or_equal);
 }

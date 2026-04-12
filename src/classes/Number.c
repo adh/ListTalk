@@ -736,6 +736,10 @@ bool LT_Number_equal_p(LT_Value left, LT_Value right){
     return false;
 }
 
+int LT_Number_compare(LT_Value left, LT_Value right){
+    return compare_real_numbers(left, right);
+}
+
 LT_Value LT_Number_add2(LT_Value left, LT_Value right){
     if ((value_is_exact_complex(left) || value_is_inexact_complex(left)
             || value_is_exact_complex(right) || value_is_inexact_complex(right))
