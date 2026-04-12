@@ -10,6 +10,7 @@
 #include <ListTalk/vm/value.h>
 
 #include <stdint.h>
+#include <stdarg.h>
 
 LT__BEGIN_DECLS
 
@@ -17,6 +18,7 @@ extern uint32_t LT_fnv_hash(char* string);
 extern uint32_t LT_pointer_hash(void* pointer);
 
 extern char* LT_strdup(char*);
+extern char* LT_sprintf(const char* fmt, ...);
 
 typedef struct LT_StringBuilder LT_StringBuilder;
 

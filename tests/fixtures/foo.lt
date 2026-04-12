@@ -1,0 +1,2 @@
+(provide :foo)
+(define loaded-from-foo 42)

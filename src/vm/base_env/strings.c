@@ -5,11 +5,16 @@
 
 #include "internal.h"
 
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/value.h>
+
+#include <stdlib.h>
 
 LT_DEFINE_PRIMITIVE(
     primitive_character_p,
@@ -140,6 +145,38 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_number_to_string,
+    "number->string",
+    "(number)",
+    "Return the string representation of a number."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    char* buffer = NULL;
+    size_t size = 0;
+    FILE* stream;
+    LT_Value result;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+
+    if (!LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Number))){
+        LT_type_error(value, &LT_Number_class);
+    }
+
+    stream = open_memstream(&buffer, &size);
+    if (stream == NULL){
+        LT_error("number->string: failed to open memory stream");
+    }
+    LT_Value_debugPrintOn(value, stream);
+    fclose(stream);
+    result = (LT_Value)(uintptr_t)LT_String_new(buffer, size);
+    free(buffer);
+    return result;
+}
+
 void LT_base_env_bind_strings(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_character_p);
     LT_base_env_bind_static_primitive(environment, &primitive_string_p);
@@ -154,4 +191,5 @@ void LT_base_env_bind_strings(LT_Environment* environment){
         &primitive_character_list_to_string
     );
     LT_base_env_bind_static_primitive(environment, &primitive_string_append);
+    LT_base_env_bind_static_primitive(environment, &primitive_number_to_string);
 }
