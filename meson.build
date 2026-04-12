@@ -111,7 +111,7 @@ os_module = shared_module(
         install : true
 )
 
-executable(
+listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
         link_with: [vm_lib], 
@@ -127,9 +127,9 @@ reader_test_exe = executable(
         dependencies : [bdwgc]
 )
 
-eval_test_exe = executable(
-        'eval_test',
-        'tests/eval_test.c',
+c_api_test_exe = executable(
+        'c_api_test',
+        'tests/c_api_test.c',
         link_with: [vm_lib],
         dependencies : [bdwgc]
 )
@@ -175,8 +175,19 @@ test(
 )
 
 test(
+        'c_api_test',
+        c_api_test_exe,
+        depends : [os_module]
+)
+
+test(
         'eval_test',
-        eval_test_exe,
+        listtalk_exe,
+        args : [
+                '-L', meson.current_source_dir() / 'tests' / 'fixtures',
+                '-L', meson.current_build_dir(),
+                meson.current_source_dir() / 'tests' / 'eval-test.lt'
+        ],
         depends : [os_module]
 )
 
