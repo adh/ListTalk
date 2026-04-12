@@ -721,6 +721,43 @@ static int test_identity_equal_method_on_object(void){
     );
 }
 
+static int test_structural_equal_method_on_object(void){
+    LT_Value eq_lists = eval_one("[(cons 1 2) = (cons 1 2)]");
+    LT_Value neq_lists = eval_one("[(cons 1 2) = (cons 1 3)]");
+    LT_Value eq_str = eval_one("[\"abc\" = \"abc\"]");
+    LT_Value neq_str = eval_one("[\"abc\" = \"xyz\"]");
+    LT_Value number_via_obj = eval_one("[5 = 5]");
+
+    if (expect(
+        LT_Value_is_boolean(eq_lists) && LT_Value_boolean_value(eq_lists),
+        "Object>>= equal pairs returns true"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(neq_lists) && !LT_Value_boolean_value(neq_lists),
+        "Object>>= unequal pairs returns false"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(eq_str) && LT_Value_boolean_value(eq_str),
+        "Object>>= equal strings returns true"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_boolean(neq_str) && !LT_Value_boolean_value(neq_str),
+        "Object>>= unequal strings returns false"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_boolean(number_via_obj) && LT_Value_boolean_value(number_via_obj),
+        "Object>>= on numbers delegates to equal?"
+    );
+}
+
 static int test_basic_pair_methods(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value result;
@@ -3649,6 +3686,7 @@ int main(void){
     RUN_TEST(test_basic_object_and_class_methods);
     RUN_TEST(test_binary_methods_on_number);
     RUN_TEST(test_identity_equal_method_on_object);
+    RUN_TEST(test_structural_equal_method_on_object);
     RUN_TEST(test_basic_pair_methods);
     RUN_TEST(test_basic_string_and_vector_methods);
     RUN_TEST(test_make_class_primitive);
