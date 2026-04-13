@@ -16,6 +16,8 @@
 #include <ListTalk/classes/RationalNumber.h>
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/SourceLocation.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -48,6 +50,7 @@ typedef struct LT_StringReaderStream_s {
 
 struct LT_Reader_s {
     LT_Object base;
+    LT_Value source_file;
     LT_Value line;
     LT_Value column;
     LT_Value nesting_depth;
@@ -85,6 +88,20 @@ static void _Noreturn reader_signal_error(
 );
 static void _Noreturn reader_error(LT_Reader* reader, const char* message);
 static void _Noreturn reader_incomplete_input(LT_Reader* reader, const char* message);
+static LT_Value reader_source_location(LT_Reader* reader);
+static LT_Value reader_immutable_list(
+    LT_Reader* reader,
+    LT_Value source_location,
+    size_t count,
+    const LT_Value* values,
+    LT_Value tail
+);
+static LT_Value reader_immutable_list_from_builder(
+    LT_Reader* reader,
+    LT_Value source_location,
+    LT_ListBuilder* builder,
+    LT_Value tail
+);
 
 static int file_stream_getc(void* stream){
     LT_FileReaderStream* file_stream = (LT_FileReaderStream*)stream;
@@ -261,6 +278,56 @@ static void _Noreturn reader_incomplete_input(LT_Reader* reader, const char* mes
         &LT_IncompleteInputSyntaxError_class,
         message
     );
+}
+
+static LT_Value reader_source_location(LT_Reader* reader){
+    long long line = reader_small_integer_value(reader->line);
+    long long column = reader_small_integer_value(reader->column);
+
+    if (line <= 0){
+        line = 1;
+    }
+    if (column <= 0){
+        column = 1;
+    }
+
+    return LT_SourceLocation_new((unsigned int)(line - 1), (unsigned int)(column - 1));
+}
+
+static LT_Value reader_immutable_list(
+    LT_Reader* reader,
+    LT_Value source_location,
+    size_t count,
+    const LT_Value* values,
+    LT_Value tail
+){
+    return LT_ImmutableList_new_with_trailer(
+        count,
+        values,
+        tail,
+        source_location,
+        reader->source_file,
+        LT_NIL
+    );
+}
+
+static LT_Value reader_immutable_list_from_builder(
+    LT_Reader* reader,
+    LT_Value source_location,
+    LT_ListBuilder* builder,
+    LT_Value tail
+){
+    size_t count = LT_ListBuilder_length(builder);
+    LT_Value* values = GC_MALLOC(sizeof(LT_Value) * count);
+    LT_Value cursor = LT_ListBuilder_value(builder);
+    size_t i = 0;
+
+    while (cursor != LT_NIL){
+        values[i++] = LT_car(cursor);
+        cursor = LT_cdr(cursor);
+    }
+
+    return reader_immutable_list(reader, source_location, count, values, tail);
 }
 
 static int dot_starts_dotted_pair(LT_Reader* reader, LT_ReaderStream* stream){
@@ -631,21 +698,22 @@ static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_re
     }
 }
 
-static LT_Value expand_self_slot_accessor(char* token){
+static LT_Value expand_self_slot_accessor(LT_Reader* reader, LT_Value source_location, char* token){
+    LT_Value values[2];
+
     if (token[0] != '.'
         || token[1] == '\0'
         || isdigit((unsigned char)token[1])){
         return 0;
     }
 
-    return LT_list(
-        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%self-slot"),
-        LT_Symbol_parse_token(token + 1),
-        LT_INVALID
-    );
+    values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%self-slot");
+    values[1] = LT_Symbol_parse_token(token + 1);
+    return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
 static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream){
+    LT_Value source_location = reader_source_location(reader);
     LT_ReadTokenResult token_result = read_token(reader, first, stream);
     LT_Value value;
     LT_Value expanded;
@@ -670,7 +738,7 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
     }
 
     if (!token_result.has_symbol_quoting){
-        expanded = expand_self_slot_accessor(token);
+        expanded = expand_self_slot_accessor(reader, source_location, token);
         if (expanded != 0){
             return expanded;
         }
@@ -961,27 +1029,29 @@ static LT_Value read_quote_syntax(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
+    LT_Value source_location = reader_source_location(reader);
     int first = read_non_space_char(reader, stream);
     LT_Value quoted;
+    LT_Value values[2];
 
     if (first == EOF){
         reader_incomplete_input(reader, "Unexpected end of input after quote");
     }
 
     quoted = read_object_from_first(reader, stream, first);
-    return LT_list(
-        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quote"),
-        quoted,
-        LT_INVALID
-    );
+    values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quote");
+    values[1] = quoted;
+    return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
 static LT_Value read_quasiquote_syntax(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
+    LT_Value source_location = reader_source_location(reader);
     int first = read_non_space_char(reader, stream);
     LT_Value quoted;
+    LT_Value values[2];
 
     if (first == EOF){
         reader_incomplete_input(
@@ -991,20 +1061,20 @@ static LT_Value read_quasiquote_syntax(
     }
 
     quoted = read_object_from_first(reader, stream, first);
-    return LT_list(
-        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quasiquote"),
-        quoted,
-        LT_INVALID
-    );
+    values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "quasiquote");
+    values[1] = quoted;
+    return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
 static LT_Value read_unquote_syntax(
     LT_Reader* reader,
     LT_ReaderStream* stream
 ){
+    LT_Value source_location = reader_source_location(reader);
     int first = reader_getc(reader, stream);
     LT_Value quoted;
     LT_Value operator_symbol;
+    LT_Value values[2];
 
     if (first == '@'){
         operator_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "unquote-splicing");
@@ -1021,16 +1091,14 @@ static LT_Value read_unquote_syntax(
     }
 
     quoted = read_object_from_first(reader, stream, first);
-    return LT_list(
-        operator_symbol,
-        quoted,
-        LT_INVALID
-    );
+    values[0] = operator_symbol;
+    values[1] = quoted;
+    return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
 static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
-    LT_Value head = LT_NIL;
-    LT_Value tail = LT_NIL;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value source_location = reader_source_location(reader);
     int ch = read_non_space_char(reader, stream);
 
     if (ch == ')'){
@@ -1039,7 +1107,6 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
 
     while (1){
         LT_Value item;
-        LT_Value node;
 
         if (ch == EOF){
             reader_incomplete_input(reader, "Unterminated list");
@@ -1049,7 +1116,7 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
             LT_Value tail_value;
             int closing;
 
-            if (head == LT_NIL){
+            if (LT_ListBuilder_length(builder) == 0){
                 reader_error(reader, "Unexpected dot in list");
             }
 
@@ -1063,24 +1130,26 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
             if (closing != ')'){
                 reader_error(reader, "Expected ')' after dotted pair tail");
             }
-            LT_Pair_set_cdr(tail, tail_value);
-            return head;
+            return reader_immutable_list_from_builder(
+                reader,
+                source_location,
+                builder,
+                tail_value
+            );
         }
 
         item = read_object_from_first(reader, stream, ch);
-        node = LT_cons(item, LT_NIL);
-
-        if (head == LT_NIL){
-            head = node;
-        } else {
-            LT_Pair_set_cdr(tail, node);
-        }
-        tail = node;
+        LT_ListBuilder_append(builder, item);
 
         ch = read_non_space_char(reader, stream);
 
         if (ch == ')'){
-            return head;
+            return reader_immutable_list_from_builder(
+                reader,
+                source_location,
+                builder,
+                LT_NIL
+            );
         }
     }
 }
@@ -1122,6 +1191,7 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     LT_ListBuilder* arguments;
     LT_StringBuilder* selector;
     LT_Value selector_symbol;
+    LT_Value source_location = reader_source_location(reader);
     char* message_token;
 
     if (ch == EOF){
@@ -1147,12 +1217,12 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     ch = read_non_space_char(reader, stream);
 
     if (ch == ']'){
-        return LT_list(
-            LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send"),
-            receiver,
-            LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token),
-            LT_INVALID
-        );
+        LT_Value values[3];
+
+        values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send");
+        values[1] = receiver;
+        values[2] = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token);
+        return reader_immutable_list(reader, source_location, 3, values, LT_NIL);
     }
 
     if (token_is_binary_selector(message_token)){
@@ -1172,13 +1242,13 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
             reader_error(reader, "Binary bracket send expects exactly one argument");
         }
 
-        return LT_list(
-            LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send"),
-            receiver,
-            LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token),
-            argument,
-            LT_INVALID
-        );
+        LT_Value values[4];
+
+        values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send");
+        values[1] = receiver;
+        values[2] = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token);
+        values[3] = argument;
+        return reader_immutable_list(reader, source_location, 4, values, LT_NIL);
     }
 
     if (!token_ends_with_colon(message_token)){
@@ -1231,13 +1301,28 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
         LT_StringBuilder_value(selector)
     );
 
-    return LT_list_with_rest(
-        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send"),
-        receiver,
-        selector_symbol,
-        LT_INVALID,
-        LT_ListBuilder_value(arguments)
-    );
+    {
+        size_t argument_count = LT_ListBuilder_length(arguments);
+        LT_Value* values = GC_MALLOC(sizeof(LT_Value) * (argument_count + 3));
+        LT_Value cursor = LT_ListBuilder_value(arguments);
+        size_t i = 0;
+
+        values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send");
+        values[1] = receiver;
+        values[2] = selector_symbol;
+        while (cursor != LT_NIL){
+            values[i + 3] = LT_car(cursor);
+            i++;
+            cursor = LT_cdr(cursor);
+        }
+        return reader_immutable_list(
+            reader,
+            source_location,
+            argument_count + 3,
+            values,
+            LT_NIL
+        );
+    }
 }
 
 static LT_Value read_object_from_first(
@@ -1280,6 +1365,7 @@ static LT_Value read_object_from_first(
 }
 
 static LT_Slot_Descriptor Reader_slots[] = {
+    {"source-file", offsetof(LT_Reader, source_file), &LT_SlotType_ReadonlyObject},
     {"line", offsetof(LT_Reader, line), &LT_SlotType_ReadonlyObject},
     {"column", offsetof(LT_Reader, column), &LT_SlotType_ReadonlyObject},
     {
@@ -1320,8 +1406,9 @@ size_t LT_ReaderStream_stringOffset(LT_ReaderStream* stream){
     return string_stream->index;
 }
 
-LT_Reader* LT_Reader_new(void){
+LT_Reader* LT_Reader_new(LT_Value source_file){
     LT_Reader* reader = LT_Class_ALLOC(LT_Reader);
+    reader->source_file = source_file;
     reader_reset_position(reader);
     return reader;
 }
@@ -1329,6 +1416,7 @@ LT_Reader* LT_Reader_new(void){
 LT_Reader* LT_Reader_clone(LT_Reader* reader){
     LT_Reader* clone = LT_Class_ALLOC(LT_Reader);
 
+    clone->source_file = reader->source_file;
     clone->line = reader->line;
     clone->column = reader->column;
     clone->nesting_depth = reader->nesting_depth;

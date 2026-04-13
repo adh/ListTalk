@@ -19,7 +19,7 @@ static LT_Value apply_cxr_path(LT_Value value, const char* path){
         index--;
 
         if (!LT_Pair_p(value)){
-            LT_error("cxxxr primitive expects pair at each step");
+            LT_error("cxxxr primitive expects list at each step");
         }
         if (op == 'a'){
             value = LT_car(value);

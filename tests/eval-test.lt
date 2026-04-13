@@ -260,7 +260,8 @@
 
 ;;; Slot access
 
-(check (= (slot-ref '(1 . 2) 'car) 1) "slot-ref reads pair slot")
+(let ((p (cons 1 2)))
+  (check (= (slot-ref p 'car) 1) "slot-ref reads pair slot"))
 (let ((p (cons 1 2)))
   (slot-set! p 'car 77)
   (check (= (slot-ref p 'car) 77) "slot-set! mutates pair slot"))
@@ -461,17 +462,17 @@
   (check (eq? (type-of inst) DefPoint) "define-class wraps make-class and define"))
 
 (define-method [Pair first] (%self-slot car))
-(check (= ['(9 . 8) first] 9) "define-method installs zero-argument method")
+(check (= [(cons 9 8) first] 9) "define-method installs zero-argument method")
 (check (closure? [Pair lookupSelector: :first])
        "define-method installs closure as method")
 
 (define-method [Pair setFirst: value]
   (set! (%self-slot car) value)
   (%self-slot car))
-(check (= ['(9 . 8) setFirst: 42] 42)
+(check (= [(cons 9 8) setFirst: 42] 42)
        "define-method method body can use %self-slot read and write")
 
-(check (= ['(1 . 2) setFirst: 77] 77)
+(check (= [(cons 1 2) setFirst: 77] 77)
        "set! macro dispatches %self-slot target to slot-set!")
 
 ;;; Rectangle example

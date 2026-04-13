@@ -40,7 +40,7 @@ LT_Class* const LT__Immediate_classes[64] = {
 LT_Class* const LT__Pointer_classes[8] = {
     &LT_Class_class,
     &LT_ImmutableList_class,
-    &LT_Pair_class,
+    &LT_MutablePair_class,
     &LT_Symbol_class,
     &LT_Closure_class,
     &LT_Primitive_class,

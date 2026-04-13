@@ -3,7 +3,6 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
-#include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
@@ -13,7 +12,7 @@
 #include <stddef.h>
 
 static int immutable_list_like_p(LT_Value value){
-    return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_List));
+    return LT_Pair_p(value);
 }
 
 static LT_Value immutable_list_terminator(unsigned int flags){
@@ -168,7 +167,7 @@ static LT_Method_Descriptor ImmutableList_class_methods[] = {
 };
 
 LT_DEFINE_CLASS(LT_ImmutableList) {
-    .superclass = &LT_List_class,
+    .superclass = &LT_Pair_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "ImmutableList",
     .instance_size = 0,

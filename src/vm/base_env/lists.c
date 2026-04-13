@@ -69,7 +69,9 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, pair_value);
     LT_ARG_END(cursor);
-    LT_Pair_from_value(pair_value);
+    if (!LT_Pair_p(pair_value)){
+        LT_type_error(pair_value, &LT_List_class);
+    }
     return LT_car(pair_value);
 }
 
@@ -84,7 +86,9 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, pair_value);
     LT_ARG_END(cursor);
-    LT_Pair_from_value(pair_value);
+    if (!LT_Pair_p(pair_value)){
+        LT_type_error(pair_value, &LT_List_class);
+    }
     return LT_cdr(pair_value);
 }
 

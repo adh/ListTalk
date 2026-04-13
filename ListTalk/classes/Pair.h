@@ -10,11 +10,35 @@
 
 #include <ListTalk/classes/List.h>
 #include <ListTalk/vm/value.h>
+#include <ListTalk/vm/error.h>
 #include <ListTalk/macros/decl_macros.h>
 
 LT__BEGIN_DECLS
 
-LT_DECLARE_CLASS(LT_Pair);
+typedef struct LT_Pair_s LT_Pair;
+extern LT_Class LT_Pair_class;
+extern LT_Class LT_Pair_class_class;
+
+extern LT_Class LT_MutablePair_class;
+extern LT_Class LT_MutablePair_class_class;
+
+static inline int LT_Pair_p(LT_Value value){
+    return LT_VALUE_IS_POINTER(value)
+        && (LT_VALUE_POINTER_TAG(value) == LT_VALUE_POINTER_TAG_PAIR
+            || LT_VALUE_POINTER_TAG(value) == LT_VALUE_POINTER_TAG_IMMUTABLE_LIST);
+}
+
+static inline int LT_MutablePair_p(LT_Value value){
+    return LT_VALUE_IS_POINTER(value)
+        && LT_VALUE_POINTER_TAG(value) == LT_VALUE_POINTER_TAG_PAIR;
+}
+
+static inline LT_MutablePair* LT_MutablePair_from_value(LT_Value value){
+    if (!LT_MutablePair_p(value)){
+        LT_type_error(value, &LT_MutablePair_class);
+    }
+    return (LT_MutablePair*)LT_VALUE_POINTER_VALUE(value);
+}
 
 LT_Value LT_cons(LT_Value car, LT_Value cdr);
 LT_Value LT_list(LT_Value first, ...);

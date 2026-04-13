@@ -7,6 +7,7 @@
 #define H__ListTalk__arg_macros__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/vm/error.h>

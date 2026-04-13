@@ -28,7 +28,7 @@ static int expect(int condition, const char* message){
 }
 
 static LT_Value read_one(const char* source){
-    LT_Reader* reader = LT_Reader_new();
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
     LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
     return LT_Reader_readObject(reader, stream);
 }
@@ -218,7 +218,7 @@ static int test_send_primitive_uses_direct_method_dictionary(void){
         LT_Primitive_from_static(&primitive_test_pair_sum_method)
     );
 
-    result = eval_one("[ '(1 . 2) sum]");
+    result = eval_one("[(cons 1 2) sum]");
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 3,
         "send dispatches to direct method"
@@ -237,16 +237,16 @@ static int test_send_primitive_uses_precedence_lookup_and_cache(void){
         LT_Primitive_from_static(&primitive_test_object_class_name_method)
     );
 
-    result = eval_one("[ '(1 . 2) class-name]");
+    result = eval_one("[(cons 1 2) class-name]");
     if (expect(
         LT_Symbol_p(result)
-            && strcmp(LT_Symbol_name(LT_Symbol_from_value(result)), "Pair") == 0,
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(result)), "MutablePair") == 0,
         "send resolves method on superclass precedence list"
     )){
         return 1;
     }
 
-    pair_cache = LT_IdentityDictionary_from_value(LT_Pair_class.method_cache);
+    pair_cache = LT_IdentityDictionary_from_value(LT_MutablePair_class.method_cache);
     if (expect(
         LT_IdentityDictionary_at(pair_cache, selector, &cached),
         "resolved method is cached in receiver class method_cache"
@@ -359,14 +359,14 @@ static int test_class_add_method_invalidates_method_cache(void){
         selector,
         LT_Primitive_from_static(&primitive_test_object_class_name_method)
     );
-    (void)eval_one("[ '(1 . 2) class-name]");
+    (void)eval_one("[(cons 1 2) class-name]");
 
     LT_Class_addMethod(
         &LT_Pair_class,
         selector,
         LT_Primitive_from_static(&primitive_test_pair_override_method)
     );
-    result = eval_one("[ '(1 . 2) class-name]");
+    result = eval_one("[(cons 1 2) class-name]");
 
     return expect(
         LT_Symbol_p(result)
@@ -1033,7 +1033,7 @@ static int test_define_method_macro(void){
         env,
         NULL
     );
-    result = LT_eval(read_one("['(9 . 8) first]"), env, NULL);
+    result = LT_eval(read_one("[(cons 9 8) first]"), env, NULL);
     if (expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 9,
         "define-method installs zero-argument method"
@@ -1091,7 +1091,7 @@ static int test_define_method_macro(void){
         env,
         NULL
     );
-    result = LT_eval(read_one("['(9 . 8) setFirst: 42]"), env, NULL);
+    result = LT_eval(read_one("[(cons 9 8) setFirst: 42]"), env, NULL);
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
         "define-method method body can use %self-slot read and write"

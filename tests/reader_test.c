@@ -66,8 +66,17 @@ static char* debug_string_for_value(LT_Value value){
 }
 
 static LT_Value read_one(const char* source){
-    LT_Reader* reader = LT_Reader_new();
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
     LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    return LT_Reader_readObject(reader, stream);
+}
+
+static LT_Value read_one_with_source_file(const char* source, const char* source_file){
+    LT_Reader* reader = LT_Reader_new(
+        (LT_Value)(uintptr_t)LT_String_new_cstr((char*)source_file)
+    );
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+
     return LT_Reader_readObject(reader, stream);
 }
 
@@ -90,7 +99,7 @@ LT_DEFINE_PRIMITIVE(
 
 static LT_Value read_one_catch_error(const char* source){
     LT_Value caught = LT_NIL;
-    LT_Reader* reader = LT_Reader_new();
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
     LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
 
     LT_CATCH(LT__reader_error_tag, caught, {
@@ -154,7 +163,7 @@ static int test_proper_list(void){
     LT_Value list = read_one("(a b)");
     LT_Value tail;
 
-    if (expect(LT_Pair_p(list), "proper list head pair")){
+    if (expect(LT_ImmutableList_p(list), "proper list head immutable list")){
         return 1;
     }
     if (expect(
@@ -165,7 +174,7 @@ static int test_proper_list(void){
     }
 
     tail = LT_cdr(list);
-    if (expect(LT_Pair_p(tail), "proper list second pair")){
+    if (expect(LT_ImmutableList_p(tail), "proper list second immutable list")){
         return 1;
     }
     if (expect(
@@ -181,7 +190,7 @@ static int test_proper_list(void){
 static int test_dotted_pair(void){
     LT_Value pair = read_one("(a . b)");
 
-    if (expect(LT_Pair_p(pair), "dotted pair type")){
+    if (expect(LT_ImmutableList_p(pair), "dotted pair type")){
         return 1;
     }
     if (expect(
@@ -556,7 +565,7 @@ static int test_quote_syntax(void){
     LT_Value value = read_one("'a");
     LT_Value tail;
 
-    if (expect(LT_Pair_p(value), "quote syntax returns list")){
+    if (expect(LT_ImmutableList_p(value), "quote syntax returns list")){
         return 1;
     }
     if (expect(
@@ -571,7 +580,7 @@ static int test_quote_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "quote syntax has single argument")){
+    if (expect(LT_ImmutableList_p(tail), "quote syntax has single argument")){
         return 1;
     }
     if (expect(
@@ -592,7 +601,7 @@ static int test_quasiquote_syntax(void){
     LT_Value value = read_one("`a");
     LT_Value tail;
 
-    if (expect(LT_Pair_p(value), "quasiquote syntax returns list")){
+    if (expect(LT_ImmutableList_p(value), "quasiquote syntax returns list")){
         return 1;
     }
     if (expect(
@@ -607,7 +616,7 @@ static int test_quasiquote_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "quasiquote syntax has single argument")){
+    if (expect(LT_ImmutableList_p(tail), "quasiquote syntax has single argument")){
         return 1;
     }
     if (expect(
@@ -628,7 +637,7 @@ static int test_unquote_syntax(void){
     LT_Value value = read_one(",a");
     LT_Value tail;
 
-    if (expect(LT_Pair_p(value), "unquote syntax returns list")){
+    if (expect(LT_ImmutableList_p(value), "unquote syntax returns list")){
         return 1;
     }
     if (expect(
@@ -643,7 +652,7 @@ static int test_unquote_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "unquote syntax has single argument")){
+    if (expect(LT_ImmutableList_p(tail), "unquote syntax has single argument")){
         return 1;
     }
     if (expect(
@@ -664,7 +673,7 @@ static int test_unquote_splicing_syntax(void){
     LT_Value value = read_one(",@a");
     LT_Value tail;
 
-    if (expect(LT_Pair_p(value), "unquote-splicing syntax returns list")){
+    if (expect(LT_ImmutableList_p(value), "unquote-splicing syntax returns list")){
         return 1;
     }
     if (expect(
@@ -679,7 +688,7 @@ static int test_unquote_splicing_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "unquote-splicing syntax has single argument")){
+    if (expect(LT_ImmutableList_p(tail), "unquote-splicing syntax has single argument")){
         return 1;
     }
     if (expect(
@@ -706,7 +715,7 @@ static int test_quote_syntax_in_user_package_uses_listtalk_quote(void){
         value = read_one("'a");
     });
 
-    if (expect(LT_Pair_p(value), "quote syntax in user package returns list")){
+    if (expect(LT_ImmutableList_p(value), "quote syntax in user package returns list")){
         return 1;
     }
     if (expect(
@@ -893,7 +902,7 @@ static int test_bracket_unary_send_syntax(void){
     LT_Value tail;
     LT_Value selector;
 
-    if (expect(LT_Pair_p(value), "bracket unary expands to list")){
+    if (expect(LT_ImmutableList_p(value), "bracket unary expands to list")){
         return 1;
     }
     if (expect(
@@ -908,7 +917,7 @@ static int test_bracket_unary_send_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "bracket unary has receiver")){
+    if (expect(LT_ImmutableList_p(tail), "bracket unary has receiver")){
         return 1;
     }
     selector = LT_car(LT_cdr(tail));
@@ -933,11 +942,11 @@ static int test_bracket_keyword_send_syntax(void){
     LT_Value selector;
     LT_Value args;
 
-    if (expect(LT_Pair_p(value), "bracket keyword expands to list")){
+    if (expect(LT_ImmutableList_p(value), "bracket keyword expands to list")){
         return 1;
     }
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "bracket keyword has receiver")){
+    if (expect(LT_ImmutableList_p(tail), "bracket keyword has receiver")){
         return 1;
     }
     selector = LT_car(LT_cdr(tail));
@@ -961,7 +970,7 @@ static int test_bracket_keyword_send_syntax(void){
     }
 
     args = LT_cdr(LT_cdr(tail));
-    if (expect(LT_Pair_p(args), "first keyword argument exists")){
+    if (expect(LT_ImmutableList_p(args), "first keyword argument exists")){
         return 1;
     }
     if (expect(
@@ -971,7 +980,7 @@ static int test_bracket_keyword_send_syntax(void){
         return 1;
     }
     args = LT_cdr(args);
-    if (expect(LT_Pair_p(args), "second keyword argument exists")){
+    if (expect(LT_ImmutableList_p(args), "second keyword argument exists")){
         return 1;
     }
     if (expect(
@@ -989,7 +998,7 @@ static int test_bracket_binary_send_syntax(void){
     LT_Value selector;
     LT_Value args;
 
-    if (expect(LT_Pair_p(value), "bracket binary expands to list")){
+    if (expect(LT_ImmutableList_p(value), "bracket binary expands to list")){
         return 1;
     }
     if (expect(
@@ -1004,7 +1013,7 @@ static int test_bracket_binary_send_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "bracket binary has receiver")){
+    if (expect(LT_ImmutableList_p(tail), "bracket binary has receiver")){
         return 1;
     }
     selector = LT_car(LT_cdr(tail));
@@ -1025,7 +1034,7 @@ static int test_bracket_binary_send_syntax(void){
     }
 
     args = LT_cdr(LT_cdr(tail));
-    if (expect(LT_Pair_p(args), "bracket binary has argument")){
+    if (expect(LT_ImmutableList_p(args), "bracket binary has argument")){
         return 1;
     }
     if (expect(
@@ -1041,7 +1050,7 @@ static int test_bracket_binary_send_multi_char_selector(void){
     LT_Value value = read_one("[a == b]");
     LT_Value selector;
 
-    if (expect(LT_Pair_p(value), "bracket binary == expands to list")){
+    if (expect(LT_ImmutableList_p(value), "bracket binary == expands to list")){
         return 1;
     }
 
@@ -1080,7 +1089,7 @@ static int test_slot_accessor_syntax(void){
     LT_Value value = read_one(".slot");
     LT_Value tail;
 
-    if (expect(LT_Pair_p(value), "slot accessor expands to list")){
+    if (expect(LT_ImmutableList_p(value), "slot accessor expands to list")){
         return 1;
     }
     if (expect(
@@ -1091,7 +1100,7 @@ static int test_slot_accessor_syntax(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "slot accessor has symbol argument")){
+    if (expect(LT_ImmutableList_p(tail), "slot accessor has symbol argument")){
         return 1;
     }
     if (expect(
@@ -1109,12 +1118,12 @@ static int test_dot_prefixed_tokens_inside_list(void){
     LT_Value first;
     LT_Value second;
 
-    if (expect(LT_Pair_p(value), "dot-prefixed list returns pair")){
+    if (expect(LT_ImmutableList_p(value), "dot-prefixed list returns immutable list")){
         return 1;
     }
 
     first = LT_car(value);
-    if (expect(LT_Pair_p(first), "dot-prefixed .slot expands in list")){
+    if (expect(LT_ImmutableList_p(first), "dot-prefixed .slot expands in list")){
         return 1;
     }
     if (expect(
@@ -1125,7 +1134,7 @@ static int test_dot_prefixed_tokens_inside_list(void){
     }
 
     tail = LT_cdr(value);
-    if (expect(LT_Pair_p(tail), "dot-prefixed second element exists")){
+    if (expect(LT_ImmutableList_p(tail), "dot-prefixed second element exists")){
         return 1;
     }
     second = LT_car(tail);
@@ -1199,11 +1208,11 @@ static int test_incomplete_input_signals_specific_syntax_error(void){
 }
 
 static int test_reader_tracks_line_column_and_nesting_depth(void){
-    LT_Reader* reader = LT_Reader_new();
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
     LT_ReaderStream* stream = LT_ReaderStream_newForString("(a\n  (b))");
     LT_Value value = LT_Reader_readObject(reader, stream);
 
-    if (expect(LT_Pair_p(value), "tracked reader still returns parsed object")){
+    if (expect(LT_ImmutableList_p(value), "tracked reader still returns parsed object")){
         return 1;
     }
     if (expect(slot_fixnum_cstr((LT_Value)(uintptr_t)reader, "line") == 2, "reader line")){
@@ -1218,6 +1227,34 @@ static int test_reader_tracks_line_column_and_nesting_depth(void){
     return expect(
         slot_fixnum_cstr((LT_Value)(uintptr_t)reader, "nesting-depth") == 0,
         "reader nesting depth"
+    );
+}
+
+static int test_reader_attaches_source_metadata_to_lists(void){
+    LT_Value value = read_one_with_source_file("(a b)", "fixtures/test.lt");
+    LT_Value source_location;
+    LT_Value source_file;
+
+    if (expect(LT_ImmutableList_p(value), "metadata test returns immutable list")){
+        return 1;
+    }
+    source_location = LT_ImmutableList_source_location(value);
+    if (expect(LT_SourceLocation_p(source_location), "reader attaches source location")){
+        return 1;
+    }
+    if (expect(LT_SourceLocation_line(source_location) == 0u, "reader source location line")){
+        return 1;
+    }
+    if (expect(LT_SourceLocation_column(source_location) == 0u, "reader source location column")){
+        return 1;
+    }
+    source_file = LT_ImmutableList_source_file(value);
+    if (expect(LT_String_p(source_file), "reader attaches source file")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(source_file)), "fixtures/test.lt") == 0,
+        "reader source file value"
     );
 }
 
@@ -1344,6 +1381,7 @@ int main(void){
     failures += test_bare_dot_top_level_signals_error();
     failures += test_incomplete_input_signals_specific_syntax_error();
     failures += test_reader_tracks_line_column_and_nesting_depth();
+    failures += test_reader_attaches_source_metadata_to_lists();
     failures += test_vector_literal_empty();
     failures += test_vector_literal_values();
 

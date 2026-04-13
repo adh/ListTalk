@@ -113,7 +113,9 @@ int LT_loader_load_file(char* path,
         LT_error("Loader expects environment");
     }
 
-    reader = LT_Reader_new();
+    reader = LT_Reader_new(
+        (LT_Value)(uintptr_t)LT_String_new_cstr(path)
+    );
     stream = LT_ReaderStream_newForFile(file);
     LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_USER, {
         while (stream_has_next_form(stream)){

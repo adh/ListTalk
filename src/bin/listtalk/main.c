@@ -114,7 +114,7 @@ static int eval_source_string(const char* source,
     *caught_condition = LT_NIL;
 
     while (source_has_next_form(source, &offset)){
-        LT_Reader* reader = LT_Reader_new();
+        LT_Reader* reader = LT_Reader_new(LT_NIL);
         LT_ReaderStream* stream = LT_ReaderStream_newForString(source + offset);
         LT_Value object = LT_NIL;
         LT_Value result = LT_NIL;

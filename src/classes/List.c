@@ -13,14 +13,10 @@
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
-static int list_instance_p(LT_Value value){
-    return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_List));
-}
-
 static size_t list_length(LT_Value value){
     size_t length = 0;
 
-    while (list_instance_p(value)){
+    while (LT_Pair_p(value)){
         length++;
         value = LT_cdr(value);
     }
@@ -34,7 +30,7 @@ static size_t list_length(LT_Value value){
 size_t LT_List_hash(LT_Value value){
     size_t hash = 0;
 
-    while (list_instance_p(value)){
+    while (LT_Pair_p(value)){
         size_t car_hash = LT_Value_hash(LT_car(value));
 
         hash = (hash * (size_t)33) ^ (car_hash + (size_t)0x9e3779b1);
@@ -45,7 +41,7 @@ size_t LT_List_hash(LT_Value value){
 }
 
 int LT_List_equal_p(LT_Value left, LT_Value right){
-    while (list_instance_p(left) && list_instance_p(right)){
+    while (LT_Pair_p(left) && LT_Pair_p(right)){
         if (!LT_Value_equal_p(LT_car(left), LT_car(right))){
             return 0;
         }
@@ -53,7 +49,7 @@ int LT_List_equal_p(LT_Value left, LT_Value right){
         right = LT_cdr(right);
     }
 
-    if (list_instance_p(left) || list_instance_p(right)){
+    if (LT_Pair_p(left) || LT_Pair_p(right)){
         return 0;
     }
 
@@ -69,7 +65,7 @@ void LT_List_debugPrintOn(LT_Value value, FILE* stream){
         if (value == LT_NIL){
             break;
         }
-        if (list_instance_p(value)){
+        if (LT_Pair_p(value)){
             fputc(' ', stream);
             continue;
         }
@@ -105,7 +101,7 @@ LT_Value LT_List_map_many(LT_Value callable,
             if (cursors[i] == LT_NIL){
                 return LT_ListBuilder_value(builder);
             }
-            if (!list_instance_p(cursors[i])){
+            if (!LT_Pair_p(cursors[i])){
                 LT_error("map expects proper lists");
             }
         }

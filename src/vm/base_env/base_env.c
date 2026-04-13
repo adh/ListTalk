@@ -77,6 +77,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"List", &LT_List_class},
     {"ImmutableList", &LT_ImmutableList_class},
     {"Pair", &LT_Pair_class},
+    {"MutablePair", &LT_MutablePair_class},
     {"Vector", &LT_Vector_class},
     {"String", &LT_String_class},
     {"Symbol", &LT_Symbol_class},

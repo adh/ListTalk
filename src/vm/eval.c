@@ -432,7 +432,7 @@ LT_Value LT_eval_sequence_string(const char* source, LT_Environment* environment
         LT_error("Evaluator expects environment");
     }
 
-    reader = LT_Reader_new();
+    reader = LT_Reader_new(LT_NIL);
     stream = LT_ReaderStream_newForString(source);
 
     while (stream_has_next_form(stream)){

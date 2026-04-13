@@ -36,7 +36,7 @@ extern LT_ReaderStream* LT_ReaderStream_newForFile(FILE* file);
 extern LT_ReaderStream* LT_ReaderStream_newForString(const char* str);
 extern size_t LT_ReaderStream_stringOffset(LT_ReaderStream* stream);
 
-extern LT_Reader* LT_Reader_new();
+extern LT_Reader* LT_Reader_new(LT_Value source_file);
 extern LT_Reader* LT_Reader_clone(LT_Reader* reader);
 extern LT_Value LT_Reader_readObject(
     LT_Reader* reader,
