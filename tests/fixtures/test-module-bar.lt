@@ -1,2 +1,2 @@
-(provide :bar)
+(provide :test-module-bar)
 (define loaded-from-bar 91)

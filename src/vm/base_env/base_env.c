@@ -41,6 +41,7 @@
 #include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
+#include <ListTalk/utils.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -165,6 +166,39 @@ void LT_base_environment_prepend_module_resolver(LT_Environment* environment,
         environment,
         symbol,
         LT_cons((LT_Value)(uintptr_t)LT_String_new_cstr(resolver), resolvers)
+    )){
+        LT_error("Unable to update module resolver variable");
+    }
+}
+
+void LT_base_environment_append_module_resolver(LT_Environment* environment,
+                                                char* resolver){
+    LT_Value symbol = module_resolvers_symbol();
+    LT_Value resolvers;
+    LT_Value cursor;
+    LT_ListBuilder* builder;
+
+    if (!LT_Environment_lookup(environment, symbol, &resolvers, NULL)){
+        LT_error("Module resolver variable is not bound");
+    }
+
+    builder = LT_ListBuilder_new();
+    cursor = resolvers;
+    while (cursor != LT_NIL){
+        if (!LT_Pair_p(cursor)){
+            LT_error("Module resolver list must be proper");
+        }
+        LT_ListBuilder_append(builder, LT_car(cursor));
+        cursor = LT_cdr(cursor);
+    }
+
+    if (!LT_Environment_set(
+        environment,
+        symbol,
+        LT_ListBuilder_valueWithRest(
+            builder,
+            LT_cons((LT_Value)(uintptr_t)LT_String_new_cstr(resolver), LT_NIL)
+        )
     )){
         LT_error("Unable to update module resolver variable");
     }

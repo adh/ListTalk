@@ -1,2 +1,2 @@
-(provide :foo)
+(provide :test-module-foo)
 (define loaded-from-foo 42)

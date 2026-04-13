@@ -84,7 +84,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     LT_Value first;
 
     LT_OBJECT_ARG(cursor, first);
-    if (!LT_Value_is_fixnum(first) && !LT_Float_p(first)){
+    if (!LT_Value_is_instance_of(first, LT_STATIC_CLASS(LT_Number))){
         LT_type_error(first, &LT_Number_class);
     }
     if (cursor == LT_NIL){
@@ -95,7 +95,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
         LT_Value next;
         LT_OBJECT_ARG(cursor, next);
 
-        if (!LT_Value_is_fixnum(next) && !LT_Float_p(next)){
+        if (!LT_Value_is_instance_of(next, LT_STATIC_CLASS(LT_Number))){
             LT_type_error(next, &LT_Number_class);
         }
         if (!LT_Number_equal_p(first, next)){

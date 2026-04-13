@@ -17,6 +17,10 @@ void LT_base_environment_prepend_module_resolver(
     LT_Environment* environment,
     char* resolver
 );
+void LT_base_environment_append_module_resolver(
+    LT_Environment* environment,
+    char* resolver
+);
 
 LT__END_DECLS
 

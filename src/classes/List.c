@@ -7,10 +7,26 @@
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/error.h>
 
 static int list_instance_p(LT_Value value){
     return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_List));
+}
+
+static size_t list_length(LT_Value value){
+    size_t length = 0;
+
+    while (list_instance_p(value)){
+        length++;
+        value = LT_cdr(value);
+    }
+
+    if (value != LT_NIL){
+        LT_error("List length requires proper list");
+    }
+    return length;
 }
 
 size_t LT_List_hash(LT_Value value){
@@ -93,9 +109,31 @@ LT_DEFINE_PRIMITIVE(
     return LT_cdr(self);
 }
 
+LT_DEFINE_PRIMITIVE(
+    list_method_length,
+    "List>>length",
+    "(self)",
+    "Return list length."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    size_t length;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    length = list_length(self);
+    if (!LT_SmallInteger_in_range((int64_t)length)){
+        LT_error("List length does not fit fixnum");
+    }
+    return LT_SmallInteger_new((int64_t)length);
+}
+
 static LT_Method_Descriptor List_methods[] = {
     {"car", &list_method_car},
     {"cdr", &list_method_cdr},
+    {"length", &list_method_length},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
