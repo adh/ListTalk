@@ -348,6 +348,37 @@
        "let evaluates binding expressions in outer environment")
 (check (= (let ((x 99)) x) 99) "let local binding shadows outer")
 (check (= outer-x 10) "let local binding does not leak to outer environment")
+(check (= (let loop ((n 5) (acc 1))
+            (if (= n 0)
+                acc
+                (loop (- n 1) (* acc n))))
+          120)
+       "let supports named let")
+
+;;; let*
+
+(check (= (let* ((x 1)
+                 (y (+ x 2))
+                 (z (+ y 3)))
+            (+ x y z))
+          10)
+       "let* evaluates bindings sequentially")
+
+;;; letrec
+
+(check (= (letrec ((even? (lambda (n)
+                            (if (= n 0)
+                                #true
+                                (odd? (- n 1)))))
+                   (odd? (lambda (n)
+                           (if (= n 0)
+                               #false
+                               (even? (- n 1))))))
+            (if (and (even? 10) (odd? 9))
+                1
+                0))
+          1)
+       "letrec supports mutually recursive bindings")
 
 ;;; define
 
