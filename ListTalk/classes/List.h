@@ -26,6 +26,12 @@ typedef struct LT_Pair_s {
 size_t LT_List_hash(LT_Value value);
 int LT_List_equal_p(LT_Value left, LT_Value right);
 void LT_List_debugPrintOn(LT_Value value, FILE* stream);
+LT_Value LT_List_map(LT_Value callable, LT_Value list);
+LT_Value LT_List_map_many(
+    LT_Value callable,
+    size_t list_count,
+    const LT_Value* lists
+);
 
 static inline LT_Value LT_car(LT_Value pair){
     if (LT_VALUE_POINTER_TAG(pair) == LT_VALUE_POINTER_TAG_IMMUTABLE_LIST){

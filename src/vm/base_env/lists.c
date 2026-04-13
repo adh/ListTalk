@@ -173,6 +173,45 @@ LT_DEFINE_PRIMITIVE(
     return LT_NIL;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_map,
+    "map",
+    "(callable list list ...)",
+    "Return list of callable results for each element tuple, stopping at shortest list."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value lists = LT_NIL;
+    LT_Value list_cursor;
+    LT_Value* list_values;
+    size_t list_count = 0;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_REST(cursor, lists);
+
+    list_cursor = lists;
+    while (list_cursor != LT_NIL){
+        if (!LT_Pair_p(list_cursor)){
+            LT_error("Malformed argument list while mapping lists");
+        }
+        list_count++;
+        list_cursor = LT_cdr(list_cursor);
+    }
+
+    if (list_count == 0){
+        LT_error("map expects at least one list");
+    }
+
+    list_values = GC_MALLOC(sizeof(LT_Value) * list_count);
+    list_cursor = lists;
+    for (size_t i = 0; i < list_count; i++){
+        list_values[i] = LT_car(list_cursor);
+        list_cursor = LT_cdr(list_cursor);
+    }
+
+    return LT_List_map_many(callable, list_count, list_values);
+}
+
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_memq,
     "memq",
@@ -263,6 +302,7 @@ void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_list);
     LT_base_env_bind_static_primitive(environment, &primitive_list_p);
     LT_base_env_bind_static_primitive(environment, &primitive_append);
+    LT_base_env_bind_static_primitive(environment, &primitive_map);
     LT_base_env_bind_static_primitive(environment, &primitive_memq);
     LT_base_env_bind_static_primitive(environment, &primitive_assoc);
     LT_base_env_bind_static_primitive(environment, &primitive_assq);

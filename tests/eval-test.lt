@@ -184,6 +184,8 @@
 (check (equal? (list 1 2 3) '(1 2 3)) "list constructor")
 (check (list? '(1 2 3)) "list? true for proper list")
 (check (not (list? '(1 . 2))) "list? false for dotted pair")
+(check (equal? ['(1 2 3) map: (lambda (x) (+ x 2))] '(3 4 5))
+       "List>>map: maps callable across receiver")
 
 ;;; Equality primitives
 
@@ -215,6 +217,10 @@
 ;;; List operations
 
 (check (equal? (append '(1 2) '(3 4)) '(1 2 3 4)) "append")
+(check (equal? (map (lambda (x) (+ x 1)) '(1 2 3)) '(2 3 4))
+       "map applies callable across single list")
+(check (equal? (map + '(1 2 3) '(10 20 30 40)) '(11 22 33))
+       "map terminates on shortest list when mapping multiple lists")
 (check (equal? (memq 'b '(a b c)) '(b c)) "memq returns matching tail")
 (check (not (memq (string-append "a" "") '("a"))) "memq returns false on identity miss")
 (check (equal? (assoc "ab" '(("ab" . 3) ("cd" . 4))) '("ab" . 3)) "assoc matches structurally")

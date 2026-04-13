@@ -153,6 +153,42 @@ LT_DEFINE_PRIMITIVE(
     return LT_Symbol_new("IntegerMarker");
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_test_increment,
+    "test-increment",
+    "(x)",
+    "Test helper primitive: increment fixnum."
+){
+    LT_Value cursor = arguments;
+    LT_Value x;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, x);
+    LT_ARG_END(cursor);
+    return LT_Number_add2(x, LT_SmallInteger_new(1));
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_add_two,
+    "test-add-two",
+    "(x y)",
+    "Test helper primitive: add two numbers."
+){
+    LT_Value cursor = arguments;
+    LT_Value x;
+    LT_Value y;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, x);
+    LT_OBJECT_ARG(cursor, y);
+    LT_ARG_END(cursor);
+    return LT_Number_add2(x, y);
+}
+
 static int string_starts_with(const char* value, const char* prefix){
     size_t prefix_len = strlen(prefix);
     return strncmp(value, prefix, prefix_len) == 0;
@@ -462,6 +498,51 @@ static int test_immutable_list_from_list(void){
         LT_Value_is_fixnum(LT_car(LT_cdr(class_converted)))
             && LT_SmallInteger_value(LT_car(LT_cdr(class_converted))) == 12,
         "ImmutableList class>>fromList: preserves list contents"
+    );
+}
+
+static int test_list_map_single_c_api(void){
+    LT_Value list = LT_cons(
+        LT_SmallInteger_new(1),
+        LT_cons(LT_SmallInteger_new(2), LT_cons(LT_SmallInteger_new(3), LT_NIL))
+    );
+    LT_Value mapped = LT_List_map(
+        LT_Primitive_from_static(&primitive_test_increment),
+        list
+    );
+
+    if (expect(LT_Value_equal_p(mapped, eval_one("'(2 3 4)")), "LT_List_map maps one list")){
+        return 1;
+    }
+    return expect(
+        LT_Value_equal_p(list, eval_one("'(1 2 3)")),
+        "LT_List_map leaves source list contents unchanged"
+    );
+}
+
+static int test_list_map_many_c_api(void){
+    LT_Value lists[] = {
+        LT_cons(
+            LT_SmallInteger_new(1),
+            LT_cons(LT_SmallInteger_new(2), LT_cons(LT_SmallInteger_new(3), LT_NIL))
+        ),
+        LT_cons(
+            LT_SmallInteger_new(10),
+            LT_cons(
+                LT_SmallInteger_new(20),
+                LT_cons(LT_SmallInteger_new(30), LT_cons(LT_SmallInteger_new(40), LT_NIL))
+            )
+        ),
+    };
+    LT_Value mapped = LT_List_map_many(
+        LT_Primitive_from_static(&primitive_test_add_two),
+        2,
+        lists
+    );
+
+    return expect(
+        LT_Value_equal_p(mapped, eval_one("'(11 22 33)")),
+        "LT_List_map_many terminates on shortest list"
     );
 }
 
@@ -1436,6 +1517,8 @@ int main(void){
     RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_immutable_list_methods);
     RUN_TEST(test_immutable_list_from_list);
+    RUN_TEST(test_list_map_single_c_api);
+    RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_define_package_special_form);
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);

@@ -21,29 +21,14 @@
 (ListTalk:define-macro (ListTalk:lambda parameters . body)
   `(%lambda '() ,parameters ,@body))
 
-(%define-constant ListTalk-implementation:%let-binding-names
-  (%lambda '%let-binding-names (remaining)
-    (if (null? remaining)
-        '()
-        (cons (car (car remaining))
-              (ListTalk-implementation:%let-binding-names (cdr remaining))))))
-
-(%define-constant ListTalk-implementation:%let-binding-values
-  (%lambda '%let-binding-values (remaining)
-    (if (null? remaining)
-        '()
-        (cons (cadr (car remaining))
-              (ListTalk-implementation:%let-binding-values (cdr remaining))))))
-
 (ListTalk:define-macro (ListTalk:let bindings-or-name . body)
   (if (symbol? bindings-or-name)
       `(letrec ((,bindings-or-name
                  (ListTalk-implementation:%lambda ',bindings-or-name
-                                                  ,(ListTalk-implementation:%let-binding-names
-                                                     (car body))
+                                                  ,(map car (car body))
                                                   ,@(cdr body))))
          (,bindings-or-name
-          ,@(ListTalk-implementation:%let-binding-values (car body))))
+          ,@(map cadr (car body))))
       `(ListTalk-implementation:%let ,bindings-or-name ,@body)))
 
 (ListTalk:define-macro (ListTalk:let* bindings . body)
