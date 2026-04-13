@@ -14,8 +14,6 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/value.h>
 
-#include <stdlib.h>
-
 LT_DEFINE_PRIMITIVE(
     primitive_character_p,
     "character?",
@@ -153,10 +151,6 @@ LT_DEFINE_PRIMITIVE(
 ){
     LT_Value cursor = arguments;
     LT_Value value;
-    char* buffer = NULL;
-    size_t size = 0;
-    FILE* stream;
-    LT_Value result;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, value);
@@ -166,15 +160,7 @@ LT_DEFINE_PRIMITIVE(
         LT_type_error(value, &LT_Number_class);
     }
 
-    stream = open_memstream(&buffer, &size);
-    if (stream == NULL){
-        LT_error("number->string: failed to open memory stream");
-    }
-    LT_Value_debugPrintOn(value, stream);
-    fclose(stream);
-    result = (LT_Value)(uintptr_t)LT_String_new(buffer, size);
-    free(buffer);
-    return result;
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(LT_Number_to_string(value));
 }
 
 void LT_base_env_bind_strings(LT_Environment* environment){

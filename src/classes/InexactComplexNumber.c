@@ -6,6 +6,7 @@
 #include <ListTalk/classes/InexactComplexNumber.h>
 #include <ListTalk/classes/ComplexNumber.h>
 #include <ListTalk/classes/Float.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/macros/decl_macros.h>
 
 #include <stdio.h>
@@ -17,14 +18,7 @@ struct LT_InexactComplexNumber_s {
 };
 
 static void InexactComplexNumber_debugPrintOn(LT_Value value, FILE* stream){
-    LT_InexactComplexNumber* complex = LT_InexactComplexNumber_from_value(value);
-
-    fprintf(
-        stream,
-        "%.17g%+.17gi",
-        complex->real,
-        complex->imaginary
-    );
+    fputs(LT_Number_to_string(value), stream);
 }
 
 LT_DEFINE_CLASS(LT_InexactComplexNumber) {

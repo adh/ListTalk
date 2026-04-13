@@ -8,24 +8,12 @@
 #include <ListTalk/classes/RationalNumber.h>
 #include <ListTalk/macros/decl_macros.h>
 
-#include <inttypes.h>
-
 struct LT_SmallFraction_s {
     LT_Object base;
 };
 
 static void SmallFraction_debugPrintOn(LT_Value obj, FILE* stream){
-    if (LT_SmallFraction_p(obj)){
-        fprintf(
-            stream,
-            "%" PRId64 "/%" PRIu32,
-            LT_SmallFraction_numerator(obj),
-            LT_SmallFraction_denominator(obj)
-        );
-        return;
-    }
-
-    fprintf(stream, "#<small-fraction 0x%" PRIxPTR ">", (uintptr_t)obj);
+    fputs(LT_Number_to_string(obj), stream);
 }
 
 LT_DEFINE_CLASS(LT_SmallFraction) {

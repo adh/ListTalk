@@ -477,8 +477,7 @@ static void divide_abs_values(
 }
 
 static void BigInteger_debugPrintOn(LT_Value value, FILE* stream){
-    char* text = LT_BigInteger_to_decimal_cstr(value);
-    fputs(text, stream);
+    fputs(LT_Number_to_string(value), stream);
 }
 
 LT_DEFINE_CLASS(LT_BigInteger) {

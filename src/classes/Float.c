@@ -15,7 +15,7 @@ struct LT_Float_s {
 };
 
 static void Float_debugPrintOn(LT_Value obj, FILE* stream){
-    fprintf(stream, "%.17g", LT_Float_value(obj));
+    fputs(LT_Number_to_string(obj), stream);
 }
 
 LT_DEFINE_CLASS(LT_Float) {

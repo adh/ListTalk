@@ -20,12 +20,7 @@ struct LT_Fraction_s {
 };
 
 static void Fraction_debugPrintOn(LT_Value value, FILE* stream){
-    LT_Value numerator = LT_Fraction_numerator(value);
-    LT_Value denominator = LT_Fraction_denominator(value);
-
-    LT_Value_debugPrintOn(numerator, stream);
-    fputc('/', stream);
-    LT_Value_debugPrintOn(denominator, stream);
+    fputs(LT_Number_to_string(value), stream);
 }
 
 LT_DEFINE_CLASS(LT_Fraction) {

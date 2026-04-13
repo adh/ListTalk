@@ -5,6 +5,7 @@
 
 #include "BigInteger_internal.h"
 
+#include <ListTalk/classes/BigInteger.h>
 #include <ListTalk/classes/ComplexNumber.h>
 #include <ListTalk/classes/ExactComplexNumber.h>
 #include <ListTalk/classes/Number.h>
@@ -15,11 +16,14 @@
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/String.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
+#include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
 #include <stdbool.h>
+#include <inttypes.h>
 #include <math.h>
 #include <string.h>
 
@@ -148,6 +152,87 @@ static double exact_to_double(LT_Value value){
     LT_ExactRational rational = exact_rational_from_value(value);
     return LT_Integer_to_double(rational.numerator)
         / LT_Integer_to_double(rational.denominator);
+}
+
+static int exact_real_nonnegative_p(LT_Value value){
+    if (LT_Value_is_fixnum(value)){
+        return LT_SmallInteger_value(value) >= 0;
+    }
+    if (LT_BigInteger_p(value)){
+        return !LT_Integer_negative_p(value);
+    }
+    if (LT_SmallFraction_p(value)){
+        return LT_SmallFraction_numerator(value) >= 0;
+    }
+    if (LT_Fraction_p(value)){
+        LT_Value numerator = LT_Fraction_numerator(value);
+
+        if (LT_Value_is_fixnum(numerator)){
+            return LT_SmallInteger_value(numerator) >= 0;
+        }
+        return !LT_Integer_negative_p(numerator);
+    }
+
+    LT_type_error(value, &LT_RealNumber_class);
+    return 0;
+}
+
+char* LT_Number_to_string(LT_Value value){
+    if (LT_Value_is_fixnum(value)){
+        return LT_sprintf("%" PRId64, LT_SmallInteger_value(value));
+    }
+    if (LT_BigInteger_p(value)){
+        return LT_BigInteger_to_decimal_cstr(value);
+    }
+    if (LT_SmallFraction_p(value)){
+        return LT_sprintf(
+            "%" PRId64 "/%" PRIu32,
+            LT_SmallFraction_numerator(value),
+            LT_SmallFraction_denominator(value)
+        );
+    }
+    if (LT_Fraction_p(value)){
+        LT_StringBuilder* builder = LT_StringBuilder_new();
+
+        LT_StringBuilder_append_str(
+            builder,
+            LT_Number_to_string(LT_Fraction_numerator(value))
+        );
+        LT_StringBuilder_append_char(builder, '/');
+        LT_StringBuilder_append_str(
+            builder,
+            LT_Number_to_string(LT_Fraction_denominator(value))
+        );
+        return LT_StringBuilder_value(builder);
+    }
+    if (LT_Float_p(value)){
+        return LT_sprintf("%.17g", LT_Float_value(value));
+    }
+    if (value_is_exact_complex(value)){
+        LT_StringBuilder* builder = LT_StringBuilder_new();
+        LT_Value imaginary = LT_ExactComplexNumber_imaginary(value);
+
+        LT_StringBuilder_append_str(
+            builder,
+            LT_Number_to_string(LT_ExactComplexNumber_real(value))
+        );
+        if (exact_real_nonnegative_p(imaginary)){
+            LT_StringBuilder_append_char(builder, '+');
+        }
+        LT_StringBuilder_append_str(builder, LT_Number_to_string(imaginary));
+        LT_StringBuilder_append_char(builder, 'i');
+        return LT_StringBuilder_value(builder);
+    }
+    if (value_is_inexact_complex(value)){
+        return LT_sprintf(
+            "%.17g%+.17gi",
+            LT_InexactComplexNumber_real(value),
+            LT_InexactComplexNumber_imaginary(value)
+        );
+    }
+
+    LT_type_error(value, &LT_Number_class);
+    return NULL;
 }
 
 double LT_Number_to_double(LT_Value value){
@@ -403,6 +488,22 @@ static int compare_real_numbers(LT_Value left, LT_Value right){
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_asString,
+    "Number>>asString",
+    "(self)",
+    "Return receiver formatted as a string.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(LT_Number_to_string(self));
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     number_method_equal,
     "Number>>=",
     "(self other)",
@@ -565,6 +666,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 static LT_Method_Descriptor Number_methods[] = {
+    {"asString", &number_method_asString},
     {"=",  &number_method_equal},
     {"+",  &number_method_add},
     {"-",  &number_method_subtract},

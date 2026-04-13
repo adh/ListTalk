@@ -5,12 +5,9 @@
 
 #include <ListTalk/classes/ExactComplexNumber.h>
 #include <ListTalk/classes/ComplexNumber.h>
-#include <ListTalk/classes/Float.h>
-#include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/RealNumber.h>
 #include <ListTalk/classes/RationalNumber.h>
-#include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/error.h>
@@ -25,24 +22,7 @@ struct LT_ExactComplexNumber_s {
 };
 
 static void ExactComplexNumber_debugPrintOn(LT_Value value, FILE* stream){
-    LT_ExactComplexNumber* complex = LT_ExactComplexNumber_from_value(value);
-    int64_t imag_small;
-
-    LT_Value_debugPrintOn(complex->real, stream);
-    if (LT_Value_is_fixnum(complex->imaginary)
-        && (imag_small = LT_SmallInteger_value(complex->imaginary)) >= 0){
-        fputc('+', stream);
-    } else if (LT_Fraction_p(complex->imaginary)){
-        LT_Value numerator = LT_Fraction_numerator(complex->imaginary);
-        if (LT_Value_is_fixnum(numerator) && LT_SmallInteger_value(numerator) >= 0){
-            fputc('+', stream);
-        }
-    } else if (LT_SmallFraction_p(complex->imaginary)
-        && LT_SmallFraction_numerator(complex->imaginary) >= 0){
-        fputc('+', stream);
-    }
-    LT_Value_debugPrintOn(complex->imaginary, stream);
-    fputc('i', stream);
+    fputs(LT_Number_to_string(value), stream);
 }
 
 static LT_Slot_Descriptor ExactComplexNumber_slots[] = {

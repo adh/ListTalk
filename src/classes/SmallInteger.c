@@ -4,23 +4,17 @@
  */
 
 #include <ListTalk/classes/Integer.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/Class.h>
-
-#include <inttypes.h>
 
 struct LT_SmallInteger_s {
     LT_Object base;
 };
 
 static void SmallInteger_debugPrintOn(LT_Value obj, FILE* stream){
-    if (LT_Value_is_fixnum(obj)){
-        fprintf(stream, "%" PRId64, LT_SmallInteger_value(obj));
-        return;
-    }
-
-    fprintf(stream, "#<small-integer 0x%" PRIxPTR ">", (uintptr_t)obj);
+    fputs(LT_Number_to_string(obj), stream);
 }
 
 LT_DEFINE_CLASS(LT_SmallInteger) {

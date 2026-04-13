@@ -19,6 +19,7 @@ extern LT_Class LT_Number_class;
 extern LT_Class LT_Number_class_class;
 
 int LT_Number_parse_token_with_radix(const char* token, unsigned int radix, LT_Value* value);
+char* LT_Number_to_string(LT_Value value);
 double LT_Number_to_double(LT_Value value);
 LT_Value LT_Number_add2(LT_Value left, LT_Value right);
 LT_Value LT_Number_subtract2(LT_Value left, LT_Value right);

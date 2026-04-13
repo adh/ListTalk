@@ -112,6 +112,12 @@
 (check [4 > 3] "Number>>> greater than")
 (check [3 <= 3] "Number>><= less than or equal")
 (check [3 >= 3] "Number>>>= greater than or equal")
+(check (equal? [5/2 asString] "5/2") "Number>>asString formats rationals")
+(check (equal? [(+ 340282366920938463463374607431768211456 1) asString]
+               "340282366920938463463374607431768211457")
+       "Number>>asString formats big integers")
+(check (= [3 asFloat] 3.0) "RealNumber>>asFloat converts integers")
+(check (= [1/2 asFloat] 0.5) "RealNumber>>asFloat converts rationals")
 
 ;;; OOP: identity and structural equal
 
