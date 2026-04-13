@@ -20,7 +20,8 @@ extern LT_Class LT_ImmutableList_class_class;
 enum {
     LT_IMMUTABLE_LIST_FLAG_CDR_TAIL = 1u << 0,
     LT_IMMUTABLE_LIST_FLAG_SOURCE_LOCATION = 1u << 1,
-    LT_IMMUTABLE_LIST_FLAG_ORIGINAL_EXPRESSION = 1u << 2,
+    LT_IMMUTABLE_LIST_FLAG_SOURCE_FILE = 1u << 2,
+    LT_IMMUTABLE_LIST_FLAG_ORIGINAL_EXPRESSION = 1u << 3,
 };
 
 static inline int LT_ImmutableList_p(LT_Value value){
@@ -33,9 +34,20 @@ LT_Value LT_ImmutableList_new_with_tail(
     const LT_Value* values,
     LT_Value tail
 );
+LT_Value LT_ImmutableList_new_with_trailer(
+    size_t count,
+    const LT_Value* values,
+    LT_Value tail,
+    LT_Value source_location,
+    LT_Value source_file,
+    LT_Value original_expression
+);
 LT_Value LT_ImmutableList_fromList(LT_Value list);
 LT_Value LT_ImmutableList_car(LT_Value value);
 LT_Value LT_ImmutableList_cdr(LT_Value value);
+LT_Value LT_ImmutableList_source_location(LT_Value value);
+LT_Value LT_ImmutableList_source_file(LT_Value value);
+LT_Value LT_ImmutableList_original_expression(LT_Value value);
 
 LT__END_DECLS
 

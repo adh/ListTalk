@@ -501,6 +501,114 @@ static int test_immutable_list_from_list(void){
     );
 }
 
+static int test_source_location_class(void){
+    LT_Value value = LT_SourceLocation_new(12u, 34u);
+
+    if (expect(LT_SourceLocation_p(value), "LT_SourceLocation_new returns SourceLocation")){
+        return 1;
+    }
+    if (expect(
+        LT_SourceLocation_line(value) == 12u,
+        "LT_SourceLocation_line returns stored line"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SourceLocation_column(value) == 34u,
+        "LT_SourceLocation_column returns stored column"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_class(value) == &LT_SourceLocation_class,
+        "SourceLocation immediate maps to SourceLocation class"
+    );
+}
+
+static int test_immutable_list_trailer_values(void){
+    LT_Value values[] = {
+        LT_SmallInteger_new(20),
+        LT_SmallInteger_new(21),
+    };
+    LT_Value source_location = LT_SourceLocation_new(7u, 9u);
+    LT_Value source_file = (LT_Value)(uintptr_t)LT_String_new_cstr("runtime/test.lt");
+    LT_Value original_expression = LT_cons(
+        LT_Symbol_new("quote"),
+        LT_cons(LT_SmallInteger_new(99), LT_NIL)
+    );
+    LT_Value immutable_list = LT_ImmutableList_new_with_trailer(
+        2,
+        values,
+        LT_SmallInteger_new(22),
+        source_location,
+        source_file,
+        original_expression
+    );
+    if (expect(
+        LT_cdr(LT_cdr(immutable_list)) == LT_SmallInteger_new(22),
+        "immutable list trailer preserves dotted tail"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_ImmutableList_source_location(immutable_list) == source_location,
+        "immutable list exposes source location trailer"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SourceLocation_line(LT_ImmutableList_source_location(immutable_list)) == 7u,
+        "source location trailer keeps line"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_ImmutableList_source_file(immutable_list) == source_file,
+        "immutable list exposes source file trailer"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(
+                LT_String_from_value(LT_ImmutableList_source_file(immutable_list))
+            ),
+            "runtime/test.lt"
+        ) == 0,
+        "source file trailer keeps filename"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_ImmutableList_original_expression(immutable_list) == original_expression,
+        "immutable list exposes original expression trailer"
+    );
+}
+
+static int test_immutable_list_missing_trailer_values_are_nil(void){
+    LT_Value values[] = {
+        LT_SmallInteger_new(30),
+    };
+    LT_Value immutable_list = LT_ImmutableList_new(1, values);
+
+    if (expect(
+        LT_ImmutableList_source_location(immutable_list) == LT_NIL,
+        "missing source location trailer is nil"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_ImmutableList_source_file(immutable_list) == LT_NIL,
+        "missing source file trailer is nil"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_ImmutableList_original_expression(immutable_list) == LT_NIL,
+        "missing original expression trailer is nil"
+    );
+}
+
 static int test_list_map_single_c_api(void){
     LT_Value list = LT_cons(
         LT_SmallInteger_new(1),
@@ -1627,6 +1735,9 @@ int main(void){
     RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_immutable_list_methods);
     RUN_TEST(test_immutable_list_from_list);
+    RUN_TEST(test_source_location_class);
+    RUN_TEST(test_immutable_list_trailer_values);
+    RUN_TEST(test_immutable_list_missing_trailer_values_are_nil);
     RUN_TEST(test_list_map_single_c_api);
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_define_package_special_form);

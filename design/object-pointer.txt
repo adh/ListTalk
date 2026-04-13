@@ -27,6 +27,7 @@ Upper byte of immediate objects:
 0x89 - SignedInt16
 0x8a - SignedInt32
 0x8b - SmallFraction
+0x8c - SourceLocation
 0x90-0x97 - ShortString
 
 0xbf - invalid object with flags (ie. ImmutableList header/footer)
@@ -36,6 +37,11 @@ Upper byte of immediate objects:
 SmallFraction:
 - 31 bits signed numerator (two's complement)
 - 24 bits denominator
+
+SourceLocation:
+- 31 bits line (zero-based)
+- 24 bits column (zero-based)
+(all ones in either field indicate overflow)
 
 Boolean:
 0 - false

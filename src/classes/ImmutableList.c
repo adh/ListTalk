@@ -52,6 +52,46 @@ static LT_Value immutable_list_tail(LT_Value value){
     return values[length + 1];
 }
 
+static size_t immutable_list_trailer_slot_count(
+    LT_Value tail,
+    LT_Value source_location,
+    LT_Value source_file,
+    LT_Value original_expression
+){
+    return ((tail != LT_NIL) ? 1u : 0u)
+        + ((source_location != LT_NIL) ? 1u : 0u)
+        + ((source_file != LT_NIL) ? 1u : 0u)
+        + ((original_expression != LT_NIL) ? 1u : 0u);
+}
+
+static LT_Value immutable_list_trailer_value(LT_Value value, unsigned int target_flag){
+    LT_Value* values = immutable_list_values(value);
+    size_t length = immutable_list_length(value);
+    LT_Value terminator = values[length];
+    uintptr_t flags = LT_VALUE_IMMEDIATE_VALUE(terminator);
+    size_t offset = 1;
+
+    if ((flags & target_flag) == 0){
+        return LT_NIL;
+    }
+    if (target_flag != LT_IMMUTABLE_LIST_FLAG_CDR_TAIL
+        && (flags & LT_IMMUTABLE_LIST_FLAG_CDR_TAIL) != 0){
+        offset++;
+    }
+    if (target_flag != LT_IMMUTABLE_LIST_FLAG_SOURCE_LOCATION
+        && (flags & LT_IMMUTABLE_LIST_FLAG_SOURCE_LOCATION) != 0
+        && target_flag > LT_IMMUTABLE_LIST_FLAG_SOURCE_LOCATION){
+        offset++;
+    }
+    if (target_flag != LT_IMMUTABLE_LIST_FLAG_SOURCE_FILE
+        && (flags & LT_IMMUTABLE_LIST_FLAG_SOURCE_FILE) != 0
+        && target_flag > LT_IMMUTABLE_LIST_FLAG_SOURCE_FILE){
+        offset++;
+    }
+
+    return values[length + offset];
+}
+
 static size_t ImmutableList_hash(LT_Value value){
     return LT_List_hash(value);
 }
@@ -141,7 +181,14 @@ LT_DEFINE_CLASS(LT_ImmutableList) {
 };
 
 LT_Value LT_ImmutableList_new(size_t count, const LT_Value* values){
-    return LT_ImmutableList_new_with_tail(count, values, LT_NIL);
+    return LT_ImmutableList_new_with_trailer(
+        count,
+        values,
+        LT_NIL,
+        LT_NIL,
+        LT_NIL,
+        LT_NIL
+    );
 }
 
 LT_Value LT_ImmutableList_new_with_tail(
@@ -149,8 +196,33 @@ LT_Value LT_ImmutableList_new_with_tail(
     const LT_Value* values,
     LT_Value tail
 ){
+    return LT_ImmutableList_new_with_trailer(
+        count,
+        values,
+        tail,
+        LT_NIL,
+        LT_NIL,
+        LT_NIL
+    );
+}
+
+LT_Value LT_ImmutableList_new_with_trailer(
+    size_t count,
+    const LT_Value* values,
+    LT_Value tail,
+    LT_Value source_location,
+    LT_Value source_file,
+    LT_Value original_expression
+){
     LT_Value* storage;
-    size_t extra_values = (tail != LT_NIL) ? 1 : 0;
+    size_t extra_values = immutable_list_trailer_slot_count(
+        tail,
+        source_location,
+        source_file,
+        original_expression
+    );
+    unsigned int flags = 0;
+    size_t trailer_index;
     size_t i;
 
     if (count == 0){
@@ -161,11 +233,31 @@ LT_Value LT_ImmutableList_new_with_tail(
     for (i = 0; i < count; i++){
         storage[i] = values[i];
     }
-    storage[count] = immutable_list_terminator(
-        (tail != LT_NIL) ? LT_IMMUTABLE_LIST_FLAG_CDR_TAIL : 0
-    );
     if (tail != LT_NIL){
-        storage[count + 1] = tail;
+        flags |= LT_IMMUTABLE_LIST_FLAG_CDR_TAIL;
+    }
+    if (source_location != LT_NIL){
+        flags |= LT_IMMUTABLE_LIST_FLAG_SOURCE_LOCATION;
+    }
+    if (source_file != LT_NIL){
+        flags |= LT_IMMUTABLE_LIST_FLAG_SOURCE_FILE;
+    }
+    if (original_expression != LT_NIL){
+        flags |= LT_IMMUTABLE_LIST_FLAG_ORIGINAL_EXPRESSION;
+    }
+    storage[count] = immutable_list_terminator(flags);
+    trailer_index = count + 1;
+    if (tail != LT_NIL){
+        storage[trailer_index++] = tail;
+    }
+    if (source_location != LT_NIL){
+        storage[trailer_index++] = source_location;
+    }
+    if (source_file != LT_NIL){
+        storage[trailer_index++] = source_file;
+    }
+    if (original_expression != LT_NIL){
+        storage[trailer_index] = original_expression;
     }
 
     return ((LT_Value)(uintptr_t)storage) | LT_VALUE_POINTER_TAG_IMMUTABLE_LIST;
@@ -223,4 +315,16 @@ LT_Value LT_ImmutableList_cdr(LT_Value value){
             | LT_VALUE_POINTER_TAG_IMMUTABLE_LIST);
     }
     return immutable_list_tail(value);
+}
+
+LT_Value LT_ImmutableList_source_location(LT_Value value){
+    return immutable_list_trailer_value(value, LT_IMMUTABLE_LIST_FLAG_SOURCE_LOCATION);
+}
+
+LT_Value LT_ImmutableList_source_file(LT_Value value){
+    return immutable_list_trailer_value(value, LT_IMMUTABLE_LIST_FLAG_SOURCE_FILE);
+}
+
+LT_Value LT_ImmutableList_original_expression(LT_Value value){
+    return immutable_list_trailer_value(value, LT_IMMUTABLE_LIST_FLAG_ORIGINAL_EXPRESSION);
 }

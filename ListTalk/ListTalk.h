@@ -34,6 +34,7 @@
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/SourceLocation.h>
 #include <ListTalk/classes/StackFrame.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/Condition.h>

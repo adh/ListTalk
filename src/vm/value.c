@@ -12,6 +12,7 @@
 #include <ListTalk/classes/BigInteger.h>
 #include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/SmallFraction.h>
+#include <ListTalk/classes/SourceLocation.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/ImmutableList.h>
@@ -34,6 +35,7 @@ LT_Class* const LT__Immediate_classes[64] = {
     [LT_VALUE_IMMEDIATE_TAG_FIXNUM & 0x3f] = &LT_SmallInteger_class,
     [LT_VALUE_IMMEDIATE_TAG_CHARACTER & 0x3f] = &LT_Character_class,
     [LT_VALUE_IMMEDIATE_TAG_SMALL_FRACTION & 0x3f] = &LT_SmallFraction_class,
+    [LT_VALUE_IMMEDIATE_TAG_SOURCE_LOCATION & 0x3f] = &LT_SourceLocation_class,
 };
 LT_Class* const LT__Pointer_classes[8] = {
     &LT_Class_class,
