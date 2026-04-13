@@ -1180,6 +1180,116 @@ static int test_compiler_fold_impure_primitive_is_not_constant_folded(void){
     );
 }
 
+static int test_compiler_fold_quasiquote_folds_unquote_expression(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value macro_value;
+    LT_Value folded;
+    LT_Value template;
+    LT_Value element;
+    LT_Value unquote_arguments;
+
+    macro_value = LT_eval(read_one("(macro (lambda (x) x))"), env, NULL);
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("id-macro"),
+        macro_value,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    folded = LT_compiler_fold_expression(read_one("`(,(id-macro (+ 1 2)))"), env);
+
+    if (expect(
+        LT_ImmutableList_p(folded),
+        "quasiquote fold returns immutable list form"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SpecialForm_p(LT_car(folded)),
+        "quasiquote fold resolves quasiquote operator"
+    )){
+        return 1;
+    }
+
+    template = LT_car(LT_cdr(folded));
+    if (expect(LT_Pair_p(template), "quasiquote fold keeps list template")){
+        return 1;
+    }
+
+    element = LT_car(template);
+    if (expect(LT_Pair_p(element), "quasiquote fold keeps unquote form")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(element))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(element))), "unquote") == 0,
+        "quasiquote fold preserves unquote operator"
+    )){
+        return 1;
+    }
+
+    unquote_arguments = LT_cdr(element);
+    return expect(
+        LT_Value_is_fixnum(LT_car(unquote_arguments))
+            && LT_SmallInteger_value(LT_car(unquote_arguments)) == 3,
+        "quasiquote fold constant-folds unquote body"
+    );
+}
+
+static int test_compiler_fold_quasiquote_preserves_nested_unquote_depth(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value macro_value;
+    LT_Value folded;
+    LT_Value template;
+    LT_Value nested_quasiquote;
+    LT_Value nested_template;
+    LT_Value nested_unquote;
+    LT_Value nested_arguments;
+
+    macro_value = LT_eval(read_one("(macro (lambda (x) x))"), env, NULL);
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("id-macro"),
+        macro_value,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    folded = LT_compiler_fold_expression(
+        read_one("`(inner `(,(id-macro (+ 1 2))))"),
+        env
+    );
+
+    template = LT_car(LT_cdr(folded));
+    nested_quasiquote = LT_car(LT_cdr(template));
+    if (expect(LT_Pair_p(nested_quasiquote), "nested quasiquote stays in template")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(nested_quasiquote))
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(LT_car(nested_quasiquote))), "quasiquote") == 0,
+        "nested quasiquote operator is preserved"
+    )){
+        return 1;
+    }
+
+    nested_template = LT_car(LT_cdr(nested_quasiquote));
+    nested_unquote = LT_car(nested_template);
+    if (expect(LT_Pair_p(nested_unquote), "nested unquote stays quoted by inner quasiquote")){
+        return 1;
+    }
+
+    nested_arguments = LT_cdr(nested_unquote);
+    return expect(
+        LT_Pair_p(LT_car(nested_arguments))
+            && LT_Symbol_p(LT_car(LT_car(nested_arguments)))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(LT_car(nested_arguments)))),
+                "id-macro"
+            ) == 0,
+        "nested quasiquote does not fold escaped unquote body"
+    );
+}
+
 static int test_macroexpand_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value macro_value;
@@ -1539,6 +1649,8 @@ int main(void){
     RUN_TEST(test_compiler_fold_expands_macros);
     RUN_TEST(test_compiler_fold_pure_primitive_constant_folds);
     RUN_TEST(test_compiler_fold_impure_primitive_is_not_constant_folded);
+    RUN_TEST(test_compiler_fold_quasiquote_folds_unquote_expression);
+    RUN_TEST(test_compiler_fold_quasiquote_preserves_nested_unquote_depth);
     RUN_TEST(test_macroexpand_special_form);
     RUN_TEST(test_fold_expression_special_form);
     RUN_TEST(test_get_current_environment_special_form);

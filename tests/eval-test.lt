@@ -518,6 +518,12 @@
   (check (pair? expanded) "macroexpand returns pair")
   (check (eq? (car expanded) '+) "macroexpand expands to application"))
 
+(let ((folded (fold-expression '`(,(test-macroexpand-mac 41)) (get-current-environment))))
+  (check (special-form? [folded car])
+         "fold-expression resolves quasiquote operator to special form")
+  (check (equal? [[folded cdr] car] '((unquote 42)))
+         "fold-expression recurses into quasiquote unquote"))
+
 ;;; Load tests
 
 (load! :test-module-foo)

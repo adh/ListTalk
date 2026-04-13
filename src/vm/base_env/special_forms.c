@@ -69,6 +69,181 @@ static LT_Value expand_special_form_quote(LT_Value form,
     );
 }
 
+typedef struct LT_FoldQuasiquoteResult_s {
+    LT_Value value;
+} LT_FoldQuasiquoteResult;
+
+static LT_Value fold_quasiquote_single_argument(
+    LT_Value form,
+    const char* operator_name
+){
+    LT_Value tail = LT_cdr(form);
+    LT_Value argument;
+
+    if (!LT_Pair_p(tail)){
+        LT_error(
+            "Operator expects exactly one argument",
+            "operator", LT_Symbol_new((char*)operator_name),
+            NULL
+        );
+    }
+
+    argument = LT_car(tail);
+    if (LT_cdr(tail) != LT_NIL){
+        LT_error(
+            "Operator expects exactly one argument",
+            "operator", LT_Symbol_new((char*)operator_name),
+            NULL
+        );
+    }
+
+    return argument;
+}
+
+static int is_listtalk_named_symbol(LT_Value value, const char* name){
+    if (!LT_Symbol_p(value)){
+        return 0;
+    }
+    if (LT_Symbol_package(LT_Symbol_from_value(value)) != LT_PACKAGE_LISTTALK){
+        return 0;
+    }
+    return strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0;
+}
+
+static LT_FoldQuasiquoteResult fold_quasiquote_template(
+    LT_Value expression,
+    LT_Environment* environment,
+    size_t quasiquote_depth
+){
+    LT_FoldQuasiquoteResult result;
+
+    result.value = expression;
+
+    if (!LT_Pair_p(expression)){
+        return result;
+    }
+
+    if (is_listtalk_named_symbol(LT_car(expression), "unquote")){
+        LT_Value argument = fold_quasiquote_single_argument(expression, "unquote");
+
+        if (quasiquote_depth == 1){
+            result.value = LT_list(
+                LT_car(expression),
+                LT_compiler_fold_expression(argument, environment),
+                LT_INVALID
+            );
+            return result;
+        }
+
+        result.value = LT_list(
+            LT_car(expression),
+            fold_quasiquote_template(
+                argument,
+                environment,
+                quasiquote_depth - 1
+            ).value,
+            LT_INVALID
+        );
+        return result;
+    }
+
+    if (is_listtalk_named_symbol(LT_car(expression), "unquote-splicing")){
+        LT_Value argument = fold_quasiquote_single_argument(
+            expression,
+            "unquote-splicing"
+        );
+
+        if (quasiquote_depth == 1){
+            result.value = LT_list(
+                LT_car(expression),
+                LT_compiler_fold_expression(argument, environment),
+                LT_INVALID
+            );
+            return result;
+        }
+
+        result.value = LT_list(
+            LT_car(expression),
+            fold_quasiquote_template(
+                argument,
+                environment,
+                quasiquote_depth - 1
+            ).value,
+            LT_INVALID
+        );
+        return result;
+    }
+
+    if (is_listtalk_named_symbol(LT_car(expression), "quasiquote")){
+        LT_Value argument = fold_quasiquote_single_argument(expression, "quasiquote");
+
+        result.value = LT_list(
+            LT_car(expression),
+            fold_quasiquote_template(
+                argument,
+                environment,
+                quasiquote_depth + 1
+            ).value,
+            LT_INVALID
+        );
+        return result;
+    }
+
+    {
+        LT_ListBuilder* builder = LT_ListBuilder_new();
+        LT_Value cursor = expression;
+
+        while (LT_Pair_p(cursor)){
+            LT_FoldQuasiquoteResult item = fold_quasiquote_template(
+                LT_car(cursor),
+                environment,
+                quasiquote_depth
+            );
+
+            LT_ListBuilder_append(builder, item.value);
+
+            cursor = LT_cdr(cursor);
+        }
+
+        if (cursor == LT_NIL){
+            result.value = LT_ListBuilder_value(builder);
+            return result;
+        }
+
+        result = fold_quasiquote_template(
+            cursor,
+            environment,
+            quasiquote_depth
+        );
+
+        result.value = LT_ListBuilder_valueWithRest(builder, result.value);
+        return result;
+    }
+}
+
+static LT_Value expand_special_form_quasiquote(LT_Value form,
+                                               LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+    LT_Value argument;
+    LT_FoldQuasiquoteResult folded;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+    argument = fold_quasiquote_single_argument(form, "quasiquote");
+    folded = fold_quasiquote_template(argument, environment, 1);
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        LT_cons(folded.value, LT_NIL)
+    );
+}
+
 static LT_Value expand_special_form_lambda(LT_Value form,
                                            LT_Environment* environment){
     LT_Value special_form_value = fold_operator_special_form_value(
@@ -795,7 +970,7 @@ static LT_SpecialForm quote_special_form = {
 
 static LT_SpecialForm quasiquote_special_form = {
     .function = special_form_quasiquote,
-    .expand_function = expand_special_form_quote,
+    .expand_function = expand_special_form_quasiquote,
     .name = "quasiquote",
     .arguments = "(value)",
     .description = "Evaluate quasiquote template."
