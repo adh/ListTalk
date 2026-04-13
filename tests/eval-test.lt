@@ -1,0 +1,532 @@
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(load! :os)
+
+;;; Test framework
+
+(define test-failures 0)
+
+(define (check condition description)
+  (if condition
+      #true
+      (begin
+        (set! test-failures (+ test-failures 1))
+        (display (string-append "FAIL: " description))
+        #false)))
+
+(define (raises? thunk)
+  (catch :raises-check
+    (handler-bind (lambda (c) (throw :raises-check c))
+      (thunk)
+      #false)))
+
+(define-macro (check-raises description . body)
+  `(check (raises? (lambda () ,@body)) ,description))
+
+(define-macro (check-error-message message description . body)
+  `(let ((c (raises? (lambda () ,@body))))
+     (check (and c (equal? (slot-ref c 'message) ,message)) ,description)))
+
+;;; Arithmetic
+
+(check (= (+ 1 2 3) 6) "addition")
+(check (= (- 7) -7) "unary subtraction")
+(check (= (* 4 5) 20) "multiplication")
+(check (= (/ 20 2 2) 5) "division")
+(check (= (+ 1.5 2) 3.5) "mixed addition returns float")
+(check (= (/ 5.0 2) 2.5) "mixed division returns float")
+(check (= (- 1.5) -1.5) "unary subtraction on float")
+(check (eq? (type-of (/ 5 2)) SmallFraction) "integer division returns fraction")
+(check (= (/ 5 2) 5/2) "integer division remains exact")
+(check (eq? (type-of (+ 340282366920938463463374607431768211456 1)) BigInteger)
+       "overflow promotes to big integer")
+(check (= (+ 340282366920938463463374607431768211456 1)
+          340282366920938463463374607431768211457)
+       "big integer value")
+(check (= (+ 1/2 1/3) 5/6) "fraction addition stays reduced")
+(check (= (* 18446744073709551616 18446744073709551616)
+          340282366920938463463374607431768211456)
+       "large multiplication value")
+(check (= (+ 1+2i 3+4i) 4+6i) "complex addition")
+(check (= (* 1+2i 3+4i) -5+10i) "complex multiplication")
+(check (= (* (/ 1+2i 3+4i) 3+4i) 1+2i) "complex division round-trip")
+(check (= (+ 2 1+3i) 3+3i) "real and complex mixed addition")
+(check (= (* 2 3/2) 3) "fraction multiplication canonicalizes to integer")
+
+;;; Symbols and keywords
+
+(check (primitive? +) "symbol lookup in base environment")
+(check (symbol? :token) "keyword eval result is symbol")
+(check (eq? :token :token) "keyword is self-evaluating and interned")
+
+;;; display
+
+(check (equal? (display "hello") "hello") "display returns exact string argument")
+
+;;; type-of, class?, type predicates
+
+(check (eq? (type-of 1) SmallInteger) "type-of returns class object")
+(check (class? SmallInteger) "SmallInteger is a class")
+(check (class? Pair) "Pair is a class")
+(check (class? String) "String is a class")
+(check (number? 1) "number? true for fixnum")
+(check (not (number? "x")) "number? false for string")
+(check (null? '()) "null? true for nil")
+(check (not (null? 1)) "null? false for non-nil")
+(check (boolean? #true) "boolean? true for #true")
+(check (boolean? #false) "boolean? false for #false")
+(check (not (boolean? 1)) "boolean? false for non-boolean")
+(check (symbol? 'foo) "symbol? true for symbol")
+(check (not (symbol? 1)) "symbol? false for non-symbol")
+
+;;; number->string
+
+(check (equal? (number->string 42) "42") "number->string integer")
+(check (equal? (number->string 1/2) "1/2") "number->string fraction")
+(check (equal? (number->string 3.5) "3.5") "number->string float")
+(check (equal? (number->string (+ 340282366920938463463374607431768211456 1))
+               "340282366920938463463374607431768211457")
+       "number->string big integer")
+(check-raises "number->string type error on non-number"
+  (number->string "not a number"))
+
+;;; OOP: class methods
+
+(check (eq? [1 class] SmallInteger) "Object>>class returns receiver class")
+(check (primitive? [Pair lookupSelector: :car]) "Class>>lookupSelector: returns method")
+(check (null? [Pair lookupSelector: :does-not-exist])
+       "Class>>lookupSelector: nil for missing selector")
+(check (memq 'name [Class slots]) "Class>>slots contains name")
+
+;;; OOP: number binary messages
+
+(check (= [3 + 4] 7) "Number>>+ dispatches correctly")
+(check (= [10 - 3] 7) "Number>>- dispatches correctly")
+(check (= [3 * 4] 12) "Number>>* dispatches correctly")
+(check (= [10 / 4] 5/2) "Number>>/ dispatches correctly")
+(check [3 == 3] "Number>>== identity equal")
+(check (let ((f 3.5)) [f == f]) "Number>>== float identity equal")
+(check (not [3 == 4]) "Number>>== not equal")
+(check [3 < 4] "Number>>< less than")
+(check [4 > 3] "Number>>> greater than")
+(check [3 <= 3] "Number>><= less than or equal")
+(check [3 >= 3] "Number>>>= greater than or equal")
+
+;;; OOP: identity and structural equal
+
+(check (let ((p '(1 . 2))) [p == p]) "Object>>== identity equal same object")
+(check (not ['(1) == '(1)]) "Object>>== not equal for distinct pairs")
+(check [1 equal: 1] "Object>>equal: structurally equal fixnums")
+(check ['(1 2) equal: '(1 2)] "Object>>equal: structurally equal lists")
+(check (not ['(1 2) equal: '(1 3)]) "Object>>equal: structurally unequal lists")
+
+;;; OOP: Pair methods
+
+(check (= ['(1 . 2) car] 1) "Pair>>car dispatches correctly")
+(check (= ['(1 . 2) cdr] 2) "Pair>>cdr dispatches correctly")
+(let ((p (cons 5 6)))
+  [p car: 42]
+  (check (= [p car] 42) "Pair>>car: mutates car")
+  (let ((q (cons 10 20)))
+    [q cdr: 99]
+    (check (= [q cdr] 99) "Pair>>cdr: mutates cdr")))
+
+;;; OOP: String and Vector methods
+
+(check (= ['(1 2 3) length] 3) "List>>length")
+(check (= ["hello" length] 5) "String>>length")
+(check (= ["hello" at: 1] (string-ref "hello" 1)) "String>>at: dispatches correctly")
+(check (= [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
+(let ((v #(1 2 3)))
+  [v at: 1 put: 9]
+  (check (= [v at: 1] 9) "Vector>>at:put: mutates element"))
+(check (string? [String new: 3]) "String class>>new: returns string")
+(check (= (string-length [String new: 3]) 3) "String class>>new: returns correct length")
+
+;;; make-class and make-instance
+
+(let ((MakePoint (make-class 'Point (list Object) '(x y))))
+  (check (class? MakePoint) "make-class returns class object")
+  (let ((inst (make-instance MakePoint)))
+    (check (eq? (type-of inst) MakePoint) "make-instance returns instance of class"))
+  (let ((inst [MakePoint alloc]))
+    (check (eq? (type-of inst) MakePoint) "Class>>alloc creates instance")))
+
+(check-error-message "Class is not allocatable"
+                     "make-instance non-allocatable class signals error"
+  (make-instance Symbol))
+
+(check-error-message "Class is not allocatable"
+                     "Class>>alloc non-allocatable class signals error"
+  [Symbol alloc])
+
+;;; Class>>addMethod:withSelector:
+
+(let ((MakePoint2 (make-class 'Point2 (list Object) '(x y))))
+  [MakePoint2 addMethod: (lambda (self) (slot-ref self 'x))
+              withSelector: :get-x]
+  (let ((inst (make-instance MakePoint2)))
+    (slot-set! inst 'x 77)
+    (check (= [inst get-x] 77) "Class>>addMethod:withSelector: installs method")))
+
+;;; Pairs / list primitives
+
+(check (equal? (cons 1 2) '(1 . 2)) "cons creates pair")
+(check (= (car '(1 . 2)) 1) "car returns first element")
+(check (= (cdr '(1 . 2)) 2) "cdr returns second element")
+(check (pair? '(1 . 2)) "pair? true for pair")
+(check (not (pair? 1)) "pair? false for non-pair")
+(check (equal? (list 1 2 3) '(1 2 3)) "list constructor")
+(check (list? '(1 2 3)) "list? true for proper list")
+(check (not (list? '(1 . 2))) "list? false for dotted pair")
+
+;;; Equality primitives
+
+(check (= 1 1) "= equal fixnums")
+(check (not (= 1 2)) "= unequal fixnums")
+(check-raises "= type error on non-number" (= 1 "x"))
+(check (eq? 'a 'a) "eq? identical symbols")
+(check (not (eq? '(1) '(1))) "eq? distinct pairs")
+(check (eqv? 1 1) "eqv? equal fixnums")
+(check (eqv? 1.0 1.0) "eqv? equal floats")
+(check (equal? '(1 2 3) '(1 2 3)) "equal? structurally equal lists")
+(check (not (equal? '(1 2) '(1 3))) "equal? structurally unequal lists")
+
+;;; Ordering
+
+(check (< 1 2) "< true")
+(check (not (< 2 1)) "< false")
+(check (<= 1 1) "<= equal")
+(check (> 2 1) "> true")
+(check (>= 2 2) ">= equal")
+(check (not (not #true)) "not of true is false")
+(check (not #false) "not of false is true")
+
+;;; List operations
+
+(check (equal? (append '(1 2) '(3 4)) '(1 2 3 4)) "append")
+(check (equal? (memq 'b '(a b c)) '(b c)) "memq returns matching tail")
+(check (not (memq (string-append "a" "") '("a"))) "memq returns false on identity miss")
+(check (equal? (assoc "ab" '(("ab" . 3) ("cd" . 4))) '("ab" . 3)) "assoc matches structurally")
+(check (equal? (assq 'b '((a . 1) (b . 2))) '(b . 2)) "assq matches by identity")
+(check (not (assq (string-append "a" "") '(("a" . 1)))) "assq returns false on identity miss")
+(check (equal? (assv 1.0 '((1 . 9))) '(1 . 9)) "assv matches numerically equivalent keys")
+(check (= (caar '((1 . 2) . 3)) 1) "caar")
+(check (= (cadr '(1 2 3)) 2) "cadr")
+(check (= (caddr '(1 2 3 4)) 3) "caddr")
+(check (= (cadddr '(1 2 3 4 5)) 4) "cadddr")
+
+;;; Strings
+
+(check (string? "abc") "string? true for string")
+(check (not (string? 1)) "string? false for non-string")
+(check (= (string-length "hello") 5) "string-length")
+(check (equal? (string-ref "ABC" 1) (string-ref "xBx" 1)) "string-ref returns character")
+(check (character? (string-ref "x" 0)) "character? true for character")
+(check (not (character? 1)) "character? false for non-character")
+(check (equal? (string->list "ABC") (list (string-ref "ABC" 0)
+                                          (string-ref "ABC" 1)
+                                          (string-ref "ABC" 2)))
+       "string->list round-trip")
+(check (equal? (list->string (string->list "hello")) "hello") "list->string round-trip")
+(check (equal? (string-append "ab" "cd") "abcd") "string-append concatenates")
+
+;;; Vectors
+
+(check (vector? #(1 2)) "vector? true for vector")
+(check (not (vector? 1)) "vector? false for non-vector")
+(check (= (vector-length #(1 2 3)) 3) "vector-length")
+(check (= (vector-ref (vector 4 5 6) 2) 6) "vector constructor and vector-ref")
+(check (= (vector-ref (make-vector 3 9) 1) 9) "make-vector with fill value")
+(let ((v (vector 1 2 3)))
+  (vector-set! v 1 99)
+  (check (= (vector-ref v 1) 99) "vector-set! mutates vector"))
+
+;;; Slot access
+
+(check (= (slot-ref '(1 . 2) 'car) 1) "slot-ref reads pair slot")
+(let ((p (cons 1 2)))
+  (slot-set! p 'car 77)
+  (check (= (slot-ref p 'car) 77) "slot-set! mutates pair slot"))
+(check (eq? (slot-ref (type-of 1) 'name) 'SmallInteger)
+       "slot-ref resolves through superclass slots")
+(let ((metaclass-name (slot-ref (type-of SmallInteger) 'name)))
+  (check (symbol? metaclass-name) "metaclass name slot contains symbol")
+  (check (equal? [metaclass-name name] "SmallInteger class")
+         "metaclass gets synthesized class name"))
+
+;;; Quote and quasiquote
+
+(check (equal? (quote (+ 1 2)) '(+ 1 2)) "quote does not evaluate")
+(check (equal? '(+ 1 2) (quote (+ 1 2))) "quote reader syntax")
+(check (equal? `(+ ,(+ 1 2) 4) '(+ 3 4)) "quasiquote with unquote")
+(check (equal? `(1 ,@(list 2 3) 4) '(1 2 3 4)) "quasiquote with unquote-splicing")
+
+;;; Lambda
+
+(check (= ((lambda (x y) (+ x y)) 3 4) 7) "closure application")
+(check (equal? ((lambda (x . rest) rest) 1 2 3) '(2 3)) "dotted rest parameter")
+(check (equal? ((lambda args args) 4 5) '(4 5)) "symbol rest parameter")
+
+;;; Tail call optimization
+
+(define (make-deep-list n)
+  (let loop ((i 0) (acc '()))
+    (if (= i n)
+        acc
+        (loop (+ i 1) (cons '() acc)))))
+
+(define (len-loop xs acc)
+  (if xs (len-loop (cdr xs) (+ acc 1)) acc))
+
+(check (= (len-loop (make-deep-list 20000) 0) 20000)
+       "tail recursion stays bounded and returns expected value")
+
+;;; if
+
+(check (= (if '() 1 2) 2) "if nil branch is false")
+(check (= (if #false 1 2) 2) "if #false branch is false")
+(check (= (if #true 1 2) 1) "if #true branch is true")
+
+;;; and
+
+(check (eq? (and) #true) "and with no expressions returns true")
+(check (= (and 1 2 3) 3) "and returns last truthy value")
+(check (eq? (and 1 '() (error "skipped")) '()) "and returns first falsey value")
+(let ((x 0))
+  (and #false (set! x 1))
+  (check (= x 0) "and short-circuits after falsey value"))
+(and #true (define and-defined 23))
+(check (= and-defined 23) "and does not wrap later forms in a lexical environment")
+
+;;; or
+
+(check (eq? (or) #false) "or with no expressions returns false")
+(check (= (or '() #false 7 (error "skipped")) 7) "or returns first truthy value")
+(check (eq? (or '() #false) #false) "or returns last falsey value")
+(let ((x 0))
+  (or 5 (set! x 1))
+  (check (= x 0) "or short-circuits after truthy value"))
+(define or-anchor #false)
+(or or-anchor (define or-defined 24))
+(check (= or-defined 24) "or does not wrap later forms in a lexical environment")
+
+;;; cond
+
+(check (= (cond ('() (error "skipped")) ((= 1 1) 42) (else 99)) 42)
+       "cond evaluates first truthy clause body")
+(check (= (cond ('() 1) (else 2 3)) 3) "cond else clause evaluates body sequence")
+(check (= (cond ((+ 1 2))) 3) "cond clause without body returns test value")
+(check (eq? (cond ('() 1)) #false) "cond without matching clause returns false")
+(cond (#true (define cond-defined 25)))
+(check (= cond-defined 25) "cond does not wrap clause bodies in a lexical environment")
+
+;;; begin
+
+(check (eq? (begin) '()) "begin with no forms returns nil")
+(check (= (begin 1 2 3) 3) "begin returns last body value")
+(begin (define begin-defined 26))
+(check (= begin-defined 26) "begin evaluates body in current environment")
+
+;;; let
+
+(check (= (let ((x 1) (y 2)) (+ x y)) 3) "let binds local names")
+(define outer-x 10)
+(check (= (let ((x 1) (y outer-x)) y) 10)
+       "let evaluates binding expressions in outer environment")
+(check (= (let ((x 99)) x) 99) "let local binding shadows outer")
+(check (= outer-x 10) "let local binding does not leak to outer environment")
+
+;;; define
+
+(define add1 (lambda (x) (+ x 1)))
+(check (= (add1 9) 10) "define binds value in current environment")
+
+(define (add2 x y) (+ x y))
+(check (= (add2 3 4) 7) "define function shorthand creates callable binding")
+
+(define (bump x) (set! x (+ x 1)) x)
+(check (= (bump 9) 10) "define function shorthand keeps full function body sequence")
+
+(check (closure? add2) "lambda returns closure")
+
+;;; define function/macro constant bindings
+
+(define (const-fn x) x)
+(let ((c (raises? (lambda () (set! const-fn (lambda (x) x))))))
+  (check (and c (equal? (slot-ref c 'message)
+                        "Special form set! expected existing mutable binding"))
+         "define function shorthand creates constant binding"))
+
+(define-macro (inc-macro x) (list '+ x 1))
+(check (= (inc-macro 41) 42) "define-macro shorthand defines macro")
+
+(let ((c (raises? (lambda () (set! inc-macro (macro (lambda (x) x)))))))
+  (check (and c (equal? (slot-ref c 'message)
+                        "Special form set! expected existing mutable binding"))
+         "define-macro creates constant binding"))
+
+;;; Gensym (behavioral)
+
+(check (symbol? (gensym)) "gensym returns symbol")
+(check (null? (slot-ref (gensym) 'package)) "gensym returns uninterned symbol")
+(check (not (eq? (gensym) (gensym))) "gensym returns unique symbols")
+(check (null? (slot-ref (gensym "tmp") 'package))
+       "gensym with string name behaves like uninterned symbol")
+(check (null? (slot-ref (gensym 'symtmp) 'package))
+       "gensym with symbol name behaves like uninterned symbol")
+(check (null? (slot-ref [Symbol gensym] 'package))
+       "Symbol class>>gensym returns uninterned symbol")
+(let ((u [Symbol uninterned: 'temp]))
+  (check (null? (slot-ref u 'package)) "Symbol class>>uninterned: returns uninterned symbol")
+  (check (equal? ['temp name] "temp") "Symbol>>name returns symbol name string"))
+
+;;; with-gensyms
+
+(let ((result (with-gensyms (a b)
+                (list (symbol? a)
+                      (symbol? b)
+                      (eq? a b)
+                      (null? (slot-ref a 'package))
+                      (null? (slot-ref b 'package))))))
+  (check (car result) "with-gensyms binds symbol for first name")
+  (check (cadr result) "with-gensyms binds symbol for second name")
+  (check (not (caddr result)) "with-gensyms symbols are distinct")
+  (check (cadddr result) "with-gensyms first symbol is uninterned")
+  (check (car (cddddr result)) "with-gensyms second symbol is uninterned"))
+
+;;; set!
+
+(define set-x 10)
+(set! set-x 42)
+(check (= set-x 42) "set! updates existing binding")
+
+(define set-y 1)
+((lambda () (set! set-y 9)))
+(check (= set-y 9) "set! updates lexical parent binding")
+
+;;; define-class and define-method
+
+(define-class DefPoint (Object) (x y))
+(let ((inst (make-instance DefPoint)))
+  (check (eq? (type-of inst) DefPoint) "define-class wraps make-class and define"))
+
+(define-method [Pair first] (%self-slot car))
+(check (= ['(9 . 8) first] 9) "define-method installs zero-argument method")
+(check (closure? [Pair lookupSelector: :first])
+       "define-method installs closure as method")
+
+(define-method [Pair setFirst: value]
+  (set! (%self-slot car) value)
+  (%self-slot car))
+(check (= ['(9 . 8) setFirst: 42] 42)
+       "define-method method body can use %self-slot read and write")
+
+(check (= ['(1 . 2) setFirst: 77] 77)
+       "set! macro dispatches %self-slot target to slot-set!")
+
+;;; Rectangle example
+
+(define-class DefRectangle (Object) (width height))
+(define-method [[DefRectangle class] width: w height: h]
+  (let ((inst [self alloc]))
+    (slot-set! inst 'width w)
+    (slot-set! inst 'height h)
+    inst))
+(define-method [DefRectangle area]
+  (* (%self-slot width) (%self-slot height)))
+(check (= [[DefRectangle width: 4 height: 5] area] 20)
+       "rectangle define-class/define-method example")
+
+;;; super send
+
+(define-class DefParent (Object) ())
+(define-class DefChild (DefParent) ())
+(define-method [DefParent answer] 11)
+(define-method [DefChild answer] [ListTalk:super answer])
+(check (= [(make-instance DefChild) answer] 11)
+       "send macro rewrites super receiver to super send")
+
+;;; macro special form
+
+(check (macro? (macro (lambda (x) x))) "macro special form creates macro value")
+(check (= ((macro (lambda (x) x)) (+ 1 2)) 3) "macro expansion is evaluated")
+
+(define x-for-macro 42)
+(define id-macro (macro (lambda (x) x)))
+(check (= (id-macro x-for-macro) 42) "macro expansion evaluates in caller environment")
+
+;;; fold-expression and macroexpand
+
+(check (= (fold-expression '(+ 1 2 3) (get-current-environment)) 6)
+       "fold-expression constant-folds pure primitive application")
+
+(check (environment? (get-current-environment))
+       "get-current-environment returns environment")
+
+(define test-macroexpand-mac (macro (lambda (x) (list '+ x 1))))
+(let ((expanded (macroexpand '(test-macroexpand-mac 41) (get-current-environment))))
+  (check (pair? expanded) "macroexpand returns pair")
+  (check (eq? (car expanded) '+) "macroexpand expands to application"))
+
+;;; Load tests
+
+(load! :foo)
+(check (= loaded-from-foo 42) "load! loads module into environment")
+(check (pair? (memq :foo ListTalk:%modules)) "provide records loaded module")
+
+(define saved-resolvers ListTalk:module-resolvers)
+(load! :bar "/nonexistent-extra-path")
+(check (= loaded-from-bar 91) "load! uses call-local resolvers")
+(check (eq? saved-resolvers ListTalk:module-resolvers)
+       "load! call-local resolvers do not mutate module-resolvers")
+
+(check (primitive? ListTalk-OS:exit) "load! loads native module primitive")
+(check (pair? (memq :os ListTalk:%modules)) "native module records provided module")
+
+;;; catch / throw / unwind-protect / handler-bind
+
+(check (= (catch :t (+ 1 2)) 3) "catch returns body value when no throw happens")
+(check (= (catch :t (throw :t 42) 99) 42) "throw transfers control to matching catch")
+(check (= (catch :outer (catch :inner (throw :outer 7))) 7)
+       "throw skips non-matching inner catch")
+
+(define unwind-x 0)
+(check (= (unwind-protect 7 (set! unwind-x 1)) 7)
+       "unwind-protect returns protected value on normal path")
+(check (= unwind-x 1) "unwind-protect runs cleanup on normal path")
+
+(define unwind-y 0)
+(check (= (catch :t (unwind-protect (throw :t 9) (set! unwind-y 1))) 9)
+       "unwind-protect rethrows and outer catch receives value")
+(check (= unwind-y 1) "unwind-protect runs cleanup during throw")
+
+(let ((c (catch :t
+           (handler-bind (lambda (cond) (throw :t cond))
+             (error "boom")))))
+  (check (equal? (slot-ref c 'message) "boom")
+         "handler-bind catches error condition with correct message"))
+
+;;; Symbol package slot
+
+(check (not (null? (slot-ref 'eval-test-alpha 'package)))
+       "symbol package slot exposes package object")
+(check-error-message "Readonly slot" "symbol package slot is readonly"
+  (slot-set! 'eval-test-alpha 'package 1))
+
+;;; Numeric abstract classes
+
+(check (class? ComplexNumber) "ComplexNumber class is bound")
+(check (class? Integer) "Integer class is bound")
+(check (class? RationalNumber) "RationalNumber class is bound")
+(check (class? RealNumber) "RealNumber class is bound")
+
+;;; Report results
+
+(if (> test-failures 0)
+    (begin
+      (display (string-append (number->string test-failures)
+                              " eval test(s) failed"))
+      (ListTalk-OS:exit 1))
+    (display "eval tests passed"))

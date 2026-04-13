@@ -1,0 +1,2 @@
+(provide :bar)
+(define loaded-from-bar 91)

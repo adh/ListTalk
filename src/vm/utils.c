@@ -41,6 +41,28 @@ extern char* LT_strdup(char* string){
     return res;
 }
 
+extern char* LT_sprintf(const char* fmt, ...){
+    va_list args;
+    int size;
+    char* buf;
+
+    va_start(args, fmt);
+    size = vsnprintf(NULL, 0, fmt, args);
+    va_end(args);
+
+    if (size < 0){
+        return NULL;
+    }
+
+    buf = GC_MALLOC_ATOMIC((size_t)size + 1);
+
+    va_start(args, fmt);
+    vsnprintf(buf, (size_t)size + 1, fmt, args);
+    va_end(args);
+
+    return buf;
+}
+
 #define STRING_BUILDER_INIT_SIZE 64
 
 struct LT_StringBuilder {
