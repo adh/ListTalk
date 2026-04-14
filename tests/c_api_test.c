@@ -1113,6 +1113,7 @@ static int test_compiler_fold_non_constant_symbol_is_unchanged(void){
 
 static int test_compiler_fold_application_folds_operator_and_arguments(void){
     LT_Environment* env = LT_new_base_environment();
+    LT_Value expression = read_one("(+ x y)");
     LT_Value folded;
     LT_Value args;
 
@@ -1122,12 +1123,18 @@ static int test_compiler_fold_application_folds_operator_and_arguments(void){
         LT_SmallInteger_new(5),
         LT_ENV_BINDING_FLAG_CONSTANT
     );
-    folded = LT_compiler_fold_expression(read_one("(+ x y)"), env);
+    folded = LT_compiler_fold_expression(expression, env);
 
     if (expect(LT_ImmutableList_p(folded), "compiler fold returns immutable folded application")){
         return 1;
     }
     if (expect(LT_Primitive_p(LT_car(folded)), "folded operator becomes value")){
+        return 1;
+    }
+    if (expect(
+        LT_ImmutableList_original_expression(folded) == expression,
+        "folded application keeps original expression trailer"
+    )){
         return 1;
     }
 
@@ -1243,6 +1250,7 @@ static int test_compiler_expression_constant_value_from_quote_expression(void){
 
 static int test_compiler_fold_expands_macros(void){
     LT_Environment* env = LT_new_base_environment();
+    LT_Value expression = read_one("(id-macro (+ 1 2))");
     LT_Value folded;
     LT_Value macro_value;
 
@@ -1254,11 +1262,25 @@ static int test_compiler_fold_expands_macros(void){
         LT_ENV_BINDING_FLAG_CONSTANT
     );
 
-    folded = LT_compiler_fold_expression(read_one("(id-macro (+ 1 2))"), env);
+    folded = LT_compiler_fold_expression(expression, env);
 
-    return expect(
+    if (expect(
         LT_Value_is_fixnum(folded) && LT_SmallInteger_value(folded) == 3,
         "macro expansion result is folded through pure primitive"
+    )){
+        return 1;
+    }
+
+    folded = LT_compiler_macroexpand(expression, env);
+    if (expect(
+        LT_ImmutableList_p(folded),
+        "compiler macroexpand normalizes expanded form to immutable list"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_ImmutableList_original_expression(folded) == expression,
+        "compiler macroexpand keeps original expression trailer"
     );
 }
 
