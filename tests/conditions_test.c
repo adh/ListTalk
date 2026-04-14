@@ -6,14 +6,18 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/stack_trace.h>
 #include <ListTalk/vm/throw_catch.h>
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -34,6 +38,17 @@ static int g_order[8];
 static LT_Value g_seen_condition_inner = LT_NIL;
 static LT_Value g_seen_condition_outer = LT_NIL;
 static LT_Value g_error_test_tag = LT_NIL;
+static LT_Value g_backtrace_test_tag = LT_NIL;
+static char* g_backtrace_output = NULL;
+static size_t g_backtrace_output_length = 0;
+
+static LT_Value read_one_with_source_file(const char* source, const char* source_file){
+    LT_Reader* reader = LT_Reader_new(
+        (LT_Value)(uintptr_t)LT_String_new_cstr((char*)source_file)
+    );
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    return LT_Reader_readObject(reader, stream);
+}
 
 static void reset_state(void){
     g_inner_calls = 0;
@@ -41,6 +56,12 @@ static void reset_state(void){
     g_order_index = 0;
     g_seen_condition_inner = LT_NIL;
     g_seen_condition_outer = LT_NIL;
+}
+
+static void reset_backtrace_output(void){
+    free(g_backtrace_output);
+    g_backtrace_output = NULL;
+    g_backtrace_output_length = 0;
 }
 
 static LT_Value inner_handler_impl(LT_Value arguments,
@@ -111,6 +132,31 @@ static LT_Value catch_error_handler_impl(LT_Value arguments,
     LT_OBJECT_ARG(cursor, condition);
     LT_ARG_END(cursor);
     LT_throw(g_error_test_tag, condition);
+}
+
+static LT_Value capture_backtrace_handler_impl(LT_Value arguments,
+                                               LT_Value invocation_context_kind,
+                                               LT_Value invocation_context_data,
+                                               LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    FILE* stream;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+
+    reset_backtrace_output();
+    stream = open_memstream(&g_backtrace_output, &g_backtrace_output_length);
+    if (stream == NULL){
+        LT_error("Unable to allocate backtrace capture stream");
+    }
+    LT_stack_trace_print(stream);
+    fclose(stream);
+
+    LT_throw(g_backtrace_test_tag, condition);
 }
 
 static int test_signal_invokes_bound_handler_with_condition_value(void){
@@ -262,6 +308,77 @@ static int test_lt_error_signals_condition_to_handlers(void){
     );
 }
 
+static int test_backtrace_prints_source_locations_and_expansion_chain(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "capture-backtrace-handler",
+        "(condition)",
+        "captures printed backtrace",
+        capture_backtrace_handler_impl
+    );
+
+    reset_backtrace_output();
+    g_backtrace_test_tag = LT_Symbol_new("backtrace-test-tag");
+
+    (void)LT_eval(
+        read_one_with_source_file(
+            "(define-macro (boom) '(+ missing 1))",
+            "fixtures/macros.lt"
+        ),
+        env,
+        NULL
+    );
+
+    LT_CATCH(g_backtrace_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_eval(
+                read_one_with_source_file("(boom)", "fixtures/main.lt"),
+                env,
+                NULL
+            );
+        });
+    });
+
+    if (expect(
+        LT_Value_class(caught) == &LT_Error_class,
+        "backtrace test catches signaled error condition"
+    )){
+        return 1;
+    }
+    if (expect(g_backtrace_output != NULL, "backtrace test captured backtrace output")){
+        return 1;
+    }
+    if (expect(
+        strstr(g_backtrace_output, "Backtrace:\n") != NULL,
+        "printed backtrace starts with header"
+    )){
+        return 1;
+    }
+    if (expect(
+        strstr(g_backtrace_output, "eval expr=(+ missing 1)\n") != NULL,
+        "printed backtrace includes expanded frame expression"
+    )){
+        return 1;
+    }
+    if (expect(
+        strstr(g_backtrace_output, "    at fixtures/macros.lt:1:23\n") != NULL,
+        "printed backtrace includes source location for expanded form"
+    )){
+        return 1;
+    }
+    if (expect(
+        strstr(g_backtrace_output, "    expanded from (boom)\n") != NULL,
+        "printed backtrace includes expansion chain"
+    )){
+        return 1;
+    }
+    return expect(
+        strstr(g_backtrace_output, "      at fixtures/main.lt:1:1\n") != NULL,
+        "printed backtrace indents original source location under expansion chain"
+    );
+}
+
 static int test_error_builder_collects_named_arguments(void){
     LT_Value condition = LT_Error(
         "structured-error",
@@ -302,6 +419,7 @@ int main(void){
     failures += test_handler_bind_scope_is_removed_after_body();
     failures += test_handler_bind_scope_is_removed_on_non_local_exit();
     failures += test_lt_error_signals_condition_to_handlers();
+    failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
 
     if (failures == 0){

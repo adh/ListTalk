@@ -31,6 +31,59 @@ struct LT_TailCallUnwindMarker_s {
 static LT_Value eval_form(LT_Value expression,
                           LT_Environment* environment,
                           LT_TailCallUnwindMarker* tail_call_unwind_marker);
+static LT_Value immutable_list_from_expansion(
+    LT_Value expansion,
+    LT_Value original_expression
+);
+
+static LT_Value immutable_list_from_expansion(
+    LT_Value expansion,
+    LT_Value original_expression
+){
+    LT_Value cursor = expansion;
+    LT_Value tail;
+    LT_Value source_location = LT_NIL;
+    LT_Value source_file = LT_NIL;
+    LT_Value* values;
+    size_t count = 0;
+    size_t i;
+
+    if (!LT_Pair_p(expansion)){
+        return expansion;
+    }
+
+    if (LT_ImmutableList_p(expansion)){
+        source_location = LT_ImmutableList_source_location(expansion);
+        source_file = LT_ImmutableList_source_file(expansion);
+        if (LT_ImmutableList_original_expression(expansion) == original_expression){
+            return expansion;
+        }
+    } else if (original_expression == LT_NIL){
+        return LT_ImmutableList_fromList(expansion);
+    }
+
+    while (LT_Pair_p(cursor)){
+        count++;
+        cursor = LT_cdr(cursor);
+    }
+    tail = cursor;
+
+    values = GC_MALLOC(sizeof(LT_Value) * count);
+    cursor = expansion;
+    for (i = 0; i < count; i++){
+        values[i] = LT_car(cursor);
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_ImmutableList_new_with_trailer(
+        count,
+        values,
+        tail,
+        source_location,
+        source_file,
+        original_expression
+    );
+}
 
 static LT_Value send_from_precedence(LT_Value receiver,
                                      LT_Value precedence_list,
@@ -327,10 +380,11 @@ LT_Value LT_super_send(LT_Value receiver,
     );
 }
 
-static LT_Value apply_form(LT_Value operator,
-                           LT_Value argument_expressions,
+static LT_Value apply_form(LT_Value expression,
                            LT_Environment* environment,
                            LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value operator = LT_car(expression);
+    LT_Value argument_expressions = LT_cdr(expression);
     LT_Value evaluated_operator = eval_form(operator, environment, NULL);
     LT_Value expansion;
     LT_Value implementation;
@@ -346,7 +400,8 @@ static LT_Value apply_form(LT_Value operator,
             LT_NIL,
             NULL
         );
-        return eval_form(expansion, environment, tail_call_unwind_marker);
+        expansion = immutable_list_from_expansion(expansion, expression);
+        return LT_eval(expansion, environment, tail_call_unwind_marker);
     }
 
     if (LT_SpecialForm_p(evaluated_operator)){
@@ -389,8 +444,7 @@ static LT_Value eval_form(LT_Value expression,
 
     if (LT_Pair_p(expression)){
         return apply_form(
-            LT_car(expression),
-            LT_cdr(expression),
+            expression,
             environment,
             tail_call_unwind_marker
         );

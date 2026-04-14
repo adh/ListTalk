@@ -55,15 +55,8 @@ static LT_Value immutable_list_with_rest(
 }
 
 static LT_Value original_expression_value(LT_Value expression){
-    LT_Value original_expression;
-
     if (!LT_ImmutableList_p(expression)){
         return LT_NIL;
-    }
-
-    original_expression = LT_ImmutableList_original_expression(expression);
-    if (original_expression != LT_NIL){
-        return original_expression;
     }
 
     return expression;
@@ -78,7 +71,6 @@ static LT_Value immutable_list_from_list_with_original_expression(
     LT_Value source_location = LT_NIL;
     LT_Value source_file = LT_NIL;
     LT_Value original_expression = original_expression_value(expression);
-    LT_Value existing_original_expression = LT_NIL;
     LT_Value* values;
     size_t count = 0;
     size_t i;
@@ -93,11 +85,7 @@ static LT_Value immutable_list_from_list_with_original_expression(
     if (LT_ImmutableList_p(list)){
         source_location = LT_ImmutableList_source_location(list);
         source_file = LT_ImmutableList_source_file(list);
-        existing_original_expression = LT_ImmutableList_original_expression(list);
-        if (existing_original_expression != LT_NIL){
-            original_expression = existing_original_expression;
-        }
-        if (original_expression == existing_original_expression){
+        if (LT_ImmutableList_original_expression(list) == original_expression){
             return list;
         }
     } else if (original_expression == LT_NIL){
@@ -190,6 +178,7 @@ LT_Value LT_compiler_macroexpand(LT_Value expression,
     size_t expansion_count = 0;
 
     while (LT_Pair_p(expanded)){
+        LT_Value previous_expression = expanded;
         LT_Value operator_value = LT_compiler_fold_expression(
             LT_car(expanded),
             lexical_environment
@@ -197,13 +186,7 @@ LT_Value LT_compiler_macroexpand(LT_Value expression,
         LT_Value implementation;
 
         if (!LT_Macro_p(operator_value)){
-            if (!LT_Pair_p(expanded)){
-                return expanded;
-            }
-            return immutable_list_from_list_with_original_expression(
-                expanded,
-                expression
-            );
+            return expanded;
         }
 
         implementation = LT_Macro_callable(LT_Macro_from_value(operator_value));
@@ -213,6 +196,10 @@ LT_Value LT_compiler_macroexpand(LT_Value expression,
             LT_NIL,
             LT_NIL,
             NULL
+        );
+        expanded = immutable_list_from_list_with_original_expression(
+            expanded,
+            previous_expression
         );
         expansion_count++;
 

@@ -1284,6 +1284,60 @@ static int test_compiler_fold_expands_macros(void){
     );
 }
 
+static int test_compiler_macroexpand_preserves_expansion_chain(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value expression = read_one("(outer-macro)");
+    LT_Value outer_macro_value;
+    LT_Value inner_macro_value;
+    LT_Value expanded;
+    LT_Value previous_expression;
+
+    outer_macro_value = LT_eval(read_one("(macro (lambda () '(inner-macro)))"), env, NULL);
+    inner_macro_value = LT_eval(read_one("(macro (lambda () '(+ 1 2)))"), env, NULL);
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("outer-macro"),
+        outer_macro_value,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    LT_Environment_bind(
+        env,
+        LT_Symbol_new("inner-macro"),
+        inner_macro_value,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    expanded = LT_compiler_macroexpand(expression, env);
+    if (expect(
+        LT_ImmutableList_p(expanded),
+        "compiler macroexpand returns immutable final expansion"
+    )){
+        return 1;
+    }
+
+    previous_expression = LT_ImmutableList_original_expression(expanded);
+    if (expect(
+        LT_ImmutableList_p(previous_expression),
+        "final expansion keeps previous expansion in original-expression trailer"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(previous_expression))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(previous_expression))),
+                "inner-macro"
+            ) == 0,
+        "expansion chain keeps intermediate expansion"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_ImmutableList_original_expression(previous_expression) == expression,
+        "intermediate expansion points back to original expression"
+    );
+}
+
 static int test_compiler_fold_pure_primitive_constant_folds(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value folded = LT_compiler_fold_expression(read_one("(+ 1 2 3)"), env);
@@ -1780,6 +1834,7 @@ int main(void){
     RUN_TEST(test_compiler_fold_constant_pair_is_quoted_expression);
     RUN_TEST(test_compiler_expression_constant_value_from_quote_expression);
     RUN_TEST(test_compiler_fold_expands_macros);
+    RUN_TEST(test_compiler_macroexpand_preserves_expansion_chain);
     RUN_TEST(test_compiler_fold_pure_primitive_constant_folds);
     RUN_TEST(test_compiler_fold_impure_primitive_is_not_constant_folded);
     RUN_TEST(test_compiler_fold_quasiquote_folds_unquote_expression);
