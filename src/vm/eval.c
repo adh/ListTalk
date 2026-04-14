@@ -438,40 +438,41 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
 static LT_Value eval_form(LT_Value expression,
                           LT_Environment* environment,
                           LT_TailCallUnwindMarker* tail_call_unwind_marker){
-    if (LT_Symbol_p(expression)){
-        return eval_symbol(expression, environment);
-    }
-
-    if (LT_Pair_p(expression)){
-        return apply_form(
-            expression,
-            environment,
-            tail_call_unwind_marker
-        );
-    }
-
-    return expression;
-}
-
-LT_Value LT_eval(LT_Value expression,
-                 LT_Environment* environment,
-                 LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_StackFrame stack_frame;
-    LT_Value result;
-
-    if (environment == NULL){
-        LT_error("Evaluator expects environment");
-    }
 
     stack_frame.type = LT_STACK_FRAME_TYPE_EVAL;
     stack_frame.arguments.eval.expression = expression;
     stack_frame.arguments.eval.environment = environment;
     LT_stack_trace_push(&stack_frame);
 
-    result = eval_form(expression, environment, tail_call_unwind_marker);
-    LT_stack_trace_pop(&stack_frame);
+    if (LT_Symbol_p(expression)){
+        LT_Value result = eval_symbol(expression, environment);
+        LT_stack_trace_pop(&stack_frame);
+        return result;
+    }
 
-    return result;
+    if (LT_Pair_p(expression)){
+        LT_Value result = apply_form(
+            expression,
+            environment,
+            tail_call_unwind_marker
+        );
+        LT_stack_trace_pop(&stack_frame);
+        return result;
+    }
+
+    LT_stack_trace_pop(&stack_frame);
+    return expression;
+}
+
+LT_Value LT_eval(LT_Value expression,
+                 LT_Environment* environment,
+                 LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    if (environment == NULL){
+        LT_error("Evaluator expects environment");
+    }
+
+    return eval_form(expression, environment, tail_call_unwind_marker);
 }
 
 LT_Value LT_eval_sequence_string(const char* source, LT_Environment* environment){
