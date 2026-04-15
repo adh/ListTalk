@@ -124,36 +124,6 @@ LT_Value LT_List_map(LT_Value callable, LT_Value list){
 }
 
 LT_DEFINE_PRIMITIVE(
-    list_method_car,
-    "List>>car",
-    "(self)",
-    "Return list car."
-){
-    LT_Value cursor = arguments;
-    LT_Value self;
-    (void)tail_call_unwind_marker;
-
-    LT_OBJECT_ARG(cursor, self);
-    LT_ARG_END(cursor);
-    return LT_car(self);
-}
-
-LT_DEFINE_PRIMITIVE(
-    list_method_cdr,
-    "List>>cdr",
-    "(self)",
-    "Return list cdr."
-){
-    LT_Value cursor = arguments;
-    LT_Value self;
-    (void)tail_call_unwind_marker;
-
-    LT_OBJECT_ARG(cursor, self);
-    LT_ARG_END(cursor);
-    return LT_cdr(self);
-}
-
-LT_DEFINE_PRIMITIVE(
     list_method_length,
     "List>>length",
     "(self)",
@@ -192,8 +162,6 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor List_methods[] = {
-    {"car", &list_method_car},
-    {"cdr", &list_method_cdr},
     {"length", &list_method_length},
     {"map:", &list_method_map},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR

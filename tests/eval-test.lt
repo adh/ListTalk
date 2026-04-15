@@ -97,6 +97,10 @@
 (check (primitive? [Pair lookupSelector: :car]) "Class>>lookupSelector: returns method")
 (check (null? [Pair lookupSelector: :does-not-exist])
        "Class>>lookupSelector: nil for missing selector")
+(check (primitive? [Nil lookupSelector: :length])
+       "Nil inherits List>>length")
+(check (null? [Nil lookupSelector: :car])
+       "Nil does not inherit List>>car")
 (check (memq 'name [Class slots]) "Class>>slots contains name")
 
 ;;; OOP: number binary messages
@@ -141,6 +145,7 @@
 ;;; OOP: String and Vector methods
 
 (check (= ['(1 2 3) length] 3) "List>>length")
+(check (= ['() length] 0) "Nil as empty List>>length")
 (check (= ["hello" length] 5) "String>>length")
 (check (eq? ["hello" at: 1] (string-ref "hello" 1)) "String>>at: dispatches correctly")
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
