@@ -15,6 +15,11 @@
         (display (string-append "FAIL: " description))
         #false)))
 
+(define (check-near actual expected epsilon description)
+  (check (and (<= (- actual expected) epsilon)
+              (<= (- expected actual) epsilon))
+         description))
+
 (define (raises? thunk)
   (catch :raises-check
     (handler-bind (lambda (c) (throw :raises-check c))
@@ -53,6 +58,15 @@
 (check (= (* (/ 1+2i 3+4i) 3+4i) 1+2i) "complex division round-trip")
 (check (= (+ 2 1+3i) 3+3i) "real and complex mixed addition")
 (check (= (* 2 3/2) 3) "fraction multiplication canonicalizes to integer")
+(check-near pi 3.141592653589793 1e-15 "pi constant")
+(check-near (sin (/ pi 2)) 1.0 1e-12 "sin primitive")
+(check-near (cos pi) -1.0 1e-12 "cos primitive")
+(check-near (tan 0) 0.0 1e-12 "tan primitive")
+(check-near (log (expt 2)) 2.0 1e-12 "log primitive")
+(check-near (expt) 2.718281828459045 1e-15 "expt zero-argument returns e")
+(check-near (expt 2) 7.38905609893065 1e-12 "expt one-argument returns e^x")
+(check (= (expt 2 10) 1024) "expt with integer exponent stays exact")
+(check (= (expt 1+1i 2) 0+2i) "expt supports complex base with integer exponent")
 
 ;;; Symbols and keywords
 
@@ -116,6 +130,12 @@
 (check [4 > 3] "Number>>> greater than")
 (check [3 <= 3] "Number>><= less than or equal")
 (check [3 >= 3] "Number>>>= greater than or equal")
+(check-near [(/ pi 2) sin] 1.0 1e-12 "Number>>sin")
+(check-near [pi cos] -1.0 1e-12 "Number>>cos")
+(check-near [0 tan] 0.0 1e-12 "Number>>tan")
+(check-near [(expt 1) log] 1.0 1e-12 "Number>>log")
+(check-near [2 expt] 7.38905609893065 1e-12 "Number>>expt")
+(check (= [2 expt: 10] 1024) "Number>>expt: dispatches correctly")
 (check (equal? [5/2 asString] "5/2") "Number>>asString formats rationals")
 (check (equal? [(+ 340282366920938463463374607431768211456 1) asString]
                "340282366920938463463374607431768211457")

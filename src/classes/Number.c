@@ -394,6 +394,61 @@ static LT_Value checked_exact_negate(LT_Value value){
     return make_fraction(LT_Integer_negate(rational.numerator), rational.denominator);
 }
 
+static LT_Value value_to_exact_integer(LT_Value value, int* ok){
+    LT_ExactRational rational;
+
+    *ok = 0;
+    if (!value_is_exact_number(value)){
+        return LT_NIL;
+    }
+
+    rational = exact_rational_from_value(value);
+    if (rational.denominator != LT_SmallInteger_new(1)){
+        return LT_NIL;
+    }
+
+    *ok = 1;
+    return rational.numerator;
+}
+
+static LT_Value require_real_number(LT_Value value){
+    if (!value_is_real_number(value)){
+        LT_type_error(value, &LT_RealNumber_class);
+    }
+    return value;
+}
+
+static LT_Value real_math_result(double value){
+    return LT_Float_new(value);
+}
+
+static LT_Value number_integer_power(LT_Value base, LT_Value exponent_integer){
+    LT_Value one = LT_SmallInteger_new(1);
+    LT_Value exponent = LT_Integer_abs(exponent_integer);
+    LT_Value result = one;
+    LT_Value factor = base;
+
+    while (!LT_Integer_is_zero(exponent)){
+        LT_Value quotient;
+        LT_Value remainder;
+
+        LT_Integer_divmod(exponent, LT_SmallInteger_new(2), &quotient, &remainder);
+        if (!LT_Integer_is_zero(remainder)){
+            result = LT_Number_multiply2(result, factor);
+        }
+        exponent = quotient;
+        if (!LT_Integer_is_zero(exponent)){
+            factor = LT_Number_multiply2(factor, factor);
+        }
+    }
+
+    if (LT_Integer_negative_p(exponent_integer)){
+        return LT_Number_divide2(one, result);
+    }
+
+    return result;
+}
+
 static size_t exact_number_hash(LT_Value value){
     LT_ExactRational rational = exact_rational_from_value(value);
 
@@ -594,6 +649,104 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_sin,
+    "Number>>sin",
+    "(self)",
+    "Return sine of receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_sin(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_cos,
+    "Number>>cos",
+    "(self)",
+    "Return cosine of receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_cos(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_tan,
+    "Number>>tan",
+    "(self)",
+    "Return tangent of receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_tan(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_log,
+    "Number>>log",
+    "(self)",
+    "Return natural logarithm of receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_log(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_expt,
+    "Number>>expt",
+    "(self)",
+    "Return e raised to receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_exp(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_expt_colon,
+    "Number>>expt:",
+    "(self exponent)",
+    "Return receiver raised to exponent.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value exponent;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, exponent);
+    LT_ARG_END(cursor);
+    return LT_Number_expt(self, exponent);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     number_method_less_than,
     "Number>><",
     "(self other)",
@@ -672,6 +825,12 @@ static LT_Method_Descriptor Number_methods[] = {
     {"-",  &number_method_subtract},
     {"*",  &number_method_multiply},
     {"/",  &number_method_divide},
+    {"sin", &number_method_sin},
+    {"cos", &number_method_cos},
+    {"tan", &number_method_tan},
+    {"log", &number_method_log},
+    {"expt", &number_method_expt},
+    {"expt:", &number_method_expt_colon},
     {"<",  &number_method_less_than},
     {">",  &number_method_greater_than},
     {"<=", &number_method_less_than_or_equal},
@@ -1021,4 +1180,49 @@ LT_Value LT_Number_negate(LT_Value value){
 
     LT_type_error(value, &LT_Number_class);
     return LT_NIL;
+}
+
+LT_Value LT_Number_sin(LT_Value value){
+    require_real_number(value);
+    return real_math_result(sin(LT_Number_to_double(value)));
+}
+
+LT_Value LT_Number_cos(LT_Value value){
+    require_real_number(value);
+    return real_math_result(cos(LT_Number_to_double(value)));
+}
+
+LT_Value LT_Number_tan(LT_Value value){
+    require_real_number(value);
+    return real_math_result(tan(LT_Number_to_double(value)));
+}
+
+LT_Value LT_Number_log(LT_Value value){
+    require_real_number(value);
+    return real_math_result(log(LT_Number_to_double(value)));
+}
+
+LT_Value LT_Number_exp(LT_Value value){
+    require_real_number(value);
+    return real_math_result(exp(LT_Number_to_double(value)));
+}
+
+LT_Value LT_Number_expt(LT_Value base, LT_Value exponent){
+    int exponent_is_exact_integer = 0;
+    LT_Value exponent_integer = value_to_exact_integer(exponent, &exponent_is_exact_integer);
+
+    if (exponent_is_exact_integer && value_is_complex_number(base)){
+        return number_integer_power(base, exponent_integer);
+    }
+
+    require_real_number(base);
+    require_real_number(exponent);
+
+    if (exponent_is_exact_integer){
+        return number_integer_power(base, exponent_integer);
+    }
+
+    return real_math_result(
+        pow(LT_Number_to_double(base), LT_Number_to_double(exponent))
+    );
 }

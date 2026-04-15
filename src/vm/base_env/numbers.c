@@ -6,7 +6,11 @@
 #include "internal.h"
 
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/Float.h>
+
+#include <math.h>
 
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_add,
@@ -206,7 +210,97 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return LT_TRUE;
 }
 
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_sin,
+    "sin",
+    "(x)",
+    "Return sine of a real number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_sin(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_cos,
+    "cos",
+    "(x)",
+    "Return cosine of a real number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_cos(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_tan,
+    "tan",
+    "(x)",
+    "Return tangent of a real number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_tan(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_log,
+    "log",
+    "(x)",
+    "Return natural logarithm of a real number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_log(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_expt,
+    "expt",
+    "([base [exponent]])",
+    "Raise base to exponent, treat one argument as e^x, and return e with no arguments.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value first = LT_NIL;
+    LT_Value second = LT_NIL;
+
+    LT_OBJECT_ARG_OPT(cursor, first, LT_NIL);
+    LT_OBJECT_ARG_OPT(cursor, second, LT_NIL);
+    LT_ARG_END(cursor);
+
+    if (first == LT_NIL){
+        return LT_Float_new(exp(1.0));
+    }
+    if (second == LT_NIL){
+        return LT_Number_exp(first);
+    }
+    return LT_Number_expt(first, second);
+}
+
 void LT_base_env_bind_numbers(LT_Environment* environment){
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "pi"),
+        LT_Float_new(acos(-1.0)),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
     LT_base_env_bind_static_primitive(environment, &primitive_add);
     LT_base_env_bind_static_primitive(environment, &primitive_subtract);
     LT_base_env_bind_static_primitive(environment, &primitive_multiply);
@@ -215,4 +309,9 @@ void LT_base_env_bind_numbers(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_greater_than);
     LT_base_env_bind_static_primitive(environment, &primitive_less_than_or_equal);
     LT_base_env_bind_static_primitive(environment, &primitive_greater_than_or_equal);
+    LT_base_env_bind_static_primitive(environment, &primitive_sin);
+    LT_base_env_bind_static_primitive(environment, &primitive_cos);
+    LT_base_env_bind_static_primitive(environment, &primitive_tan);
+    LT_base_env_bind_static_primitive(environment, &primitive_log);
+    LT_base_env_bind_static_primitive(environment, &primitive_expt);
 }
