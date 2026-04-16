@@ -34,6 +34,24 @@ LT_Value LT_List_map_many(
     size_t list_count,
     const LT_Value* lists
 );
+void LT_List_for_each(LT_Value callable, LT_Value list);
+void LT_List_for_each_many(
+    LT_Value callable,
+    size_t list_count,
+    const LT_Value* lists
+);
+LT_Value LT_List_any(LT_Value callable, LT_Value list);
+LT_Value LT_List_any_many(
+    LT_Value callable,
+    size_t list_count,
+    const LT_Value* lists
+);
+LT_Value LT_List_every(LT_Value callable, LT_Value list);
+LT_Value LT_List_every_many(
+    LT_Value callable,
+    size_t list_count,
+    const LT_Value* lists
+);
 
 static inline int LT_List_p(LT_Value value){
     return value == LT_NIL

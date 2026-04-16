@@ -189,6 +189,27 @@ LT_DEFINE_PRIMITIVE(
     return LT_Number_add2(x, y);
 }
 
+static int primitive_test_for_each_count = 0;
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_count_for_each,
+    "test-count-for-each",
+    "(x)",
+    "Test helper primitive: count one for-each call."
+){
+    LT_Value cursor = arguments;
+    LT_Value x;
+    (void)x;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, x);
+    LT_ARG_END(cursor);
+    primitive_test_for_each_count++;
+    return LT_NIL;
+}
+
 static int string_starts_with(const char* value, const char* prefix){
     size_t prefix_len = strlen(prefix);
     return strncmp(value, prefix, prefix_len) == 0;
@@ -651,6 +672,45 @@ static int test_list_map_many_c_api(void){
     return expect(
         LT_Value_equal_p(mapped, eval_one("'(11 22 33)")),
         "LT_List_map_many terminates on shortest list"
+    );
+}
+
+static int test_list_for_each_c_api(void){
+    LT_Value list = eval_one("'(1 2 3)");
+
+    primitive_test_for_each_count = 0;
+    LT_List_for_each(
+        LT_Primitive_from_static(&primitive_test_count_for_each),
+        list
+    );
+
+    return expect(
+        primitive_test_for_each_count == 3,
+        "LT_List_for_each applies callable across list"
+    );
+}
+
+static int test_list_any_every_c_api(void){
+    LT_Value list = eval_one("'(1 2 3)");
+    LT_Value matches_two = eval_one("(lambda (x) (= x 2))");
+    LT_Value below_four = eval_one("(lambda (x) (< x 4))");
+    LT_Value below_three = eval_one("(lambda (x) (< x 3))");
+
+    if (expect(
+        LT_List_any(matches_two, list) == LT_TRUE,
+        "LT_List_any returns true for matching element"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_List_every(below_four, list) == LT_TRUE,
+        "LT_List_every returns true when all elements match"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_List_every(below_three, list) == LT_FALSE,
+        "LT_List_every returns false when an element misses"
     );
 }
 
@@ -1816,6 +1876,8 @@ int main(void){
     RUN_TEST(test_immutable_list_missing_trailer_values_are_nil);
     RUN_TEST(test_list_map_single_c_api);
     RUN_TEST(test_list_map_many_c_api);
+    RUN_TEST(test_list_for_each_c_api);
+    RUN_TEST(test_list_any_every_c_api);
     RUN_TEST(test_define_package_special_form);
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);

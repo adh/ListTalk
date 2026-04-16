@@ -123,6 +123,144 @@ LT_Value LT_List_map(LT_Value callable, LT_Value list){
     return LT_List_map_many(callable, 1, &list);
 }
 
+static LT_Value* list_cursors_new(size_t list_count, const LT_Value* lists){
+    LT_Value* cursors;
+    size_t i;
+
+    if (list_count == 0){
+        LT_error("List iteration expects at least one list");
+    }
+
+    cursors = GC_MALLOC(sizeof(LT_Value) * list_count);
+    for (i = 0; i < list_count; i++){
+        cursors[i] = lists[i];
+    }
+    return cursors;
+}
+
+static int list_cursors_collect_arguments(LT_Value* cursors,
+                                          size_t list_count,
+                                          LT_ListBuilder* argument_builder,
+                                          const char* primitive_name){
+    size_t i;
+
+    for (i = 0; i < list_count; i++){
+        if (cursors[i] == LT_NIL){
+            return 0;
+        }
+        if (!LT_Pair_p(cursors[i])){
+            LT_error("%s expects proper lists", primitive_name);
+        }
+    }
+
+    for (i = 0; i < list_count; i++){
+        LT_ListBuilder_append(argument_builder, LT_car(cursors[i]));
+        cursors[i] = LT_cdr(cursors[i]);
+    }
+    return 1;
+}
+
+void LT_List_for_each_many(LT_Value callable,
+                           size_t list_count,
+                           const LT_Value* lists){
+    LT_Value* cursors = list_cursors_new(list_count, lists);
+
+    while (1){
+        LT_ListBuilder* argument_builder = LT_ListBuilder_new();
+
+        if (!list_cursors_collect_arguments(
+                cursors,
+                list_count,
+                argument_builder,
+                "for-each"
+            )){
+            return;
+        }
+
+        (void)LT_apply(
+            callable,
+            LT_ListBuilder_value(argument_builder),
+            LT_NIL,
+            LT_NIL,
+            NULL
+        );
+    }
+}
+
+void LT_List_for_each(LT_Value callable, LT_Value list){
+    LT_List_for_each_many(callable, 1, &list);
+}
+
+LT_Value LT_List_any_many(LT_Value callable,
+                          size_t list_count,
+                          const LT_Value* lists){
+    LT_Value* cursors = list_cursors_new(list_count, lists);
+
+    while (1){
+        LT_ListBuilder* argument_builder = LT_ListBuilder_new();
+        LT_Value result;
+
+        if (!list_cursors_collect_arguments(
+                cursors,
+                list_count,
+                argument_builder,
+                "any"
+            )){
+            return LT_FALSE;
+        }
+
+        result = LT_apply(
+            callable,
+            LT_ListBuilder_value(argument_builder),
+            LT_NIL,
+            LT_NIL,
+            NULL
+        );
+        if (LT_Value_truthy_p(result)){
+            return LT_TRUE;
+        }
+    }
+}
+
+LT_Value LT_List_any(LT_Value callable, LT_Value list){
+    return LT_List_any_many(callable, 1, &list);
+}
+
+LT_Value LT_List_every_many(LT_Value callable,
+                            size_t list_count,
+                            const LT_Value* lists){
+    LT_Value* cursors = list_cursors_new(list_count, lists);
+
+    while (1){
+        LT_ListBuilder* argument_builder = LT_ListBuilder_new();
+        LT_Value result;
+
+        if (!list_cursors_collect_arguments(
+                cursors,
+                list_count,
+                argument_builder,
+                "every"
+            )){
+            return LT_TRUE;
+        }
+
+        result = LT_apply(
+            callable,
+            LT_ListBuilder_value(argument_builder),
+            LT_NIL,
+            LT_NIL,
+            NULL
+        );
+        if (!LT_Value_truthy_p(result)){
+            return LT_FALSE;
+        }
+    }
+}
+
+LT_Value LT_List_every(LT_Value callable, LT_Value list){
+    return LT_List_every_many(callable, 1, &list);
+}
+
 LT_DEFINE_PRIMITIVE(
     list_method_length,
     "List>>length",
@@ -161,9 +299,64 @@ LT_DEFINE_PRIMITIVE(
     return LT_List_map(callable, self);
 }
 
+LT_DEFINE_PRIMITIVE(
+    list_method_for_each,
+    "List>>for-each:",
+    "(self callable)",
+    "Apply callable to each element and return nil."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    LT_List_for_each(callable, self);
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    list_method_any,
+    "List>>any:",
+    "(self callable)",
+    "Return true when callable returns truthy for any element."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_List_any(callable, self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    list_method_every,
+    "List>>every:",
+    "(self callable)",
+    "Return true when callable returns truthy for every element."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_List_every(callable, self);
+}
+
 static LT_Method_Descriptor List_methods[] = {
     {"length", &list_method_length},
     {"map:", &list_method_map},
+    {"for-each:", &list_method_for_each},
+    {"any:", &list_method_any},
+    {"every:", &list_method_every},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

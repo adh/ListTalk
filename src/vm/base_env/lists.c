@@ -42,6 +42,36 @@ static bool value_eq_p(LT_Value left, LT_Value right){
     return left == right;
 }
 
+static size_t collect_list_arguments(LT_Value lists,
+                                     const char* primitive_name,
+                                     LT_Value** list_values_out){
+    LT_Value list_cursor = lists;
+    LT_Value* list_values;
+    size_t list_count = 0;
+
+    while (list_cursor != LT_NIL){
+        if (!LT_Pair_p(list_cursor)){
+            LT_error("Malformed argument list while iterating lists");
+        }
+        list_count++;
+        list_cursor = LT_cdr(list_cursor);
+    }
+
+    if (list_count == 0){
+        LT_error("%s expects at least one list", primitive_name);
+    }
+
+    list_values = GC_MALLOC(sizeof(LT_Value) * list_count);
+    list_cursor = lists;
+    for (size_t i = 0; i < list_count; i++){
+        list_values[i] = LT_car(list_cursor);
+        list_cursor = LT_cdr(list_cursor);
+    }
+
+    *list_values_out = list_values;
+    return list_count;
+}
+
 LT_DEFINE_PRIMITIVE(
     primitive_cons,
     "cons",
@@ -186,34 +216,73 @@ LT_DEFINE_PRIMITIVE(
     LT_Value cursor = arguments;
     LT_Value callable;
     LT_Value lists = LT_NIL;
-    LT_Value list_cursor;
     LT_Value* list_values;
-    size_t list_count = 0;
+    size_t list_count;
 
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_REST(cursor, lists);
 
-    list_cursor = lists;
-    while (list_cursor != LT_NIL){
-        if (!LT_Pair_p(list_cursor)){
-            LT_error("Malformed argument list while mapping lists");
-        }
-        list_count++;
-        list_cursor = LT_cdr(list_cursor);
-    }
-
-    if (list_count == 0){
-        LT_error("map expects at least one list");
-    }
-
-    list_values = GC_MALLOC(sizeof(LT_Value) * list_count);
-    list_cursor = lists;
-    for (size_t i = 0; i < list_count; i++){
-        list_values[i] = LT_car(list_cursor);
-        list_cursor = LT_cdr(list_cursor);
-    }
+    list_count = collect_list_arguments(lists, "map", &list_values);
 
     return LT_List_map_many(callable, list_count, list_values);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_for_each,
+    "for-each",
+    "(callable list list ...)",
+    "Apply callable for each element tuple, stopping at shortest list."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value lists = LT_NIL;
+    LT_Value* list_values;
+    size_t list_count;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_REST(cursor, lists);
+
+    list_count = collect_list_arguments(lists, "for-each", &list_values);
+    LT_List_for_each_many(callable, list_count, list_values);
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_any,
+    "any",
+    "(callable list list ...)",
+    "Return true when callable returns truthy for any element tuple."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value lists = LT_NIL;
+    LT_Value* list_values;
+    size_t list_count;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_REST(cursor, lists);
+
+    list_count = collect_list_arguments(lists, "any", &list_values);
+    return LT_List_any_many(callable, list_count, list_values);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_every,
+    "every",
+    "(callable list list ...)",
+    "Return true when callable returns truthy for every element tuple."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value lists = LT_NIL;
+    LT_Value* list_values;
+    size_t list_count;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_REST(cursor, lists);
+
+    list_count = collect_list_arguments(lists, "every", &list_values);
+    return LT_List_every_many(callable, list_count, list_values);
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -307,6 +376,9 @@ void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_list_p);
     LT_base_env_bind_static_primitive(environment, &primitive_append);
     LT_base_env_bind_static_primitive(environment, &primitive_map);
+    LT_base_env_bind_static_primitive(environment, &primitive_for_each);
+    LT_base_env_bind_static_primitive(environment, &primitive_any);
+    LT_base_env_bind_static_primitive(environment, &primitive_every);
     LT_base_env_bind_static_primitive(environment, &primitive_memq);
     LT_base_env_bind_static_primitive(environment, &primitive_assoc);
     LT_base_env_bind_static_primitive(environment, &primitive_assq);
