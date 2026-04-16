@@ -301,6 +301,86 @@ LT_DEFINE_PRIMITIVE(
     return LT_List_every_many(callable, list_count, list_values);
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_fold_left,
+    "fold-left",
+    "(callable initial list list ...)",
+    "Fold callable from the left across element tuples, stopping at shortest list."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value initial;
+    LT_Value lists = LT_NIL;
+    LT_Value* list_values;
+    size_t list_count;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_OBJECT_ARG(cursor, initial);
+    LT_ARG_REST(cursor, lists);
+
+    list_count = collect_list_arguments(lists, "fold-left", &list_values);
+    return LT_List_fold_left_many(callable, initial, list_count, list_values);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_fold_right,
+    "fold-right",
+    "(callable initial list list ...)",
+    "Fold callable from the right across element tuples, stopping at shortest list."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value initial;
+    LT_Value lists = LT_NIL;
+    LT_Value* list_values;
+    size_t list_count;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_OBJECT_ARG(cursor, initial);
+    LT_ARG_REST(cursor, lists);
+
+    list_count = collect_list_arguments(lists, "fold-right", &list_values);
+    return LT_List_fold_right_many(callable, initial, list_count, list_values);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_reduce_left,
+    "reduce-left",
+    "(callable list list ...)",
+    "Reduce callable from the left across element tuples, stopping at shortest list."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value lists = LT_NIL;
+    LT_Value* list_values;
+    size_t list_count;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_REST(cursor, lists);
+
+    list_count = collect_list_arguments(lists, "reduce-left", &list_values);
+    return LT_List_reduce_left_many(callable, list_count, list_values);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_reduce_right,
+    "reduce-right",
+    "(callable list list ...)",
+    "Reduce callable from the right across element tuples, stopping at shortest list."
+){
+    LT_Value cursor = arguments;
+    LT_Value callable;
+    LT_Value lists = LT_NIL;
+    LT_Value* list_values;
+    size_t list_count;
+
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_REST(cursor, lists);
+
+    list_count = collect_list_arguments(lists, "reduce-right", &list_values);
+    return LT_List_reduce_right_many(callable, list_count, list_values);
+}
+
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_memq,
     "memq",
@@ -396,6 +476,10 @@ void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_for_each);
     LT_base_env_bind_static_primitive(environment, &primitive_any);
     LT_base_env_bind_static_primitive(environment, &primitive_every);
+    LT_base_env_bind_static_primitive(environment, &primitive_fold_left);
+    LT_base_env_bind_static_primitive(environment, &primitive_fold_right);
+    LT_base_env_bind_static_primitive(environment, &primitive_reduce_left);
+    LT_base_env_bind_static_primitive(environment, &primitive_reduce_right);
     LT_base_env_bind_static_primitive(environment, &primitive_memq);
     LT_base_env_bind_static_primitive(environment, &primitive_assoc);
     LT_base_env_bind_static_primitive(environment, &primitive_assq);

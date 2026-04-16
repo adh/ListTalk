@@ -53,6 +53,32 @@ LT_Value LT_List_every_many(
     size_t list_count,
     const LT_Value* lists
 );
+LT_Value LT_List_fold_left(LT_Value callable, LT_Value initial, LT_Value list);
+LT_Value LT_List_fold_left_many(
+    LT_Value callable,
+    LT_Value initial,
+    size_t list_count,
+    const LT_Value* lists
+);
+LT_Value LT_List_fold_right(LT_Value callable, LT_Value initial, LT_Value list);
+LT_Value LT_List_fold_right_many(
+    LT_Value callable,
+    LT_Value initial,
+    size_t list_count,
+    const LT_Value* lists
+);
+LT_Value LT_List_reduce_left(LT_Value callable, LT_Value list);
+LT_Value LT_List_reduce_left_many(
+    LT_Value callable,
+    size_t list_count,
+    const LT_Value* lists
+);
+LT_Value LT_List_reduce_right(LT_Value callable, LT_Value list);
+LT_Value LT_List_reduce_right_many(
+    LT_Value callable,
+    size_t list_count,
+    const LT_Value* lists
+);
 
 static inline int LT_List_p(LT_Value value){
     return value == LT_NIL

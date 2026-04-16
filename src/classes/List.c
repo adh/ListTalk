@@ -188,6 +188,78 @@ static int list_cursors_collect_arguments(LT_Value* cursors,
     return 1;
 }
 
+static void append_list_arguments(LT_ListBuilder* builder, LT_Value arguments){
+    while (arguments != LT_NIL){
+        LT_ListBuilder_append(builder, LT_car(arguments));
+        arguments = LT_cdr(arguments);
+    }
+}
+
+static LT_Value apply_left_fold_callable(LT_Value callable,
+                                         LT_Value accumulator,
+                                         LT_Value arguments){
+    LT_ListBuilder* call_arguments = LT_ListBuilder_new();
+
+    LT_ListBuilder_append(call_arguments, accumulator);
+    append_list_arguments(call_arguments, arguments);
+    return LT_apply(
+        callable,
+        LT_ListBuilder_value(call_arguments),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
+static LT_Value apply_right_fold_callable(LT_Value callable,
+                                          LT_Value arguments,
+                                          LT_Value accumulator){
+    LT_ListBuilder* call_arguments = LT_ListBuilder_new();
+
+    append_list_arguments(call_arguments, arguments);
+    LT_ListBuilder_append(call_arguments, accumulator);
+    return LT_apply(
+        callable,
+        LT_ListBuilder_value(call_arguments),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
+static LT_Value tuple_seed(LT_Value tuple, size_t list_count){
+    if (list_count == 1){
+        return LT_car(tuple);
+    }
+    return tuple;
+}
+
+static LT_Value collect_tuple_stack(size_t list_count,
+                                    const LT_Value* lists,
+                                    const char* primitive_name,
+                                    size_t* tuple_count_out){
+    LT_Value* cursors = list_cursors_new(list_count, lists);
+    LT_Value stack = LT_NIL;
+    size_t tuple_count = 0;
+
+    while (1){
+        LT_ListBuilder* argument_builder = LT_ListBuilder_new();
+
+        if (!list_cursors_collect_arguments(
+                cursors,
+                list_count,
+                argument_builder,
+                primitive_name
+            )){
+            *tuple_count_out = tuple_count;
+            return stack;
+        }
+
+        stack = LT_cons(LT_ListBuilder_value(argument_builder), stack);
+        tuple_count++;
+    }
+}
+
 void LT_List_for_each_many(LT_Value callable,
                            size_t list_count,
                            const LT_Value* lists){
@@ -287,6 +359,125 @@ LT_Value LT_List_every_many(LT_Value callable,
 
 LT_Value LT_List_every(LT_Value callable, LT_Value list){
     return LT_List_every_many(callable, 1, &list);
+}
+
+LT_Value LT_List_fold_left_many(LT_Value callable,
+                                LT_Value initial,
+                                size_t list_count,
+                                const LT_Value* lists){
+    LT_Value* cursors = list_cursors_new(list_count, lists);
+    LT_Value accumulator = initial;
+
+    while (1){
+        LT_ListBuilder* argument_builder = LT_ListBuilder_new();
+
+        if (!list_cursors_collect_arguments(
+                cursors,
+                list_count,
+                argument_builder,
+                "fold-left"
+            )){
+            return accumulator;
+        }
+
+        accumulator = apply_left_fold_callable(
+            callable,
+            accumulator,
+            LT_ListBuilder_value(argument_builder)
+        );
+    }
+}
+
+LT_Value LT_List_fold_left(LT_Value callable, LT_Value initial, LT_Value list){
+    return LT_List_fold_left_many(callable, initial, 1, &list);
+}
+
+LT_Value LT_List_fold_right_many(LT_Value callable,
+                                 LT_Value initial,
+                                 size_t list_count,
+                                 const LT_Value* lists){
+    size_t tuple_count;
+    LT_Value stack = collect_tuple_stack(list_count, lists, "fold-right", &tuple_count);
+    LT_Value accumulator = initial;
+    (void)tuple_count;
+
+    while (stack != LT_NIL){
+        accumulator = apply_right_fold_callable(callable, LT_car(stack), accumulator);
+        stack = LT_cdr(stack);
+    }
+
+    return accumulator;
+}
+
+LT_Value LT_List_fold_right(LT_Value callable, LT_Value initial, LT_Value list){
+    return LT_List_fold_right_many(callable, initial, 1, &list);
+}
+
+LT_Value LT_List_reduce_left_many(LT_Value callable,
+                                  size_t list_count,
+                                  const LT_Value* lists){
+    LT_Value* cursors = list_cursors_new(list_count, lists);
+    LT_ListBuilder* argument_builder = LT_ListBuilder_new();
+    LT_Value accumulator;
+
+    if (!list_cursors_collect_arguments(
+            cursors,
+            list_count,
+            argument_builder,
+            "reduce-left"
+        )){
+        LT_error("reduce-left expects at least one element tuple");
+    }
+
+    accumulator = tuple_seed(LT_ListBuilder_value(argument_builder), list_count);
+
+    while (1){
+        argument_builder = LT_ListBuilder_new();
+        if (!list_cursors_collect_arguments(
+                cursors,
+                list_count,
+                argument_builder,
+                "reduce-left"
+            )){
+            return accumulator;
+        }
+
+        accumulator = apply_left_fold_callable(
+            callable,
+            accumulator,
+            LT_ListBuilder_value(argument_builder)
+        );
+    }
+}
+
+LT_Value LT_List_reduce_left(LT_Value callable, LT_Value list){
+    return LT_List_reduce_left_many(callable, 1, &list);
+}
+
+LT_Value LT_List_reduce_right_many(LT_Value callable,
+                                   size_t list_count,
+                                   const LT_Value* lists){
+    size_t tuple_count;
+    LT_Value stack = collect_tuple_stack(list_count, lists, "reduce-right", &tuple_count);
+    LT_Value accumulator;
+
+    if (tuple_count == 0){
+        LT_error("reduce-right expects at least one element tuple");
+    }
+
+    accumulator = tuple_seed(LT_car(stack), list_count);
+    stack = LT_cdr(stack);
+
+    while (stack != LT_NIL){
+        accumulator = apply_right_fold_callable(callable, LT_car(stack), accumulator);
+        stack = LT_cdr(stack);
+    }
+
+    return accumulator;
+}
+
+LT_Value LT_List_reduce_right(LT_Value callable, LT_Value list){
+    return LT_List_reduce_right_many(callable, 1, &list);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -396,6 +587,42 @@ LT_DEFINE_PRIMITIVE(
     return LT_List_every(callable, self);
 }
 
+LT_DEFINE_PRIMITIVE(
+    list_method_reduce,
+    "List>>reduce:",
+    "(self callable)",
+    "Reduce list from the left with callable."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_List_reduce_left(callable, self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    list_method_inject_into,
+    "List>>inject:into:",
+    "(self initial callable)",
+    "Fold list from the left with initial value and callable."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value initial;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, initial);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_List_fold_left(callable, initial, self);
+}
+
 static LT_Method_Descriptor List_methods[] = {
     {"length", &list_method_length},
     {"at:", &list_method_at},
@@ -403,6 +630,8 @@ static LT_Method_Descriptor List_methods[] = {
     {"for-each:", &list_method_for_each},
     {"any:", &list_method_any},
     {"every:", &list_method_every},
+    {"reduce:", &list_method_reduce},
+    {"inject:into:", &list_method_inject_into},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
