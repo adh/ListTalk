@@ -173,6 +173,22 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_list_ref,
+    "list-ref",
+    "(list index)",
+    "Return list item at index."
+){
+    LT_Value cursor = arguments;
+    LT_Value list;
+    int64_t index_value;
+
+    LT_OBJECT_ARG(cursor, list);
+    LT_FIXNUM_ARG(cursor, index_value);
+    LT_ARG_END(cursor);
+    return LT_List_at(list, checked_nonnegative_from_fixnum(index_value));
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_append,
     "append",
     "(list ...)",
@@ -374,6 +390,7 @@ void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_pair_p);
     LT_base_env_bind_static_primitive(environment, &primitive_list);
     LT_base_env_bind_static_primitive(environment, &primitive_list_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_list_ref);
     LT_base_env_bind_static_primitive(environment, &primitive_append);
     LT_base_env_bind_static_primitive(environment, &primitive_map);
     LT_base_env_bind_static_primitive(environment, &primitive_for_each);

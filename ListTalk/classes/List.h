@@ -28,6 +28,7 @@ typedef struct LT_MutablePair_s {
 size_t LT_List_hash(LT_Value value);
 int LT_List_equal_p(LT_Value left, LT_Value right);
 void LT_List_debugPrintOn(LT_Value value, FILE* stream);
+LT_Value LT_List_at(LT_Value list, size_t index);
 LT_Value LT_List_map(LT_Value callable, LT_Value list);
 LT_Value LT_List_map_many(
     LT_Value callable,

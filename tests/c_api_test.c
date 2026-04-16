@@ -649,6 +649,16 @@ static int test_list_map_single_c_api(void){
     );
 }
 
+static int test_list_at_c_api(void){
+    LT_Value list = eval_one("'(1 2 3)");
+    LT_Value value = LT_List_at(list, 1);
+
+    return expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
+        "LT_List_at returns indexed item"
+    );
+}
+
 static int test_list_map_many_c_api(void){
     LT_Value lists[] = {
         LT_cons(
@@ -1874,6 +1884,7 @@ int main(void){
     RUN_TEST(test_source_location_class);
     RUN_TEST(test_immutable_list_trailer_values);
     RUN_TEST(test_immutable_list_missing_trailer_values_are_nil);
+    RUN_TEST(test_list_at_c_api);
     RUN_TEST(test_list_map_single_c_api);
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_list_for_each_c_api);

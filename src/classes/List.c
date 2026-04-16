@@ -27,6 +27,16 @@ static size_t list_length(LT_Value value){
     return length;
 }
 
+static size_t list_index_from_fixnum(int64_t value){
+    if (value < 0){
+        LT_error("Negative index");
+    }
+    if (!LT_SmallInteger_in_range((int64_t)(size_t)value)){
+        LT_error("Index out of supported range");
+    }
+    return (size_t)value;
+}
+
 size_t LT_List_hash(LT_Value value){
     size_t hash = 0;
 
@@ -75,6 +85,24 @@ void LT_List_debugPrintOn(LT_Value value, FILE* stream){
         break;
     }
     fputc(')', stream);
+}
+
+LT_Value LT_List_at(LT_Value list, size_t index){
+    size_t current = 0;
+
+    while (LT_Pair_p(list)){
+        if (current == index){
+            return LT_car(list);
+        }
+        current++;
+        list = LT_cdr(list);
+    }
+
+    if (list != LT_NIL){
+        LT_error("List index requires proper list");
+    }
+    LT_error("List index out of bounds");
+    return LT_NIL;
 }
 
 LT_Value LT_List_map_many(LT_Value callable,
@@ -283,6 +311,23 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    list_method_at,
+    "List>>at:",
+    "(self index)",
+    "Return list item at index."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    int64_t index_value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_FIXNUM_ARG(cursor, index_value);
+    LT_ARG_END(cursor);
+    return LT_List_at(self, list_index_from_fixnum(index_value));
+}
+
+LT_DEFINE_PRIMITIVE(
     list_method_map,
     "List>>map:",
     "(self callable)",
@@ -353,6 +398,7 @@ LT_DEFINE_PRIMITIVE(
 
 static LT_Method_Descriptor List_methods[] = {
     {"length", &list_method_length},
+    {"at:", &list_method_at},
     {"map:", &list_method_map},
     {"for-each:", &list_method_for_each},
     {"any:", &list_method_any},

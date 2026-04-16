@@ -167,6 +167,7 @@
 
 (check (= ['(1 2 3) length] 3) "List>>length")
 (check (= ['() length] 0) "Nil as empty List>>length")
+(check (= ['(1 2 3) at: 1] 2) "List>>at: dispatches correctly")
 (check (= ["hello" length] 5) "String>>length")
 (check (eq? ["hello" at: 1] (string-ref "hello" 1)) "String>>at: dispatches correctly")
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
@@ -285,6 +286,10 @@
 (check (equal? (assq 'b '((a . 1) (b . 2))) '(b . 2)) "assq matches by identity")
 (check (not (assq (string-append "a" "") '(("a" . 1)))) "assq returns false on identity miss")
 (check (equal? (assv 1.0 '((1 . 9))) '(1 . 9)) "assv matches numerically equivalent keys")
+(check (= (list-ref '(4 5 6) 1) 5) "list-ref returns item at index")
+(check-error-message "List index out of bounds"
+                     "list-ref signals out of bounds"
+  (list-ref '(4 5 6) 3))
 (check (= (caar '((1 . 2) . 3)) 1) "caar")
 (check (= (cadr '(1 2 3)) 2) "cadr")
 (check (= (caddr '(1 2 3 4)) 3) "caddr")
