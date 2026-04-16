@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -25,6 +26,13 @@ static int expect(int condition, const char* message){
         return fail(message);
     }
     return 0;
+}
+
+static int expect_near_double(double actual,
+                              double expected,
+                              double epsilon,
+                              const char* message){
+    return expect(fabs(actual - expected) <= epsilon, message);
 }
 
 static LT_Value read_one(const char* source){
@@ -1829,6 +1837,65 @@ static int test_value_is_instance_of_uses_precedence_list(void){
     );
 }
 
+static int expect_complex_value_near(const char* expression,
+                                     double expected_real,
+                                     double expected_imaginary,
+                                     const char* description){
+    LT_Value value = eval_one(expression);
+    double actual_real;
+    double actual_imaginary;
+
+    if (LT_InexactComplexNumber_p(value)){
+        actual_real = LT_InexactComplexNumber_real(value);
+        actual_imaginary = LT_InexactComplexNumber_imaginary(value);
+    } else if (LT_Float_p(value)){
+        actual_real = LT_Float_value(value);
+        actual_imaginary = 0.0;
+    } else {
+        return fail(description);
+    }
+
+    if (expect_near_double(actual_real, expected_real, 1e-12, description)){
+        return 1;
+    }
+    return expect_near_double(actual_imaginary, expected_imaginary, 1e-12, description);
+}
+
+static int test_complex_transcendentals(void){
+    double pi = acos(-1.0);
+
+    if (expect_complex_value_near(
+        "(sin 1+1i)",
+        sin(1.0) * cosh(1.0),
+        cos(1.0) * sinh(1.0),
+        "sin computes complex result"
+    )){
+        return 1;
+    }
+    if (expect_complex_value_near(
+        "(log -1)",
+        0.0,
+        pi,
+        "log negative real returns principal complex logarithm"
+    )){
+        return 1;
+    }
+    if (expect_complex_value_near(
+        "(expt -1 1/2)",
+        0.0,
+        1.0,
+        "expt negative base with fractional exponent returns complex result"
+    )){
+        return 1;
+    }
+    return expect_complex_value_near(
+        "(expt 2 1+1i)",
+        2.0 * cos(log(2.0)),
+        2.0 * sin(log(2.0)),
+        "expt accepts complex exponent"
+    );
+}
+
 static int test_boolean_constants(void){
     if (expect(LT_Value_is_boolean(LT_TRUE), "LT_TRUE is boolean")){
         return 1;
@@ -1919,6 +1986,7 @@ int main(void){
     RUN_TEST(test_symbol_package_slot_is_readonly);
     RUN_TEST(test_precedence_list_initialized);
     RUN_TEST(test_value_is_instance_of_uses_precedence_list);
+    RUN_TEST(test_complex_transcendentals);
     RUN_TEST(test_boolean_constants);
     RUN_TEST(test_character_api_uses_unicode_codepoints);
 

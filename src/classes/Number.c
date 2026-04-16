@@ -295,6 +295,26 @@ static LT_Value make_complex_from_values(LT_Value real, LT_Value imaginary){
     return make_inexact_complex(LT_Number_to_double(real), LT_Number_to_double(imaginary));
 }
 
+static void complex_number_to_doubles(LT_Value value, double* real, double* imaginary){
+    if (value_is_exact_complex(value)){
+        *real = LT_Number_to_double(LT_ExactComplexNumber_real(value));
+        *imaginary = LT_Number_to_double(LT_ExactComplexNumber_imaginary(value));
+        return;
+    }
+    if (value_is_inexact_complex(value)){
+        *real = LT_InexactComplexNumber_real(value);
+        *imaginary = LT_InexactComplexNumber_imaginary(value);
+        return;
+    }
+    if (value_is_real_number(value)){
+        *real = LT_Number_to_double(value);
+        *imaginary = 0.0;
+        return;
+    }
+
+    LT_type_error(value, &LT_ComplexNumber_class);
+}
+
 static LT_Value checked_exact_add(LT_Value left, LT_Value right){
     LT_ExactRational lhs;
     LT_ExactRational rhs;
@@ -409,13 +429,6 @@ static LT_Value value_to_exact_integer(LT_Value value, int* ok){
 
     *ok = 1;
     return rational.numerator;
-}
-
-static LT_Value require_real_number(LT_Value value){
-    if (!value_is_real_number(value)){
-        LT_type_error(value, &LT_RealNumber_class);
-    }
-    return value;
 }
 
 static LT_Value real_math_result(double value){
@@ -1183,28 +1196,76 @@ LT_Value LT_Number_negate(LT_Value value){
 }
 
 LT_Value LT_Number_sin(LT_Value value){
-    require_real_number(value);
-    return real_math_result(sin(LT_Number_to_double(value)));
+    double real;
+    double imaginary;
+
+    if (value_is_real_number(value)){
+        return real_math_result(sin(LT_Number_to_double(value)));
+    }
+
+    complex_number_to_doubles(value, &real, &imaginary);
+    return make_inexact_complex(
+        sin(real) * cosh(imaginary),
+        cos(real) * sinh(imaginary)
+    );
 }
 
 LT_Value LT_Number_cos(LT_Value value){
-    require_real_number(value);
-    return real_math_result(cos(LT_Number_to_double(value)));
+    double real;
+    double imaginary;
+
+    if (value_is_real_number(value)){
+        return real_math_result(cos(LT_Number_to_double(value)));
+    }
+
+    complex_number_to_doubles(value, &real, &imaginary);
+    return make_inexact_complex(
+        cos(real) * cosh(imaginary),
+        -sin(real) * sinh(imaginary)
+    );
 }
 
 LT_Value LT_Number_tan(LT_Value value){
-    require_real_number(value);
-    return real_math_result(tan(LT_Number_to_double(value)));
+    if (value_is_real_number(value)){
+        return real_math_result(tan(LT_Number_to_double(value)));
+    }
+
+    return LT_Number_divide2(LT_Number_sin(value), LT_Number_cos(value));
 }
 
 LT_Value LT_Number_log(LT_Value value){
-    require_real_number(value);
-    return real_math_result(log(LT_Number_to_double(value)));
+    double real;
+    double imaginary;
+
+    if (value_is_real_number(value)){
+        double number = LT_Number_to_double(value);
+
+        if (number >= 0.0){
+            return real_math_result(log(number));
+        }
+        return make_inexact_complex(log(-number), atan2(0.0, number));
+    }
+
+    complex_number_to_doubles(value, &real, &imaginary);
+    return make_inexact_complex(
+        log(hypot(real, imaginary)),
+        atan2(imaginary, real)
+    );
 }
 
 LT_Value LT_Number_exp(LT_Value value){
-    require_real_number(value);
-    return real_math_result(exp(LT_Number_to_double(value)));
+    double real;
+    double imaginary;
+
+    if (value_is_real_number(value)){
+        return real_math_result(exp(LT_Number_to_double(value)));
+    }
+
+    complex_number_to_doubles(value, &real, &imaginary);
+    return make_inexact_complex(
+        exp(real) * cos(imaginary),
+        exp(real) * sin(imaginary)
+    );
 }
 
 LT_Value LT_Number_expt(LT_Value base, LT_Value exponent){
@@ -1215,14 +1276,20 @@ LT_Value LT_Number_expt(LT_Value base, LT_Value exponent){
         return number_integer_power(base, exponent_integer);
     }
 
-    require_real_number(base);
-    require_real_number(exponent);
-
-    if (exponent_is_exact_integer){
-        return number_integer_power(base, exponent_integer);
+    if (!value_is_complex_number(base)){
+        LT_type_error(base, &LT_ComplexNumber_class);
+    }
+    if (!value_is_complex_number(exponent)){
+        LT_type_error(exponent, &LT_ComplexNumber_class);
     }
 
-    return real_math_result(
-        pow(LT_Number_to_double(base), LT_Number_to_double(exponent))
-    );
+    if (value_is_real_number(base) && value_is_real_number(exponent)){
+        double base_value = LT_Number_to_double(base);
+
+        if (base_value >= 0.0){
+            return real_math_result(pow(base_value, LT_Number_to_double(exponent)));
+        }
+    }
+
+    return LT_Number_exp(LT_Number_multiply2(exponent, LT_Number_log(base)));
 }
