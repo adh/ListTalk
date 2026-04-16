@@ -123,3 +123,12 @@
               ,(expand (cdr remaining)))
             (gensym))))
     (expand symbols)))
+
+(define-macro (ListTalk:when condition . body)
+  `(if ,condition
+       (begin ,@body)))
+
+(define-macro (ListTalk:unless condition . body)
+  `(if ,condition
+       #nil
+       (begin ,@body)))

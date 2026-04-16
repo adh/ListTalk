@@ -1,4 +1,5 @@
-; SPDX-License-Identifier: MIT -*- mode: scheme -*-
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
 ; Copyright (c) 2023 - 2026 Ales Hakl
 
 (load! :os)
@@ -511,6 +512,13 @@
 (define set-y 1)
 ((lambda () (set! set-y 9)))
 (check (= set-y 9) "set! updates lexical parent binding")
+
+;;; when and unless
+
+(check (= (when #true 7) 7) "when with true condition evaluates body")
+(check (eq? (when #false 7) '()) "when with false condition returns nil")
+(check (= (unless #false 7) 7) "unless with false condition evaluates body")
+(check (eq? (unless #true 7) '()) "unless with true condition returns nil")
 
 ;;; define-class and define-method
 
