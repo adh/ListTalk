@@ -421,6 +421,91 @@ static LT_Value checked_exact_abs(LT_Value value){
     return checked_exact_negate(value);
 }
 
+static LT_Value integer_add1(LT_Value value){
+    return LT_Integer_add(value, LT_SmallInteger_new(1));
+}
+
+static LT_Value integer_subtract1(LT_Value value){
+    return LT_Integer_subtract(value, LT_SmallInteger_new(1));
+}
+
+static int exact_rational_divmod(LT_Value value,
+                                 LT_Value* quotient,
+                                 LT_Value* remainder,
+                                 LT_Value* denominator){
+    LT_ExactRational rational = exact_rational_from_value(value);
+
+    *denominator = rational.denominator;
+    LT_Integer_divmod(rational.numerator, rational.denominator, quotient, remainder);
+    return !LT_Integer_is_zero(*remainder);
+}
+
+static LT_Value double_to_integer(double value){
+    if (!isfinite(value)){
+        LT_error("Cannot convert non-finite float to integer");
+    }
+    return LT_BigInteger_new_from_digits(LT_sprintf("%.0f", value), 10);
+}
+
+static LT_Value checked_exact_floor(LT_Value value){
+    LT_Value quotient;
+    LT_Value remainder;
+    LT_Value denominator;
+
+    if (!exact_rational_divmod(value, &quotient, &remainder, &denominator)){
+        return quotient;
+    }
+
+    (void)denominator;
+    return LT_Integer_negative_p(remainder) ? integer_subtract1(quotient) : quotient;
+}
+
+static LT_Value checked_exact_truncate(LT_Value value){
+    LT_Value quotient;
+    LT_Value remainder;
+    LT_Value denominator;
+
+    exact_rational_divmod(value, &quotient, &remainder, &denominator);
+    (void)remainder;
+    (void)denominator;
+    return quotient;
+}
+
+static LT_Value checked_exact_ceiling(LT_Value value){
+    LT_Value quotient;
+    LT_Value remainder;
+    LT_Value denominator;
+
+    if (!exact_rational_divmod(value, &quotient, &remainder, &denominator)){
+        return quotient;
+    }
+
+    (void)denominator;
+    return LT_Integer_negative_p(remainder) ? quotient : integer_add1(quotient);
+}
+
+static LT_Value checked_exact_round(LT_Value value){
+    LT_Value quotient;
+    LT_Value remainder;
+    LT_Value denominator;
+    LT_Value twice_remainder_abs;
+
+    if (!exact_rational_divmod(value, &quotient, &remainder, &denominator)){
+        return quotient;
+    }
+
+    twice_remainder_abs = LT_Integer_multiply(
+        LT_Integer_abs(remainder),
+        LT_SmallInteger_new(2)
+    );
+    if (LT_Integer_compare(twice_remainder_abs, denominator) < 0){
+        return quotient;
+    }
+    return LT_Integer_negative_p(remainder)
+        ? integer_subtract1(quotient)
+        : integer_add1(quotient);
+}
+
 static LT_Value value_to_exact_integer(LT_Value value, int* ok){
     LT_ExactRational rational;
 
@@ -701,6 +786,70 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_floor,
+    "Number>>floor",
+    "(self)",
+    "Return greatest integer not greater than receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_floor(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_truncate,
+    "Number>>truncate",
+    "(self)",
+    "Return receiver truncated toward zero as an integer.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_truncate(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_ceiling,
+    "Number>>ceiling",
+    "(self)",
+    "Return least integer not less than receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_ceiling(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_round,
+    "Number>>round",
+    "(self)",
+    "Return nearest integer to receiver, rounding halfway values away from zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_round(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     number_method_sin,
     "Number>>sin",
     "(self)",
@@ -879,6 +1028,10 @@ static LT_Method_Descriptor Number_methods[] = {
     {"/",  &number_method_divide},
     {"abs", &number_method_abs},
     {"phase", &number_method_phase},
+    {"floor", &number_method_floor},
+    {"truncate", &number_method_truncate},
+    {"ceiling", &number_method_ceiling},
+    {"round", &number_method_round},
     {"sin", &number_method_sin},
     {"cos", &number_method_cos},
     {"tan", &number_method_tan},
@@ -1262,6 +1415,54 @@ LT_Value LT_Number_phase(LT_Value value){
 
     complex_number_to_doubles(value, &real, &imaginary);
     return real_math_result(atan2(imaginary, real));
+}
+
+LT_Value LT_Number_floor(LT_Value value){
+    if (value_is_exact_number(value)){
+        return checked_exact_floor(value);
+    }
+    if (LT_Float_p(value)){
+        return double_to_integer(floor(LT_Float_value(value)));
+    }
+
+    LT_type_error(value, &LT_RealNumber_class);
+    return LT_NIL;
+}
+
+LT_Value LT_Number_truncate(LT_Value value){
+    if (value_is_exact_number(value)){
+        return checked_exact_truncate(value);
+    }
+    if (LT_Float_p(value)){
+        return double_to_integer(trunc(LT_Float_value(value)));
+    }
+
+    LT_type_error(value, &LT_RealNumber_class);
+    return LT_NIL;
+}
+
+LT_Value LT_Number_ceiling(LT_Value value){
+    if (value_is_exact_number(value)){
+        return checked_exact_ceiling(value);
+    }
+    if (LT_Float_p(value)){
+        return double_to_integer(ceil(LT_Float_value(value)));
+    }
+
+    LT_type_error(value, &LT_RealNumber_class);
+    return LT_NIL;
+}
+
+LT_Value LT_Number_round(LT_Value value){
+    if (value_is_exact_number(value)){
+        return checked_exact_round(value);
+    }
+    if (LT_Float_p(value)){
+        return double_to_integer(round(LT_Float_value(value)));
+    }
+
+    LT_type_error(value, &LT_RealNumber_class);
+    return LT_NIL;
 }
 
 LT_Value LT_Number_sin(LT_Value value){

@@ -241,6 +241,66 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_floor,
+    "floor",
+    "(x)",
+    "Return greatest integer not greater than a real number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_floor(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_truncate,
+    "truncate",
+    "(x)",
+    "Return a real number truncated toward zero as an integer.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_truncate(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_ceiling,
+    "ceiling",
+    "(x)",
+    "Return least integer not less than a real number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_ceiling(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_round,
+    "round",
+    "(x)",
+    "Return nearest integer to a real number, rounding halfway values away from zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_round(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_sin,
     "sin",
     "(x)",
@@ -341,6 +401,10 @@ void LT_base_env_bind_numbers(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_greater_than_or_equal);
     LT_base_env_bind_static_primitive(environment, &primitive_abs);
     LT_base_env_bind_static_primitive(environment, &primitive_phase);
+    LT_base_env_bind_static_primitive(environment, &primitive_floor);
+    LT_base_env_bind_static_primitive(environment, &primitive_truncate);
+    LT_base_env_bind_static_primitive(environment, &primitive_ceiling);
+    LT_base_env_bind_static_primitive(environment, &primitive_round);
     LT_base_env_bind_static_primitive(environment, &primitive_sin);
     LT_base_env_bind_static_primitive(environment, &primitive_cos);
     LT_base_env_bind_static_primitive(environment, &primitive_tan);
