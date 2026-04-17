@@ -850,6 +850,106 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_sqrt,
+    "Number>>sqrt",
+    "(self)",
+    "Return principal square root of receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_sqrt(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_min_colon,
+    "Number>>min:",
+    "(self other)",
+    "Return smaller of receiver and argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Number_min2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_max_colon,
+    "Number>>max:",
+    "(self other)",
+    "Return larger of receiver and argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_Number_max2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_zero_p,
+    "Number>>zero?",
+    "(self)",
+    "Return true when receiver is numerically zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_zero_p(self) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_positive_p,
+    "Number>>positive?",
+    "(self)",
+    "Return true when receiver is greater than zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_positive_p(self) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_negative_p,
+    "Number>>negative?",
+    "(self)",
+    "Return true when receiver is less than zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_negative_p(self) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     number_method_sin,
     "Number>>sin",
     "(self)",
@@ -1032,6 +1132,12 @@ static LT_Method_Descriptor Number_methods[] = {
     {"truncate", &number_method_truncate},
     {"ceiling", &number_method_ceiling},
     {"round", &number_method_round},
+    {"sqrt", &number_method_sqrt},
+    {"min:", &number_method_min_colon},
+    {"max:", &number_method_max_colon},
+    {"zero?", &number_method_zero_p},
+    {"positive?", &number_method_positive_p},
+    {"negative?", &number_method_negative_p},
     {"sin", &number_method_sin},
     {"cos", &number_method_cos},
     {"tan", &number_method_tan},
@@ -1463,6 +1569,56 @@ LT_Value LT_Number_round(LT_Value value){
 
     LT_type_error(value, &LT_RealNumber_class);
     return LT_NIL;
+}
+
+LT_Value LT_Number_sqrt(LT_Value value){
+    double real;
+    double imaginary;
+    double magnitude;
+    double result_real;
+    double result_imaginary;
+
+    if (value_is_real_number(value)){
+        double number = LT_Number_to_double(value);
+
+        if (number >= 0.0){
+            return real_math_result(sqrt(number));
+        }
+        return make_inexact_complex(0.0, sqrt(-number));
+    }
+
+    complex_number_to_doubles(value, &real, &imaginary);
+    magnitude = hypot(real, imaginary);
+    result_real = sqrt((magnitude + real) / 2.0);
+    result_imaginary = sqrt((magnitude - real) / 2.0);
+
+    if (imaginary < 0.0){
+        result_imaginary = -result_imaginary;
+    }
+    return make_inexact_complex(result_real, result_imaginary);
+}
+
+LT_Value LT_Number_min2(LT_Value left, LT_Value right){
+    return compare_real_numbers(left, right) <= 0 ? left : right;
+}
+
+LT_Value LT_Number_max2(LT_Value left, LT_Value right){
+    return compare_real_numbers(left, right) >= 0 ? left : right;
+}
+
+bool LT_Number_zero_p(LT_Value value){
+    if (!value_is_complex_number(value)){
+        LT_type_error(value, &LT_Number_class);
+    }
+    return LT_Number_equal_p(value, LT_SmallInteger_new(0));
+}
+
+bool LT_Number_positive_p(LT_Value value){
+    return compare_real_numbers(value, LT_SmallInteger_new(0)) > 0;
+}
+
+bool LT_Number_negative_p(LT_Value value){
+    return compare_real_numbers(value, LT_SmallInteger_new(0)) < 0;
 }
 
 LT_Value LT_Number_sin(LT_Value value){

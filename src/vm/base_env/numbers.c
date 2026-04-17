@@ -8,9 +8,17 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/ComplexNumber.h>
+#include <ListTalk/classes/RealNumber.h>
+#include <ListTalk/classes/RationalNumber.h>
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Float.h>
 
 #include <math.h>
+
+static LT_Value class_predicate(LT_Value value, LT_Value class_value){
+    return LT_Value_is_instance_of(value, class_value) ? LT_TRUE : LT_FALSE;
+}
 
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_add,
@@ -211,6 +219,111 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_complex_p,
+    "complex?",
+    "(value)",
+    "Return true when value is a complex number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return class_predicate(value, LT_STATIC_CLASS(LT_ComplexNumber));
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_real_p,
+    "real?",
+    "(value)",
+    "Return true when value is a real number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return class_predicate(value, LT_STATIC_CLASS(LT_RealNumber));
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_rational_p,
+    "rational?",
+    "(value)",
+    "Return true when value is a rational number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return class_predicate(value, LT_STATIC_CLASS(LT_RationalNumber));
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_integer_p,
+    "integer?",
+    "(value)",
+    "Return true when value is an integer.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return class_predicate(value, LT_STATIC_CLASS(LT_Integer));
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_zero_p,
+    "zero?",
+    "(value)",
+    "Return true when value is numerically zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_zero_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_positive_p,
+    "positive?",
+    "(value)",
+    "Return true when value is greater than zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_positive_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_negative_p,
+    "negative?",
+    "(value)",
+    "Return true when value is less than zero.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_negative_p(value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_abs,
     "abs",
     "(x)",
@@ -238,6 +351,46 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
     return LT_Number_phase(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_min,
+    "min",
+    "(n [n ...])",
+    "Return smallest real numeric argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value result;
+
+    LT_OBJECT_ARG(cursor, result);
+    while (cursor != LT_NIL){
+        LT_Value operand;
+        LT_OBJECT_ARG(cursor, operand);
+        result = LT_Number_min2(result, operand);
+    }
+
+    return result;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_max,
+    "max",
+    "(n [n ...])",
+    "Return largest real numeric argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value result;
+
+    LT_OBJECT_ARG(cursor, result);
+    while (cursor != LT_NIL){
+        LT_Value operand;
+        LT_OBJECT_ARG(cursor, operand);
+        result = LT_Number_max2(result, operand);
+    }
+
+    return result;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -298,6 +451,21 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
     return LT_Number_round(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_sqrt,
+    "sqrt",
+    "(x)",
+    "Return principal square root of a number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_sqrt(value);
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -399,12 +567,22 @@ void LT_base_env_bind_numbers(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_greater_than);
     LT_base_env_bind_static_primitive(environment, &primitive_less_than_or_equal);
     LT_base_env_bind_static_primitive(environment, &primitive_greater_than_or_equal);
+    LT_base_env_bind_static_primitive(environment, &primitive_complex_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_real_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_rational_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_integer_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_zero_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_positive_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_negative_p);
     LT_base_env_bind_static_primitive(environment, &primitive_abs);
     LT_base_env_bind_static_primitive(environment, &primitive_phase);
+    LT_base_env_bind_static_primitive(environment, &primitive_min);
+    LT_base_env_bind_static_primitive(environment, &primitive_max);
     LT_base_env_bind_static_primitive(environment, &primitive_floor);
     LT_base_env_bind_static_primitive(environment, &primitive_truncate);
     LT_base_env_bind_static_primitive(environment, &primitive_ceiling);
     LT_base_env_bind_static_primitive(environment, &primitive_round);
+    LT_base_env_bind_static_primitive(environment, &primitive_sqrt);
     LT_base_env_bind_static_primitive(environment, &primitive_sin);
     LT_base_env_bind_static_primitive(environment, &primitive_cos);
     LT_base_env_bind_static_primitive(environment, &primitive_tan);

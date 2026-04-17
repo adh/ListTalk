@@ -269,7 +269,9 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return (LT_Value_is_fixnum(value) || LT_Float_p(value)) ? LT_TRUE : LT_FALSE;
+    return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Number))
+        ? LT_TRUE
+        : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
