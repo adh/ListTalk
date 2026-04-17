@@ -26,6 +26,8 @@ LT_Value LT_Number_subtract2(LT_Value left, LT_Value right);
 LT_Value LT_Number_multiply2(LT_Value left, LT_Value right);
 LT_Value LT_Number_divide2(LT_Value left, LT_Value right);
 LT_Value LT_Number_negate(LT_Value value);
+LT_Value LT_Number_abs(LT_Value value);
+LT_Value LT_Number_phase(LT_Value value);
 LT_Value LT_Number_sin(LT_Value value);
 LT_Value LT_Number_cos(LT_Value value);
 LT_Value LT_Number_tan(LT_Value value);

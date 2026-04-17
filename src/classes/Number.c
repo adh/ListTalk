@@ -414,6 +414,13 @@ static LT_Value checked_exact_negate(LT_Value value){
     return make_fraction(LT_Integer_negate(rational.numerator), rational.denominator);
 }
 
+static LT_Value checked_exact_abs(LT_Value value){
+    if (exact_real_nonnegative_p(value)){
+        return value;
+    }
+    return checked_exact_negate(value);
+}
+
 static LT_Value value_to_exact_integer(LT_Value value, int* ok){
     LT_ExactRational rational;
 
@@ -662,6 +669,38 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_abs,
+    "Number>>abs",
+    "(self)",
+    "Return receiver's magnitude.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_abs(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_phase,
+    "Number>>phase",
+    "(self)",
+    "Return receiver's principal phase angle.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_phase(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     number_method_sin,
     "Number>>sin",
     "(self)",
@@ -838,6 +877,8 @@ static LT_Method_Descriptor Number_methods[] = {
     {"-",  &number_method_subtract},
     {"*",  &number_method_multiply},
     {"/",  &number_method_divide},
+    {"abs", &number_method_abs},
+    {"phase", &number_method_phase},
     {"sin", &number_method_sin},
     {"cos", &number_method_cos},
     {"tan", &number_method_tan},
@@ -1193,6 +1234,34 @@ LT_Value LT_Number_negate(LT_Value value){
 
     LT_type_error(value, &LT_Number_class);
     return LT_NIL;
+}
+
+LT_Value LT_Number_abs(LT_Value value){
+    double real;
+    double imaginary;
+
+    if (value_is_exact_number(value)){
+        return checked_exact_abs(value);
+    }
+    if (LT_Float_p(value)){
+        return real_math_result(fabs(LT_Float_value(value)));
+    }
+
+    complex_number_to_doubles(value, &real, &imaginary);
+    return real_math_result(hypot(real, imaginary));
+}
+
+LT_Value LT_Number_phase(LT_Value value){
+    double real;
+    double imaginary;
+
+    if (value_is_real_number(value)){
+        real = LT_Number_to_double(value);
+        return real_math_result(atan2(0.0, real));
+    }
+
+    complex_number_to_doubles(value, &real, &imaginary);
+    return real_math_result(atan2(imaginary, real));
 }
 
 LT_Value LT_Number_sin(LT_Value value){

@@ -211,6 +211,36 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_abs,
+    "abs",
+    "(x)",
+    "Return magnitude of a number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_abs(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_phase,
+    "phase",
+    "(x)",
+    "Return principal phase angle of a number.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_phase(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_sin,
     "sin",
     "(x)",
@@ -309,6 +339,8 @@ void LT_base_env_bind_numbers(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_greater_than);
     LT_base_env_bind_static_primitive(environment, &primitive_less_than_or_equal);
     LT_base_env_bind_static_primitive(environment, &primitive_greater_than_or_equal);
+    LT_base_env_bind_static_primitive(environment, &primitive_abs);
+    LT_base_env_bind_static_primitive(environment, &primitive_phase);
     LT_base_env_bind_static_primitive(environment, &primitive_sin);
     LT_base_env_bind_static_primitive(environment, &primitive_cos);
     LT_base_env_bind_static_primitive(environment, &primitive_tan);
