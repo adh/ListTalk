@@ -489,10 +489,6 @@ LT_DEFINE_CLASS(LT_BigInteger) {
     .debugPrintOn = BigInteger_debugPrintOn,
 };
 
-bool LT_Integer_value_p(LT_Value value){
-    return LT_Value_is_fixnum(value) || LT_BigInteger_p(value);
-}
-
 bool LT_Integer_is_zero(LT_Value value){
     if (LT_Value_is_fixnum(value)){
         return LT_SmallInteger_value(value) == 0;

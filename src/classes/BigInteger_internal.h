@@ -6,8 +6,7 @@
 #ifndef H__ListTalk__BigInteger_internal__
 #define H__ListTalk__BigInteger_internal__
 
-#include <ListTalk/classes/BigInteger.h>
-#include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Integer.h>
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -21,8 +20,6 @@ static inline size_t hash_uint64(uint64_t value){
     value ^= value >> 33;
     return (size_t)value;
 }
-
-bool LT_Integer_value_p(LT_Value value);
 bool LT_Integer_is_zero(LT_Value value);
 bool LT_Integer_negative_p(LT_Value value);
 int LT_Integer_compare(LT_Value left, LT_Value right);

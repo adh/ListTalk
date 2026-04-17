@@ -599,14 +599,14 @@ static int parse_complex_rectangular_token(const char* token, LT_Value* value){
         return 0;
     }
 
-    if (LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RationalNumber))
-        && LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RationalNumber))){
+    if (LT_RationalNumber_value_p(real_part)
+        && LT_RationalNumber_value_p(imaginary_part)){
         *value = LT_ExactComplexNumber_new(real_part, imaginary_part);
         return 1;
     }
 
-    if (!LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RealNumber))
-        || !LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RealNumber))){
+    if (!LT_RealNumber_value_p(real_part)
+        || !LT_RealNumber_value_p(imaginary_part)){
         return 0;
     }
 
@@ -644,8 +644,8 @@ static int parse_complex_polar_token(const char* token, LT_Value* value){
 
     if (!parse_real_number_token(radius_token, &radius)
         || !parse_real_number_token(angle_token, &angle)
-        || !LT_Value_is_instance_of(radius, LT_STATIC_CLASS(LT_RealNumber))
-        || !LT_Value_is_instance_of(angle, LT_STATIC_CLASS(LT_RealNumber))){
+        || !LT_RealNumber_value_p(radius)
+        || !LT_RealNumber_value_p(angle)){
         return 0;
     }
 
@@ -835,12 +835,12 @@ static LT_Value read_complex_dispatch_literal(
         reader_error(reader, "#C expects exactly two parts");
     }
 
-    if (LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RationalNumber))
-        && LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RationalNumber))){
+    if (LT_RationalNumber_value_p(real_part)
+        && LT_RationalNumber_value_p(imaginary_part)){
         return LT_ExactComplexNumber_new(real_part, imaginary_part);
     }
-    if (LT_Value_is_instance_of(real_part, LT_STATIC_CLASS(LT_RealNumber))
-        && LT_Value_is_instance_of(imaginary_part, LT_STATIC_CLASS(LT_RealNumber))){
+    if (LT_RealNumber_value_p(real_part)
+        && LT_RealNumber_value_p(imaginary_part)){
         return LT_InexactComplexNumber_new(
             LT_Number_to_double(real_part),
             LT_Number_to_double(imaginary_part)

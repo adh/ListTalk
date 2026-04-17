@@ -85,10 +85,10 @@ LT_DEFINE_CLASS(LT_ExactComplexNumber) {
 LT_Value LT_ExactComplexNumber_new(LT_Value real, LT_Value imaginary){
     LT_ExactComplexNumber* complex;
 
-    if (!LT_Value_is_instance_of(real, LT_STATIC_CLASS(LT_RationalNumber))){
+    if (!LT_RationalNumber_value_p(real)){
         LT_type_error(real, &LT_RationalNumber_class);
     }
-    if (!LT_Value_is_instance_of(imaginary, LT_STATIC_CLASS(LT_RationalNumber))){
+    if (!LT_RationalNumber_value_p(imaginary)){
         LT_type_error(imaginary, &LT_RationalNumber_class);
     }
     if (LT_Number_equal_p(imaginary, LT_SmallInteger_new(0))){

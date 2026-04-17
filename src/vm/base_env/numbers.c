@@ -8,17 +8,10 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Number.h>
-#include <ListTalk/classes/ComplexNumber.h>
-#include <ListTalk/classes/RealNumber.h>
-#include <ListTalk/classes/RationalNumber.h>
 #include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Float.h>
 
 #include <math.h>
-
-static LT_Value class_predicate(LT_Value value, LT_Value class_value){
-    return LT_Value_is_instance_of(value, class_value) ? LT_TRUE : LT_FALSE;
-}
 
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_add,
@@ -230,7 +223,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return class_predicate(value, LT_STATIC_CLASS(LT_ComplexNumber));
+    return LT_Number_value_p(value) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -245,7 +238,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return class_predicate(value, LT_STATIC_CLASS(LT_RealNumber));
+    return LT_RealNumber_value_p(value) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -260,7 +253,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return class_predicate(value, LT_STATIC_CLASS(LT_RationalNumber));
+    return LT_RationalNumber_value_p(value) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -275,7 +268,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return class_predicate(value, LT_STATIC_CLASS(LT_Integer));
+    return LT_Integer_value_p(value) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(

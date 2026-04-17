@@ -164,12 +164,11 @@ LT_DEFINE_PRIMITIVE(
 ){
     LT_Value cursor = arguments;
     LT_Value value;
-    (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
 
-    if (!LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Number))){
+    if (!LT_Number_value_p(value)){
         LT_type_error(value, &LT_Number_class);
     }
 
