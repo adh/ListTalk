@@ -1984,6 +1984,39 @@ static int test_string_utf8_helpers_replace_invalid_sequences(void){
     );
 }
 
+static int test_string_append_and_substring_c_api_use_codepoint_indexes(void){
+    LT_String* left = LT_String_new_cstr("a\xce\xbb");
+    LT_String* right = LT_String_new_cstr("\xf0\x9f\x98\x80" "z");
+    LT_String* appended = LT_String_append(left, right);
+    LT_String* substring = LT_String_substring(appended, 1, 3);
+
+    if (expect(
+            strcmp(LT_String_value_cstr(appended), "a\xce\xbb\xf0\x9f\x98\x80" "z") == 0,
+            "LT_String_append preserves normalized UTF-8 bytes"
+        )){
+        return 1;
+    }
+    if (expect(LT_String_length(appended) == 4, "LT_String_append codepoint length")){
+        return 1;
+    }
+    if (expect(LT_String_byte_length(appended) == 8, "LT_String_append byte length")){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_String_value_cstr(substring), "\xce\xbb\xf0\x9f\x98\x80") == 0,
+            "LT_String_substring returns half-open codepoint range"
+        )){
+        return 1;
+    }
+    if (expect(LT_String_length(substring) == 2, "LT_String_substring codepoint length")){
+        return 1;
+    }
+    return expect(
+        LT_String_byte_length(substring) == 6,
+        "LT_String_substring byte length"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -2047,6 +2080,7 @@ int main(void){
     RUN_TEST(test_character_api_uses_unicode_codepoints);
     RUN_TEST(test_string_api_uses_unicode_codepoints);
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
+    RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
 
 #undef RUN_TEST
 

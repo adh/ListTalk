@@ -19,6 +19,8 @@ LT_DECLARE_CLASS(LT_String);
 
 LT_String* LT_String_new(char* buf, size_t len);
 LT_String* LT_String_new_cstr(char* str);
+LT_String* LT_String_append(LT_String* left, LT_String* right);
+LT_String* LT_String_substring(LT_String* string, size_t from, size_t to);
 const char* LT_String_value_cstr(LT_String* string);
 size_t LT_String_length(LT_String* string);
 size_t LT_String_byte_length(LT_String* string);

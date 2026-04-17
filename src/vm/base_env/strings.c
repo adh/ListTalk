@@ -120,26 +120,39 @@ LT_DEFINE_PRIMITIVE(
     "(string ...)",
     "Concatenate all string arguments."
 ){
-    LT_StringBuilder* builder = LT_StringBuilder_new();
     LT_Value cursor = arguments;
+    LT_String* result = LT_String_new_cstr("");
 
     while (cursor != LT_NIL){
         LT_String* string;
-        size_t i;
-        size_t length;
-        const char* cstr;
 
         LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
-        length = LT_String_byte_length(string);
-        cstr = LT_String_value_cstr(string);
-        for (i = 0; i < length; i++){
-            LT_StringBuilder_append_char(builder, cstr[i]);
-        }
+        result = LT_String_append(result, string);
     }
 
-    return (LT_Value)(uintptr_t)LT_String_new(
-        LT_StringBuilder_value(builder),
-        LT_StringBuilder_length(builder)
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_substring,
+    "substring",
+    "(string from to)",
+    "Return a substring using half-open Unicode code point indexes."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    int64_t from;
+    int64_t to;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_FIXNUM_ARG(cursor, from);
+    LT_FIXNUM_ARG(cursor, to);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_substring(
+        string,
+        checked_nonnegative_from_fixnum(from),
+        checked_nonnegative_from_fixnum(to)
     );
 }
 
@@ -177,5 +190,6 @@ void LT_base_env_bind_strings(LT_Environment* environment){
         &primitive_character_list_to_string
     );
     LT_base_env_bind_static_primitive(environment, &primitive_string_append);
+    LT_base_env_bind_static_primitive(environment, &primitive_substring);
     LT_base_env_bind_static_primitive(environment, &primitive_number_to_string);
 }

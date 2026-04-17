@@ -269,6 +269,9 @@
 (check (= ['(1 2 3) at: 1] 2) "List>>at: dispatches correctly")
 (check (= ["hello" length] 5) "String>>length")
 (check (eq? ["hello" at: 1] (string-ref "hello" 1)) "String>>at: dispatches correctly")
+(check (equal? ["aλ" append: "😀z"] "aλ😀z") "String>>append: concatenates")
+(check (equal? ["aλ😀z" substringFrom: 1 to: 3] "λ😀")
+       "String>>substringFrom:to: uses half-open codepoint indexes")
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
@@ -446,6 +449,10 @@
 (check (equal? (string-append "ab" "cd") "abcd") "string-append concatenates")
 (check (equal? (string-append "aλ" "😀") "aλ😀")
        "string-append preserves unicode codepoints")
+(check (equal? (substring "aλ😀z" 1 3) "λ😀")
+       "substring uses half-open unicode codepoint indexes")
+(check (equal? (substring "aλ😀z" 0 4) "aλ😀z") "substring can span whole string")
+(check (equal? (substring "aλ😀z" 2 2) "") "substring supports empty ranges")
 
 ;;; Vectors
 

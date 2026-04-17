@@ -209,6 +209,38 @@ static const char* utf8_next_bounded(const char* cursor, size_t available){
     return cursor + length;
 }
 
+static LT_String* String_new_normalized(const char* buf,
+                                        size_t byte_length,
+                                        size_t codepoint_length){
+    LT_String* str = LT_Class_ALLOC_FLEXIBLE(LT_String, byte_length + 1);
+
+    str->length = codepoint_length;
+    str->byte_length = byte_length;
+    if (byte_length > 0){
+        memcpy(str->str, buf, byte_length);
+    }
+    str->str[byte_length] = '\0';
+    return str;
+}
+
+static size_t String_byte_offset_for_codepoint_index(LT_String* string,
+                                                     size_t index){
+    const char* cursor = string->str;
+    const char* end = string->str + string->byte_length;
+    size_t codepoint_index = 0;
+
+    if (index > string->length){
+        LT_error("String index out of bounds");
+    }
+
+    while (codepoint_index < index && cursor < end){
+        cursor = LT_String_utf8_next(cursor);
+        codepoint_index++;
+    }
+
+    return (size_t)(cursor - string->str);
+}
+
 static size_t String_hash(LT_Value value){
     LT_String* string = LT_String_from_value(value);
     const unsigned char* cursor =
@@ -324,9 +356,65 @@ LT_DEFINE_PRIMITIVE(
     ));
 }
 
+LT_DEFINE_PRIMITIVE(
+    string_method_append,
+    "String>>append:",
+    "(self other)",
+    "Return a new string with other appended."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* left;
+    LT_String* right;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, right, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    left = LT_String_from_value(self);
+    return (LT_Value)(uintptr_t)LT_String_append(left, right);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_substring_from_to,
+    "String>>substringFrom:to:",
+    "(self from to)",
+    "Return a substring using half-open Unicode code point indexes."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value from;
+    LT_Value to;
+    int64_t from_value;
+    int64_t to_value;
+    LT_String* string;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, from);
+    LT_OBJECT_ARG(cursor, to);
+    LT_ARG_END(cursor);
+
+    from_value = LT_SmallInteger_value(from);
+    to_value = LT_SmallInteger_value(to);
+    if (from_value < 0 || to_value < 0){
+        LT_error("String index out of bounds");
+    }
+
+    string = LT_String_from_value(self);
+    return (LT_Value)(uintptr_t)LT_String_substring(
+        string,
+        (size_t)from_value,
+        (size_t)to_value
+    );
+}
+
 static LT_Method_Descriptor String_methods[] = {
     {"length", &string_method_length},
     {"at:", &string_method_at},
+    {"append:", &string_method_append},
+    {"substringFrom:to:", &string_method_substring_from_to},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -347,7 +435,6 @@ LT_String* LT_String_new(char* buf, size_t len){
     const char* end = buf + len;
     size_t codepoint_length = 0;
     size_t byte_length;
-    LT_String* str;
 
     while (cursor < end){
         uint32_t codepoint;
@@ -363,16 +450,49 @@ LT_String* LT_String_new(char* buf, size_t len){
     }
 
     byte_length = LT_StringBuilder_length(builder);
-    str = LT_Class_ALLOC_FLEXIBLE(LT_String, byte_length + 1);
-    str->length = codepoint_length;
-    str->byte_length = byte_length;
-    memcpy(str->str, LT_StringBuilder_value(builder), byte_length);
-    str->str[byte_length] = '\0';
-    return str;
+    return String_new_normalized(
+        LT_StringBuilder_value(builder),
+        byte_length,
+        codepoint_length
+    );
 }
 LT_String* LT_String_new_cstr(char* str){
     return LT_String_new(str, strlen(str));
 }
+
+LT_String* LT_String_append(LT_String* left, LT_String* right){
+    size_t byte_length =
+        LT_String_byte_length(left) + LT_String_byte_length(right);
+    size_t codepoint_length =
+        LT_String_length(left) + LT_String_length(right);
+    char* buffer = byte_length == 0 ? "" : GC_MALLOC_ATOMIC(byte_length);
+
+    memcpy(buffer, LT_String_value_cstr(left), LT_String_byte_length(left));
+    memcpy(
+        buffer + LT_String_byte_length(left),
+        LT_String_value_cstr(right),
+        LT_String_byte_length(right)
+    );
+    return String_new_normalized(buffer, byte_length, codepoint_length);
+}
+
+LT_String* LT_String_substring(LT_String* string, size_t from, size_t to){
+    size_t from_byte;
+    size_t to_byte;
+
+    if (from > to || to > LT_String_length(string)){
+        LT_error("String index out of bounds");
+    }
+
+    from_byte = String_byte_offset_for_codepoint_index(string, from);
+    to_byte = String_byte_offset_for_codepoint_index(string, to);
+    return String_new_normalized(
+        LT_String_value_cstr(string) + from_byte,
+        to_byte - from_byte,
+        to - from
+    );
+}
+
 const char* LT_String_value_cstr(LT_String* string){
     return string->str;
 }
@@ -469,6 +589,7 @@ LT_Value LT_String_to_character_list(LT_String* string){
 LT_String* LT_String_from_character_list(LT_Value characters){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     LT_Value cursor = characters;
+    size_t codepoint_length = 0;
 
     while (cursor != LT_NIL){
         LT_Value element;
@@ -479,11 +600,13 @@ LT_String* LT_String_from_character_list(LT_Value characters){
 
         element = LT_car(cursor);
         StringBuilder_append_codepoint(builder, LT_Character_value(element));
+        codepoint_length++;
         cursor = LT_cdr(cursor);
     }
 
-    return LT_String_new(
+    return String_new_normalized(
         LT_StringBuilder_value(builder),
-        LT_StringBuilder_length(builder)
+        LT_StringBuilder_length(builder),
+        codepoint_length
     );
 }
