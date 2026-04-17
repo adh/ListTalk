@@ -46,7 +46,7 @@ LT_DEFINE_PRIMITIVE(
     primitive_string_length,
     "string-length",
     "(string)",
-    "Return string length as fixnum."
+    "Return string length in Unicode code points as fixnum."
 ){
     LT_Value cursor = arguments;
     LT_String* string;
@@ -66,12 +66,12 @@ LT_DEFINE_PRIMITIVE(
     primitive_string_ref,
     "string-ref",
     "(string index)",
-    "Return character at index."
+    "Return Unicode character at index."
 ){
     LT_Value cursor = arguments;
     LT_String* string;
     int64_t index_value;
-    unsigned char ch;
+    uint32_t ch;
 
     LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
     LT_FIXNUM_ARG(cursor, index_value);
@@ -130,7 +130,7 @@ LT_DEFINE_PRIMITIVE(
         const char* cstr;
 
         LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
-        length = LT_String_length(string);
+        length = LT_String_byte_length(string);
         cstr = LT_String_value_cstr(string);
         for (i = 0; i < length; i++){
             LT_StringBuilder_append_char(builder, cstr[i]);

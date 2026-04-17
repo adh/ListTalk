@@ -947,8 +947,8 @@ static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* strea
 
     token = read_token_string(reader, ch, stream);
 
-    if (token[0] != '\0' && token[1] == '\0'){
-        return LT_Character_new((uint32_t)(unsigned char)token[0]);
+    if (token[0] != '\0' && *LT_String_utf8_next(token) == '\0'){
+        return LT_Character_new(LT_String_utf8_codepoint_at(token));
     }
     if (strcmp(token, "space") == 0){
         return LT_Character_new((uint32_t)' ');

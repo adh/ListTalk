@@ -1928,6 +1928,62 @@ static int test_character_api_uses_unicode_codepoints(void){
     );
 }
 
+static int test_string_api_uses_unicode_codepoints(void){
+    LT_String* string = LT_String_new_cstr("a\xce\xbb\xf0\x9f\x98\x80");
+
+    if (expect(LT_String_length(string) == 3, "string length counts codepoints")){
+        return 1;
+    }
+    if (expect(LT_String_byte_length(string) == 7, "string byte length counts bytes")){
+        return 1;
+    }
+    if (expect(LT_String_at(string, 0) == (uint32_t)'a', "string at ASCII")){
+        return 1;
+    }
+    if (expect(LT_String_at(string, 1) == UINT32_C(0x03bb), "string at BMP codepoint")){
+        return 1;
+    }
+    return expect(
+        LT_String_at(string, 2) == UINT32_C(0x1f600),
+        "string at astral codepoint"
+    );
+}
+
+static int test_string_utf8_helpers_replace_invalid_sequences(void){
+    char invalid[] = {'A', (char)0x80, (char)0xbf, 'B'};
+    LT_String* string = LT_String_new(invalid, sizeof(invalid));
+    const char* invalid_cursor = "\x80\xbf" "A";
+
+    if (expect(
+            LT_String_utf8_codepoint_at(invalid_cursor) == UINT32_C(0xfffd),
+            "invalid continuation run decodes to replacement character"
+        )){
+        return 1;
+    }
+    if (expect(
+            *LT_String_utf8_next(invalid_cursor) == 'A',
+            "invalid continuation run advances as one character"
+        )){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_String_value_cstr(string), "A\xef\xbf\xbd" "B") == 0,
+            "invalid continuation run normalizes to replacement character"
+        )){
+        return 1;
+    }
+    if (expect(LT_String_length(string) == 3, "normalized string length")){
+        return 1;
+    }
+    if (expect(LT_String_byte_length(string) == 5, "normalized string byte length")){
+        return 1;
+    }
+    return expect(
+        LT_String_at(string, 1) == UINT32_C(0xfffd),
+        "normalized invalid character is addressable as codepoint"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -1989,6 +2045,8 @@ int main(void){
     RUN_TEST(test_complex_transcendentals);
     RUN_TEST(test_boolean_constants);
     RUN_TEST(test_character_api_uses_unicode_codepoints);
+    RUN_TEST(test_string_api_uses_unicode_codepoints);
+    RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
 
 #undef RUN_TEST
 
