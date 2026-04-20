@@ -11,7 +11,6 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
 
-#include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -71,14 +70,48 @@ static void ByteVector_debugPrintOn(LT_Value obj, FILE* stream){
     LT_ByteVector* bytevector = LT_ByteVector_from_value(obj);
     size_t i;
 
-    fputs("#u8(", stream);
+    fputs("#\"", stream);
     for (i = 0; i < bytevector->length; i++){
-        if (i != 0){
-            fputc(' ', stream);
+        uint8_t byte = bytevector->bytes[i];
+
+        switch (byte){
+            case '\a':
+                fputs("\\a", stream);
+                break;
+            case '\b':
+                fputs("\\b", stream);
+                break;
+            case '\f':
+                fputs("\\f", stream);
+                break;
+            case '\n':
+                fputs("\\n", stream);
+                break;
+            case '\r':
+                fputs("\\r", stream);
+                break;
+            case '\t':
+                fputs("\\t", stream);
+                break;
+            case '\v':
+                fputs("\\v", stream);
+                break;
+            case '\\':
+                fputs("\\\\", stream);
+                break;
+            case '"':
+                fputs("\\\"", stream);
+                break;
+            default:
+                if (byte >= 0x20 && byte <= 0x7e){
+                    fputc((int)byte, stream);
+                } else {
+                    fprintf(stream, "\\x%02x", (unsigned int)byte);
+                }
+                break;
         }
-        fprintf(stream, "%" PRIu8, bytevector->bytes[i]);
     }
-    fputc(')', stream);
+    fputc('"', stream);
 }
 
 LT_DEFINE_PRIMITIVE(

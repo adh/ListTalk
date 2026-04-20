@@ -13,9 +13,11 @@
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Primitive.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
 #include <string.h>
@@ -151,6 +153,36 @@ static int test_string(void){
     return expect(
         strcmp(LT_String_value_cstr(string), "a\n\"b") == 0,
         "string value"
+    );
+}
+
+static int test_string_common_escapes(void){
+    LT_Value value = read_one("\"\\a\\b\\f\\n\\r\\t\\v\\\\\\'\\\"\\?\\101\\x42!\\u03BB\\U01F600\"");
+    LT_String* string;
+
+    if (expect(LT_Value_class(value) == &LT_String_class, "string escapes class")){
+        return 1;
+    }
+
+    string = LT_String_from_value(value);
+    return expect(
+        strcmp(LT_String_value_cstr(string), "\a\b\f\n\r\t\v\\'\"?AB!λ😀") == 0,
+        "string common escape value"
+    );
+}
+
+static int test_string_hex_escape_is_codepoint(void){
+    LT_Value value = read_one("\"\\xFF\"");
+    LT_String* string;
+
+    if (expect(LT_Value_class(value) == &LT_String_class, "string hex escape class")){
+        return 1;
+    }
+
+    string = LT_String_from_value(value);
+    return expect(
+        strcmp(LT_String_value_cstr(string), "ÿ") == 0,
+        "string hex escape is unicode codepoint"
     );
 }
 
@@ -1315,6 +1347,164 @@ static int test_vector_literal_values(void){
     );
 }
 
+static int test_bytevector_literal_empty(void){
+    LT_Value value = read_one("#u8()");
+    LT_ByteVector* bytevector;
+
+    if (expect(LT_Value_class(value) == &LT_ByteVector_class, "empty bytevector class")){
+        return 1;
+    }
+    bytevector = LT_ByteVector_from_value(value);
+    return expect(LT_ByteVector_length(bytevector) == 0, "empty bytevector length");
+}
+
+static int test_bytevector_literal_values(void){
+    LT_Value value = read_one("#u8(65 200 255)");
+    LT_ByteVector* bytevector;
+
+    if (expect(LT_Value_class(value) == &LT_ByteVector_class, "bytevector class")){
+        return 1;
+    }
+    bytevector = LT_ByteVector_from_value(value);
+    if (expect(LT_ByteVector_length(bytevector) == 3, "bytevector length")){
+        return 1;
+    }
+    if (expect(LT_ByteVector_at(bytevector, 0) == 65, "bytevector first byte")){
+        return 1;
+    }
+    if (expect(LT_ByteVector_at(bytevector, 1) == 200, "bytevector second byte")){
+        return 1;
+    }
+    return expect(LT_ByteVector_at(bytevector, 2) == 255, "bytevector third byte");
+}
+
+static int test_bytevector_literal_rejects_out_of_range_byte(void){
+    LT_Value value = read_one_catch_error("#u8(256)");
+
+    if (expect(LT_ReaderError_p(value), "bytevector out-of-range byte signals reader error")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "#u8 byte value out of range") == 0,
+        "bytevector out-of-range byte message"
+    );
+}
+
+static int test_bytevector_string_literal_ascii(void){
+    LT_Value value = read_one("#\"A\\nZ\"");
+    LT_ByteVector* bytevector;
+
+    if (expect(LT_Value_class(value) == &LT_ByteVector_class, "bytevector string class")){
+        return 1;
+    }
+    bytevector = LT_ByteVector_from_value(value);
+    if (expect(LT_ByteVector_length(bytevector) == 3, "bytevector string length")){
+        return 1;
+    }
+    if (expect(LT_ByteVector_at(bytevector, 0) == 'A', "bytevector string first byte")){
+        return 1;
+    }
+    if (expect(LT_ByteVector_at(bytevector, 1) == '\n', "bytevector string escaped byte")){
+        return 1;
+    }
+    return expect(LT_ByteVector_at(bytevector, 2) == 'Z', "bytevector string last byte");
+}
+
+static int test_bytevector_string_literal_common_escapes(void){
+    LT_Value value = read_one("#\"\\a\\b\\f\\n\\r\\t\\v\\\\\\'\\\"\\?\\101\\xFF\\u0042\\U000043\"");
+    LT_ByteVector* bytevector;
+    const uint8_t expected[] = {
+        '\a', '\b', '\f', '\n', '\r', '\t', '\v',
+        '\\', '\'', '"', '?', 'A', 255, 'B', 'C'
+    };
+    size_t i;
+
+    if (expect(LT_Value_class(value) == &LT_ByteVector_class, "bytevector escapes class")){
+        return 1;
+    }
+    bytevector = LT_ByteVector_from_value(value);
+    if (expect(
+        LT_ByteVector_length(bytevector) == sizeof(expected),
+        "bytevector common escape length"
+    )){
+        return 1;
+    }
+    for (i = 0; i < sizeof(expected); i++){
+        if (expect(
+            LT_ByteVector_at(bytevector, i) == expected[i],
+            "bytevector common escape byte"
+        )){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int test_bytevector_hex_escape_is_two_digits(void){
+    LT_Value value = read_one("#\"\\xFFB\"");
+    LT_ByteVector* bytevector;
+
+    if (expect(LT_Value_class(value) == &LT_ByteVector_class, "bytevector fixed hex class")){
+        return 1;
+    }
+    bytevector = LT_ByteVector_from_value(value);
+    if (expect(LT_ByteVector_length(bytevector) == 2, "bytevector fixed hex length")){
+        return 1;
+    }
+    if (expect(LT_ByteVector_at(bytevector, 0) == 255, "bytevector fixed hex byte")){
+        return 1;
+    }
+    return expect(LT_ByteVector_at(bytevector, 1) == 'B', "bytevector fixed hex following byte");
+}
+
+static int test_bytevector_unicode_escape_rejects_non_ascii(void){
+    LT_Value value = read_one_catch_error("#\"\\u03BB\"");
+
+    if (expect(LT_ReaderError_p(value), "bytevector unicode non-ascii signals reader error")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Bytevector string literal expects ASCII bytes") == 0,
+        "bytevector unicode non-ascii message"
+    );
+}
+
+static int test_bytevector_string_literal_rejects_non_ascii(void){
+    LT_Value value = read_one_catch_error("#\"λ\"");
+
+    if (expect(LT_ReaderError_p(value), "bytevector string non-ascii signals reader error")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Bytevector string literal expects ASCII bytes") == 0,
+        "bytevector string non-ascii message"
+    );
+}
+
+static int test_bytevector_prints_readable_byte_string(void){
+    LT_Value value = read_one("#\"\\a\\b\\f\\n\\r\\t\\v\\\\\\\"A\\x00\\xFF\"");
+    char* printed = debug_string_for_value(value);
+    LT_Value reparsed;
+
+    if (printed == NULL){
+        return 1;
+    }
+    if (expect(
+        strcmp(printed, "#\"\\a\\b\\f\\n\\r\\t\\v\\\\\\\"A\\x00\\xff\"") == 0,
+        "bytevector prints as escaped byte string"
+    )){
+        free(printed);
+        return 1;
+    }
+
+    reparsed = read_one(printed);
+    free(printed);
+    return expect(
+        LT_Value_equal_p(value, reparsed),
+        "printed bytevector reads back equal"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -1323,6 +1513,8 @@ int main(void){
 
     failures += test_symbol();
     failures += test_string();
+    failures += test_string_common_escapes();
+    failures += test_string_hex_escape_is_codepoint();
     failures += test_nil_list();
     failures += test_proper_list();
     failures += test_dotted_pair();
@@ -1384,6 +1576,15 @@ int main(void){
     failures += test_reader_attaches_source_metadata_to_lists();
     failures += test_vector_literal_empty();
     failures += test_vector_literal_values();
+    failures += test_bytevector_literal_empty();
+    failures += test_bytevector_literal_values();
+    failures += test_bytevector_literal_rejects_out_of_range_byte();
+    failures += test_bytevector_string_literal_ascii();
+    failures += test_bytevector_string_literal_common_escapes();
+    failures += test_bytevector_hex_escape_is_two_digits();
+    failures += test_bytevector_unicode_escape_rejects_non_ascii();
+    failures += test_bytevector_string_literal_rejects_non_ascii();
+    failures += test_bytevector_prints_readable_byte_string();
 
     if (failures == 0){
         puts("reader tests passed");

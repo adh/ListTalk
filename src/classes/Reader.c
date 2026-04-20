@@ -22,6 +22,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/error.h>
@@ -67,6 +68,11 @@ static LT_Value read_object_from_first(
 );
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_bytevector_literal(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_bytevector_string_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+);
 static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_complex_dispatch_literal(
     LT_Reader* reader,
@@ -102,6 +108,7 @@ static LT_Value reader_immutable_list_from_builder(
     LT_ListBuilder* builder,
     LT_Value tail
 );
+static LT_Value LT_Value_from_object(LT_Object* obj);
 
 static int file_stream_getc(void* stream){
     LT_FileReaderStream* file_stream = (LT_FileReaderStream*)stream;
@@ -362,39 +369,259 @@ static int read_non_space_char(LT_Reader* reader, LT_ReaderStream* stream){
     }
 }
 
-static LT_String* read_string_literal(LT_Reader* reader, LT_ReaderStream* stream){
+typedef enum LT_ReaderStringLiteralMode_e {
+    LT_READER_STRING_LITERAL_STRING,
+    LT_READER_STRING_LITERAL_BYTEVECTOR
+} LT_ReaderStringLiteralMode;
+
+static int reader_hex_digit_value(int ch){
+    if (ch >= '0' && ch <= '9'){
+        return ch - '0';
+    }
+    if (ch >= 'a' && ch <= 'f'){
+        return 10 + ch - 'a';
+    }
+    if (ch >= 'A' && ch <= 'F'){
+        return 10 + ch - 'A';
+    }
+    return -1;
+}
+
+static void reader_append_utf8_codepoint(LT_Reader* reader,
+                                         LT_StringBuilder* builder,
+                                         uint32_t codepoint){
+    if (!LT_Character_codepoint_is_valid(codepoint)){
+        reader_error(reader, "Invalid Unicode code point in string escape");
+    }
+
+    if (codepoint <= UINT32_C(0x7f)){
+        LT_StringBuilder_append_char(builder, (char)codepoint);
+    } else if (codepoint <= UINT32_C(0x7ff)){
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0xc0 | (codepoint >> 6))
+        );
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0x80 | (codepoint & 0x3f))
+        );
+    } else if (codepoint <= UINT32_C(0xffff)){
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0xe0 | (codepoint >> 12))
+        );
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0x80 | ((codepoint >> 6) & 0x3f))
+        );
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0x80 | (codepoint & 0x3f))
+        );
+    } else {
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0xf0 | (codepoint >> 18))
+        );
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0x80 | ((codepoint >> 12) & 0x3f))
+        );
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0x80 | ((codepoint >> 6) & 0x3f))
+        );
+        LT_StringBuilder_append_char(
+            builder,
+            (char)(0x80 | (codepoint & 0x3f))
+        );
+    }
+}
+
+static void reader_append_string_literal_value(LT_Reader* reader,
+                                               LT_StringBuilder* builder,
+                                               LT_ReaderStringLiteralMode mode,
+                                               uint32_t value,
+                                               int raw_byte_escape){
+    if (mode == LT_READER_STRING_LITERAL_BYTEVECTOR){
+        if (raw_byte_escape){
+            if (value > UINT8_MAX){
+                reader_error(reader, "Bytevector byte escape out of range");
+            }
+        } else if (value > UINT32_C(0x7f)){
+            reader_error(reader, "Bytevector string literal expects ASCII bytes");
+        }
+        LT_StringBuilder_append_char(builder, (char)value);
+        return;
+    }
+
+    reader_append_utf8_codepoint(reader, builder, value);
+}
+
+static uint32_t reader_read_fixed_hex_escape(LT_Reader* reader,
+                                             LT_ReaderStream* stream,
+                                             size_t digit_count){
+    uint32_t value = 0;
+    size_t i;
+
+    for (i = 0; i < digit_count; i++){
+        int ch = reader_getc(reader, stream);
+        int digit = reader_hex_digit_value(ch);
+
+        if (digit < 0){
+            reader_error(reader, "Hex escape expects hexadecimal digits");
+        }
+        value = (value << 4) | (uint32_t)digit;
+    }
+    return value;
+}
+
+static uint32_t reader_read_variable_hex_escape(LT_Reader* reader,
+                                                LT_ReaderStream* stream){
+    uint32_t value = 0;
+    int ch = reader_getc(reader, stream);
+    int digit = reader_hex_digit_value(ch);
+
+    if (digit < 0){
+        reader_error(reader, "Hex escape expects hexadecimal digits");
+    }
+
+    while (digit >= 0){
+        if (value > (UINT32_MAX >> 4)){
+            reader_error(reader, "Hex escape out of range");
+        }
+        value = (value << 4) | (uint32_t)digit;
+        ch = reader_getc(reader, stream);
+        digit = reader_hex_digit_value(ch);
+    }
+
+    if (ch != EOF){
+        reader_ungetc(reader, stream, ch);
+    }
+    return value;
+}
+
+static uint32_t reader_read_octal_escape(LT_Reader* reader,
+                                         LT_ReaderStream* stream,
+                                         int first){
+    uint32_t value = (uint32_t)(first - '0');
+    size_t i;
+
+    for (i = 1; i < 3; i++){
+        int ch = reader_getc(reader, stream);
+
+        if (ch < '0' || ch > '7'){
+            if (ch != EOF){
+                reader_ungetc(reader, stream, ch);
+            }
+            break;
+        }
+        value = (value << 3) | (uint32_t)(ch - '0');
+    }
+    return value;
+}
+
+static void reader_read_string_escape(LT_Reader* reader,
+                                      LT_ReaderStream* stream,
+                                      LT_StringBuilder* builder,
+                                      LT_ReaderStringLiteralMode mode){
+    int escaped = reader_getc(reader, stream);
+    uint32_t value;
+    int raw_byte_escape = 0;
+
+    switch (escaped){
+        case 'a':
+            value = '\a';
+            break;
+        case 'b':
+            value = '\b';
+            break;
+        case 'e':
+            value = 27;
+            break;
+        case 'f':
+            value = '\f';
+            break;
+        case 'n':
+            value = '\n';
+            break;
+        case 'r':
+            value = '\r';
+            break;
+        case 't':
+            value = '\t';
+            break;
+        case 'v':
+            value = '\v';
+            break;
+        case '\\':
+        case '\'':
+        case '"':
+        case '?':
+            value = (uint32_t)escaped;
+            break;
+        case 'x':
+            if (mode == LT_READER_STRING_LITERAL_BYTEVECTOR){
+                value = reader_read_fixed_hex_escape(reader, stream, 2);
+                raw_byte_escape = 1;
+            } else {
+                value = reader_read_variable_hex_escape(reader, stream);
+            }
+            break;
+        case 'u':
+            value = reader_read_fixed_hex_escape(reader, stream, 4);
+            break;
+        case 'U':
+            value = reader_read_fixed_hex_escape(reader, stream, 6);
+            break;
+        case EOF:
+            reader_incomplete_input(
+                reader,
+                "Unterminated escape sequence in string literal"
+            );
+            return;
+        default:
+            if (escaped >= '0' && escaped <= '7'){
+                value = reader_read_octal_escape(reader, stream, escaped);
+                raw_byte_escape = mode == LT_READER_STRING_LITERAL_BYTEVECTOR;
+                break;
+            }
+            value = (uint32_t)escaped;
+            break;
+    }
+
+    reader_append_string_literal_value(
+        reader,
+        builder,
+        mode,
+        value,
+        raw_byte_escape
+    );
+}
+
+static LT_StringBuilder* read_string_literal_bytes(
+    LT_Reader* reader,
+    LT_ReaderStream* stream,
+    LT_ReaderStringLiteralMode mode
+){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     int ch = reader_getc(reader, stream);
 
     while (ch != EOF && ch != '"'){
         if (ch == '\\'){
-            int escaped = reader_getc(reader, stream);
-            switch (escaped){
-                case 'n':
-                    LT_StringBuilder_append_char(builder, '\n');
-                    break;
-                case 'r':
-                    LT_StringBuilder_append_char(builder, '\r');
-                    break;
-                case 't':
-                    LT_StringBuilder_append_char(builder, '\t');
-                    break;
-                case '\\':
-                case '"':
-                    LT_StringBuilder_append_char(builder, (char)escaped);
-                    break;
-                case EOF:
-                    reader_incomplete_input(
-                        reader,
-                        "Unterminated escape sequence in string literal"
-                    );
-                    break;
-                default:
-                    LT_StringBuilder_append_char(builder, (char)escaped);
-                    break;
-            }
+            reader_read_string_escape(reader, stream, builder, mode);
         } else {
-            LT_StringBuilder_append_char(builder, (char)ch);
+            if (mode == LT_READER_STRING_LITERAL_STRING){
+                LT_StringBuilder_append_char(builder, (char)ch);
+            } else {
+                reader_append_string_literal_value(
+                    reader,
+                    builder,
+                    mode,
+                    (uint32_t)ch,
+                    0
+                );
+            }
         }
         ch = reader_getc(reader, stream);
     }
@@ -403,10 +630,36 @@ static LT_String* read_string_literal(LT_Reader* reader, LT_ReaderStream* stream
         reader_incomplete_input(reader, "Unterminated string literal");
     }
 
+    return builder;
+}
+
+static LT_String* read_string_literal(LT_Reader* reader, LT_ReaderStream* stream){
+    LT_StringBuilder* builder = read_string_literal_bytes(
+        reader,
+        stream,
+        LT_READER_STRING_LITERAL_STRING
+    );
+
     return LT_String_new(
         LT_StringBuilder_value(builder),
         LT_StringBuilder_length(builder)
     );
+}
+
+static LT_Value read_bytevector_string_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    LT_StringBuilder* builder = read_string_literal_bytes(
+        reader,
+        stream,
+        LT_READER_STRING_LITERAL_BYTEVECTOR
+    );
+
+    return LT_Value_from_object((LT_Object*)LT_ByteVector_new(
+        (const uint8_t*)LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    ));
 }
 
 typedef struct LT_ReadTokenResult_s {
@@ -851,6 +1104,23 @@ static LT_Value read_complex_dispatch_literal(
     return LT_NIL;
 }
 
+static LT_Value read_bytevector_dispatch_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    int ch = reader_getc(reader, stream);
+
+    if (ch != '8'){
+        reader_error(reader, "Unknown dispatch macro character");
+    }
+
+    ch = reader_getc(reader, stream);
+    if (ch != '('){
+        reader_error(reader, "#u8 expects vector syntax");
+    }
+    return read_bytevector_literal(reader, stream);
+}
+
 static LT_Value read_dispatch_macro(
     LT_Reader* reader,
     LT_ReaderStream* stream
@@ -874,6 +1144,9 @@ static LT_Value read_dispatch_macro(
         case '(':
             ensure_dispatch_argument_unused(reader, argument);
             return read_vector_literal(reader, stream);
+        case '"':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_bytevector_string_literal(reader, stream);
         case '\\':
             ensure_dispatch_argument_unused(reader, argument);
             return read_character_literal(reader, stream);
@@ -920,6 +1193,10 @@ static LT_Value read_dispatch_macro(
         case 'C':
             ensure_dispatch_argument_unused(reader, argument);
             return read_complex_dispatch_literal(reader, stream);
+        case 'u':
+        case 'U':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_bytevector_dispatch_literal(reader, stream);
         case 'r':
         case 'R':
             if (argument == -1){
@@ -1023,6 +1300,64 @@ static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream){
     }
 
     return LT_Value_from_object((LT_Object*)vector);
+}
+
+static uint8_t reader_checked_byte(LT_Reader* reader, LT_Value value){
+    int64_t byte_value;
+
+    if (!LT_Value_is_fixnum(value)){
+        reader_error(reader, "#u8 expects fixnum byte values");
+    }
+
+    byte_value = LT_SmallInteger_value(value);
+    if (byte_value < 0 || byte_value > UINT8_MAX){
+        reader_error(reader, "#u8 byte value out of range");
+    }
+    return (uint8_t)byte_value;
+}
+
+static LT_Value read_bytevector_literal(LT_Reader* reader, LT_ReaderStream* stream){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value cursor;
+    size_t length = 0;
+    size_t i = 0;
+    LT_ByteVector* bytevector;
+    int ch = read_non_space_char(reader, stream);
+
+    if (ch == ')'){
+        return LT_Value_from_object((LT_Object*)LT_ByteVector_new_filled(0, 0));
+    }
+
+    while (1){
+        LT_Value item;
+
+        if (ch == EOF){
+            reader_incomplete_input(reader, "Unterminated bytevector literal");
+        }
+        if (ch == '.'){
+            reader_error(reader, "Unexpected dot in bytevector literal");
+        }
+
+        item = read_object_from_first(reader, stream, ch);
+        (void)reader_checked_byte(reader, item);
+        LT_ListBuilder_append(builder, item);
+        length++;
+
+        ch = read_non_space_char(reader, stream);
+        if (ch == ')'){
+            break;
+        }
+    }
+
+    bytevector = LT_ByteVector_new_filled(length, 0);
+    cursor = LT_ListBuilder_value(builder);
+    while (cursor != LT_NIL){
+        LT_ByteVector_atPut(bytevector, i, reader_checked_byte(reader, LT_car(cursor)));
+        i++;
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_Value_from_object((LT_Object*)bytevector);
 }
 
 static LT_Value read_quote_syntax(
