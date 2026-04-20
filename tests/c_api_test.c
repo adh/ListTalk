@@ -2017,6 +2017,125 @@ static int test_string_append_and_substring_c_api_use_codepoint_indexes(void){
     );
 }
 
+static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
+    FILE* file = tmpfile();
+    LT_FileIOStream* stream;
+    LT_Value line;
+    LT_String* remainder;
+    LT_ByteVector* bytes;
+    FILE* borrowed_file = tmpfile();
+    LT_FileOutputStream* borrowed_stream;
+
+    if (file == NULL || borrowed_file == NULL){
+        return fail("tmpfile failed");
+    }
+
+    stream = LT_FileIOStream_newForBorrowedFILE(file);
+    LT_OutputStream_writeString(
+        (LT_IOStream*)stream,
+        LT_String_new_cstr("alpha\r\nbeta\rgamma\n")
+    );
+    LT_OutputStream_writeCharacter(
+        (LT_IOStream*)stream,
+        UINT32_C(0x03bb)
+    );
+    LT_OutputStream_writeByte((LT_IOStream*)stream, (uint8_t)'\n');
+    LT_IOStream_seekFromStart((LT_IOStream*)stream, 0);
+
+    line = LT_InputStream_readLine((LT_IOStream*)stream);
+    if (expect(LT_String_p(line), "readLine returns a string before EOF")){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+    if (expect(
+            strcmp(
+                LT_String_value_cstr(LT_String_from_value(line)),
+                "alpha"
+            ) == 0,
+            "readLine drops CR before LF"
+        )){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+
+    remainder = LT_InputStream_readString((LT_IOStream*)stream);
+    if (expect(
+            strcmp(LT_String_value_cstr(remainder), "beta\ngamma\n\xce\xbb\n") == 0,
+            "readString normalizes line terminators and preserves UTF-8"
+        )){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+    if (expect(
+            LT_InputStream_readByte((LT_IOStream*)stream) == LT_NIL,
+            "readByte returns nil at EOF"
+        )){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+
+    LT_IOStream_seekFromStart((LT_IOStream*)stream, 0);
+    bytes = LT_InputStream_readBytes((LT_IOStream*)stream, 5);
+    if (expect(LT_ByteVector_length(bytes) == 5, "readBytes length")){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+    if (expect(
+            memcmp(LT_ByteVector_bytes(bytes), "alpha", 5) == 0,
+            "readBytes returns raw bytes"
+        )){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+
+    borrowed_stream = LT_FileOutputStream_newForBorrowedFILE(borrowed_file);
+    LT_IOStream_close((LT_IOStream*)borrowed_stream);
+    if (expect(
+            fputs("still-open", borrowed_file) >= 0,
+            "borrowed close does not fclose FILE"
+        )){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+    if (expect(
+            LT_IOStream_closed((LT_IOStream*)borrowed_stream),
+            "close marks borrowed stream closed"
+        )){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+
+    LT_IOStream_close((LT_IOStream*)stream);
+    fclose(file);
+    fclose(borrowed_file);
+    return 0;
+}
+
+static int test_stream_c_api_falls_back_to_send_for_non_file_streams(void){
+    LT_Value stream_value = eval_one(
+        "(begin "
+        "  (define-class MemoryInputStream (InputStream) ()) "
+        "  (define-method [MemoryInputStream readString] \"fallback-ok\") "
+        "  [MemoryInputStream alloc])"
+    );
+    LT_String* result = LT_InputStream_readString(
+        (LT_IOStream*)LT_VALUE_POINTER_VALUE(stream_value)
+    );
+
+    return expect(
+        strcmp(LT_String_value_cstr(result), "fallback-ok") == 0,
+        "stream C API falls back to send for non-file streams"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -2081,6 +2200,8 @@ int main(void){
     RUN_TEST(test_string_api_uses_unicode_codepoints);
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
+    RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
+    RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
 
 #undef RUN_TEST
 
