@@ -476,31 +476,6 @@ static uint32_t reader_read_fixed_hex_escape(LT_Reader* reader,
     return value;
 }
 
-static uint32_t reader_read_variable_hex_escape(LT_Reader* reader,
-                                                LT_ReaderStream* stream){
-    uint32_t value = 0;
-    int ch = reader_getc(reader, stream);
-    int digit = reader_hex_digit_value(ch);
-
-    if (digit < 0){
-        reader_error(reader, "Hex escape expects hexadecimal digits");
-    }
-
-    while (digit >= 0){
-        if (value > (UINT32_MAX >> 4)){
-            reader_error(reader, "Hex escape out of range");
-        }
-        value = (value << 4) | (uint32_t)digit;
-        ch = reader_getc(reader, stream);
-        digit = reader_hex_digit_value(ch);
-    }
-
-    if (ch != EOF){
-        reader_ungetc(reader, stream, ch);
-    }
-    return value;
-}
-
 static uint32_t reader_read_octal_escape(LT_Reader* reader,
                                          LT_ReaderStream* stream,
                                          int first){
@@ -561,12 +536,8 @@ static void reader_read_string_escape(LT_Reader* reader,
             value = (uint32_t)escaped;
             break;
         case 'x':
-            if (mode == LT_READER_STRING_LITERAL_BYTEVECTOR){
-                value = reader_read_fixed_hex_escape(reader, stream, 2);
-                raw_byte_escape = 1;
-            } else {
-                value = reader_read_variable_hex_escape(reader, stream);
-            }
+            value = reader_read_fixed_hex_escape(reader, stream, 2);
+            raw_byte_escape = mode == LT_READER_STRING_LITERAL_BYTEVECTOR;
             break;
         case 'u':
             value = reader_read_fixed_hex_escape(reader, stream, 4);

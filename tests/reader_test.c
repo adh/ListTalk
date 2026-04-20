@@ -186,6 +186,21 @@ static int test_string_hex_escape_is_codepoint(void){
     );
 }
 
+static int test_string_hex_escape_is_two_digits(void){
+    LT_Value value = read_one("\"\\xFFB\"");
+    LT_String* string;
+
+    if (expect(LT_Value_class(value) == &LT_String_class, "string fixed hex escape class")){
+        return 1;
+    }
+
+    string = LT_String_from_value(value);
+    return expect(
+        strcmp(LT_String_value_cstr(string), "ÿB") == 0,
+        "string fixed hex escape leaves following hex digit"
+    );
+}
+
 static int test_nil_list(void){
     LT_Value value = read_one("()");
     return expect(value == LT_NIL, "empty list is nil");
@@ -1515,6 +1530,7 @@ int main(void){
     failures += test_string();
     failures += test_string_common_escapes();
     failures += test_string_hex_escape_is_codepoint();
+    failures += test_string_hex_escape_is_two_digits();
     failures += test_nil_list();
     failures += test_proper_list();
     failures += test_dotted_pair();
