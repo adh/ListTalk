@@ -37,6 +37,7 @@
 #include <ListTalk/classes/SourceLocation.h>
 #include <ListTalk/classes/StackFrame.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>

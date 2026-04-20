@@ -270,12 +270,28 @@
 (check (= ["hello" length] 5) "String>>length")
 (check (eq? ["hello" at: 1] (string-ref "hello" 1)) "String>>at: dispatches correctly")
 (check (equal? ["aλ" append: "😀z"] "aλ😀z") "String>>append: concatenates")
+(check (equal? ["aλ😀z" from: 1 to: 3] "λ😀")
+       "String>>from:to: uses half-open codepoint indexes")
 (check (equal? ["aλ😀z" substringFrom: 1 to: 3] "λ😀")
        "String>>substringFrom:to: uses half-open codepoint indexes")
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
   (check (eq? [v at: 1] 9) "Vector>>at:put: mutates element"))
+(check (= [(bytevector 65 200 66) length] 3) "ByteVector>>length")
+(check (= [(bytevector 65 200 66) at: 1] 200)
+       "ByteVector>>at: returns unsigned bytes")
+(let ((bv (bytevector 1 2 3)))
+  [bv at: 1 put: 255]
+  (check (= [bv at: 1] 255) "ByteVector>>at:put: mutates bytes"))
+(check (equal? [(bytevector 65 66) append: (bytevector 67)] (bytevector 65 66 67))
+       "ByteVector>>append: concatenates")
+(check (equal? [(bytevector 10 20 30 40) from: 1 to: 3] (bytevector 20 30))
+       "ByteVector>>from:to: uses half-open byte indexes")
+(check (equal? ["aλ" asByteVector] (string->bytevector "aλ"))
+       "String>>asByteVector converts to ByteVector")
+(check (equal? [(string->bytevector "aλ") asString] "aλ")
+       "ByteVector>>asString converts to String")
 
 ;;; make-class and make-instance
 
@@ -464,6 +480,28 @@
 (let ((v (vector 1 2 3)))
   (vector-set! v 1 99)
   (check (= (vector-ref v 1) 99) "vector-set! mutates vector"))
+
+;;; ByteVectors
+
+(check (bytevector? (bytevector 1 2)) "bytevector? true for bytevector")
+(check (not (bytevector? 1)) "bytevector? false for non-bytevector")
+(check (= (bytevector-length (bytevector 1 2 3)) 3) "bytevector-length")
+(check (= (bytevector-u8-ref (bytevector 4 255 6) 1) 255)
+       "bytevector-u8-ref returns unsigned fixnum")
+(let ((bv (make-bytevector 3 9)))
+  (bytevector-u8-set! bv 1 200)
+  (check (= (bytevector-u8-ref bv 1) 200)
+         "bytevector-u8-set! mutates bytevector"))
+(check (equal? (bytevector-append (bytevector 1 2) (bytevector 3 4))
+               (bytevector 1 2 3 4))
+       "bytevector-append concatenates")
+(check (equal? (bytevector-copy (bytevector 1 2 3 4) 1 3)
+               (bytevector 2 3))
+       "bytevector-copy slices half-open byte indexes")
+(check (equal? (bytevector->string (string->bytevector "aλ😀")) "aλ😀")
+       "string bytevector conversion round-trip")
+(check (= (bytevector-length (string->bytevector "λ")) 2)
+       "string->bytevector exposes UTF-8 bytes")
 
 ;;; Slot access
 

@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Pair.h>
@@ -377,6 +378,24 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_as_bytevector,
+    "String>>asByteVector",
+    "(self)",
+    "Return a bytevector containing string UTF-8 bytes."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_ByteVector_from_string(
+        LT_String_from_value(self)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_substring_from_to,
     "String>>substringFrom:to:",
     "(self from to)",
@@ -414,6 +433,8 @@ static LT_Method_Descriptor String_methods[] = {
     {"length", &string_method_length},
     {"at:", &string_method_at},
     {"append:", &string_method_append},
+    {"asByteVector", &string_method_as_bytevector},
+    {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };

@@ -27,6 +27,7 @@
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/InvocationContextKind.h>
@@ -79,6 +80,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Pair", &LT_Pair_class},
     {"MutablePair", &LT_MutablePair_class},
     {"Vector", &LT_Vector_class},
+    {"ByteVector", &LT_ByteVector_class},
     {"String", &LT_String_class},
     {"Symbol", &LT_Symbol_class},
     {"Package", &LT_Package_class},
@@ -218,6 +220,7 @@ LT_Environment* LT_new_base_environment(void){
         LT_base_env_bind_cxxxr(environment);
         LT_base_env_bind_strings(environment);
         LT_base_env_bind_vectors(environment);
+        LT_base_env_bind_bytevectors(environment);
         LT_base_env_bind_special_forms(environment);
         LT_base_env_bind_loader(environment);
         LT_base_env_bind_module_variables(environment);
