@@ -343,13 +343,14 @@ static LT_Value raw_stream_readLine(LT_Stream* stream){
 
     while ((ch = fgetc(file)) != EOF){
         if (ch == '\n'){
+            char* line = LT_StringBuilder_value(builder);
             while (length > 0
-                && LT_StringBuilder_value(builder)[length - 1] == '\r'){
-                LT_StringBuilder_value(builder)[length - 1] = '\0';
+                && line[length - 1] == '\r'){
+                line[length - 1] = '\0';
                 length--;
             }
             return (LT_Value)(uintptr_t)LT_String_new(
-                LT_StringBuilder_value(builder),
+                line,
                 length
             );
         }
