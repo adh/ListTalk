@@ -46,6 +46,7 @@
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Stream.h>
 
 LT__BEGIN_DECLS
 

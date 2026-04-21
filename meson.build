@@ -100,7 +100,8 @@ vm_lib = library(
                 'src/classes/SmallInteger.c',
                 'src/classes/SmallFraction.c',
                 'src/classes/IdentityDictionary.c',
-                'src/classes/Dictionary.c'
+                'src/classes/Dictionary.c',
+                'src/classes/Stream.c'
         ], 
         install : true, dependencies : [bdwgc, libm])
 
