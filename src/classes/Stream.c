@@ -587,6 +587,22 @@ LT_ByteVector* LT_Stream_readByteVector(LT_Value stream){
 }
 
 LT_DEFINE_PRIMITIVE(
+    stream_method_is_closed,
+    "Stream>>isClosed",
+    "(self)",
+    "Return true when stream is closed."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    (void)self;
+    return LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     stream_method_is_readable,
     "Stream>>isReadable",
     "(self)",
@@ -616,6 +632,24 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
     (void)self;
     return LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    filestream_method_is_closed,
+    "FileStream>>isClosed",
+    "(self)",
+    "Return true when file stream is closed."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Stream* stream;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    stream = stream_from_value(self);
+    return stream->closed ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -913,12 +947,14 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor Stream_methods[] = {
+    {"isClosed", &stream_method_is_closed},
     {"isReadable", &stream_method_is_readable},
     {"isWritable", &stream_method_is_writable},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor FileStream_methods[] = {
+    {"isClosed", &filestream_method_is_closed},
     {"isReadable", &filestream_method_is_readable},
     {"isWritable", &filestream_method_is_writable},
     {"flush", &stream_method_flush},

@@ -2042,6 +2042,11 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
         fclose(borrowed_file);
         return 1;
     }
+    if (expect(!LT_Stream_closed(stream), "FileStream starts open")){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
     LT_Stream_writeString(
         stream,
         LT_String_new_cstr("alpha\r\nbeta\rgamma\n")
@@ -2137,6 +2142,7 @@ static int test_stream_c_api_falls_back_to_send_for_non_file_streams(void){
         "  (define-class MemoryStream (Stream) ()) "
         "  (define-method [MemoryStream isReadable] #t) "
         "  (define-method [MemoryStream isWritable] #f) "
+        "  (define-method [MemoryStream isClosed] #t) "
         "  (define-method [MemoryStream readString] \"fallback-ok\") "
         "  [MemoryStream alloc])"
     );
@@ -2151,6 +2157,12 @@ static int test_stream_c_api_falls_back_to_send_for_non_file_streams(void){
     if (expect(
             !LT_Stream_isWritable(stream_value),
             "stream C API falls back to send for isWritable"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Stream_closed(stream_value),
+            "stream C API falls back to send for isClosed"
         )){
         return 1;
     }
