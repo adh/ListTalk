@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <string.h>
 #include <unistd.h>
 
 void LT_print_backtrace(FILE* stream){
@@ -29,6 +30,24 @@ void _Noreturn LT_error_impl(const char* message, ...) {
     LT_print_backtrace(stderr);
 #ifdef __APPLE__
     _exit(1); /* Use _exit on macOS to avoid Crash Reporter */
+#else
+    abort();
+#endif
+}
+
+void _Noreturn LT_system_error(const char* message, int errnum){
+    LT_Value condition = LT_SystemError_new(message, errnum, LT_NIL);
+
+    LT_signal(condition);
+    fprintf(
+        stderr,
+        "Unrecoverable system error: %s: %s\n",
+        message,
+        strerror(errnum)
+    );
+    LT_print_backtrace(stderr);
+#ifdef __APPLE__
+    _exit(1);
 #else
     abort();
 #endif

@@ -18,6 +18,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -409,6 +410,80 @@ static int test_error_builder_collects_named_arguments(void){
     );
 }
 
+static int test_system_error_preserves_errno_and_strerror_message(void){
+    LT_Value condition = LT_SystemError_new("open failed", ENOENT, LT_NIL);
+    LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
+    LT_Value errnum = LT_Object_slot_ref(condition, LT_Symbol_new("errno"));
+    const char* message_cstr =
+        LT_String_value_cstr(LT_String_from_value(message));
+
+    if (expect(
+            LT_Value_class(condition) == &LT_SystemError_class,
+            "LT_SystemError_new builds SystemError condition"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_SmallInteger_value(errnum) == ENOENT,
+            "SystemError preserves errno slot"
+        )){
+        return 1;
+    }
+    if (expect(
+            strstr(message_cstr, "open failed") != NULL,
+            "SystemError message includes operation message"
+        )){
+        return 1;
+    }
+    return expect(
+        strstr(message_cstr, strerror(ENOENT)) != NULL,
+        "SystemError message includes strerror(errno)"
+    );
+}
+
+static int test_filestream_open_failure_signals_system_error(void){
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-system-error-handler",
+        "(condition)",
+        "captures FileStream SystemError condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("system-error-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_FileStream_newForInput(
+                "/definitely-not-a-listtalk-directory/missing-file"
+            );
+        });
+    });
+
+    if (expect(
+            LT_Value_class(caught) == &LT_SystemError_class,
+            "FileStream open failure emits SystemError condition"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_SmallInteger_value(
+                LT_Object_slot_ref(caught, LT_Symbol_new("errno"))
+            ) == ENOENT,
+            "FileStream SystemError preserves errno"
+        )){
+        return 1;
+    }
+    return expect(
+        strstr(
+            LT_String_value_cstr(LT_String_from_value(
+                LT_Object_slot_ref(caught, LT_Symbol_new("message"))
+            )),
+            strerror(ENOENT)
+        ) != NULL,
+        "FileStream SystemError message includes strerror(errno)"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -421,6 +496,8 @@ int main(void){
     failures += test_lt_error_signals_condition_to_handlers();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
+    failures += test_system_error_preserves_errno_and_strerror_message();
+    failures += test_filestream_open_failure_signals_system_error();
 
     if (failures == 0){
         puts("conditions tests passed");

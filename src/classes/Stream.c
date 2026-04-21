@@ -15,6 +15,7 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 
+#include <errno.h>
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
@@ -150,7 +151,7 @@ static void check_byte_value(int64_t value){
 
 static void write_all(FILE* file, const void* buffer, size_t length){
     if (length > 0 && fwrite(buffer, 1, length, file) != length){
-        LT_error("Stream write failed");
+        LT_system_error("Stream write failed", errno);
     }
 }
 
@@ -207,7 +208,7 @@ static LT_ByteVector* read_bytevector_to_eof(FILE* file){
         length += count;
         if (count < available){
             if (ferror(file)){
-                LT_error("Stream read failed");
+                LT_system_error("Stream read failed", errno);
             }
             break;
         }
@@ -239,31 +240,31 @@ static void raw_stream_close(LT_Stream* stream){
     stream->closed = 1;
     file_stream->file = NULL;
     if (owns_file && file != NULL && fclose(file) != 0){
-        LT_error("Stream close failed");
+        LT_system_error("Stream close failed", errno);
     }
 }
 
 static void raw_stream_flush(LT_Stream* stream){
     if (fflush(raw_stream_file(stream)) != 0){
-        LT_error("Stream flush failed");
+        LT_system_error("Stream flush failed", errno);
     }
 }
 
 static void raw_stream_seek(LT_Stream* stream, long offset){
     if (fseek(raw_stream_file(stream), offset, SEEK_CUR) != 0){
-        LT_error("Stream seek failed");
+        LT_system_error("Stream seek failed", errno);
     }
 }
 
 static void raw_stream_seekFromEnd(LT_Stream* stream, long offset){
     if (fseek(raw_stream_file(stream), offset, SEEK_END) != 0){
-        LT_error("Stream seek failed");
+        LT_system_error("Stream seek failed", errno);
     }
 }
 
 static void raw_stream_seekFromStart(LT_Stream* stream, long offset){
     if (fseek(raw_stream_file(stream), offset, SEEK_SET) != 0){
-        LT_error("Stream seek failed");
+        LT_system_error("Stream seek failed", errno);
     }
 }
 
@@ -273,7 +274,7 @@ static void raw_stream_writeByte(LT_Stream* stream, uint8_t byte){
     raw_check_writable(stream);
     file = raw_stream_file(stream);
     if (fputc((int)byte, file) == EOF){
-        LT_error("Stream write failed");
+        LT_system_error("Stream write failed", errno);
     }
 }
 
@@ -312,7 +313,7 @@ static LT_Value raw_stream_readByte(LT_Stream* stream){
     ch = fgetc(raw_stream_file(stream));
     if (ch == EOF){
         if (ferror(raw_stream_file(stream))){
-            LT_error("Stream read failed");
+            LT_system_error("Stream read failed", errno);
         }
         return LT_NIL;
     }
@@ -327,7 +328,7 @@ static LT_ByteVector* raw_stream_readBytes(LT_Stream* stream, size_t length){
     bytes = GC_MALLOC_ATOMIC(length == 0 ? 1 : length);
     count = fread(bytes, 1, length, raw_stream_file(stream));
     if (count < length && ferror(raw_stream_file(stream))){
-        LT_error("Stream read failed");
+        LT_system_error("Stream read failed", errno);
     }
     return LT_ByteVector_new(bytes, count);
 }
@@ -359,7 +360,7 @@ static LT_Value raw_stream_readLine(LT_Stream* stream){
     }
 
     if (ferror(file)){
-        LT_error("Stream read failed");
+        LT_system_error("Stream read failed", errno);
     }
     if (length == 0){
         return LT_NIL;
@@ -400,7 +401,7 @@ static LT_String* raw_stream_readString(LT_Stream* stream){
     }
 
     if (ferror(file)){
-        LT_error("Stream read failed");
+        LT_system_error("Stream read failed", errno);
     }
     if (pending_cr){
         LT_StringBuilder_append_char(builder, '\n');
@@ -1052,7 +1053,7 @@ static LT_FileStream* new_for_filename(char* filename,
         file = fopen(filename, fallback_mode);
     }
     if (file == NULL){
-        LT_error("Could not open file");
+        LT_system_error("Could not open file", errno);
     }
     return LT_FileStream_newForOwnedFILE(file, readable, writable);
 }

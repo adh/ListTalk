@@ -5,6 +5,7 @@
 
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
@@ -12,6 +13,7 @@
 
 #include <stddef.h>
 #include <stdarg.h>
+#include <string.h>
 
 struct LT_Condition_s {
     LT_Object base;
@@ -25,6 +27,11 @@ struct LT_Warning_s {
 
 struct LT_Error_s {
     LT_Condition base;
+};
+
+struct LT_SystemError_s {
+    LT_Error base;
+    LT_Value errno_value;
 };
 
 struct LT_ReaderError_s {
@@ -60,6 +67,11 @@ static LT_Slot_Descriptor ReaderError_slots[] = {
         offsetof(LT_ReaderError, nesting_depth),
         &LT_SlotType_ReadonlyObject
     },
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
+};
+
+static LT_Slot_Descriptor SystemError_slots[] = {
+    {"errno", offsetof(LT_SystemError, errno_value), &LT_SlotType_ReadonlyObject},
     LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
@@ -105,6 +117,15 @@ LT_DEFINE_CLASS(LT_Error) {
     .debugPrintOn = Condition_debugPrintOn,
 };
 
+LT_DEFINE_CLASS(LT_SystemError) {
+    .superclass = &LT_Error_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "SystemError",
+    .instance_size = sizeof(LT_SystemError),
+    .debugPrintOn = Condition_debugPrintOn,
+    .slots = SystemError_slots,
+};
+
 LT_DEFINE_CLASS(LT_ReaderError) {
     .superclass = &LT_Error_class,
     .metaclass_superclass = &LT_Class_class,
@@ -145,6 +166,15 @@ LT_Value LT_Condition_vnew(LT_Class* klass, const char* message, va_list args){
         message,
         LT_ListBuilder_valueWithRest(builder, LT_NIL)
     );
+}
+
+LT_Value LT_SystemError_new(const char* message, int errnum, LT_Value args){
+    char* full_message = LT_sprintf("%s: %s", message, strerror(errnum));
+    LT_Value value = LT_Condition_new(&LT_SystemError_class, full_message, args);
+    LT_SystemError* condition = (LT_SystemError*)LT_VALUE_POINTER_VALUE(value);
+
+    condition->errno_value = LT_SmallInteger_new((int64_t)errnum);
+    return value;
 }
 
 LT_Value LT_ReaderError_new(

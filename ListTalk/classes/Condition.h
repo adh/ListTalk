@@ -18,11 +18,13 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Condition);
 LT_DECLARE_CLASS(LT_Warning);
 LT_DECLARE_CLASS(LT_Error);
+LT_DECLARE_CLASS(LT_SystemError);
 LT_DECLARE_CLASS(LT_ReaderError);
 LT_DECLARE_CLASS(LT_IncompleteInputSyntaxError);
 
 LT_Value LT_Condition_new(LT_Class* klass, const char* message, LT_Value args);
 LT_Value LT_Condition_vnew(LT_Class* klass, const char* message, va_list args);
+LT_Value LT_SystemError_new(const char* message, int errnum, LT_Value args);
 LT_Value LT_ReaderError_new(
     LT_Class* klass,
     const char* message,

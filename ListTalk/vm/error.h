@@ -23,6 +23,7 @@ LT__BEGIN_DECLS
 void _Noreturn LT_error_impl(const char* message, ...);
 #define LT_error(...) LT_error_impl(__VA_ARGS__, NULL)
 
+void _Noreturn LT_system_error(const char* message, int errnum);
 void _Noreturn LT_type_error(LT_Value value, LT_Class* expected_class);
 void LT_print_backtrace(FILE* stream);
 
