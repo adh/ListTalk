@@ -40,7 +40,7 @@
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Dictionary.h>
-#include <ListTalk/classes/IOStream.h>
+#include <ListTalk/classes/Stream.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/utils.h>
@@ -94,12 +94,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Printer", &LT_Printer_class},
     {"IdentityDictionary", &LT_IdentityDictionary_class},
     {"Dictionary", &LT_Dictionary_class},
-    {"IOStream", &LT_IOStream_class},
-    {"InputStream", &LT_InputStream_class},
-    {"OutputStream", &LT_OutputStream_class},
-    {"FileInputStream", &LT_FileInputStream_class},
-    {"FileOutputStream", &LT_FileOutputStream_class},
-    {"FileIOStream", &LT_FileIOStream_class},
+    {"Stream", &LT_Stream_class},
+    {"FileStream", &LT_FileStream_class},
 };
 
 static LT_Value modules_symbol(void){

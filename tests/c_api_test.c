@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <unistd.h>
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -2019,30 +2020,40 @@ static int test_string_append_and_substring_c_api_use_codepoint_indexes(void){
 
 static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
     FILE* file = tmpfile();
-    LT_FileIOStream* stream;
+    LT_Value stream;
     LT_Value line;
     LT_String* remainder;
     LT_ByteVector* bytes;
     FILE* borrowed_file = tmpfile();
-    LT_FileOutputStream* borrowed_stream;
+    LT_Value borrowed_stream;
 
     if (file == NULL || borrowed_file == NULL){
         return fail("tmpfile failed");
     }
 
-    stream = LT_FileIOStream_newForBorrowedFILE(file);
-    LT_OutputStream_writeString(
-        (LT_IOStream*)stream,
+    stream = (LT_Value)(uintptr_t)LT_FileStream_newForBorrowedFILE(file, 1, 1);
+    if (expect(LT_Stream_isReadable(stream), "FileStream is readable")){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+    if (expect(LT_Stream_isWritable(stream), "FileStream is writable")){
+        fclose(file);
+        fclose(borrowed_file);
+        return 1;
+    }
+    LT_Stream_writeString(
+        stream,
         LT_String_new_cstr("alpha\r\nbeta\rgamma\n")
     );
-    LT_OutputStream_writeCharacter(
-        (LT_IOStream*)stream,
+    LT_Stream_writeCharacter(
+        stream,
         UINT32_C(0x03bb)
     );
-    LT_OutputStream_writeByte((LT_IOStream*)stream, (uint8_t)'\n');
-    LT_IOStream_seekFromStart((LT_IOStream*)stream, 0);
+    LT_Stream_writeByte(stream, (uint8_t)'\n');
+    LT_Stream_seekFromStart(stream, 0);
 
-    line = LT_InputStream_readLine((LT_IOStream*)stream);
+    line = LT_Stream_readLine(stream);
     if (expect(LT_String_p(line), "readLine returns a string before EOF")){
         fclose(file);
         fclose(borrowed_file);
@@ -2060,7 +2071,7 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
         return 1;
     }
 
-    remainder = LT_InputStream_readString((LT_IOStream*)stream);
+    remainder = LT_Stream_readString(stream);
     if (expect(
             strcmp(LT_String_value_cstr(remainder), "beta\ngamma\n\xce\xbb\n") == 0,
             "readString normalizes line terminators and preserves UTF-8"
@@ -2070,7 +2081,7 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
         return 1;
     }
     if (expect(
-            LT_InputStream_readByte((LT_IOStream*)stream) == LT_NIL,
+            LT_Stream_readByte(stream) == LT_NIL,
             "readByte returns nil at EOF"
         )){
         fclose(file);
@@ -2078,8 +2089,8 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
         return 1;
     }
 
-    LT_IOStream_seekFromStart((LT_IOStream*)stream, 0);
-    bytes = LT_InputStream_readBytes((LT_IOStream*)stream, 5);
+    LT_Stream_seekFromStart(stream, 0);
+    bytes = LT_Stream_readBytes(stream, 5);
     if (expect(LT_ByteVector_length(bytes) == 5, "readBytes length")){
         fclose(file);
         fclose(borrowed_file);
@@ -2094,8 +2105,9 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
         return 1;
     }
 
-    borrowed_stream = LT_FileOutputStream_newForBorrowedFILE(borrowed_file);
-    LT_IOStream_close((LT_IOStream*)borrowed_stream);
+    borrowed_stream =
+        (LT_Value)(uintptr_t)LT_FileStream_newForBorrowedFILE(borrowed_file, 0, 1);
+    LT_Stream_close(borrowed_stream);
     if (expect(
             fputs("still-open", borrowed_file) >= 0,
             "borrowed close does not fclose FILE"
@@ -2105,7 +2117,7 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
         return 1;
     }
     if (expect(
-            LT_IOStream_closed((LT_IOStream*)borrowed_stream),
+            LT_Stream_closed(borrowed_stream),
             "close marks borrowed stream closed"
         )){
         fclose(file);
@@ -2113,7 +2125,7 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
         return 1;
     }
 
-    LT_IOStream_close((LT_IOStream*)stream);
+    LT_Stream_close(stream);
     fclose(file);
     fclose(borrowed_file);
     return 0;
@@ -2122,18 +2134,94 @@ static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
 static int test_stream_c_api_falls_back_to_send_for_non_file_streams(void){
     LT_Value stream_value = eval_one(
         "(begin "
-        "  (define-class MemoryInputStream (InputStream) ()) "
-        "  (define-method [MemoryInputStream readString] \"fallback-ok\") "
-        "  [MemoryInputStream alloc])"
+        "  (define-class MemoryStream (Stream) ()) "
+        "  (define-method [MemoryStream isReadable] #t) "
+        "  (define-method [MemoryStream isWritable] #f) "
+        "  (define-method [MemoryStream readString] \"fallback-ok\") "
+        "  [MemoryStream alloc])"
     );
-    LT_String* result = LT_InputStream_readString(
-        (LT_IOStream*)LT_VALUE_POINTER_VALUE(stream_value)
-    );
+    LT_String* result = LT_Stream_readString(stream_value);
 
+    if (expect(
+            LT_Stream_isReadable(stream_value),
+            "stream C API falls back to send for isReadable"
+        )){
+        return 1;
+    }
+    if (expect(
+            !LT_Stream_isWritable(stream_value),
+            "stream C API falls back to send for isWritable"
+        )){
+        return 1;
+    }
     return expect(
         strcmp(LT_String_value_cstr(result), "fallback-ok") == 0,
         "stream C API falls back to send for non-file streams"
     );
+}
+
+static int test_file_stream_class_constructors(void){
+    char path[] = "/tmp/listtalk-stream-test-XXXXXX";
+    int fd = mkstemp(path);
+    LT_Value class_value = (LT_Value)(uintptr_t)&LT_FileStream_class;
+    LT_Value filename = (LT_Value)(uintptr_t)LT_String_new_cstr(path);
+    LT_Value stream_value;
+    LT_String* contents;
+    int failed = 0;
+
+    if (fd < 0){
+        return fail("mkstemp failed");
+    }
+    close(fd);
+
+    stream_value = LT_send(
+        class_value,
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForOutput:"),
+        LT_cons(filename, LT_NIL),
+        NULL
+    );
+    LT_Stream_writeString(stream_value, LT_String_new_cstr("one"));
+    LT_Stream_close(stream_value);
+
+    stream_value = LT_send(
+        class_value,
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForAppending:"),
+        LT_cons(filename, LT_NIL),
+        NULL
+    );
+    LT_Stream_writeString(stream_value, LT_String_new_cstr(" two"));
+    LT_Stream_close(stream_value);
+
+    stream_value = LT_send(
+        class_value,
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForInput:"),
+        LT_cons(filename, LT_NIL),
+        NULL
+    );
+    contents = LT_Stream_readString(stream_value);
+    failed += expect(
+        strcmp(LT_String_value_cstr(contents), "one two") == 0,
+        "FileStream class input/output/appending constructors"
+    );
+    LT_Stream_close(stream_value);
+
+    stream_value = LT_send(
+        class_value,
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "new:"),
+        LT_cons(filename, LT_NIL),
+        NULL
+    );
+    failed += expect(
+        LT_Stream_isReadable(stream_value),
+        "FileStream new: is readable"
+    );
+    failed += expect(
+        LT_Stream_isWritable(stream_value),
+        "FileStream new: is writable"
+    );
+    LT_Stream_close(stream_value);
+    remove(path);
+    return failed;
 }
 
 int main(void){
@@ -2202,6 +2290,7 @@ int main(void){
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
+    RUN_TEST(test_file_stream_class_constructors);
 
 #undef RUN_TEST
 
