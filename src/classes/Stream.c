@@ -1074,6 +1074,14 @@ LT_FileStream* LT_FileStream_newForAppending(char* filename){
     return new_for_filename(filename, "ab", NULL, 0, 1);
 }
 
+static void file_stream_finalizer(void* object, void* data){
+    LT_FileStream* stream = (LT_FileStream*)object;
+
+    if (stream->owns_file && stream->file != NULL){
+        fclose(stream->file);
+    }
+}
+
 LT_FileStream* LT_FileStream_newForFILE(FILE* file,
                                         int owns_file,
                                         int readable,
@@ -1085,6 +1093,9 @@ LT_FileStream* LT_FileStream_newForFILE(FILE* file,
     stream->owns_file = owns_file;
     stream->readable = readable;
     stream->writable = writable;
+    if (owns_file){
+        GC_register_finalizer(stream, file_stream_finalizer, NULL, NULL, NULL);
+    }
     return stream;
 }
 
