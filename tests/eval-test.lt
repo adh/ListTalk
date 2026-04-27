@@ -514,6 +514,56 @@
 (check (= (bytevector-length (string->bytevector "λ")) 2)
        "string->bytevector exposes UTF-8 bytes")
 
+;;; OS module
+
+(define (contains-string? items target)
+  (any (lambda (item) (equal? item target)) items))
+
+(check (string? (ListTalk-OS:getenv "PATH")) "getenv returns string for present variable")
+(check (null? (ListTalk-OS:getenv "__LISTTALK_EVAL_TEST_MISSING_ENV__"))
+       "getenv returns nil for missing variable")
+(check (string? (ListTalk-OS:getpwd)) "getpwd returns current directory")
+(let ((bytes (ListTalk-OS:getentropy 300)))
+  (check (eq? (type-of bytes) ByteVector) "getentropy returns ByteVector")
+  (check (= (bytevector-length bytes) 300) "getentropy returns requested length"))
+
+(let* ((seed (ListTalk-OS:getentropy 4))
+       (original-cwd (ListTalk-OS:getpwd))
+       (suffix (string-append
+                 (number->string (bytevector-u8-ref seed 0)) "-"
+                 (number->string (bytevector-u8-ref seed 1)) "-"
+                 (number->string (bytevector-u8-ref seed 2)) "-"
+                 (number->string (bytevector-u8-ref seed 3))))
+       (root (string-append original-cwd "/listtalk-os-" suffix))
+       (original (string-append root "/alpha.txt"))
+       (moved (string-append root "/beta.txt"))
+       (hard (string-append root "/hard.txt"))
+       (soft (string-append root "/soft.txt")))
+  (ListTalk-OS:mkdir root)
+  (check (ListTalk-OS:access root) "mkdir creates directory")
+  (check (equal? (ListTalk-OS:chdir root) root) "chdir returns new directory")
+  (check (equal? (ListTalk-OS:getpwd) root) "getpwd reflects chdir")
+  (ListTalk-OS:chdir original-cwd)
+  (let ((stream [FileStream newForOutput: original]))
+    [stream writeString: "alpha"]
+    [stream close])
+  (check (ListTalk-OS:access original) "access sees created file")
+  (ListTalk-OS:move original moved)
+  (check (ListTalk-OS:access moved) "move renames file")
+  (check (not (ListTalk-OS:access original)) "move removes old path")
+  (ListTalk-OS:link moved hard)
+  (check (ListTalk-OS:access hard) "link creates hard link")
+  (ListTalk-OS:symlink moved soft)
+  (check (ListTalk-OS:access soft) "symlink creates directory entry")
+  (check (equal? (ListTalk-OS:readlink soft) moved) "readlink returns symlink target")
+  (let ((entries (ListTalk-OS:list-directory root)))
+    (check (contains-string? entries "beta.txt") "list-directory contains moved file")
+    (check (contains-string? entries "hard.txt") "list-directory contains hard link")
+    (check (contains-string? entries "soft.txt") "list-directory contains symlink"))
+  (ListTalk-OS:unlink hard)
+  (ListTalk-OS:unlink soft)
+  (ListTalk-OS:unlink moved))
+
 ;;; Slot access
 
 (let ((p (cons 1 2)))
