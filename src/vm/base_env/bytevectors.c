@@ -6,19 +6,11 @@
 #include "internal.h"
 
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
-
-#include <stdint.h>
-
-static uint8_t checked_byte_from_fixnum(int64_t value){
-    if (value < 0 || value > UINT8_MAX){
-        LT_error("Byte value out of range");
-    }
-    return (uint8_t)value;
-}
 
 LT_DEFINE_PRIMITIVE(
     primitive_bytevector_p,
@@ -48,10 +40,10 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
 
     length = LT_ByteVector_length(bytevector);
-    if (!LT_SmallInteger_in_range((int64_t)length)){
-        LT_error("ByteVector length does not fit fixnum");
-    }
-    return LT_SmallInteger_new((int64_t)length);
+    return LT_Number_smallinteger_from_size(
+        length,
+        "ByteVector length does not fit fixnum"
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -91,7 +83,7 @@ LT_DEFINE_PRIMITIVE(
     LT_FIXNUM_ARG(cursor, byte_value);
     LT_ARG_END(cursor);
 
-    byte = checked_byte_from_fixnum(byte_value);
+    byte = LT_Number_uint8_from_int64(byte_value, "Byte value out of range");
     LT_ByteVector_atPut(
         bytevector,
         checked_nonnegative_from_fixnum(index_value),
@@ -118,7 +110,7 @@ LT_DEFINE_PRIMITIVE(
 
     return (LT_Value)(uintptr_t)LT_ByteVector_new_filled(
         checked_nonnegative_from_fixnum(length_value),
-        checked_byte_from_fixnum(fill_value)
+        LT_Number_uint8_from_int64(fill_value, "Byte value out of range")
     );
 }
 
@@ -139,7 +131,7 @@ LT_DEFINE_PRIMITIVE(
         if (!LT_Pair_p(cursor)){
             LT_error("Malformed argument list while creating bytevector");
         }
-        checked_byte_from_fixnum(LT_SmallInteger_value(LT_car(cursor)));
+        LT_Number_uint8_from_integer(LT_car(cursor), "Byte value out of range");
         length++;
         cursor = LT_cdr(cursor);
     }
@@ -150,7 +142,7 @@ LT_DEFINE_PRIMITIVE(
         LT_ByteVector_atPut(
             bytevector,
             index,
-            checked_byte_from_fixnum(LT_SmallInteger_value(LT_car(cursor)))
+            LT_Number_uint8_from_integer(LT_car(cursor), "Byte value out of range")
         );
         index++;
         cursor = LT_cdr(cursor);

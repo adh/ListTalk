@@ -4,8 +4,8 @@
  */
 
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
@@ -19,15 +19,6 @@ struct LT_ByteVector_s {
     size_t length;
     uint8_t bytes[];
 };
-
-static uint8_t checked_byte_from_value(LT_Value value){
-    int64_t byte_value = LT_SmallInteger_value(value);
-
-    if (byte_value < 0 || byte_value > UINT8_MAX){
-        LT_error("Byte value out of range");
-    }
-    return (uint8_t)byte_value;
-}
 
 static size_t ByteVector_hash(LT_Value value){
     LT_ByteVector* bytevector = LT_ByteVector_from_value(value);
@@ -129,10 +120,10 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
 
     length = LT_ByteVector_length(LT_ByteVector_from_value(self));
-    if (!LT_SmallInteger_in_range((int64_t)length)){
-        LT_error("ByteVector length does not fit fixnum");
-    }
-    return LT_SmallInteger_new((int64_t)length);
+    return LT_Number_smallinteger_from_size(
+        length,
+        "ByteVector length does not fit fixnum"
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -144,20 +135,19 @@ LT_DEFINE_PRIMITIVE(
     LT_Value cursor = arguments;
     LT_Value self;
     LT_Value index;
-    int64_t index_value;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, index);
     LT_ARG_END(cursor);
 
-    index_value = LT_SmallInteger_value(index);
-    if (index_value < 0){
-        LT_error("ByteVector index out of bounds");
-    }
     return LT_SmallInteger_new((int64_t)LT_ByteVector_at(
         LT_ByteVector_from_value(self),
-        (size_t)index_value
+        LT_Number_nonnegative_size_from_integer(
+            index,
+            "ByteVector index out of bounds",
+            "ByteVector index out of bounds"
+        )
     ));
 }
 
@@ -171,7 +161,6 @@ LT_DEFINE_PRIMITIVE(
     LT_Value self;
     LT_Value index;
     LT_Value byte;
-    int64_t index_value;
     uint8_t byte_value;
     (void)tail_call_unwind_marker;
 
@@ -180,14 +169,14 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, byte);
     LT_ARG_END(cursor);
 
-    index_value = LT_SmallInteger_value(index);
-    if (index_value < 0){
-        LT_error("ByteVector index out of bounds");
-    }
-    byte_value = checked_byte_from_value(byte);
+    byte_value = LT_Number_uint8_from_integer(byte, "Byte value out of range");
     LT_ByteVector_atPut(
         LT_ByteVector_from_value(self),
-        (size_t)index_value,
+        LT_Number_nonnegative_size_from_integer(
+            index,
+            "ByteVector index out of bounds",
+            "ByteVector index out of bounds"
+        ),
         byte_value
     );
     return LT_SmallInteger_new((int64_t)byte_value);
@@ -224,8 +213,6 @@ LT_DEFINE_PRIMITIVE(
     LT_Value self;
     LT_Value from;
     LT_Value to;
-    int64_t from_value;
-    int64_t to_value;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
@@ -233,15 +220,18 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, to);
     LT_ARG_END(cursor);
 
-    from_value = LT_SmallInteger_value(from);
-    to_value = LT_SmallInteger_value(to);
-    if (from_value < 0 || to_value < 0){
-        LT_error("ByteVector index out of bounds");
-    }
     return (LT_Value)(uintptr_t)LT_ByteVector_from_to(
         LT_ByteVector_from_value(self),
-        (size_t)from_value,
-        (size_t)to_value
+        LT_Number_nonnegative_size_from_integer(
+            from,
+            "ByteVector index out of bounds",
+            "ByteVector index out of bounds"
+        ),
+        LT_Number_nonnegative_size_from_integer(
+            to,
+            "ByteVector index out of bounds",
+            "ByteVector index out of bounds"
+        )
     );
 }
 

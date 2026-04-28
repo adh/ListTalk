@@ -4,8 +4,8 @@
  */
 
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -80,7 +80,10 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    return LT_SmallInteger_new((int64_t)LT_Vector_length(LT_Vector_from_value(self)));
+    return LT_Number_smallinteger_from_size(
+        LT_Vector_length(LT_Vector_from_value(self)),
+        "Vector length does not fit fixnum"
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -99,7 +102,11 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
     return LT_Vector_at(
         LT_Vector_from_value(self),
-        (size_t)LT_SmallInteger_value(index)
+        LT_Number_nonnegative_size_from_integer(
+            index,
+            "Vector index out of bounds",
+            "Vector index out of bounds"
+        )
     );
 }
 
@@ -121,7 +128,11 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
     LT_Vector_atPut(
         LT_Vector_from_value(self),
-        (size_t)LT_SmallInteger_value(index),
+        LT_Number_nonnegative_size_from_integer(
+            index,
+            "Vector index out of bounds",
+            "Vector index out of bounds"
+        ),
         value
     );
     return value;

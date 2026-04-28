@@ -179,18 +179,10 @@ static int is_delimiter(int ch){
         || ch == ';';
 }
 
-static long long reader_small_integer_value(LT_Value value){
-    return LT_SmallInteger_value(value);
-}
-
-static LT_Value reader_small_integer_new(long long value){
-    return LT_SmallInteger_new((int64_t)value);
-}
-
 static void reader_reset_position(LT_Reader* reader){
-    reader->line = reader_small_integer_new(1);
-    reader->column = reader_small_integer_new(0);
-    reader->nesting_depth = reader_small_integer_new(0);
+    reader->line = LT_SmallInteger_new(1);
+    reader->column = LT_SmallInteger_new(0);
+    reader->nesting_depth = LT_SmallInteger_new(0);
     reader->previous_line = reader->line;
     reader->previous_column = reader->column;
     reader->previous_nesting_depth = reader->nesting_depth;
@@ -213,9 +205,9 @@ static int reader_getc(LT_Reader* reader, LT_ReaderStream* stream){
         return EOF;
     }
 
-    line = reader_small_integer_value(reader->line);
-    column = reader_small_integer_value(reader->column);
-    nesting_depth = reader_small_integer_value(reader->nesting_depth);
+    line = LT_SmallInteger_value(reader->line);
+    column = LT_SmallInteger_value(reader->column);
+    nesting_depth = LT_SmallInteger_value(reader->nesting_depth);
 
     if (ch == '\n'){
         line++;
@@ -230,9 +222,9 @@ static int reader_getc(LT_Reader* reader, LT_ReaderStream* stream){
         nesting_depth--;
     }
 
-    reader->line = reader_small_integer_new(line);
-    reader->column = reader_small_integer_new(column);
-    reader->nesting_depth = reader_small_integer_new(nesting_depth);
+    reader->line = LT_SmallInteger_new(line);
+    reader->column = LT_SmallInteger_new(column);
+    reader->nesting_depth = LT_SmallInteger_new(nesting_depth);
     return ch;
 }
 
@@ -288,8 +280,8 @@ static void _Noreturn reader_incomplete_input(LT_Reader* reader, const char* mes
 }
 
 static LT_Value reader_source_location(LT_Reader* reader){
-    long long line = reader_small_integer_value(reader->line);
-    long long column = reader_small_integer_value(reader->column);
+    long long line = LT_SmallInteger_value(reader->line);
+    long long column = LT_SmallInteger_value(reader->column);
 
     if (line <= 0){
         line = 1;

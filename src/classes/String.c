@@ -5,10 +5,10 @@
 
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Pair.h>
-#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -331,7 +331,10 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
     string = LT_String_from_value(self);
-    return LT_SmallInteger_new((int64_t)LT_String_length(string));
+    return LT_Number_smallinteger_from_size(
+        LT_String_length(string),
+        "String length does not fit fixnum"
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -353,7 +356,11 @@ LT_DEFINE_PRIMITIVE(
     string = LT_String_from_value(self);
     return LT_Character_new((uint32_t)LT_String_at(
         string,
-        (size_t)LT_SmallInteger_value(index)
+        LT_Number_nonnegative_size_from_integer(
+            index,
+            "String index out of bounds",
+            "String index out of bounds"
+        )
     ));
 }
 
@@ -405,8 +412,6 @@ LT_DEFINE_PRIMITIVE(
     LT_Value self;
     LT_Value from;
     LT_Value to;
-    int64_t from_value;
-    int64_t to_value;
     LT_String* string;
     (void)tail_call_unwind_marker;
 
@@ -415,17 +420,19 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, to);
     LT_ARG_END(cursor);
 
-    from_value = LT_SmallInteger_value(from);
-    to_value = LT_SmallInteger_value(to);
-    if (from_value < 0 || to_value < 0){
-        LT_error("String index out of bounds");
-    }
-
     string = LT_String_from_value(self);
     return (LT_Value)(uintptr_t)LT_String_substring(
         string,
-        (size_t)from_value,
-        (size_t)to_value
+        LT_Number_nonnegative_size_from_integer(
+            from,
+            "String index out of bounds",
+            "String index out of bounds"
+        ),
+        LT_Number_nonnegative_size_from_integer(
+            to,
+            "String index out of bounds",
+            "String index out of bounds"
+        )
     );
 }
 

@@ -56,10 +56,10 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
 
     length = LT_String_length(string);
-    if (!LT_SmallInteger_in_range((int64_t)length)){
-        LT_error("String length does not fit fixnum");
-    }
-    return LT_SmallInteger_new((int64_t)length);
+    return LT_Number_smallinteger_from_size(
+        length,
+        "String length does not fit fixnum"
+    );
 }
 
 LT_DEFINE_PRIMITIVE(

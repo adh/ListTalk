@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/Pair.h>
@@ -16,7 +17,6 @@
 #include <ListTalk/utils.h>
 
 #include <errno.h>
-#include <limits.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -107,45 +107,6 @@ static void raw_check_writable(LT_Stream* stream){
 
     if (!file_stream->writable){
         LT_error("Stream is not writable");
-    }
-}
-
-static size_t size_from_fixnum(LT_Value value, char* what){
-    int64_t fixnum = LT_SmallInteger_value(value);
-
-    if (fixnum < 0){
-        LT_error(what);
-    }
-    return (size_t)fixnum;
-}
-
-static long long_from_fixnum(LT_Value value){
-    int64_t fixnum = LT_SmallInteger_value(value);
-
-    if (fixnum < (int64_t)LONG_MIN || fixnum > (int64_t)LONG_MAX){
-        LT_error("Stream offset out of range");
-    }
-    return (long)fixnum;
-}
-
-static LT_Value smallinteger_from_size(size_t value, char* what){
-    if (value > (size_t)LT_VALUE_FIXNUM_MAX){
-        LT_error(what);
-    }
-    return LT_SmallInteger_new((int64_t)value);
-}
-
-static LT_Value smallinteger_from_long(long value){
-    if (value < (long)LT_VALUE_FIXNUM_MIN
-        || value > (long)LT_VALUE_FIXNUM_MAX){
-        LT_error("Stream offset out of range");
-    }
-    return LT_SmallInteger_new((int64_t)value);
-}
-
-static void check_byte_value(int64_t value){
-    if (value < 0 || value > UINT8_MAX){
-        LT_error("Byte value out of range");
     }
 }
 
@@ -465,7 +426,11 @@ void LT_Stream_seek(LT_Value stream, long offset){
         raw_stream_seek(file_stream_from_value(stream), offset);
         return;
     }
-    (void)stream_send1(stream, "seek:", smallinteger_from_long(offset));
+    (void)stream_send1(
+        stream,
+        "seek:",
+        LT_Number_smallinteger_from_long(offset, "Stream offset out of range")
+    );
 }
 
 void LT_Stream_seekFromEnd(LT_Value stream, long offset){
@@ -476,7 +441,7 @@ void LT_Stream_seekFromEnd(LT_Value stream, long offset){
     (void)stream_send1(
         stream,
         "seekFromEnd:",
-        smallinteger_from_long(offset)
+        LT_Number_smallinteger_from_long(offset, "Stream offset out of range")
     );
 }
 
@@ -488,7 +453,7 @@ void LT_Stream_seekFromStart(LT_Value stream, long offset){
     (void)stream_send1(
         stream,
         "seekFromStart:",
-        smallinteger_from_long(offset)
+        LT_Number_smallinteger_from_long(offset, "Stream offset out of range")
     );
 }
 
@@ -556,7 +521,7 @@ LT_ByteVector* LT_Stream_readBytes(LT_Value stream, size_t length){
     result = stream_send1(
         stream,
         "readBytes:",
-        smallinteger_from_size(length, "Byte count out of range")
+        LT_Number_smallinteger_from_size(length, "Byte count out of range")
     );
     return LT_ByteVector_from_value(result);
 }
@@ -730,7 +695,10 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, offset);
     LT_ARG_END(cursor);
-    raw_stream_seek(stream_from_value(self), long_from_fixnum(offset));
+    raw_stream_seek(
+        stream_from_value(self),
+        LT_Number_long_from_integer(offset, "Stream offset out of range")
+    );
     return self;
 }
 
@@ -748,7 +716,10 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, offset);
     LT_ARG_END(cursor);
-    raw_stream_seekFromEnd(stream_from_value(self), long_from_fixnum(offset));
+    raw_stream_seekFromEnd(
+        stream_from_value(self),
+        LT_Number_long_from_integer(offset, "Stream offset out of range")
+    );
     return self;
 }
 
@@ -766,7 +737,10 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, offset);
     LT_ARG_END(cursor);
-    raw_stream_seekFromStart(stream_from_value(self), long_from_fixnum(offset));
+    raw_stream_seekFromStart(
+        stream_from_value(self),
+        LT_Number_long_from_integer(offset, "Stream offset out of range")
+    );
     return self;
 }
 
@@ -801,7 +775,11 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
     return (LT_Value)(uintptr_t)raw_stream_readBytes(
         stream_from_value(self),
-        size_from_fixnum(length, "Byte count out of range")
+        LT_Number_nonnegative_size_from_integer(
+            length,
+            "Byte count out of range",
+            "Byte count out of range"
+        )
     );
 }
 
@@ -859,16 +837,16 @@ LT_DEFINE_PRIMITIVE(
     LT_Value cursor = arguments;
     LT_Value self;
     LT_Value byte;
-    int64_t byte_value;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, byte);
     LT_ARG_END(cursor);
 
-    byte_value = LT_SmallInteger_value(byte);
-    check_byte_value(byte_value);
-    raw_stream_writeByte(stream_from_value(self), (uint8_t)byte_value);
+    raw_stream_writeByte(
+        stream_from_value(self),
+        LT_Number_uint8_from_integer(byte, "Byte value out of range")
+    );
     return self;
 }
 

@@ -6,9 +6,9 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
@@ -25,16 +25,6 @@ static size_t list_length(LT_Value value){
         LT_error("List length requires proper list");
     }
     return length;
-}
-
-static size_t list_index_from_fixnum(int64_t value){
-    if (value < 0){
-        LT_error("Negative index");
-    }
-    if (!LT_SmallInteger_in_range((int64_t)(size_t)value)){
-        LT_error("Index out of supported range");
-    }
-    return (size_t)value;
 }
 
 size_t LT_List_hash(LT_Value value){
@@ -495,10 +485,10 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
 
     length = list_length(self);
-    if (!LT_SmallInteger_in_range((int64_t)length)){
-        LT_error("List length does not fit fixnum");
-    }
-    return LT_SmallInteger_new((int64_t)length);
+    return LT_Number_smallinteger_from_size(
+        length,
+        "List length does not fit fixnum"
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -515,7 +505,14 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_FIXNUM_ARG(cursor, index_value);
     LT_ARG_END(cursor);
-    return LT_List_at(self, list_index_from_fixnum(index_value));
+    return LT_List_at(
+        self,
+        LT_Number_nonnegative_size_from_int64(
+            index_value,
+            "Negative index",
+            "Index out of supported range"
+        )
+    );
 }
 
 LT_DEFINE_PRIMITIVE(

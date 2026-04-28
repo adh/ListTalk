@@ -7,9 +7,12 @@
 #define H__ListTalk__Number__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/vm/Class.h>
 
 #include <stdbool.h>
+#include <limits.h>
+#include <stdint.h>
 
 LT__BEGIN_DECLS
 
@@ -17,6 +20,98 @@ typedef struct LT_Number_s LT_Number;
 
 extern LT_Class LT_Number_class;
 extern LT_Class LT_Number_class_class;
+
+static inline size_t LT_Number_nonnegative_size_from_int64(
+    int64_t value,
+    const char* negative_message,
+    const char* range_message
+){
+    if (value < 0){
+        LT_error(negative_message);
+    }
+    if (!LT_SmallInteger_in_range((int64_t)(size_t)value)){
+        LT_error(range_message);
+    }
+    return (size_t)value;
+}
+
+static inline size_t LT_Number_nonnegative_size_from_integer(
+    LT_Value value,
+    const char* negative_message,
+    const char* range_message
+){
+    return LT_Number_nonnegative_size_from_int64(
+        LT_SmallInteger_value(value),
+        negative_message,
+        range_message
+    );
+}
+
+static inline LT_Value LT_Number_smallinteger_from_size(
+    size_t value,
+    const char* range_message
+){
+    if (value > (size_t)LT_VALUE_FIXNUM_MAX){
+        LT_error(range_message);
+    }
+    return LT_SmallInteger_new((int64_t)value);
+}
+
+static inline LT_Value LT_Number_smallinteger_from_long(
+    long value,
+    const char* range_message
+){
+    if (value < (long)LT_VALUE_FIXNUM_MIN || value > (long)LT_VALUE_FIXNUM_MAX){
+        LT_error(range_message);
+    }
+    return LT_SmallInteger_new((int64_t)value);
+}
+
+static inline uint8_t LT_Number_uint8_from_int64(
+    int64_t value,
+    const char* range_message
+){
+    if (value < 0 || value > UINT8_MAX){
+        LT_error(range_message);
+    }
+    return (uint8_t)value;
+}
+
+static inline uint8_t LT_Number_uint8_from_integer(
+    LT_Value value,
+    const char* range_message
+){
+    return LT_Number_uint8_from_int64(
+        LT_SmallInteger_value(value),
+        range_message
+    );
+}
+
+static inline long LT_Number_long_from_integer(
+    LT_Value value,
+    const char* range_message
+){
+    int64_t integer = LT_SmallInteger_value(value);
+
+    if (integer < (int64_t)LONG_MIN || integer > (int64_t)LONG_MAX){
+        LT_error(range_message);
+    }
+    return (long)integer;
+}
+
+static inline int LT_Number_int_from_integer(
+    LT_Value value,
+    int64_t min_value,
+    int64_t max_value,
+    const char* range_message
+){
+    int64_t integer = LT_SmallInteger_value(value);
+
+    if (integer < min_value || integer > max_value){
+        LT_error(range_message);
+    }
+    return (int)integer;
+}
 
 int LT_Number_parse_token_with_radix(const char* token, unsigned int radix, LT_Value* value);
 char* LT_Number_to_string(LT_Value value);

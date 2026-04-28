@@ -38,10 +38,10 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
 
     length = LT_Vector_length(vector);
-    if (!LT_SmallInteger_in_range((int64_t)length)){
-        LT_error("Vector length does not fit fixnum");
-    }
-    return LT_SmallInteger_new((int64_t)length);
+    return LT_Number_smallinteger_from_size(
+        length,
+        "Vector length does not fit fixnum"
+    );
 }
 
 LT_DEFINE_PRIMITIVE(

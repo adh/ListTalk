@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -18,16 +19,6 @@
 #include <sys/random.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
-static size_t checked_nonnegative_length(int64_t value){
-    if (value < 0){
-        LT_error("Negative length");
-    }
-    if (!LT_SmallInteger_in_range((int64_t)(size_t)value)){
-        LT_error("Length out of supported range");
-    }
-    return (size_t)value;
-}
 
 static mode_t mode_from_fixnum(int64_t value){
     if (value < 0){
@@ -82,11 +73,12 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG_OPT(cursor, status, status);
     LT_ARG_END(cursor);
 
-    if (!LT_Value_is_fixnum(status)){
-        LT_type_error(status, &LT_SmallInteger_class);
-    }
-
-    exit((int)LT_SmallInteger_value(status));
+    exit(LT_Number_int_from_integer(
+        status,
+        INT_MIN,
+        INT_MAX,
+        "Exit status out of range"
+    ));
     return LT_NIL;
 }
 
@@ -147,17 +139,20 @@ LT_DEFINE_PRIMITIVE(
     LT_Value cursor = arguments;
     LT_String* path;
     LT_Value mode_value = LT_SmallInteger_new(F_OK);
-    int64_t mode;
 
     OS_STRING_ARG(cursor, path);
     LT_OBJECT_ARG_OPT(cursor, mode_value, mode_value);
     LT_ARG_END(cursor);
 
-    if (!LT_Value_is_fixnum(mode_value)){
-        LT_type_error(mode_value, &LT_SmallInteger_class);
-    }
-    mode = LT_SmallInteger_value(mode_value);
-    return access(LT_String_value_cstr(path), (int)mode) == 0
+    return access(
+        LT_String_value_cstr(path),
+        LT_Number_int_from_integer(
+            mode_value,
+            INT_MIN,
+            INT_MAX,
+            "Access mode out of range"
+        )
+    ) == 0
         ? LT_TRUE
         : LT_FALSE;
 }
@@ -177,9 +172,6 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG_OPT(cursor, mode_value, mode_value);
     LT_ARG_END(cursor);
 
-    if (!LT_Value_is_fixnum(mode_value)){
-        LT_type_error(mode_value, &LT_SmallInteger_class);
-    }
     mode = LT_SmallInteger_value(mode_value);
     if (mkdir(LT_String_value_cstr(path), mode_from_fixnum(mode)) != 0){
         LT_system_error("Could not create directory", errno);
@@ -307,7 +299,11 @@ LT_DEFINE_PRIMITIVE(
     LT_FIXNUM_ARG(cursor, length_value);
     LT_ARG_END(cursor);
 
-    length = checked_nonnegative_length(length_value);
+    length = LT_Number_nonnegative_size_from_int64(
+        length_value,
+        "Negative length",
+        "Length out of supported range"
+    );
     bytes = GC_MALLOC_ATOMIC(length == 0 ? 1 : length);
 
     while (offset < length){
