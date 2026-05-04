@@ -32,6 +32,10 @@ static int expect(int condition, const char* message){
     return 0;
 }
 
+static int value_is_instance_of(LT_Value value, LT_Class* klass){
+    return LT_Value_is_instance_of(value, (LT_Value)(uintptr_t)klass);
+}
+
 static int g_inner_calls = 0;
 static int g_outer_calls = 0;
 static int g_order_index = 0;
@@ -410,6 +414,89 @@ static int test_error_builder_collects_named_arguments(void){
     );
 }
 
+static int test_subclass_responsibility_error_builder(void){
+    LT_Value condition = LT_SubclassResponsibilityError("abstract method");
+    LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
+
+    if (expect(
+            LT_Value_class(condition) == &LT_SubclassResponsibilityError_class,
+            "LT_SubclassResponsibilityError builds specific condition"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_SubclassResponsibilityError_p(condition),
+            "condition predicate recognizes SubclassResponsibilityError"
+        )){
+        return 1;
+    }
+    if (expect(
+            value_is_instance_of(condition, &LT_Error_class),
+            "SubclassResponsibilityError is an Error"
+        )){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(message)),
+            "abstract method"
+        ) == 0,
+        "SubclassResponsibilityError stores message"
+    );
+}
+
+static int test_subclass_responsibility_api_signals_specific_error(void){
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-subclass-responsibility-handler",
+        "(condition)",
+        "captures subclass responsibility condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("subclass-responsibility-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            LT_subclass_responsibility_error();
+        });
+    });
+
+    return expect(
+        LT_Value_class(caught) == &LT_SubclassResponsibilityError_class,
+        "LT_subclass_responsibility_error emits SubclassResponsibilityError"
+    );
+}
+
+static int test_object_subclass_responsibility_signals_specific_error(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-object-subclass-responsibility-handler",
+        "(condition)",
+        "captures Object>>subclassResponsibility condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("object-subclass-responsibility-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_eval(
+                read_one_with_source_file(
+                    "[#nil subclassResponsibility]",
+                    "test.lt"
+                ),
+                env,
+                NULL
+            );
+        });
+    });
+
+    return expect(
+        LT_Value_class(caught) == &LT_SubclassResponsibilityError_class,
+        "Object>>subclassResponsibility emits SubclassResponsibilityError"
+    );
+}
+
 static int test_system_error_preserves_errno_and_strerror_message(void){
     LT_Value condition = LT_SystemError_new("open failed", ENOENT, LT_NIL);
     LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
@@ -496,6 +583,9 @@ int main(void){
     failures += test_lt_error_signals_condition_to_handlers();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
+    failures += test_subclass_responsibility_error_builder();
+    failures += test_subclass_responsibility_api_signals_specific_error();
+    failures += test_object_subclass_responsibility_signals_specific_error();
     failures += test_system_error_preserves_errno_and_strerror_message();
     failures += test_filestream_open_failure_signals_system_error();
 

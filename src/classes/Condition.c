@@ -29,6 +29,10 @@ struct LT_Error_s {
     LT_Condition base;
 };
 
+struct LT_SubclassResponsibilityError_s {
+    LT_Error base;
+};
+
 struct LT_SystemError_s {
     LT_Error base;
     LT_Value errno_value;
@@ -114,6 +118,14 @@ LT_DEFINE_CLASS(LT_Error) {
     .metaclass_superclass = &LT_Class_class,
     .name = "Error",
     .instance_size = sizeof(LT_Error),
+    .debugPrintOn = Condition_debugPrintOn,
+};
+
+LT_DEFINE_CLASS(LT_SubclassResponsibilityError) {
+    .superclass = &LT_Error_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "SubclassResponsibilityError",
+    .instance_size = sizeof(LT_SubclassResponsibilityError),
     .debugPrintOn = Condition_debugPrintOn,
 };
 
@@ -221,6 +233,20 @@ LT_Value LT_Error_impl(const char* message, ...){
 
     va_start(args, message);
     result = LT_Condition_vnew(&LT_Error_class, message, args);
+    va_end(args);
+    return result;
+}
+
+LT_Value LT_SubclassResponsibilityError_impl(const char* message, ...){
+    LT_Value result;
+    va_list args;
+
+    va_start(args, message);
+    result = LT_Condition_vnew(
+        &LT_SubclassResponsibilityError_class,
+        message,
+        args
+    );
     va_end(args);
     return result;
 }

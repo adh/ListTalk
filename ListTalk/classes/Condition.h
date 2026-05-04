@@ -18,6 +18,7 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Condition);
 LT_DECLARE_CLASS(LT_Warning);
 LT_DECLARE_CLASS(LT_Error);
+LT_DECLARE_CLASS(LT_SubclassResponsibilityError);
 LT_DECLARE_CLASS(LT_SystemError);
 LT_DECLARE_CLASS(LT_ReaderError);
 LT_DECLARE_CLASS(LT_IncompleteInputSyntaxError);
@@ -36,10 +37,13 @@ LT_Value LT_ReaderError_new(
 LT_Value LT_Condition_impl(const char* message, ...);
 LT_Value LT_Warning_impl(const char* message, ...);
 LT_Value LT_Error_impl(const char* message, ...);
+LT_Value LT_SubclassResponsibilityError_impl(const char* message, ...);
 
 #define LT_Condition(...) LT_Condition_impl(__VA_ARGS__, NULL)
 #define LT_Warning(...) LT_Warning_impl(__VA_ARGS__, NULL)
 #define LT_Error(...) LT_Error_impl(__VA_ARGS__, NULL)
+#define LT_SubclassResponsibilityError(...) \
+    LT_SubclassResponsibilityError_impl(__VA_ARGS__, NULL)
 
 LT__END_DECLS
 

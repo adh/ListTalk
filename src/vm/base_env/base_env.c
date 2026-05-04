@@ -99,6 +99,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Condition", &LT_Condition_class},
     {"Warning", &LT_Warning_class},
     {"Error", &LT_Error_class},
+    {"SubclassResponsibilityError", &LT_SubclassResponsibilityError_class},
     {"SystemError", &LT_SystemError_class},
     {"ReaderError", &LT_ReaderError_class},
     {"IncompleteInputSyntaxError", &LT_IncompleteInputSyntaxError_class},

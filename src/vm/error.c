@@ -53,6 +53,20 @@ void _Noreturn LT_system_error(const char* message, int errnum){
 #endif
 }
 
+void _Noreturn LT_subclass_responsibility_error(void){
+    static const char* message = "Subclass responsibility";
+    LT_Value condition = LT_SubclassResponsibilityError(message);
+
+    LT_signal(condition);
+    fprintf(stderr, "Unrecoverable subclass responsibility error: %s\n", message);
+    LT_print_backtrace(stderr);
+#ifdef __APPLE__
+    _exit(1);
+#else
+    abort();
+#endif
+}
+
 void LT_type_error(LT_Value value, LT_Class* expected_class){
     LT_error(
         "Type error",
