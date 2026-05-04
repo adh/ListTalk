@@ -43,6 +43,8 @@
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Duration.h>
+#include <ListTalk/classes/DateTime.h>
+#include <ListTalk/classes/UTCDateTime.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/utils.h>
@@ -106,6 +108,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"FileStream", &LT_FileStream_class},
     {"Instant", &LT_Instant_class},
     {"Duration", &LT_Duration_class},
+    {"DateTime", &LT_DateTime_class},
+    {"UTCDateTime", &LT_UTCDateTime_class},
 };
 
 static LT_Value modules_symbol(void){

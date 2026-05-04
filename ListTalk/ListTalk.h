@@ -49,6 +49,8 @@
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Duration.h>
+#include <ListTalk/classes/DateTime.h>
+#include <ListTalk/classes/UTCDateTime.h>
 
 LT__BEGIN_DECLS
 
