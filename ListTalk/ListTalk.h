@@ -47,6 +47,8 @@
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/Stream.h>
+#include <ListTalk/classes/Instant.h>
+#include <ListTalk/classes/Duration.h>
 
 LT__BEGIN_DECLS
 
