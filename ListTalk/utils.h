@@ -7,6 +7,7 @@
 #define H__ListTalk__utils__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/utils/utf8.h>
 #include <ListTalk/vm/value.h>
 
 #include <stdint.h>

@@ -13,6 +13,7 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/utils/utf8.h>
 
 #include <ctype.h>
 #include <stdint.h>
@@ -25,189 +26,19 @@ struct LT_String_s {
     char str[];
 };
 
-static int utf8_is_continuation(unsigned char ch){
-    return (ch & 0xc0) == 0x80;
-}
-
-static int utf8_continuation_valid(unsigned char ch){
-    return ch != '\0' && utf8_is_continuation(ch);
-}
-
-static size_t utf8_sequence_length(unsigned char first){
-    if (first < 0x80){
-        return 1;
-    }
-    if (first >= 0xc2 && first <= 0xdf){
-        return 2;
-    }
-    if (first >= 0xe0 && first <= 0xef){
-        return 3;
-    }
-    if (first >= 0xf0 && first <= 0xf4){
-        return 4;
-    }
-    return 0;
-}
-
-static int utf8_sequence_valid(const unsigned char* cursor, size_t length){
-    unsigned char first = cursor[0];
-
-    switch (length){
-        case 1:
-            return first < 0x80;
-        case 2:
-            return utf8_continuation_valid(cursor[1]);
-        case 3:
-            if (!utf8_continuation_valid(cursor[1])
-                || !utf8_continuation_valid(cursor[2])){
-                return 0;
-            }
-            if (first == 0xe0){
-                return cursor[1] >= 0xa0;
-            }
-            if (first == 0xed){
-                return cursor[1] <= 0x9f;
-            }
-            return 1;
-        case 4:
-            if (!utf8_continuation_valid(cursor[1])
-                || !utf8_continuation_valid(cursor[2])
-                || !utf8_continuation_valid(cursor[3])){
-                return 0;
-            }
-            if (first == 0xf0){
-                return cursor[1] >= 0x90;
-            }
-            if (first == 0xf4){
-                return cursor[1] <= 0x8f;
-            }
-            return 1;
-        default:
-            return 0;
-    }
-}
-
-static int utf8_sequence_valid_bounded(const unsigned char* cursor,
-                                       size_t available,
-                                       size_t length){
-    if (length > available){
-        return 0;
-    }
-    return utf8_sequence_valid(cursor, length);
-}
-
 static void StringBuilder_append_codepoint(LT_StringBuilder* builder,
                                            uint32_t codepoint){
-    if (codepoint <= UINT32_C(0x7f)){
-        LT_StringBuilder_append_char(builder, (char)codepoint);
-    } else if (codepoint <= UINT32_C(0x7ff)){
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0xc0 | (codepoint >> 6))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | (codepoint & 0x3f))
-        );
-    } else if (codepoint <= UINT32_C(0xffff)){
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0xe0 | (codepoint >> 12))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | ((codepoint >> 6) & 0x3f))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | (codepoint & 0x3f))
-        );
-    } else {
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0xf0 | (codepoint >> 18))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | ((codepoint >> 12) & 0x3f))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | ((codepoint >> 6) & 0x3f))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | (codepoint & 0x3f))
-        );
-    }
-}
-
-static uint32_t utf8_decode_valid(const unsigned char* cursor, size_t length){
-    switch (length){
-        case 1:
-            return cursor[0];
-        case 2:
-            return ((uint32_t)(cursor[0] & 0x1f) << 6)
-                | (uint32_t)(cursor[1] & 0x3f);
-        case 3:
-            return ((uint32_t)(cursor[0] & 0x0f) << 12)
-                | ((uint32_t)(cursor[1] & 0x3f) << 6)
-                | (uint32_t)(cursor[2] & 0x3f);
-        case 4:
-            return ((uint32_t)(cursor[0] & 0x07) << 18)
-                | ((uint32_t)(cursor[1] & 0x3f) << 12)
-                | ((uint32_t)(cursor[2] & 0x3f) << 6)
-                | (uint32_t)(cursor[3] & 0x3f);
-        default:
-            return UINT32_C(0xfffd);
-    }
-}
-
-static uint32_t utf8_codepoint_at_bounded(const char* cursor, size_t available){
-    const unsigned char* bytes = (const unsigned char*)cursor;
+    char buffer[4];
     size_t length;
+    size_t i;
 
-    if (available == 0){
-        return UINT32_C(0xfffd);
+    length = LT_utf8_encode(codepoint, buffer);
+    if (length == 0){
+        length = LT_utf8_encode(LT_UTF8_REPLACEMENT_CODEPOINT, buffer);
     }
-    if (bytes[0] == '\0'){
-        return 0;
+    for (i = 0; i < length; i++){
+        LT_StringBuilder_append_char(builder, buffer[i]);
     }
-
-    length = utf8_sequence_length(bytes[0]);
-    if (length == 0 || !utf8_sequence_valid_bounded(bytes, available, length)){
-        return UINT32_C(0xfffd);
-    }
-
-    return utf8_decode_valid(bytes, length);
-}
-
-static const char* utf8_next_bounded(const char* cursor, size_t available){
-    const unsigned char* bytes = (const unsigned char*)cursor;
-    size_t length;
-
-    if (available == 0){
-        return cursor;
-    }
-    if (bytes[0] == '\0'){
-        return cursor + 1;
-    }
-
-    if (utf8_is_continuation(bytes[0])){
-        size_t offset = 1;
-
-        while (offset < available && utf8_is_continuation(bytes[offset])){
-            offset++;
-        }
-        return cursor + offset;
-    }
-
-    length = utf8_sequence_length(bytes[0]);
-    if (length == 0 || !utf8_sequence_valid_bounded(bytes, available, length)){
-        return cursor + 1;
-    }
-
-    return cursor + length;
 }
 
 static LT_String* String_new_normalized(const char* buf,
@@ -469,8 +300,8 @@ LT_String* LT_String_new(char* buf, size_t len){
         const char* next;
         size_t available = (size_t)(end - cursor);
 
-        codepoint = utf8_codepoint_at_bounded(cursor, available);
-        next = utf8_next_bounded(cursor, available);
+        codepoint = LT_utf8_codepoint_at_bounded(cursor, available);
+        next = LT_utf8_next_bounded(cursor, available);
 
         StringBuilder_append_codepoint(builder, codepoint);
         codepoint_length++;
@@ -534,43 +365,11 @@ size_t LT_String_byte_length(LT_String* string){
 }
 
 uint32_t LT_String_utf8_codepoint_at(const char* cursor){
-    const unsigned char* bytes = (const unsigned char*)cursor;
-    size_t length;
-
-    if (bytes[0] == '\0'){
-        return 0;
-    }
-
-    length = utf8_sequence_length(bytes[0]);
-    if (length == 0 || !utf8_sequence_valid(bytes, length)){
-        return UINT32_C(0xfffd);
-    }
-
-    return utf8_decode_valid(bytes, length);
+    return LT_utf8_codepoint_at(cursor);
 }
 
 const char* LT_String_utf8_next(const char* cursor){
-    const unsigned char* bytes = (const unsigned char*)cursor;
-    size_t length;
-
-    if (bytes[0] == '\0'){
-        return cursor + 1;
-    }
-
-    if (utf8_is_continuation(bytes[0])){
-        do {
-            cursor++;
-            bytes++;
-        } while (bytes[0] != '\0' && utf8_is_continuation(bytes[0]));
-        return cursor;
-    }
-
-    length = utf8_sequence_length(bytes[0]);
-    if (length == 0 || !utf8_sequence_valid(bytes, length)){
-        return cursor + 1;
-    }
-
-    return cursor + length;
+    return LT_utf8_next(cursor);
 }
 
 uint32_t LT_String_at(LT_String* string, size_t index){

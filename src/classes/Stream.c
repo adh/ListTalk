@@ -15,6 +15,7 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/utils/utf8.h>
 
 #include <errno.h>
 #include <stdint.h>
@@ -117,33 +118,14 @@ static void write_all(FILE* file, const void* buffer, size_t length){
 }
 
 static void write_utf8_codepoint(FILE* file, uint32_t codepoint){
-    uint8_t buffer[4];
+    char buffer[4];
     size_t length;
 
     if (!LT_Character_codepoint_is_valid(codepoint)){
         LT_error("Character code point out of range");
     }
 
-    if (codepoint <= UINT32_C(0x7f)){
-        buffer[0] = (uint8_t)codepoint;
-        length = 1;
-    } else if (codepoint <= UINT32_C(0x7ff)){
-        buffer[0] = (uint8_t)(0xc0 | (codepoint >> 6));
-        buffer[1] = (uint8_t)(0x80 | (codepoint & 0x3f));
-        length = 2;
-    } else if (codepoint <= UINT32_C(0xffff)){
-        buffer[0] = (uint8_t)(0xe0 | (codepoint >> 12));
-        buffer[1] = (uint8_t)(0x80 | ((codepoint >> 6) & 0x3f));
-        buffer[2] = (uint8_t)(0x80 | (codepoint & 0x3f));
-        length = 3;
-    } else {
-        buffer[0] = (uint8_t)(0xf0 | (codepoint >> 18));
-        buffer[1] = (uint8_t)(0x80 | ((codepoint >> 12) & 0x3f));
-        buffer[2] = (uint8_t)(0x80 | ((codepoint >> 6) & 0x3f));
-        buffer[3] = (uint8_t)(0x80 | (codepoint & 0x3f));
-        length = 4;
-    }
-
+    length = LT_utf8_encode(codepoint, buffer);
     write_all(file, buffer, length);
 }
 

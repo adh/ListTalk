@@ -65,6 +65,7 @@ vm_lib = library(
                 'src/vm/stack_trace.c',
                 'src/vm/conditions.c',
                 'src/vm/throw_catch.c',
+                'src/utils/utf8.c',
                 'src/classes/Object.c',
                 'src/classes/Boolean.c',
                 'src/classes/Character.c',

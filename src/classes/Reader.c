@@ -24,6 +24,7 @@
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/utils/utf8.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/stack_trace.h>
@@ -382,51 +383,17 @@ static int reader_hex_digit_value(int ch){
 static void reader_append_utf8_codepoint(LT_Reader* reader,
                                          LT_StringBuilder* builder,
                                          uint32_t codepoint){
+    char buffer[4];
+    size_t length;
+    size_t i;
+
     if (!LT_Character_codepoint_is_valid(codepoint)){
         reader_error(reader, "Invalid Unicode code point in string escape");
     }
 
-    if (codepoint <= UINT32_C(0x7f)){
-        LT_StringBuilder_append_char(builder, (char)codepoint);
-    } else if (codepoint <= UINT32_C(0x7ff)){
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0xc0 | (codepoint >> 6))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | (codepoint & 0x3f))
-        );
-    } else if (codepoint <= UINT32_C(0xffff)){
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0xe0 | (codepoint >> 12))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | ((codepoint >> 6) & 0x3f))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | (codepoint & 0x3f))
-        );
-    } else {
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0xf0 | (codepoint >> 18))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | ((codepoint >> 12) & 0x3f))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | ((codepoint >> 6) & 0x3f))
-        );
-        LT_StringBuilder_append_char(
-            builder,
-            (char)(0x80 | (codepoint & 0x3f))
-        );
+    length = LT_utf8_encode(codepoint, buffer);
+    for (i = 0; i < length; i++){
+        LT_StringBuilder_append_char(builder, buffer[i]);
     }
 }
 
@@ -1187,8 +1154,8 @@ static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* strea
 
     token = read_token_string(reader, ch, stream);
 
-    if (token[0] != '\0' && *LT_String_utf8_next(token) == '\0'){
-        return LT_Character_new(LT_String_utf8_codepoint_at(token));
+    if (token[0] != '\0' && *LT_utf8_next(token) == '\0'){
+        return LT_Character_new(LT_utf8_codepoint_at(token));
     }
     if (strcmp(token, "space") == 0){
         return LT_Character_new((uint32_t)' ');
