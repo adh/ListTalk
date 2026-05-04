@@ -14,6 +14,7 @@
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/macros/method_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/utils/utf8.h>
 
@@ -583,6 +584,90 @@ LT_DEFINE_PRIMITIVE(
     return LT_FALSE;
 }
 
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    stream_method_close,
+    "Stream>>close",
+    "Close stream."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    stream_method_flush,
+    "Stream>>flush",
+    "Flush buffered stream data."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_seek,
+    "Stream>>seek:",
+    offset,
+    "Seek from current stream position."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_seek_from_end,
+    "Stream>>seekFromEnd:",
+    offset,
+    "Seek from end of stream."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_seek_from_start,
+    "Stream>>seekFromStart:",
+    offset,
+    "Seek from start of stream."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    stream_method_read_byte,
+    "Stream>>readByte",
+    "Read one byte as an unsigned fixnum, or nil at EOF."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_read_bytes,
+    "Stream>>readBytes:",
+    length,
+    "Read up to length bytes."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    stream_method_read_line,
+    "Stream>>readLine",
+    "Read a line without its line terminator."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    stream_method_read_string,
+    "Stream>>readString",
+    "Read remaining stream bytes as UTF-8 text with normalized line endings."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    stream_method_read_bytevector,
+    "Stream>>readByteVector",
+    "Read remaining stream bytes into a bytevector."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_write_byte,
+    "Stream>>writeByte:",
+    byte,
+    "Write one byte."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_write_character,
+    "Stream>>writeCharacter:",
+    character,
+    "Write one character as UTF-8."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_write_bytevector,
+    "Stream>>writeByteVector:",
+    bytevector,
+    "Write bytevector bytes."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    stream_method_write_string,
+    "Stream>>writeString:",
+    string,
+    "Write string UTF-8 bytes."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    stream_method_write_ln,
+    "Stream>>writeLn",
+    "Write a line feed byte."
+)
+
 LT_DEFINE_PRIMITIVE(
     filestream_method_is_closed,
     "FileStream>>isClosed",
@@ -632,7 +717,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_close,
+    filestream_method_close,
     "FileStream>>close",
     "(self)",
     "Close stream."
@@ -648,7 +733,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_flush,
+    filestream_method_flush,
     "FileStream>>flush",
     "(self)",
     "Flush buffered stream data."
@@ -664,7 +749,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_seek,
+    filestream_method_seek,
     "FileStream>>seek:",
     "(self offset)",
     "Seek from current stream position."
@@ -685,7 +770,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_seek_from_end,
+    filestream_method_seek_from_end,
     "FileStream>>seekFromEnd:",
     "(self offset)",
     "Seek from end of stream."
@@ -706,7 +791,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_seek_from_start,
+    filestream_method_seek_from_start,
     "FileStream>>seekFromStart:",
     "(self offset)",
     "Seek from start of stream."
@@ -727,7 +812,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_read_byte,
+    filestream_method_read_byte,
     "FileStream>>readByte",
     "(self)",
     "Read one byte as an unsigned fixnum, or nil at EOF."
@@ -742,7 +827,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_read_bytes,
+    filestream_method_read_bytes,
     "FileStream>>readBytes:",
     "(self length)",
     "Read up to length bytes."
@@ -766,7 +851,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_read_line,
+    filestream_method_read_line,
     "FileStream>>readLine",
     "(self)",
     "Read a line without its line terminator."
@@ -781,7 +866,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_read_string,
+    filestream_method_read_string,
     "FileStream>>readString",
     "(self)",
     "Read remaining stream bytes as UTF-8 text with normalized line endings."
@@ -796,7 +881,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_read_bytevector,
+    filestream_method_read_bytevector,
     "FileStream>>readByteVector",
     "(self)",
     "Read remaining stream bytes into a bytevector."
@@ -811,7 +896,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_write_byte,
+    filestream_method_write_byte,
     "FileStream>>writeByte:",
     "(self byte)",
     "Write one byte."
@@ -833,7 +918,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_write_character,
+    filestream_method_write_character,
     "FileStream>>writeCharacter:",
     "(self character)",
     "Write one character as UTF-8."
@@ -855,7 +940,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_write_bytevector,
+    filestream_method_write_bytevector,
     "FileStream>>writeByteVector:",
     "(self bytevector)",
     "Write bytevector bytes."
@@ -874,7 +959,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_write_string,
+    filestream_method_write_string,
     "FileStream>>writeString:",
     "(self string)",
     "Write string UTF-8 bytes."
@@ -893,7 +978,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    stream_method_write_ln,
+    filestream_method_write_ln,
     "FileStream>>writeLn",
     "(self)",
     "Write a line feed byte."
@@ -912,13 +997,6 @@ static LT_Method_Descriptor Stream_methods[] = {
     {"isClosed", &stream_method_is_closed},
     {"isReadable", &stream_method_is_readable},
     {"isWritable", &stream_method_is_writable},
-    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
-};
-
-static LT_Method_Descriptor FileStream_methods[] = {
-    {"isClosed", &filestream_method_is_closed},
-    {"isReadable", &filestream_method_is_readable},
-    {"isWritable", &filestream_method_is_writable},
     {"flush", &stream_method_flush},
     {"close", &stream_method_close},
     {"seek:", &stream_method_seek},
@@ -934,6 +1012,28 @@ static LT_Method_Descriptor FileStream_methods[] = {
     {"writeByteVector:", &stream_method_write_bytevector},
     {"writeString:", &stream_method_write_string},
     {"writeLn", &stream_method_write_ln},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor FileStream_methods[] = {
+    {"isClosed", &filestream_method_is_closed},
+    {"isReadable", &filestream_method_is_readable},
+    {"isWritable", &filestream_method_is_writable},
+    {"flush", &filestream_method_flush},
+    {"close", &filestream_method_close},
+    {"seek:", &filestream_method_seek},
+    {"seekFromEnd:", &filestream_method_seek_from_end},
+    {"seekFromStart:", &filestream_method_seek_from_start},
+    {"readByte", &filestream_method_read_byte},
+    {"readBytes:", &filestream_method_read_bytes},
+    {"readLine", &filestream_method_read_line},
+    {"readString", &filestream_method_read_string},
+    {"readByteVector", &filestream_method_read_bytevector},
+    {"writeByte:", &filestream_method_write_byte},
+    {"writeCharacter:", &filestream_method_write_character},
+    {"writeByteVector:", &filestream_method_write_bytevector},
+    {"writeString:", &filestream_method_write_string},
+    {"writeLn", &filestream_method_write_ln},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

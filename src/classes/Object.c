@@ -7,7 +7,7 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
-#include <ListTalk/vm/error.h>
+#include <ListTalk/macros/method_macros.h>
 #include <ListTalk/vm/value.h>
 
 LT_DEFINE_PRIMITIVE(
@@ -97,21 +97,11 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return LT_Value_equal_p(self, other) ? LT_TRUE : LT_FALSE;
 }
 
-LT_DEFINE_PRIMITIVE(
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
     object_method_subclass_responsibility,
     "Object>>subclassResponsibility",
-    "(self)",
     "Signal that the receiver's class must implement this method."
-){
-    LT_Value cursor = arguments;
-    LT_Value self;
-    (void)tail_call_unwind_marker;
-
-    LT_OBJECT_ARG(cursor, self);
-    LT_ARG_END(cursor);
-    (void)self;
-    LT_subclass_responsibility_error();
-}
+)
 
 static LT_Method_Descriptor Object_methods[] = {
     {"class", &object_method_class},

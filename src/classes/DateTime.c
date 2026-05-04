@@ -15,6 +15,7 @@
 #include <ListTalk/classes/UTCDateTime.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
+#include <ListTalk/macros/method_macros.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/utils.h>
@@ -543,6 +544,58 @@ UTC_DATE_TIME_ACCESSOR(minute)
 UTC_DATE_TIME_ACCESSOR(second)
 UTC_DATE_TIME_ACCESSOR(microsecond)
 
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_year,
+    "DateTime>>year",
+    "Return date-time year."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_month,
+    "DateTime>>month",
+    "Return date-time month."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_day,
+    "DateTime>>day",
+    "Return date-time day."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_hour,
+    "DateTime>>hour",
+    "Return date-time hour."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_minute,
+    "DateTime>>minute",
+    "Return date-time minute."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_second,
+    "DateTime>>second",
+    "Return date-time second."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_microsecond,
+    "DateTime>>microsecond",
+    "Return date-time microsecond."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_as_instant,
+    "DateTime>>asInstant",
+    "Return receiver converted to an Instant."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    dateTime_method_as_iso8601,
+    "DateTime>>asISO8601",
+    "Return receiver formatted as ISO8601 text."
+)
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_1(
+    dateTime_method_as_iso8601_with_separator,
+    "DateTime>>asISO8601WithSeparator:",
+    separator,
+    "Return receiver formatted as ISO8601 text with separator."
+)
+
 LT_DEFINE_PRIMITIVE_FLAGS(
     utcDateTime_method_as_instant,
     "UTCDateTime>>asInstant",
@@ -614,11 +667,26 @@ static LT_Method_Descriptor UTCDateTime_class_methods[] = {
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
+static LT_Method_Descriptor DateTime_methods[] = {
+    {"year", &dateTime_method_year},
+    {"month", &dateTime_method_month},
+    {"day", &dateTime_method_day},
+    {"hour", &dateTime_method_hour},
+    {"minute", &dateTime_method_minute},
+    {"second", &dateTime_method_second},
+    {"microsecond", &dateTime_method_microsecond},
+    {"asInstant", &dateTime_method_as_instant},
+    {"asISO8601", &dateTime_method_as_iso8601},
+    {"asISO8601WithSeparator:", &dateTime_method_as_iso8601_with_separator},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_DateTime) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "DateTime",
     .instance_size = sizeof(LT_DateTime),
+    .methods = DateTime_methods,
     .class_flags = LT_CLASS_FLAG_ABSTRACT | LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
 };
 

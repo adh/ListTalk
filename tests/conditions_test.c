@@ -497,6 +497,102 @@ static int test_object_subclass_responsibility_signals_specific_error(void){
     );
 }
 
+static int test_complex_number_abstract_methods_signal_specific_error(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-complex-subclass-responsibility-handler",
+        "(condition)",
+        "captures ComplexNumber subclass responsibility condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("complex-subclass-responsibility-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_eval(
+                read_one_with_source_file(
+                    "(let () "
+                    "  (define-class PlaceholderComplex (ComplexNumber) ()) "
+                    "  [[PlaceholderComplex alloc] real])",
+                    "test.lt"
+                ),
+                env,
+                NULL
+            );
+        });
+    });
+
+    return expect(
+        LT_Value_class(caught) == &LT_SubclassResponsibilityError_class,
+        "ComplexNumber>>real emits SubclassResponsibilityError"
+    );
+}
+
+static int test_datetime_abstract_methods_signal_specific_error(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-datetime-subclass-responsibility-handler",
+        "(condition)",
+        "captures DateTime subclass responsibility condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("datetime-subclass-responsibility-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_eval(
+                read_one_with_source_file(
+                    "(let () "
+                    "  (define-class PlaceholderDateTime (DateTime) ()) "
+                    "  [[PlaceholderDateTime alloc] asInstant])",
+                    "test.lt"
+                ),
+                env,
+                NULL
+            );
+        });
+    });
+
+    return expect(
+        LT_Value_class(caught) == &LT_SubclassResponsibilityError_class,
+        "DateTime>>asInstant emits SubclassResponsibilityError"
+    );
+}
+
+static int test_stream_abstract_methods_signal_specific_error(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-stream-subclass-responsibility-handler",
+        "(condition)",
+        "captures Stream subclass responsibility condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("stream-subclass-responsibility-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_eval(
+                read_one_with_source_file(
+                    "(let () "
+                    "  (define-class PlaceholderStream (Stream) ()) "
+                    "  [[PlaceholderStream alloc] close])",
+                    "test.lt"
+                ),
+                env,
+                NULL
+            );
+        });
+    });
+
+    return expect(
+        LT_Value_class(caught) == &LT_SubclassResponsibilityError_class,
+        "Stream>>close emits SubclassResponsibilityError"
+    );
+}
+
 static int test_system_error_preserves_errno_and_strerror_message(void){
     LT_Value condition = LT_SystemError_new("open failed", ENOENT, LT_NIL);
     LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
@@ -586,6 +682,9 @@ int main(void){
     failures += test_subclass_responsibility_error_builder();
     failures += test_subclass_responsibility_api_signals_specific_error();
     failures += test_object_subclass_responsibility_signals_specific_error();
+    failures += test_complex_number_abstract_methods_signal_specific_error();
+    failures += test_datetime_abstract_methods_signal_specific_error();
+    failures += test_stream_abstract_methods_signal_specific_error();
     failures += test_system_error_preserves_errno_and_strerror_message();
     failures += test_filestream_open_failure_signals_system_error();
 
