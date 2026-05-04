@@ -243,6 +243,138 @@
 (check (= [3 asFloat] 3.0) "RealNumber>>asFloat converts integers")
 (check (= [1/2 asFloat] 0.5) "RealNumber>>asFloat converts rationals")
 
+;;; Instants and durations
+
+(let ((d [Duration fromSeconds: 3/2]))
+  (check (= [d asMicroseconds] 1500000)
+         "Duration class>>fromSeconds: preserves exact microseconds")
+  (check (= [d asSeconds] 3/2)
+         "Duration>>asSeconds preserves exact seconds"))
+(check [[Duration fromSeconds: 1] = [Duration fromMicroseconds: 1000000]]
+       "Duration equality uses microseconds")
+(check [[Instant fromSeconds: 1] = [Instant fromMicroseconds: 1000000]]
+       "Instant equality uses microseconds")
+(let ((d [Duration fromMicroseconds: -500000]))
+  (check (= [d asSeconds] -1/2)
+         "Duration accepts negative microseconds"))
+(let ((t [Instant fromSeconds: 10])
+      (d [Duration fromSeconds: 2]))
+  (check (= [[t afterDuration: d] asSeconds] 12)
+         "Instant>>afterDuration: advances instant")
+  (check (= [[t + d] asSeconds] 12)
+         "Instant>>+ aliases afterDuration:")
+  (check (= [[t beforeDuration: d] asSeconds] 8)
+         "Instant>>beforeDuration: moves instant backward")
+  (check (= [[t - d] asSeconds] 8)
+         "Instant>>- subtracts duration")
+  (check (= [[t durationSince: [Instant fromSeconds: 7]] asSeconds] 3)
+         "Instant>>durationSince: returns duration")
+  (check (= [[t durationUntil: [Instant fromSeconds: 13]] asSeconds] 3)
+         "Instant>>durationUntil: returns duration")
+  (check (= [[t - [Instant fromSeconds: 7]] asSeconds] 3)
+         "Instant>>- subtracts instant as duration"))
+(let ((d1 [Duration fromSeconds: 5])
+      (d2 [Duration fromSeconds: 2])
+      (t [Instant fromSeconds: 10]))
+  (check (= [[d1 addDuration: d2] asSeconds] 7)
+         "Duration>>addDuration: adds durations")
+  (check (= [[d1 + d2] asSeconds] 7)
+         "Duration>>+ aliases duration addition")
+  (check (= [[d1 substractDuration: d2] asSeconds] 3)
+         "Duration>>substractDuration: subtracts durations")
+  (check (= [[d1 - d2] asSeconds] 3)
+         "Duration>>- aliases duration subtraction")
+  (check (= [[d2 + t] asSeconds] 12)
+         "Duration>>+ advances instant"))
+(check (eq? (type-of [Instant now]) Instant)
+       "Instant class>>now returns an Instant")
+
+;;; UTC date-times
+
+(let ((dt [UTCDateTime fromYear: 1970
+                       month: 1
+                       day: 2
+                       hour: 3
+                       minute: 4
+                       second: 5
+                       microsecond: 123456]))
+  (check (= [dt year] 1970) "UTCDateTime>>year")
+  (check (= [dt month] 1) "UTCDateTime>>month")
+  (check (= [dt day] 2) "UTCDateTime>>day")
+  (check (= [dt hour] 3) "UTCDateTime>>hour")
+  (check (= [dt minute] 4) "UTCDateTime>>minute")
+  (check (= [dt second] 5) "UTCDateTime>>second")
+  (check (= [dt microsecond] 123456) "UTCDateTime>>microsecond")
+  (check (equal? [dt asISO8601] "1970-01-02T03:04:05.123456Z")
+         "UTCDateTime>>asISO8601 emits UTC ISO8601")
+  (check (equal? [dt asISO8601WithSeparator: #\space]
+                 "1970-01-02 03:04:05.123456Z")
+         "UTCDateTime>>asISO8601WithSeparator: accepts Character")
+  (check (equal? [dt asISO8601WithSeparator: "_"]
+                 "1970-01-02_03:04:05.123456Z")
+         "UTCDateTime>>asISO8601WithSeparator: accepts String"))
+(check (equal? [[UTCDateTime fromISO8601: "1970-01-02T03:04:05Z"] asISO8601]
+               "1970-01-02T03:04:05Z")
+       "UTCDateTime ISO8601 omits zero microseconds")
+(let ((instant [Instant fromMicroseconds: 123456])
+      (dt [UTCDateTime fromInstant: [Instant fromMicroseconds: 123456]]))
+  (check (= [dt year] 1970) "UTCDateTime class>>fromInstant: year")
+  (check (= [dt month] 1) "UTCDateTime class>>fromInstant: month")
+  (check (= [dt day] 1) "UTCDateTime class>>fromInstant: day")
+  (check (= [dt hour] 0) "UTCDateTime class>>fromInstant: hour")
+  (check (= [dt minute] 0) "UTCDateTime class>>fromInstant: minute")
+  (check (= [dt second] 0) "UTCDateTime class>>fromInstant: second")
+  (check (= [dt microsecond] 123456) "UTCDateTime class>>fromInstant: microsecond")
+  (check [[dt asInstant] = instant] "UTCDateTime>>asInstant round-trips"))
+(let ((dt [UTCDateTime fromISO8601: "1970-01-02T03:04:05.123456Z"]))
+  (check (= [dt year] 1970) "UTCDateTime class>>fromISO8601: year")
+  (check (= [dt month] 1) "UTCDateTime class>>fromISO8601: month")
+  (check (= [dt day] 2) "UTCDateTime class>>fromISO8601: day")
+  (check (= [dt hour] 3) "UTCDateTime class>>fromISO8601: hour")
+  (check (= [dt minute] 4) "UTCDateTime class>>fromISO8601: minute")
+  (check (= [dt second] 5) "UTCDateTime class>>fromISO8601: second")
+  (check (= [dt microsecond] 123456) "UTCDateTime class>>fromISO8601: microsecond")
+  (check (equal? [dt asISO8601] "1970-01-02T03:04:05.123456Z")
+         "UTCDateTime class>>fromISO8601: parses asISO8601 output"))
+(let ((dt [UTCDateTime fromYear: 1970
+                       month: 1
+                       day: 1
+                       hour: 0
+                       minute: 0
+                       second: 0
+                       microsecond: 3/2]))
+  (check (= [[dt asInstant] asMicroseconds] 3/2)
+         "UTCDateTime>>asInstant preserves non-integer microseconds")
+  (check (= [[UTCDateTime fromInstant: [dt asInstant]] microsecond] 3/2)
+         "UTCDateTime class>>fromInstant: preserves non-integer microseconds"))
+(check [[UTCDateTime fromYear: 2000
+                     month: 2
+                     day: 29
+                     hour: 0
+                     minute: 0
+                     second: 0
+                     microsecond: 0]
+        = [UTCDateTime fromInstant:
+             [[UTCDateTime fromYear: 2000
+                           month: 2
+                           day: 29
+                           hour: 0
+                           minute: 0
+                           second: 0
+                           microsecond: 0]
+              asInstant]]]
+       "UTCDateTime>>asInstant handles leap day directly")
+(check-error-message "Day out of range"
+                     "UTCDateTime>>asInstant rejects invalid civil day"
+  [[UTCDateTime fromYear: 2023
+                month: 2
+                day: 29
+                hour: 0
+                minute: 0
+                second: 0
+                microsecond: 0]
+   asInstant])
+
 ;;; OOP: identity and structural equal
 
 (check (let ((p '(1 . 2))) [p == p]) "Object>>== identity equal same object")
