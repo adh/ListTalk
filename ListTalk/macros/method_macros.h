@@ -10,6 +10,9 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
 
+#define LT_SUBCLASS_RESPONSIBILITY_METHOD_DESCRIPTION(description) \
+    description " Subclasses must implement this method."
+
 #define LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(                 \
     c_name,                                                         \
     primitive_name,                                                 \
@@ -19,7 +22,7 @@
         c_name,                                                     \
         primitive_name,                                             \
         "(self)",                                                   \
-        description                                                 \
+        LT_SUBCLASS_RESPONSIBILITY_METHOD_DESCRIPTION(description)  \
     ){                                                              \
         LT_Value cursor = arguments;                                \
         LT_Value self;                                              \
@@ -41,7 +44,7 @@
         c_name,                                                     \
         primitive_name,                                             \
         "(self " #arg_name ")",                                     \
-        description                                                 \
+        LT_SUBCLASS_RESPONSIBILITY_METHOD_DESCRIPTION(description)  \
     ){                                                              \
         LT_Value cursor = arguments;                                \
         LT_Value self;                                              \
