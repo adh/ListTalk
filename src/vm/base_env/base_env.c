@@ -41,6 +41,7 @@
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/Set.h>
+#include <ListTalk/classes/IdentitySet.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Duration.h>
@@ -107,6 +108,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"IdentityDictionary", &LT_IdentityDictionary_class},
     {"Dictionary", &LT_Dictionary_class},
     {"Set", &LT_Set_class},
+    {"IdentitySet", &LT_IdentitySet_class},
     {"Stream", &LT_Stream_class},
     {"FileStream", &LT_FileStream_class},
     {"Instant", &LT_Instant_class},

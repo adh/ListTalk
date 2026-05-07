@@ -510,6 +510,39 @@
   (check (= [s reduce: +] 6) "Set>>reduce: reduces receiver"))
 (check-raises "Set>>reduce: rejects empty set" [[Set new] reduce: +])
 
+;;; IdentitySet
+
+(let ((a (list 1))
+      (b (list 1))
+      (c (list 1)))
+  (let ((s [IdentitySet new]))
+    [s put: a]
+    [s put: b]
+    [s put: a]
+    (check (eq? (type-of s) IdentitySet) "IdentitySet>>new returns identity set")
+    (check [s contains?: a] "IdentitySet>>contains?: finds identical item")
+    (check [s contains?: b] "IdentitySet>>contains?: preserves distinct equal item")
+    (check (not [s contains?: c]) "IdentitySet>>contains?: rejects equal non-identical item")
+    (check (= [[s asList] inject: 0 into: (lambda (count each) (+ count 1))] 2)
+           "IdentitySet>>put: collapses by identity only")))
+(let ((a (list 1)))
+  (let ((s [IdentitySet fromList: (list a (list 1) a)]))
+    (check (= [[s asList] inject: 0 into: (lambda (count each) (+ count 1))] 2)
+           "IdentitySet class>>fromList: removes duplicate identities")
+    (check (let ((seen '()))
+             (and (null? [s forEach: (lambda (x) (set! seen (cons x seen)))])
+                  (= [seen inject: 0 into: (lambda (count each) (+ count 1))] 2)))
+           "IdentitySet>>forEach: uses inherited Set method")
+    (check [s any: (lambda (x) (eq? x a))]
+           "IdentitySet>>any: uses inherited Set method")
+    (check [s every: list?]
+           "IdentitySet>>every: uses inherited Set method")
+    (check (= [s inject: 0 into: (lambda (count each) (+ count 1))] 2)
+           "IdentitySet>>inject:into: uses inherited Set method")
+    (check (= [s reduce: (lambda (left right) 9)] 9)
+           "IdentitySet>>reduce: uses inherited Set method")))
+(check-raises "IdentitySet>>reduce: rejects empty set" [[IdentitySet new] reduce: +])
+
 ;;; Equality primitives
 
 (check (= 1 1) "= equal fixnums")

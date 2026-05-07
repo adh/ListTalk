@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/IdentitySet.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -19,9 +20,47 @@ struct LT_Set_s {
     LT_InlineHash table;
 };
 
+struct LT_IdentitySet_s {
+    LT_Object base;
+    LT_InlineHash table;
+};
+
+static LT_Set* set_from_value(LT_Value obj){
+    if (!LT_Value_is_instance_of(obj, (LT_Value)(uintptr_t)&LT_Set_class)){
+        LT_type_error(obj, &LT_Set_class);
+    }
+    return (LT_Set*)LT_VALUE_POINTER_VALUE(obj);
+}
+
+static int set_identity_p(LT_Set* set){
+    return set->base.klass == &LT_IdentitySet_class;
+}
+
+static size_t set_value_hash(LT_Set* set, LT_Value value){
+    if (set_identity_p(set)){
+        return LT_pointer_hash((void*)(uintptr_t)value);
+    }
+    return LT_Value_hash(value);
+}
+
+static int set_value_equal_p(LT_Set* set, LT_Value left, LT_Value right){
+    if (set_identity_p(set)){
+        return left == right;
+    }
+    return LT_Value_equal_p(left, right);
+}
+
 static void Set_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_Set* set = LT_Set_from_value(obj);
+    LT_Set* set = set_from_value(obj);
     fprintf(stream, "#<Set %p size=%zu>",
+        (void*)set,
+        LT_InlineHash_count(&set->table)
+    );
+}
+
+static void IdentitySet_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_Set* set = set_from_value(obj);
+    fprintf(stream, "#<IdentitySet %p size=%zu>",
         (void*)set,
         LT_InlineHash_count(&set->table)
     );
@@ -61,7 +100,7 @@ static LT_InlineHash_Entry* set_find_entry(LT_Set* set, LT_Value value, size_t h
     while (entry != NULL){
         LT_Value entry_key = (LT_Value)(uintptr_t)entry->key;
 
-        if (entry->hash == hash && LT_Value_equal_p(entry_key, value)){
+        if (entry->hash == hash && set_value_equal_p(set, entry_key, value)){
             return entry;
         }
         entry = entry->next;
@@ -89,6 +128,12 @@ LT_Set* LT_Set_new(void){
     return set;
 }
 
+LT_IdentitySet* LT_IdentitySet_new(void){
+    LT_IdentitySet* set = LT_Class_ALLOC(LT_IdentitySet);
+    LT_InlineHash_init(&set->table);
+    return set;
+}
+
 LT_Set* LT_Set_fromList(LT_Value list){
     LT_Set* set = LT_Set_new();
 
@@ -103,13 +148,28 @@ LT_Set* LT_Set_fromList(LT_Value list){
     return set;
 }
 
+LT_IdentitySet* LT_IdentitySet_fromList(LT_Value list){
+    LT_IdentitySet* identity_set = LT_IdentitySet_new();
+    LT_Set* set = (LT_Set*)identity_set;
+
+    while (LT_Pair_p(list)){
+        LT_Set_put(set, LT_car(list));
+        list = LT_cdr(list);
+    }
+    if (list != LT_NIL){
+        LT_error("IdentitySet fromList: expects proper list");
+    }
+
+    return identity_set;
+}
+
 size_t LT_Set_size(LT_Set* set){
     return LT_InlineHash_count(&set->table);
 }
 
 int LT_Set_put(LT_Set* set, LT_Value value){
     LT_InlineHash* table = &set->table;
-    size_t hash = LT_Value_hash(value);
+    size_t hash = set_value_hash(set, value);
     LT_InlineHash_Entry* entry = set_find_entry(set, value, hash);
 
     if (entry != NULL){
@@ -131,7 +191,7 @@ int LT_Set_put(LT_Set* set, LT_Value value){
 }
 
 int LT_Set_contains(LT_Set* set, LT_Value value){
-    return set_find_entry(set, value, LT_Value_hash(value)) != NULL;
+    return set_find_entry(set, value, set_value_hash(set, value)) != NULL;
 }
 
 LT_Value LT_Set_asList(LT_Set* set){
@@ -267,6 +327,26 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    identity_set_class_method_new,
+    "IdentitySet class>>new",
+    "(self)",
+    "Return a new empty identity set."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_IdentitySet_class){
+        LT_error("new class method is only supported on IdentitySet");
+    }
+
+    return (LT_Value)(uintptr_t)LT_IdentitySet_new();
+}
+
+LT_DEFINE_PRIMITIVE(
     set_class_method_from_list,
     "Set class>>fromList:",
     "(self list)",
@@ -289,6 +369,28 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    identity_set_class_method_from_list,
+    "IdentitySet class>>fromList:",
+    "(self list)",
+    "Return an identity set containing the unique identities of list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value list;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_IdentitySet_class){
+        LT_error("fromList: class method is only supported on IdentitySet");
+    }
+
+    return (LT_Value)(uintptr_t)LT_IdentitySet_fromList(list);
+}
+
+LT_DEFINE_PRIMITIVE(
     set_method_put,
     "Set>>put:",
     "(self value)",
@@ -302,7 +404,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    LT_Set_put(LT_Set_from_value(self), value);
+    LT_Set_put(set_from_value(self), value);
     return value;
 }
 
@@ -320,7 +422,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    return LT_Set_contains(LT_Set_from_value(self), value) ? LT_TRUE : LT_FALSE;
+    return LT_Set_contains(set_from_value(self), value) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -335,7 +437,7 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    return LT_Set_asList(LT_Set_from_value(self));
+    return LT_Set_asList(set_from_value(self));
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -352,7 +454,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
-    LT_Set_for_each(LT_Set_from_value(self), callable);
+    LT_Set_for_each(set_from_value(self), callable);
     return LT_NIL;
 }
 
@@ -370,7 +472,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
-    return LT_Set_any(LT_Set_from_value(self), callable);
+    return LT_Set_any(set_from_value(self), callable);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -387,7 +489,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
-    return LT_Set_every(LT_Set_from_value(self), callable);
+    return LT_Set_every(set_from_value(self), callable);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -406,7 +508,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, initial);
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
-    return LT_Set_inject_into(LT_Set_from_value(self), initial, callable);
+    return LT_Set_inject_into(set_from_value(self), initial, callable);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -423,7 +525,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
-    return LT_Set_reduce(LT_Set_from_value(self), callable);
+    return LT_Set_reduce(set_from_value(self), callable);
 }
 
 static LT_Method_Descriptor Set_methods[] = {
@@ -444,6 +546,12 @@ static LT_Method_Descriptor Set_class_methods[] = {
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
+static LT_Method_Descriptor IdentitySet_class_methods[] = {
+    {"new", &identity_set_class_method_new},
+    {"fromList:", &identity_set_class_method_from_list},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Set) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -452,4 +560,13 @@ LT_DEFINE_CLASS(LT_Set) {
     .debugPrintOn = Set_debugPrintOn,
     .methods = Set_methods,
     .class_methods = Set_class_methods,
+};
+
+LT_DEFINE_CLASS(LT_IdentitySet) {
+    .superclass = &LT_Set_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "IdentitySet",
+    .instance_size = sizeof(LT_IdentitySet),
+    .debugPrintOn = IdentitySet_debugPrintOn,
+    .class_methods = IdentitySet_class_methods,
 };
