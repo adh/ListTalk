@@ -198,11 +198,7 @@ static int eval_repl(LT_Value error_handler,
             continue;
         }
 
-        if (!failed){
-            repl_add_history_entry(LT_StringBuilder_value(buffer));
-        } else if (caught != LT_NIL){
-            /* Error already reported by the REPL error handler. */
-        }
+        repl_add_history_entry(LT_StringBuilder_value(buffer));
 
         buffer = LT_StringBuilder_new();
     }
