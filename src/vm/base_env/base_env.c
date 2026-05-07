@@ -40,6 +40,7 @@
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Duration.h>
@@ -105,6 +106,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"IncompleteInputSyntaxError", &LT_IncompleteInputSyntaxError_class},
     {"IdentityDictionary", &LT_IdentityDictionary_class},
     {"Dictionary", &LT_Dictionary_class},
+    {"Set", &LT_Set_class},
     {"Stream", &LT_Stream_class},
     {"FileStream", &LT_FileStream_class},
     {"Instant", &LT_Instant_class},

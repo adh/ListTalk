@@ -47,6 +47,7 @@
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Duration.h>

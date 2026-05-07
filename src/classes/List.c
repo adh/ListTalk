@@ -534,7 +534,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     list_method_for_each,
-    "List>>for-each:",
+    "List>>forEach:",
     "(self callable)",
     "Apply callable to each element and return nil."
 ){
@@ -624,7 +624,7 @@ static LT_Method_Descriptor List_methods[] = {
     {"length", &list_method_length},
     {"at:", &list_method_at},
     {"map:", &list_method_map},
-    {"for-each:", &list_method_for_each},
+    {"forEach:", &list_method_for_each},
     {"any:", &list_method_any},
     {"every:", &list_method_every},
     {"reduce:", &list_method_reduce},

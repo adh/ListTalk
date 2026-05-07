@@ -102,6 +102,7 @@ vm_lib = library(
                 'src/classes/SmallFraction.c',
                 'src/classes/IdentityDictionary.c',
                 'src/classes/Dictionary.c',
+                'src/classes/Set.c',
                 'src/classes/Stream.c',
                 'src/classes/Instant.c',
                 'src/classes/DateTime.c'
