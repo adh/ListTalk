@@ -1170,6 +1170,19 @@
 (check (environment? (get-current-environment))
        "get-current-environment returns environment")
 
+(check (= (eval '(+ 20 22) (get-current-environment)) 42)
+       "eval evaluates form in explicit environment")
+
+(let ((eval-local 17))
+  (check (= (eval 'eval-local (get-current-environment)) 17)
+         "eval sees lexical environment bindings"))
+
+(check (= (apply + '(10 20 12)) 42)
+       "apply calls primitive with argument list")
+
+(check (= (apply (lambda (x y) (+ x y)) '(19 23)) 42)
+       "apply calls closure with argument list")
+
 (define-macro (test-macroexpand-mac x) (list '+ x 1))
 (let ((expanded (macroexpand '(test-macroexpand-mac 41) (get-current-environment))))
   (check (pair? expanded) "macroexpand returns pair")
