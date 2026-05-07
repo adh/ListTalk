@@ -262,6 +262,28 @@
 (check (equal? *surface-dynamic-variable* "surface-thread-value")
        "set! updates star-delimited dynamic variable target")
 
+(define *dynamic-let-variable* "outer")
+(check (equal? (dynamic-let ((*dynamic-let-variable* "inner"))
+                *dynamic-let-variable*)
+              "inner")
+       "dynamic-let binds dynamic variable during body")
+(check (equal? *dynamic-let-variable* "outer")
+       "dynamic-let restores dynamic variable after normal exit")
+(check (equal? (dynamic-let ((*dynamic-let-variable* "middle"))
+                (dynamic-let ((*dynamic-let-variable* "inner"))
+                  *dynamic-let-variable*))
+              "inner")
+       "nested dynamic-let uses innermost value")
+(check (equal? *dynamic-let-variable* "outer")
+       "nested dynamic-let restores outer value")
+(check (equal? (catch :dynamic-let-exit
+                 (dynamic-let ((*dynamic-let-variable* "throwing"))
+                   (throw :dynamic-let-exit *dynamic-let-variable*)))
+              "throwing")
+       "dynamic-let body can exit non-locally")
+(check (equal? *dynamic-let-variable* "outer")
+       "dynamic-let restores dynamic variable after non-local exit")
+
 ;;; OOP: number binary messages
 
 (check (= [3 + 4] 7) "Number>>+ dispatches correctly")

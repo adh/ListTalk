@@ -128,6 +128,33 @@
             (gensym))))
     (expand symbols)))
 
+(ListTalk:define-macro (ListTalk:dynamic-let bindings . body)
+  (define (dynamic-ref-form? form)
+    (and (pair? form)
+         (eq? (car form) 'ListTalk-implementation:%dynamic-ref)))
+  (define (expand remaining old-bindings value-bindings set-forms restore-forms)
+    (if (null? remaining)
+        `(let ,(append old-bindings value-bindings)
+           (unwind-protect
+             (begin ,@set-forms ,@body)
+             ,@restore-forms))
+        (let ((binding (car remaining)))
+          (if (pair? binding)
+              (if (dynamic-ref-form? (car binding))
+                  (if (null? (cddr binding))
+                      (let ((old-value (gensym))
+                            (new-value (gensym)))
+                        (expand
+                          (cdr remaining)
+                          (append old-bindings `((,old-value ,(car binding))))
+                          (append value-bindings `((,new-value ,(cadr binding))))
+                          (append set-forms `((set! ,(car binding) ,new-value)))
+                          (append restore-forms `((set! ,(car binding) ,old-value)))))
+                      (error "dynamic-let binding expects target and value"))
+                  (error "dynamic-let binding target must be dynamic variable"))
+              (error "dynamic-let binding must be pair")))))
+  (expand bindings '() '() '() '()))
+
 (define-macro (ListTalk:when condition . body)
   `(if ,condition
        (begin ,@body)))
