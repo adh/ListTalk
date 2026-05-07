@@ -35,7 +35,7 @@ static inline LT_Value LT_weak_unbox(LT_WeakValue value){
 }
 
 static inline bool LT_weak_is_alive(LT_WeakValue value){
-    return value.masked_value != NULL;
+    return value.masked_value != 0;
 }
 
 LT__END_DECLS

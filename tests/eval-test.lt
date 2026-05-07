@@ -198,6 +198,14 @@
        "Nil does not inherit List>>car")
 (check (memq 'name [Class slots]) "Class>>slots contains name")
 
+;;; OOP: weak references
+
+(let ((reference [WeakReference new: 42]))
+  (check [reference alive?] "WeakReference>>alive? true for immediate value")
+  (check (= [reference value] 42) "WeakReference>>value returns value")
+  [reference value: #false]
+  (check (not [reference value]) "WeakReference>>value: updates value"))
+
 ;;; OOP: number binary messages
 
 (check (= [3 + 4] 7) "Number>>+ dispatches correctly")

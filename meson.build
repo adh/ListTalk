@@ -103,6 +103,7 @@ vm_lib = library(
                 'src/classes/IdentityDictionary.c',
                 'src/classes/Dictionary.c',
                 'src/classes/Set.c',
+                'src/classes/WeakReference.c',
                 'src/classes/Stream.c',
                 'src/classes/Instant.c',
                 'src/classes/DateTime.c'
