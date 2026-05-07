@@ -452,6 +452,110 @@ static int test_escaped_dot_prefixed_symbol_does_not_expand_slot_accessor(void){
     );
 }
 
+static int test_dynamic_variable_symbol_expands_to_dynamic_ref(void){
+    LT_Value value = read_one("*dynamic*");
+    LT_Value tail;
+    LT_Value symbol;
+
+    if (expect(LT_ImmutableList_p(value), "dynamic variable symbol expands to list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && LT_Symbol_package(LT_Symbol_from_value(LT_car(value)))
+                == LT_PACKAGE_LISTTALK_IMPLEMENTATION
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "%dynamic-ref"
+            ) == 0,
+        "dynamic variable symbol expands to implementation %dynamic-ref"
+    )){
+        return 1;
+    }
+
+    tail = LT_cdr(value);
+    if (expect(LT_ImmutableList_p(tail), "dynamic variable expansion has argument")){
+        return 1;
+    }
+    symbol = LT_car(tail);
+    if (expect(LT_Symbol_p(symbol), "dynamic variable expansion argument is symbol")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(symbol)), "*dynamic*") == 0,
+        "dynamic variable expansion keeps original symbol"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(tail) == LT_NIL, "dynamic variable expansion arg list end");
+}
+
+static int test_package_prefixed_dynamic_variable_symbol_uses_local_part(void){
+    LT_Value value = read_one("reader-dynamic-package:*dynamic*");
+    LT_Value symbol;
+
+    if (expect(LT_ImmutableList_p(value), "package-prefixed dynamic variable expands")){
+        return 1;
+    }
+    symbol = LT_car(LT_cdr(value));
+    if (expect(LT_Symbol_p(symbol), "package-prefixed dynamic argument is symbol")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(symbol)), "*dynamic*") == 0,
+        "package-prefixed dynamic expansion uses local part"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_Package_name(LT_Symbol_package(LT_Symbol_from_value(symbol))),
+            "reader-dynamic-package"
+        ) == 0,
+        "package-prefixed dynamic expansion preserves package"
+    );
+}
+
+static int test_quoted_dynamic_variable_symbol_does_not_expand(void){
+    LT_Value pipe_quoted = read_one("|*dynamic*|");
+    LT_Value backslash_escaped = read_one("\\*dynamic*");
+
+    if (expect(LT_Symbol_p(pipe_quoted), "pipe-quoted dynamic token is symbol")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(pipe_quoted)), "*dynamic*") == 0,
+        "pipe-quoted dynamic token keeps symbol name"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(backslash_escaped),
+        "backslash-escaped dynamic token is symbol"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_Symbol_name(LT_Symbol_from_value(backslash_escaped)),
+            "*dynamic*"
+        ) == 0,
+        "backslash-escaped dynamic token keeps symbol name"
+    );
+}
+
+static int test_single_star_symbol_does_not_expand_to_dynamic_ref(void){
+    LT_Value value = read_one("*");
+
+    if (expect(LT_Symbol_p(value), "single star token is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "*") == 0,
+        "single star token keeps symbol name"
+    );
+}
+
 static int test_dispatch_boolean_true(void){
     LT_Value value = read_one("#t");
     return expect(value == LT_TRUE, "dispatch #t");
@@ -1549,6 +1653,10 @@ int main(void){
     failures += test_symbol_backslash_escape_preserves_colon_in_name();
     failures += test_quoted_dot_reads_as_symbol();
     failures += test_escaped_dot_prefixed_symbol_does_not_expand_slot_accessor();
+    failures += test_dynamic_variable_symbol_expands_to_dynamic_ref();
+    failures += test_package_prefixed_dynamic_variable_symbol_uses_local_part();
+    failures += test_quoted_dynamic_variable_symbol_does_not_expand();
+    failures += test_single_star_symbol_does_not_expand_to_dynamic_ref();
     failures += test_dispatch_boolean_true();
     failures += test_dispatch_boolean_false();
     failures += test_dispatch_nil();

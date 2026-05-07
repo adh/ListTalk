@@ -895,6 +895,36 @@ static LT_Value expand_self_slot_accessor(LT_Reader* reader, LT_Value source_loc
     return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
+static const char* reader_token_local_part(LT_ReadTokenResult token_result){
+    if (token_result.first_char_is_unescaped_colon){
+        return token_result.token + 1;
+    }
+    if (token_result.has_unescaped_colon){
+        return token_result.token + token_result.last_unescaped_colon + 1;
+    }
+    return token_result.token;
+}
+
+static LT_Value expand_dynamic_ref(LT_Reader* reader,
+                                   LT_Value source_location,
+                                   LT_ReadTokenResult token_result){
+    const char* local_part = reader_token_local_part(token_result);
+    size_t length = strlen(local_part);
+    LT_Value values[2];
+
+    if (token_result.has_symbol_quoting
+        || token_result.first_char_is_unescaped_colon
+        || length < 2
+        || local_part[0] != '*'
+        || local_part[length - 1] != '*'){
+        return 0;
+    }
+
+    values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK_IMPLEMENTATION, "%dynamic-ref");
+    values[1] = parse_symbol_token_from_reader_token(token_result);
+    return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
+}
+
 static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream){
     LT_Value source_location = reader_source_location(reader);
     LT_ReadTokenResult token_result = read_token(reader, first, stream);
@@ -925,6 +955,11 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
         if (expanded != 0){
             return expanded;
         }
+    }
+
+    expanded = expand_dynamic_ref(reader, source_location, token_result);
+    if (expanded != 0){
+        return expanded;
     }
 
     return parse_symbol_token_from_reader_token(token_result);

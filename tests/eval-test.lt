@@ -248,6 +248,13 @@
   (check (equal? (ListTalk-implementation:%dynamic-ref variable) "thread-value")
          "ListTalk-implementation:%dynamic-ref returns current thread value"))
 
+(let ((|*reader-dynamic-variable*| [DynamicVariable new: "reader-default"]))
+  (check (equal? *reader-dynamic-variable* "reader-default")
+         "star-delimited symbol reads as dynamic variable reference")
+  [|*reader-dynamic-variable*| value: "reader-thread-value"]
+  (check (equal? *reader-dynamic-variable* "reader-thread-value")
+         "star-delimited symbol reads current dynamic variable value"))
+
 ;;; OOP: number binary messages
 
 (check (= [3 + 4] 7) "Number>>+ dispatches correctly")
