@@ -255,6 +255,13 @@
   (check (equal? *reader-dynamic-variable* "reader-thread-value")
          "star-delimited symbol reads current dynamic variable value"))
 
+(define *surface-dynamic-variable* "surface-default")
+(check (equal? *surface-dynamic-variable* "surface-default")
+       "define creates DynamicVariable for star-delimited target")
+(set! *surface-dynamic-variable* "surface-thread-value")
+(check (equal? *surface-dynamic-variable* "surface-thread-value")
+       "set! updates star-delimited dynamic variable target")
+
 ;;; OOP: number binary messages
 
 (check (= [3 + 4] 7) "Number>>+ dispatches correctly")

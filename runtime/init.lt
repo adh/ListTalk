@@ -39,7 +39,9 @@
 
 (ListTalk:define-macro (ListTalk:define target . body)
   (if (pair? target)
-      `(%define-constant ,(car target) (%lambda ',(car target) ,(cdr target) ,@body))
+      (if (eq? (car target) 'ListTalk-implementation:%dynamic-ref)
+          `(%define ,(cadr target) [DynamicVariable new: ,(car body)])
+          `(%define-constant ,(car target) (%lambda ',(car target) ,(cdr target) ,@body)))
       `(%define ,target ,(car body))))
 
 (ListTalk:define-macro (ListTalk:%self-slot slot-name)
@@ -51,7 +53,9 @@
       (if (pair? target)
           (if (eq? (car target) '%self-slot)
               `(slot-set! ListTalk:self ',(cadr target) ,value)
-              (error "set! unsupported target"))
+              (if (eq? (car target) 'ListTalk-implementation:%dynamic-ref)
+                  `(ListTalk-implementation:%send ,(cadr target) :value: ,value)
+                  (error "set! unsupported target")))
           (error "set! unsupported target"))))
 
 (ListTalk:define-macro (ListTalk:define-class name superclasses slot-names)
