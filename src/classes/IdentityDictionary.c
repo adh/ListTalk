@@ -4,9 +4,13 @@
  */
 
 #include <ListTalk/classes/IdentityDictionary.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/WeakKeyIdentityDictionary.h>
 #include <ListTalk/classes/WeakValueIdentityDictionary.h>
+#include <ListTalk/classes/Number.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/error.h>
 #include <ListTalk/vm/weak.h>
 #include <ListTalk/utils.h>
 
@@ -39,6 +43,16 @@ static int dictionary_weak_key_p(LT_IdentityDictionary* dictionary){
 
 static int dictionary_weak_value_p(LT_IdentityDictionary* dictionary){
     return dictionary->base.klass == &LT_WeakValueIdentityDictionary_class;
+}
+
+static LT_IdentityDictionary* identity_dictionary_from_value(LT_Value value){
+    if (!LT_Value_is_instance_of(
+        value,
+        (LT_Value)(uintptr_t)&LT_IdentityDictionary_class
+    )){
+        LT_type_error(value, &LT_IdentityDictionary_class);
+    }
+    return (LT_IdentityDictionary*)LT_VALUE_POINTER_VALUE(value);
 }
 
 static int dictionary_entry_key(LT_IdentityDictionary* dictionary,
@@ -107,12 +121,195 @@ static void WeakValueIdentityDictionary_debugPrintOn(LT_Value obj, FILE* stream)
     );
 }
 
+LT_DEFINE_PRIMITIVE(
+    identity_dictionary_class_method_new,
+    "IdentityDictionary class>>new",
+    "(self)",
+    "Return a new empty identity dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_IdentityDictionary_class){
+        LT_error("new class method is only supported on IdentityDictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    weak_key_identity_dictionary_class_method_new,
+    "WeakKeyIdentityDictionary class>>new",
+    "(self)",
+    "Return a new empty weak-key identity dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_WeakKeyIdentityDictionary_class){
+        LT_error("new class method is only supported on WeakKeyIdentityDictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_WeakKeyIdentityDictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    weak_value_identity_dictionary_class_method_new,
+    "WeakValueIdentityDictionary class>>new",
+    "(self)",
+    "Return a new empty weak-value identity dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_WeakValueIdentityDictionary_class){
+        LT_error("new class method is only supported on WeakValueIdentityDictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_WeakValueIdentityDictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    identity_dictionary_method_size,
+    "IdentityDictionary>>size",
+    "(self)",
+    "Return dictionary size."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_smallinteger_from_size(
+        LT_IdentityDictionary_size(identity_dictionary_from_value(self)),
+        "IdentityDictionary size does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    identity_dictionary_method_at,
+    "IdentityDictionary>>at:",
+    "(self key)",
+    "Return value for key, or nil when key is absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    if (!LT_IdentityDictionary_at(identity_dictionary_from_value(self), key, &value)){
+        return LT_NIL;
+    }
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    identity_dictionary_method_at_put,
+    "IdentityDictionary>>at:put:",
+    "(self key value)",
+    "Set value for key and return value."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_IdentityDictionary_atPut(identity_dictionary_from_value(self), key, value);
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    identity_dictionary_method_contains,
+    "IdentityDictionary>>contains?:",
+    "(self key)",
+    "Return true when dictionary contains key."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    return LT_IdentityDictionary_at(identity_dictionary_from_value(self), key, NULL)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    identity_dictionary_method_remove,
+    "IdentityDictionary>>remove:",
+    "(self key)",
+    "Remove key and return its value, or nil when key is absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    if (!LT_IdentityDictionary_remove(
+        identity_dictionary_from_value(self),
+        key,
+        &value
+    )){
+        return LT_NIL;
+    }
+    return value;
+}
+
+static LT_Method_Descriptor IdentityDictionary_methods[] = {
+    {"size", &identity_dictionary_method_size},
+    {"at:", &identity_dictionary_method_at},
+    {"at:put:", &identity_dictionary_method_at_put},
+    {"contains?:", &identity_dictionary_method_contains},
+    {"remove:", &identity_dictionary_method_remove},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor IdentityDictionary_class_methods[] = {
+    {"new", &identity_dictionary_class_method_new},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor WeakKeyIdentityDictionary_class_methods[] = {
+    {"new", &weak_key_identity_dictionary_class_method_new},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor WeakValueIdentityDictionary_class_methods[] = {
+    {"new", &weak_value_identity_dictionary_class_method_new},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_IdentityDictionary) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "IdentityDictionary",
     .instance_size = sizeof(LT_IdentityDictionary),
     .debugPrintOn = IdentityDictionary_debugPrintOn,
+    .methods = IdentityDictionary_methods,
+    .class_methods = IdentityDictionary_class_methods,
 };
 
 LT_DEFINE_CLASS(LT_WeakKeyIdentityDictionary) {
@@ -121,6 +318,7 @@ LT_DEFINE_CLASS(LT_WeakKeyIdentityDictionary) {
     .name = "WeakKeyIdentityDictionary",
     .instance_size = sizeof(LT_WeakKeyIdentityDictionary),
     .debugPrintOn = WeakKeyIdentityDictionary_debugPrintOn,
+    .class_methods = WeakKeyIdentityDictionary_class_methods,
 };
 
 LT_DEFINE_CLASS(LT_WeakValueIdentityDictionary) {
@@ -129,6 +327,7 @@ LT_DEFINE_CLASS(LT_WeakValueIdentityDictionary) {
     .name = "WeakValueIdentityDictionary",
     .instance_size = sizeof(LT_WeakValueIdentityDictionary),
     .debugPrintOn = WeakValueIdentityDictionary_debugPrintOn,
+    .class_methods = WeakValueIdentityDictionary_class_methods,
 };
 
 static void dictionary_grow_table(LT_IdentityDictionary* dictionary){

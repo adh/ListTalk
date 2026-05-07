@@ -210,6 +210,33 @@
   [set put: 42]
   (check [set contains?: 42] "WeakIdentitySet inherits Set methods"))
 
+(let ((dictionary [IdentityDictionary new])
+      (a (cons 1 2))
+      (b (cons 1 2))
+      (c (cons 1 2)))
+  [dictionary at: a put: "a"]
+  [dictionary at: b put: "b"]
+  (check (= [dictionary size] 2) "IdentityDictionary>>size")
+  (check (equal? [dictionary at: a] "a") "IdentityDictionary>>at: returns value")
+  (check [dictionary contains?: b] "IdentityDictionary>>contains?: finds key")
+  (check (not [dictionary contains?: c])
+         "IdentityDictionary>>contains?: rejects equal non-identical key")
+  (check (null? [dictionary at: c]) "IdentityDictionary>>at: returns nil for absent key")
+  (check (equal? [dictionary remove: a] "a") "IdentityDictionary>>remove: returns value")
+  (check (not [dictionary contains?: a]) "IdentityDictionary>>remove: removes key"))
+
+(let ((dictionary [WeakKeyIdentityDictionary new])
+      (key (cons 1 2)))
+  [dictionary at: key put: 99]
+  (check (= [dictionary at: key] 99)
+         "WeakKeyIdentityDictionary inherits IdentityDictionary methods"))
+
+(let ((dictionary [WeakValueIdentityDictionary new])
+      (key (cons 3 4)))
+  [dictionary at: key put: 100]
+  (check (= [dictionary at: key] 100)
+         "WeakValueIdentityDictionary inherits IdentityDictionary methods"))
+
 ;;; OOP: number binary messages
 
 (check (= [3 + 4] 7) "Number>>+ dispatches correctly")
