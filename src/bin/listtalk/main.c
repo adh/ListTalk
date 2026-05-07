@@ -203,6 +203,8 @@ static int eval_repl(LT_Value error_handler,
         buffer = LT_StringBuilder_new();
     }
 
+    puts(""); /* new line after ^D */
+ 
     if (LT_StringBuilder_length(buffer) > 0){
         LT_Value caught = LT_NIL;
         int failed = eval_source_string(
