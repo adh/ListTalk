@@ -454,6 +454,23 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_dynamic_ref,
+    "%dynamic-ref",
+    "(dynamic-variable)",
+    "Return the current value of a dynamic variable."
+){
+    LT_Value cursor = arguments;
+    LT_Value variable;
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, variable);
+    LT_ARG_END(cursor);
+    return LT_DynamicVariable_value(LT_DynamicVariable_from_value(variable));
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_slot_set,
     "slot-set!",
     "(object slot value)",
@@ -756,6 +773,11 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_make_class);
     LT_base_env_bind_static_primitive(environment, &primitive_make_instance);
     LT_base_env_bind_static_primitive(environment, &primitive_slot_ref);
+    LT_base_env_bind_static_primitive_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &primitive_dynamic_ref
+    );
     LT_base_env_bind_static_primitive(environment, &primitive_slot_set);
     LT_base_env_bind_static_primitive(environment, &primitive_error);
     LT_base_env_bind_static_primitive(environment, &primitive_display);

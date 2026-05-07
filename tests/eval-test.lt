@@ -240,9 +240,13 @@
 (let ((variable [DynamicVariable new: "default"]))
   (check (equal? [variable value] "default")
          "DynamicVariable>>value returns default before assignment")
+  (check (equal? (ListTalk-implementation:%dynamic-ref variable) "default")
+         "ListTalk-implementation:%dynamic-ref returns default before assignment")
   [variable value: "thread-value"]
   (check (equal? [variable value] "thread-value")
-         "DynamicVariable>>value: sets current thread value"))
+         "DynamicVariable>>value: sets current thread value")
+  (check (equal? (ListTalk-implementation:%dynamic-ref variable) "thread-value")
+         "ListTalk-implementation:%dynamic-ref returns current thread value"))
 
 ;;; OOP: number binary messages
 
