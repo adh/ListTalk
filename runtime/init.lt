@@ -37,6 +37,31 @@
       `(ListTalk-implementation:%let (,(car bindings))
          (let* ,(cdr bindings) ,@body))))
 
+(ListTalk:define-macro (ListTalk:while condition . body)
+  (let ((break-tag (gensym 'while-break))
+        (continue-tag (gensym 'while-continue))
+        (continuing (gensym 'while-continuing)))
+    `(let ((,continuing #false))
+       (catch ',break-tag
+         (let ((ListTalk:break (lambda results
+                                 (throw ',break-tag
+                                        (if (null? results)
+                                            #true
+                                            (if (null? (cdr results))
+                                                (car results)
+                                                results)))))
+               (ListTalk:continue (lambda ()
+                                    (ListTalk:set! ,continuing #true)
+                                    (throw ',continue-tag #true))))
+           (ListTalk-implementation:%while
+             (catch ',continue-tag
+               (ListTalk:set! ,continuing #false)
+               ,condition)
+             (if ,continuing
+                 #nil
+                 (catch ',continue-tag
+                   ,@body))))))))
+
 (ListTalk:define-macro (ListTalk:define target . body)
   (if (pair? target)
       (if (eq? (car target) 'ListTalk-implementation:%dynamic-ref)

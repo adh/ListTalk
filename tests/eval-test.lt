@@ -1101,6 +1101,67 @@
 (define-macro (id-macro x) x)
 (check (= (id-macro x-for-macro) 42) "macro expansion evaluates in caller environment")
 
+;;; while special form
+
+(let ((n 0)
+      (sum 0))
+  (ListTalk-implementation:%while (< n 5)
+    (set! sum (+ sum n))
+    (set! n (+ n 1)))
+  (check (= sum 10) "%while evaluates body while condition is truthy"))
+
+(let ((ran #false))
+  (check (null? (ListTalk-implementation:%while #false
+                 (set! ran #true)))
+         "%while returns nil when condition becomes false")
+  (check (not ran) "%while skips body when condition is false"))
+
+(check-raises "%while expects body"
+  (ListTalk-implementation:%while #false))
+
+(let ((break :outer-break)
+      (continue :outer-continue))
+  (ListTalk-implementation:%while #false
+    (set! break :inner-break)
+    (set! continue :inner-continue))
+  (check (eq? break :outer-break) "%while does not bind break")
+  (check (eq? continue :outer-continue) "%while does not bind continue"))
+
+;;; while macro
+
+(let ((n 0)
+      (sum 0))
+  (check (not (while (< n 5)
+                (set! sum (+ sum n))
+                (set! n (+ n 1))))
+         "while returns false when condition becomes false")
+  (check (= sum 10) "while evaluates body while condition is truthy"))
+
+(check (while #true (break)) "while break without value returns true")
+(check (= (while #true (break 42)) 42) "while break returns value")
+(check (equal? (while #true (break 1 2 3)) '(1 2 3))
+       "while break returns multiple values as list")
+
+(let ((n 0)
+      (seen '()))
+  (while (< n 5)
+    (set! n (+ n 1))
+    (if (= n 3)
+        (continue))
+    (set! seen (cons n seen)))
+  (check (equal? seen '(5 4 2 1)) "while continue skips remaining body"))
+
+(let ((n 0)
+      (body-runs 0))
+  (while (begin
+           (set! n (+ n 1))
+           (if (< n 3)
+               (continue)
+               (< n 5)))
+    (set! body-runs (+ body-runs 1)))
+  (check (= n 5) "while condition can use continue")
+  (check (= body-runs 2) "while continue in condition skips body"))
+
 ;;; fold-expression and macroexpand
 
 (check (= (fold-expression '(+ 1 2 3) (get-current-environment)) 6)

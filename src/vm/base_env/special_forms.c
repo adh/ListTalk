@@ -573,6 +573,29 @@ static LT_Value special_form_cond(LT_Value arguments,
     return LT_FALSE;
 }
 
+static LT_Value special_form_while(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value condition_expression;
+    LT_Value body;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition_expression);
+    LT_ARG_REST(cursor, body);
+    if (body == LT_NIL){
+        LT_error("Special form %while expects body");
+    }
+
+    while (LT_Value_truthy_p(LT_eval(condition_expression, environment, NULL))){
+        (void)LT_eval_sequence(body, environment, NULL);
+    }
+
+    return LT_NIL;
+}
+
 static LT_Value special_form_begin(LT_Value arguments,
                                    LT_Environment* environment,
                                    LT_TailCallUnwindMarker* tail_call_unwind_marker){
@@ -1016,6 +1039,14 @@ static LT_SpecialForm cond_special_form = {
     .description = "Evaluate the body of the first clause with a truthy test."
 };
 
+static LT_SpecialForm while_special_form = {
+    .function = special_form_while,
+    .expand_function = expand_special_form_default,
+    .name = "%while",
+    .arguments = "(condition body ...)",
+    .description = "Evaluate body while condition is truthy."
+};
+
 static LT_SpecialForm begin_special_form = {
     .function = special_form_begin,
     .expand_function = expand_special_form_default,
@@ -1160,6 +1191,11 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &and_special_form);
     bind_static_special_form(environment, &or_special_form);
     bind_static_special_form(environment, &cond_special_form);
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &while_special_form
+    );
     bind_static_special_form(environment, &begin_special_form);
     bind_static_special_form(environment, &letrec_special_form);
     bind_static_special_form_in(
