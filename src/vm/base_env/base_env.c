@@ -46,6 +46,7 @@
 #include <ListTalk/classes/WeakKeyIdentityDictionary.h>
 #include <ListTalk/classes/WeakValueIdentityDictionary.h>
 #include <ListTalk/classes/WeakReference.h>
+#include <ListTalk/classes/DynamicVariable.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Duration.h>
@@ -117,6 +118,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"WeakKeyIdentityDictionary", &LT_WeakKeyIdentityDictionary_class},
     {"WeakValueIdentityDictionary", &LT_WeakValueIdentityDictionary_class},
     {"WeakReference", &LT_WeakReference_class},
+    {"DynamicVariable", &LT_DynamicVariable_class},
     {"Stream", &LT_Stream_class},
     {"FileStream", &LT_FileStream_class},
     {"Instant", &LT_Instant_class},

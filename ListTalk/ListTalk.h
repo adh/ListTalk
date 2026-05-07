@@ -53,6 +53,7 @@
 #include <ListTalk/classes/WeakKeyIdentityDictionary.h>
 #include <ListTalk/classes/WeakValueIdentityDictionary.h>
 #include <ListTalk/classes/WeakReference.h>
+#include <ListTalk/classes/DynamicVariable.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Duration.h>

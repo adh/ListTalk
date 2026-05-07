@@ -237,6 +237,13 @@
   (check (= [dictionary at: key] 100)
          "WeakValueIdentityDictionary inherits IdentityDictionary methods"))
 
+(let ((variable [DynamicVariable new: "default"]))
+  (check (equal? [variable value] "default")
+         "DynamicVariable>>value returns default before assignment")
+  [variable value: "thread-value"]
+  (check (equal? [variable value] "thread-value")
+         "DynamicVariable>>value: sets current thread value"))
+
 ;;; OOP: number binary messages
 
 (check (= [3 + 4] 7) "Number>>+ dispatches correctly")

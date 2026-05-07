@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <pthread.h>
 #include <unistd.h>
 
 static int fail(const char* message){
@@ -2236,6 +2237,57 @@ static int test_file_stream_class_constructors(void){
     return failed;
 }
 
+struct dynamic_variable_thread_test_args {
+    LT_DynamicVariable* variable;
+    int failed;
+};
+
+static void* dynamic_variable_thread_test_main(void* data){
+    struct dynamic_variable_thread_test_args* args =
+        (struct dynamic_variable_thread_test_args*)data;
+    LT_Value value = LT_DynamicVariable_value(args->variable);
+
+    args->failed = expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 10,
+        "DynamicVariable uses thread-local values"
+    );
+    return NULL;
+}
+
+static int test_dynamic_variable_c_api_uses_thread_local_values(void){
+    LT_DynamicVariable* variable =
+        LT_DynamicVariable_new(LT_SmallInteger_new(10));
+    struct dynamic_variable_thread_test_args args = {
+        .variable = variable,
+        .failed = 0,
+    };
+    pthread_t thread;
+    int failed = 0;
+    LT_Value value;
+
+    LT_DynamicVariable_setValue(variable, LT_SmallInteger_new(20));
+    value = LT_DynamicVariable_value(variable);
+    failed += expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 20,
+        "DynamicVariable stores value in current thread"
+    );
+
+    if (pthread_create(&thread, NULL, dynamic_variable_thread_test_main, &args) != 0){
+        return fail("pthread_create failed");
+    }
+    if (pthread_join(thread, NULL) != 0){
+        return fail("pthread_join failed");
+    }
+    failed += args.failed;
+
+    value = LT_DynamicVariable_value(variable);
+    failed += expect(
+        LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 20,
+        "DynamicVariable preserves current thread value after another thread reads default"
+    );
+    return failed;
+}
+
 int main(void){
     int failures = 0;
 
@@ -2303,6 +2355,7 @@ int main(void){
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);
+    RUN_TEST(test_dynamic_variable_c_api_uses_thread_local_values);
 
 #undef RUN_TEST
 

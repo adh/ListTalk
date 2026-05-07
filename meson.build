@@ -104,6 +104,7 @@ vm_lib = library(
                 'src/classes/Dictionary.c',
                 'src/classes/Set.c',
                 'src/classes/WeakReference.c',
+                'src/classes/DynamicVariable.c',
                 'src/classes/Stream.c',
                 'src/classes/Instant.c',
                 'src/classes/DateTime.c'
