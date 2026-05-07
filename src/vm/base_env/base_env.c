@@ -42,6 +42,9 @@
 #include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/IdentitySet.h>
+#include <ListTalk/classes/WeakIdentitySet.h>
+#include <ListTalk/classes/WeakKeyIdentityDictionary.h>
+#include <ListTalk/classes/WeakValueIdentityDictionary.h>
 #include <ListTalk/classes/WeakReference.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>
@@ -110,6 +113,9 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Dictionary", &LT_Dictionary_class},
     {"Set", &LT_Set_class},
     {"IdentitySet", &LT_IdentitySet_class},
+    {"WeakIdentitySet", &LT_WeakIdentitySet_class},
+    {"WeakKeyIdentityDictionary", &LT_WeakKeyIdentityDictionary_class},
+    {"WeakValueIdentityDictionary", &LT_WeakValueIdentityDictionary_class},
     {"WeakReference", &LT_WeakReference_class},
     {"Stream", &LT_Stream_class},
     {"FileStream", &LT_FileStream_class},

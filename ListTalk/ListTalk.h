@@ -49,6 +49,9 @@
 #include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/IdentitySet.h>
+#include <ListTalk/classes/WeakIdentitySet.h>
+#include <ListTalk/classes/WeakKeyIdentityDictionary.h>
+#include <ListTalk/classes/WeakValueIdentityDictionary.h>
 #include <ListTalk/classes/WeakReference.h>
 #include <ListTalk/classes/Stream.h>
 #include <ListTalk/classes/Instant.h>

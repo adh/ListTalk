@@ -206,6 +206,10 @@
   [reference value: #false]
   (check (not [reference value]) "WeakReference>>value: updates value"))
 
+(let ((set [WeakIdentitySet new]))
+  [set put: 42]
+  (check [set contains?: 42] "WeakIdentitySet inherits Set methods"))
+
 ;;; OOP: number binary messages
 
 (check (= [3 + 4] 7) "Number>>+ dispatches correctly")

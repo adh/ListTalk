@@ -7,10 +7,12 @@
 #include <ListTalk/classes/IdentitySet.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Set.h>
+#include <ListTalk/classes/WeakIdentitySet.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/weak.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -25,6 +27,11 @@ struct LT_IdentitySet_s {
     LT_InlineHash table;
 };
 
+struct LT_WeakIdentitySet_s {
+    LT_Object base;
+    LT_InlineHash table;
+};
+
 static LT_Set* set_from_value(LT_Value obj){
     if (!LT_Value_is_instance_of(obj, (LT_Value)(uintptr_t)&LT_Set_class)){
         LT_type_error(obj, &LT_Set_class);
@@ -33,7 +40,29 @@ static LT_Set* set_from_value(LT_Value obj){
 }
 
 static int set_identity_p(LT_Set* set){
-    return set->base.klass == &LT_IdentitySet_class;
+    return set->base.klass == &LT_IdentitySet_class
+        || set->base.klass == &LT_WeakIdentitySet_class;
+}
+
+static int set_weak_identity_p(LT_Set* set){
+    return set->base.klass == &LT_WeakIdentitySet_class;
+}
+
+static int set_entry_value(LT_Set* set,
+                           LT_InlineHash_Entry* entry,
+                           LT_Value* value_out){
+    if (set_weak_identity_p(set)){
+        LT_WeakValue* weak = (LT_WeakValue*)entry->key;
+
+        if (!LT_weak_is_alive(*weak)){
+            return 0;
+        }
+        *value_out = LT_weak_unbox(*weak);
+        return 1;
+    }
+
+    *value_out = (LT_Value)(uintptr_t)entry->key;
+    return 1;
 }
 
 static size_t set_value_hash(LT_Set* set, LT_Value value){
@@ -66,11 +95,20 @@ static void IdentitySet_debugPrintOn(LT_Value obj, FILE* stream){
     );
 }
 
+static void WeakIdentitySet_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_Set* set = set_from_value(obj);
+    fprintf(stream, "#<WeakIdentitySet %p size=%zu>",
+        (void*)set,
+        LT_InlineHash_count(&set->table)
+    );
+}
+
 static void set_grow_table(LT_Set* set){
     LT_InlineHash* table = &set->table;
     LT_InlineHash_Entry** grown_vector;
     size_t grown_size;
     size_t i;
+    size_t grown_count = 0;
 
     grown_size = (table->mask + 1) << 1;
     grown_vector = GC_MALLOC(sizeof(LT_InlineHash_Entry*) * grown_size);
@@ -82,15 +120,20 @@ static void set_grow_table(LT_Set* set){
         while (entry != NULL){
             LT_InlineHash_Entry* next = entry->next;
             size_t index = entry->hash & (grown_size - 1);
+            LT_Value value;
 
-            entry->next = grown_vector[index];
-            grown_vector[index] = entry;
+            if (set_entry_value(set, entry, &value)){
+                entry->next = grown_vector[index];
+                grown_vector[index] = entry;
+                grown_count++;
+            }
             entry = next;
         }
     }
 
     table->vector = grown_vector;
     table->mask = grown_size - 1;
+    table->count = grown_count;
 }
 
 static LT_InlineHash_Entry* set_find_entry(LT_Set* set, LT_Value value, size_t hash){
@@ -98,9 +141,11 @@ static LT_InlineHash_Entry* set_find_entry(LT_Set* set, LT_Value value, size_t h
     LT_InlineHash_Entry* entry = table->vector[hash & table->mask];
 
     while (entry != NULL){
-        LT_Value entry_key = (LT_Value)(uintptr_t)entry->key;
+        LT_Value entry_key;
 
-        if (entry->hash == hash && set_value_equal_p(set, entry_key, value)){
+        if (entry->hash == hash
+            && set_entry_value(set, entry, &entry_key)
+            && set_value_equal_p(set, entry_key, value)){
             return entry;
         }
         entry = entry->next;
@@ -134,6 +179,12 @@ LT_IdentitySet* LT_IdentitySet_new(void){
     return set;
 }
 
+LT_WeakIdentitySet* LT_WeakIdentitySet_new(void){
+    LT_WeakIdentitySet* set = LT_Class_ALLOC(LT_WeakIdentitySet);
+    LT_InlineHash_init(&set->table);
+    return set;
+}
+
 LT_Set* LT_Set_fromList(LT_Value list){
     LT_Set* set = LT_Set_new();
 
@@ -163,6 +214,21 @@ LT_IdentitySet* LT_IdentitySet_fromList(LT_Value list){
     return identity_set;
 }
 
+LT_WeakIdentitySet* LT_WeakIdentitySet_fromList(LT_Value list){
+    LT_WeakIdentitySet* identity_set = LT_WeakIdentitySet_new();
+    LT_Set* set = (LT_Set*)identity_set;
+
+    while (LT_Pair_p(list)){
+        LT_Set_put(set, LT_car(list));
+        list = LT_cdr(list);
+    }
+    if (list != LT_NIL){
+        LT_error("WeakIdentitySet fromList: expects proper list");
+    }
+
+    return identity_set;
+}
+
 size_t LT_Set_size(LT_Set* set){
     return LT_InlineHash_count(&set->table);
 }
@@ -182,7 +248,14 @@ int LT_Set_put(LT_Set* set, LT_Value value){
 
     entry = GC_NEW(LT_InlineHash_Entry);
     entry->hash = hash;
-    entry->key = (void*)(uintptr_t)value;
+    if (set_weak_identity_p(set)){
+        LT_WeakValue* weak = GC_NEW(LT_WeakValue);
+
+        LT_weak_box(weak, value);
+        entry->key = weak;
+    } else {
+        entry->key = (void*)(uintptr_t)value;
+    }
     entry->value = NULL;
     entry->next = table->vector[hash & table->mask];
     table->vector[hash & table->mask] = entry;
@@ -203,7 +276,11 @@ LT_Value LT_Set_asList(LT_Set* set){
         LT_InlineHash_Entry* entry = table->vector[i];
 
         while (entry != NULL){
-            list = LT_cons((LT_Value)(uintptr_t)entry->key, list);
+            LT_Value value;
+
+            if (set_entry_value(set, entry, &value)){
+                list = LT_cons(value, list);
+            }
             entry = entry->next;
         }
     }
@@ -218,7 +295,11 @@ void LT_Set_for_each(LT_Set* set, LT_Value callable){
         LT_InlineHash_Entry* entry = table->vector[i];
 
         while (entry != NULL){
-            (void)set_apply1(callable, (LT_Value)(uintptr_t)entry->key);
+            LT_Value value;
+
+            if (set_entry_value(set, entry, &value)){
+                (void)set_apply1(callable, value);
+            }
             entry = entry->next;
         }
     }
@@ -232,7 +313,10 @@ LT_Value LT_Set_any(LT_Set* set, LT_Value callable){
         LT_InlineHash_Entry* entry = table->vector[i];
 
         while (entry != NULL){
-            if (LT_Value_truthy_p(set_apply1(callable, (LT_Value)(uintptr_t)entry->key))){
+            LT_Value value;
+
+            if (set_entry_value(set, entry, &value)
+                && LT_Value_truthy_p(set_apply1(callable, value))){
                 return LT_TRUE;
             }
             entry = entry->next;
@@ -249,7 +333,10 @@ LT_Value LT_Set_every(LT_Set* set, LT_Value callable){
         LT_InlineHash_Entry* entry = table->vector[i];
 
         while (entry != NULL){
-            if (!LT_Value_truthy_p(set_apply1(callable, (LT_Value)(uintptr_t)entry->key))){
+            LT_Value value;
+
+            if (set_entry_value(set, entry, &value)
+                && !LT_Value_truthy_p(set_apply1(callable, value))){
                 return LT_FALSE;
             }
             entry = entry->next;
@@ -267,11 +354,11 @@ LT_Value LT_Set_inject_into(LT_Set* set, LT_Value initial, LT_Value callable){
         LT_InlineHash_Entry* entry = table->vector[i];
 
         while (entry != NULL){
-            accumulator = set_apply2(
-                callable,
-                accumulator,
-                (LT_Value)(uintptr_t)entry->key
-            );
+            LT_Value value;
+
+            if (set_entry_value(set, entry, &value)){
+                accumulator = set_apply2(callable, accumulator, value);
+            }
             entry = entry->next;
         }
     }
@@ -288,13 +375,15 @@ LT_Value LT_Set_reduce(LT_Set* set, LT_Value callable){
         LT_InlineHash_Entry* entry = table->vector[i];
 
         while (entry != NULL){
-            LT_Value value = (LT_Value)(uintptr_t)entry->key;
+            LT_Value value;
 
-            if (!has_accumulator){
-                accumulator = value;
-                has_accumulator = 1;
-            } else {
-                accumulator = set_apply2(callable, accumulator, value);
+            if (set_entry_value(set, entry, &value)){
+                if (!has_accumulator){
+                    accumulator = value;
+                    has_accumulator = 1;
+                } else {
+                    accumulator = set_apply2(callable, accumulator, value);
+                }
             }
             entry = entry->next;
         }
@@ -347,6 +436,26 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    weak_identity_set_class_method_new,
+    "WeakIdentitySet class>>new",
+    "(self)",
+    "Return a new empty weak identity set."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_WeakIdentitySet_class){
+        LT_error("new class method is only supported on WeakIdentitySet");
+    }
+
+    return (LT_Value)(uintptr_t)LT_WeakIdentitySet_new();
+}
+
+LT_DEFINE_PRIMITIVE(
     set_class_method_from_list,
     "Set class>>fromList:",
     "(self list)",
@@ -388,6 +497,28 @@ LT_DEFINE_PRIMITIVE(
     }
 
     return (LT_Value)(uintptr_t)LT_IdentitySet_fromList(list);
+}
+
+LT_DEFINE_PRIMITIVE(
+    weak_identity_set_class_method_from_list,
+    "WeakIdentitySet class>>fromList:",
+    "(self list)",
+    "Return a weak identity set containing the unique identities of list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value list;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_WeakIdentitySet_class){
+        LT_error("fromList: class method is only supported on WeakIdentitySet");
+    }
+
+    return (LT_Value)(uintptr_t)LT_WeakIdentitySet_fromList(list);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -552,6 +683,12 @@ static LT_Method_Descriptor IdentitySet_class_methods[] = {
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
+static LT_Method_Descriptor WeakIdentitySet_class_methods[] = {
+    {"new", &weak_identity_set_class_method_new},
+    {"fromList:", &weak_identity_set_class_method_from_list},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Set) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -569,4 +706,13 @@ LT_DEFINE_CLASS(LT_IdentitySet) {
     .instance_size = sizeof(LT_IdentitySet),
     .debugPrintOn = IdentitySet_debugPrintOn,
     .class_methods = IdentitySet_class_methods,
+};
+
+LT_DEFINE_CLASS(LT_WeakIdentitySet) {
+    .superclass = &LT_IdentitySet_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "WeakIdentitySet",
+    .instance_size = sizeof(LT_WeakIdentitySet),
+    .debugPrintOn = WeakIdentitySet_debugPrintOn,
+    .class_methods = WeakIdentitySet_class_methods,
 };

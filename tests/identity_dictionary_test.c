@@ -7,6 +7,8 @@
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/WeakKeyIdentityDictionary.h>
+#include <ListTalk/classes/WeakValueIdentityDictionary.h>
 
 #include <stdio.h>
 
@@ -20,6 +22,15 @@ static int expect(int condition, const char* message){
         return fail(message);
     }
     return 0;
+}
+
+static void clobber_stack(void){
+    volatile uintptr_t scratch[4096];
+    size_t i;
+
+    for (i = 0; i < sizeof(scratch) / sizeof(scratch[0]); i++){
+        scratch[i] = (uintptr_t)i;
+    }
 }
 
 static int test_new_dictionary_is_empty(void){
@@ -140,6 +151,97 @@ static int test_remove_missing_key(void){
     );
 }
 
+static LT_IdentityDictionary* new_weak_key_dictionary_with_collectable_key(void){
+    LT_IdentityDictionary* dictionary =
+        (LT_IdentityDictionary*)LT_WeakKeyIdentityDictionary_new();
+
+    LT_IdentityDictionary_atPut(
+        dictionary,
+        LT_cons(LT_SmallInteger_new(1), LT_SmallInteger_new(2)),
+        LT_SmallInteger_new(3)
+    );
+    clobber_stack();
+    return dictionary;
+}
+
+static LT_IdentityDictionary* new_weak_value_dictionary_with_collectable_value(
+    LT_Value key
+){
+    LT_IdentityDictionary* dictionary =
+        (LT_IdentityDictionary*)LT_WeakValueIdentityDictionary_new();
+
+    LT_IdentityDictionary_atPut(
+        dictionary,
+        key,
+        LT_cons(LT_SmallInteger_new(4), LT_SmallInteger_new(5))
+    );
+    clobber_stack();
+    return dictionary;
+}
+
+static int test_weak_key_dictionary_cleans_dead_keys_on_growth(void){
+    LT_IdentityDictionary* dictionary =
+        new_weak_key_dictionary_with_collectable_key();
+    int i;
+
+    clobber_stack();
+    GC_gcollect();
+    if (expect(
+        LT_IdentityDictionary_size(dictionary) == 1,
+        "weak key dictionary leaves dead key until growth"
+    )){
+        return 1;
+    }
+
+    for (i = 0; i < 9; i++){
+        LT_IdentityDictionary_atPut(
+            dictionary,
+            LT_SmallInteger_new(100 + i),
+            LT_SmallInteger_new(i)
+        );
+    }
+
+    return expect(
+        LT_IdentityDictionary_size(dictionary) == 9,
+        "weak key dictionary removes dead keys during growth"
+    );
+}
+
+static int test_weak_value_dictionary_clears_dead_values(void){
+    LT_Value key = LT_SmallInteger_new(200);
+    LT_IdentityDictionary* dictionary =
+        new_weak_value_dictionary_with_collectable_value(key);
+    int i;
+
+    clobber_stack();
+    GC_gcollect();
+    if (expect(
+        !LT_IdentityDictionary_at(dictionary, key, NULL),
+        "weak value dictionary treats dead value as missing"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_IdentityDictionary_size(dictionary) == 1,
+        "weak value dictionary leaves dead value until growth"
+    )){
+        return 1;
+    }
+
+    for (i = 0; i < 9; i++){
+        LT_IdentityDictionary_atPut(
+            dictionary,
+            LT_SmallInteger_new(300 + i),
+            LT_SmallInteger_new(i)
+        );
+    }
+
+    return expect(
+        LT_IdentityDictionary_size(dictionary) == 9,
+        "weak value dictionary removes dead values during growth"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -151,6 +253,8 @@ int main(void){
     failures += test_identity_semantics_for_distinct_objects();
     failures += test_remove_existing_key();
     failures += test_remove_missing_key();
+    failures += test_weak_key_dictionary_cleans_dead_keys_on_growth();
+    failures += test_weak_value_dictionary_clears_dead_values();
 
     if (failures == 0){
         puts("identity dictionary tests passed");

@@ -14,8 +14,12 @@
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_IdentityDictionary);
+typedef struct LT_WeakKeyIdentityDictionary_s LT_WeakKeyIdentityDictionary;
+typedef struct LT_WeakValueIdentityDictionary_s LT_WeakValueIdentityDictionary;
 
 LT_IdentityDictionary* LT_IdentityDictionary_new(void);
+LT_WeakKeyIdentityDictionary* LT_WeakKeyIdentityDictionary_new(void);
+LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_new(void);
 size_t LT_IdentityDictionary_size(LT_IdentityDictionary* dictionary);
 void LT_IdentityDictionary_atPut(
     LT_IdentityDictionary* dictionary,
