@@ -5,9 +5,11 @@
 
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/IdentitySet.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
@@ -93,10 +95,40 @@ LT_DECLARE_PRIMITIVE(
     "Return class slot names."
 );
 LT_DECLARE_PRIMITIVE(
+    class_method_binary_lookup_selector,
+    "Class>>>>",
+    "(self selector)",
+    "Return direct method for selector or nil."
+);
+LT_DECLARE_PRIMITIVE(
     class_method_lookup_selector,
     "Class>>lookupSelector:",
     "(self selector)",
     "Return resolved method for selector or nil."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_selectors,
+    "Class>>selectors",
+    "(self)",
+    "Return direct method selectors."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_all_selectors,
+    "Class>>allSelectors",
+    "(self)",
+    "Return direct and inherited method selectors."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_selectors_as_list,
+    "Class>>selectorsAsList",
+    "(self)",
+    "Return direct method selectors as a list."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_all_selectors_as_list,
+    "Class>>allSelectorsAsList",
+    "(self)",
+    "Return direct and inherited method selectors as a list."
 );
 LT_DECLARE_PRIMITIVE(
     class_method_add_method_with_selector,
@@ -113,7 +145,12 @@ LT_DECLARE_PRIMITIVE(
 
 static LT_Method_Descriptor Class_methods[] = {
     {"slots", &class_method_slots},
+    {">>", &class_method_binary_lookup_selector},
     {"lookupSelector:", &class_method_lookup_selector},
+    {"selectors", &class_method_selectors},
+    {"allSelectors", &class_method_all_selectors},
+    {"selectorsAsList", &class_method_selectors_as_list},
+    {"allSelectorsAsList", &class_method_all_selectors_as_list},
     {"addMethod:withSelector:", &class_method_add_method_with_selector},
     {"alloc", &class_method_alloc},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
@@ -689,6 +726,74 @@ LT_Value LT_Class_slots(LT_Class* klass){
     return LT_ListBuilder_value(builder);
 }
 
+static void append_selector_to_builder(LT_Value selector, void* baton){
+    LT_ListBuilder* builder = (LT_ListBuilder*)baton;
+
+    LT_ListBuilder_append(builder, selector);
+}
+
+static void put_selector_in_set(LT_Value selector, void* baton){
+    LT_Set* set = (LT_Set*)baton;
+
+    LT_Set_put(set, selector);
+}
+
+static LT_Value class_direct_selectors_as_list(LT_Class* klass){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_IdentityDictionary_keys_do(
+        LT_IdentityDictionary_from_value(klass->methods),
+        append_selector_to_builder,
+        builder
+    );
+    return LT_ListBuilder_value(builder);
+}
+
+static LT_Value class_direct_method(LT_Class* klass, LT_Value selector){
+    LT_IdentityDictionary* methods;
+    LT_Value method;
+
+    if (!LT_Symbol_p(selector)){
+        LT_type_error(selector, &LT_Symbol_class);
+    }
+
+    methods = LT_IdentityDictionary_from_value(klass->methods);
+    if (!LT_IdentityDictionary_at(methods, selector, &method)){
+        return LT_NIL;
+    }
+    return method;
+}
+
+static LT_IdentitySet* class_direct_selectors(LT_Class* klass){
+    LT_IdentitySet* selectors = LT_IdentitySet_new();
+
+    LT_IdentityDictionary_keys_do(
+        LT_IdentityDictionary_from_value(klass->methods),
+        put_selector_in_set,
+        (LT_Set*)selectors
+    );
+    return selectors;
+}
+
+static LT_IdentitySet* class_all_selectors(LT_Class* klass){
+    LT_IdentitySet* selectors = LT_IdentitySet_new();
+    LT_Value precedence_cursor = LT_Class_precedence_list(klass);
+
+    while (precedence_cursor != LT_NIL){
+        LT_Value class_value = LT_ImmutableList_car(precedence_cursor);
+        LT_Class* current = LT_Class_from_object(class_value);
+
+        LT_IdentityDictionary_keys_do(
+            LT_IdentityDictionary_from_value(current->methods),
+            put_selector_in_set,
+            (LT_Set*)selectors
+        );
+        precedence_cursor = LT_ImmutableList_cdr(precedence_cursor);
+    }
+
+    return selectors;
+}
+
 void LT_Class_addMethod(LT_Class* klass, LT_Value selector, LT_Value method){
     LT_IdentityDictionary* methods;
 
@@ -770,6 +875,19 @@ LT_PRIMITIVE_HEAD(class_method_slots){
     return LT_Class_slots(LT_Class_from_object(self));
 }
 
+LT_PRIMITIVE_HEAD(class_method_binary_lookup_selector){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value selector;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, selector);
+    LT_ARG_END(cursor);
+
+    return class_direct_method(LT_Class_from_object(self), selector);
+}
+
 LT_PRIMITIVE_HEAD(class_method_lookup_selector){
     LT_Value cursor = arguments;
     LT_Value self;
@@ -786,6 +904,48 @@ LT_PRIMITIVE_HEAD(class_method_lookup_selector){
         return LT_NIL;
     }
     return method;
+}
+
+LT_PRIMITIVE_HEAD(class_method_selectors){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)class_direct_selectors(LT_Class_from_object(self));
+}
+
+LT_PRIMITIVE_HEAD(class_method_all_selectors){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)class_all_selectors(LT_Class_from_object(self));
+}
+
+LT_PRIMITIVE_HEAD(class_method_selectors_as_list){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return class_direct_selectors_as_list(LT_Class_from_object(self));
+}
+
+LT_PRIMITIVE_HEAD(class_method_all_selectors_as_list){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_IdentitySet* selectors;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    selectors = class_all_selectors(LT_Class_from_object(self));
+    return LT_Set_asList((LT_Set*)selectors);
 }
 
 LT_PRIMITIVE_HEAD(class_method_add_method_with_selector){

@@ -551,3 +551,26 @@ int LT_IdentityDictionary_remove(
     }
     return 1;
 }
+
+void LT_IdentityDictionary_keys_do(
+    LT_IdentityDictionary* dictionary,
+    void (*callback)(LT_Value key, void* baton),
+    void* baton
+){
+    LT_InlineHash* table = &dictionary->table;
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* table_entry = table->vector[i];
+
+        while (table_entry != NULL){
+            LT_Value key;
+
+            if (dictionary_entry_key(dictionary, table_entry, &key)
+                && dictionary_entry_alive(dictionary, table_entry)){
+                callback(key, baton);
+            }
+            table_entry = table_entry->next;
+        }
+    }
+}

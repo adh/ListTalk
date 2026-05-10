@@ -36,6 +36,11 @@ int LT_IdentityDictionary_remove(
     LT_Value key,
     LT_Value* value_out
 );
+void LT_IdentityDictionary_keys_do(
+    LT_IdentityDictionary* dictionary,
+    void (*callback)(LT_Value key, void* baton),
+    void* baton
+);
 
 LT__END_DECLS
 
