@@ -26,6 +26,7 @@
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Message.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Closure.h>
@@ -91,6 +92,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"ImmutableList", &LT_ImmutableList_class},
     {"Pair", &LT_Pair_class},
     {"MutablePair", &LT_MutablePair_class},
+    {"Message", &LT_Message_class},
     {"Vector", &LT_Vector_class},
     {"ByteVector", &LT_ByteVector_class},
     {"String", &LT_String_class},

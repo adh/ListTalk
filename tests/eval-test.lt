@@ -198,6 +198,23 @@
        "Nil does not inherit List>>car")
 (check (memq 'name [Class slots]) "Class>>slots contains name")
 
+(check (class? Message) "Message is a class")
+
+(define-class DNUReceiver (Object) ())
+(define-method [DNUReceiver doesNotUnderstand: message]
+  (list [message selector]
+        [message receiver]
+        [message arguments]
+        (type-of message)))
+(let* ((receiver (make-instance DNUReceiver))
+       (handled [receiver missing: 1]))
+  (check (and (eq? (car handled) :missing:)
+              (eq? (car (cdr handled)) receiver)
+              (equal? (car (cdr (cdr handled))) (list 1))
+              (eq? (type-of (car (cdr (cdr handled)))) ImmutableList)
+              (eq? (car (cdr (cdr (cdr handled)))) Message))
+         "not understood send dispatches doesNotUnderstand: with Message"))
+
 ;;; OOP: weak references
 
 (let ((reference [WeakReference new: 42]))

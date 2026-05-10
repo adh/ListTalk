@@ -7,6 +7,7 @@
 
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/Message.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
@@ -35,6 +36,13 @@ static LT_Value immutable_list_from_expansion(
     LT_Value expansion,
     LT_Value original_expression
 );
+static LT_Value send_does_not_understand(
+    LT_Value receiver,
+    LT_Value selector,
+    LT_Value arguments,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+);
+static LT_Value copy_message_arguments(LT_Value arguments);
 
 static LT_Value immutable_list_from_expansion(
     LT_Value expansion,
@@ -113,8 +121,60 @@ static LT_Value send_from_precedence(LT_Value receiver,
         cursor = LT_ImmutableList_cdr(cursor);
     }
 
-    LT_error("Message not understood");
-    return LT_NIL;
+    return send_does_not_understand(
+        receiver,
+        selector,
+        arguments,
+        tail_call_unwind_marker
+    );
+}
+
+static LT_Value send_does_not_understand(
+    LT_Value receiver,
+    LT_Value selector,
+    LT_Value arguments,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value message_arguments = copy_message_arguments(arguments);
+    LT_Value message = LT_Message_new(selector, receiver, message_arguments);
+    LT_Value dnu_arguments = LT_cons(message, LT_NIL);
+
+    return LT_send(
+        receiver,
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "doesNotUnderstand:"),
+        dnu_arguments,
+        tail_call_unwind_marker
+    );
+}
+
+static LT_Value copy_message_arguments(LT_Value arguments){
+    LT_Value cursor = arguments;
+    LT_Value tail;
+    LT_Value* values;
+    size_t count = 0;
+    size_t i;
+
+    if (arguments == LT_NIL){
+        return LT_NIL;
+    }
+    if (!LT_Pair_p(arguments)){
+        LT_type_error(arguments, &LT_List_class);
+    }
+
+    while (LT_Pair_p(cursor)){
+        count++;
+        cursor = LT_cdr(cursor);
+    }
+    tail = cursor;
+
+    values = GC_MALLOC(sizeof(LT_Value) * count);
+    cursor = arguments;
+    for (i = 0; i < count; i++){
+        values[i] = LT_car(cursor);
+        cursor = LT_cdr(cursor);
+    }
+
+    return LT_ImmutableList_new_with_tail(count, values, tail);
 }
 
 static int stream_has_next_form(LT_ReaderStream* stream){
@@ -350,7 +410,12 @@ LT_Value LT_send(LT_Value receiver,
     );
 
     if (method == LT_INVALID){
-        LT_error("Message not understood");
+        return send_does_not_understand(
+            receiver,
+            selector,
+            arguments,
+            tail_call_unwind_marker
+        );
     }
 
     return LT_apply(

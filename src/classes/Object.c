@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Object.h>
+#include <ListTalk/classes/Message.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
@@ -103,6 +104,29 @@ LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
     "Signal that the receiver's class must implement this method."
 )
 
+LT_DEFINE_PRIMITIVE(
+    object_method_does_not_understand,
+    "Object>>doesNotUnderstand:",
+    "(self message)",
+    "Signal that the receiver does not understand message."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value message;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, message);
+    LT_ARG_END(cursor);
+    (void)self;
+
+    if (!LT_Message_p(message)){
+        LT_type_error(message, &LT_Message_class);
+    }
+
+    LT_error("Message not understood");
+}
+
 static LT_Method_Descriptor Object_methods[] = {
     {"class", &object_method_class},
     {"slot:", &object_method_slot},
@@ -110,6 +134,7 @@ static LT_Method_Descriptor Object_methods[] = {
     {"==", &object_method_identity_equal},
     {"=",  &object_method_equal},
     {"subclassResponsibility", &object_method_subclass_responsibility},
+    {"doesNotUnderstand:", &object_method_does_not_understand},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
