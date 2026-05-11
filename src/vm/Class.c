@@ -215,6 +215,12 @@ static LT_Value make_single_inheritance_precedence_list(LT_Class* klass,
     return precedence_list_storage(precedence_list);
 }
 
+#define LT_EARLY_NATIVE_CLASS_CAPACITY 64
+
+static int core_class_cycle_finalized = 0;
+static LT_Class* early_native_classes[LT_EARLY_NATIVE_CLASS_CAPACITY];
+static size_t early_native_class_count = 0;
+
 static int class_basics_materialized_p(LT_Class* klass){
     return klass->native_descriptor == NULL
         && klass->methods != LT_INVALID
@@ -222,10 +228,69 @@ static int class_basics_materialized_p(LT_Class* klass){
         && klass->name != LT_INVALID;
 }
 
-static void finalize_core_class_cycle_if_ready(void){
-    static int finalized = 0;
+static void record_early_native_class(LT_Class* klass){
+    size_t i;
 
-    if (finalized){
+    if (klass == &LT_Object_class || klass == &LT_Class_class){
+        return;
+    }
+
+    for (i = 0; i < early_native_class_count; i++){
+        if (early_native_classes[i] == klass){
+            return;
+        }
+    }
+    if (early_native_class_count >= LT_EARLY_NATIVE_CLASS_CAPACITY){
+        LT_error("Too many early native classes");
+    }
+
+    early_native_classes[early_native_class_count++] = klass;
+}
+
+static void refresh_native_class_topology(LT_Class* klass){
+    LT_Class* superclass = NULL;
+    LT_Class* metaclass;
+    LT_Class* metaclass_superclass = NULL;
+
+    if (klass->superclasses != NULL){
+        superclass = klass->superclasses[0];
+    }
+    klass->precedence_list = make_single_inheritance_precedence_list(
+        klass,
+        superclass
+    );
+
+    metaclass = klass->base.klass;
+    if (metaclass == NULL){
+        return;
+    }
+
+    if (metaclass->superclasses != NULL){
+        metaclass_superclass = metaclass->superclasses[0];
+    }
+    metaclass->precedence_list = make_single_inheritance_precedence_list(
+        metaclass,
+        metaclass_superclass
+    );
+    if (metaclass_superclass != NULL){
+        metaclass->slot_count = metaclass_superclass->slot_count;
+        metaclass->slots = metaclass_superclass->slots;
+        metaclass->hash = metaclass_superclass->hash;
+        metaclass->equal_p = metaclass_superclass->equal_p;
+    }
+}
+
+static void refresh_early_native_class_topology(void){
+    size_t i;
+
+    for (i = 0; i < early_native_class_count; i++){
+        refresh_native_class_topology(early_native_classes[i]);
+    }
+    early_native_class_count = 0;
+}
+
+static void finalize_core_class_cycle_if_ready(void){
+    if (core_class_cycle_finalized){
         return;
     }
     if (!class_basics_materialized_p(&LT_Object_class)
@@ -265,7 +330,8 @@ static void finalize_core_class_cycle_if_ready(void){
     LT_Object_class_class.hash = LT_Class_class.hash;
     LT_Object_class_class.equal_p = LT_Class_class.equal_p;
 
-    finalized = 1;
+    core_class_cycle_finalized = 1;
+    refresh_early_native_class_topology();
 }
 
 static size_t count_slot_descriptors(LT_Slot_Descriptor* descriptor_slots){
@@ -655,6 +721,9 @@ void LT_init_native_class(LT_Class* klass){
         }
     }
 
+    if (!core_class_cycle_finalized){
+        record_early_native_class(klass);
+    }
     finalize_core_class_cycle_if_ready();
 }
 
