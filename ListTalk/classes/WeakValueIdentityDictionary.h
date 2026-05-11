@@ -16,6 +16,9 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_WeakValueIdentityDictionary);
 
 LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_new(void);
+LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_newFromAList(
+    LT_Value alist
+);
 
 LT__END_DECLS
 

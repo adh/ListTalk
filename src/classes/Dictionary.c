@@ -4,7 +4,12 @@
  */
 
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/error.h>
 #include <ListTalk/utils.h>
 
 #include <stdint.h>
@@ -23,13 +28,15 @@ static void Dictionary_debugPrintOn(LT_Value obj, FILE* stream){
     );
 }
 
-LT_DEFINE_CLASS(LT_Dictionary) {
-    .superclass = &LT_Object_class,
-    .metaclass_superclass = &LT_Class_class,
-    .name = "Dictionary",
-    .instance_size = sizeof(LT_Dictionary),
-    .debugPrintOn = Dictionary_debugPrintOn,
-};
+static LT_Dictionary* dictionary_from_value(LT_Value value){
+    if (!LT_Value_is_instance_of(
+        value,
+        (LT_Value)(uintptr_t)&LT_Dictionary_class
+    )){
+        LT_type_error(value, &LT_Dictionary_class);
+    }
+    return (LT_Dictionary*)LT_VALUE_POINTER_VALUE(value);
+}
 
 static void dictionary_grow_table(LT_Dictionary* dictionary){
     LT_InlineHash* table = &dictionary->table;
@@ -102,6 +109,28 @@ LT_Dictionary* LT_Dictionary_new(void){
     return dictionary;
 }
 
+LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist){
+    LT_Dictionary* dictionary = LT_Dictionary_new();
+
+    while (alist != LT_NIL){
+        LT_Value entry;
+
+        if (!LT_Pair_p(alist)){
+            LT_error("Dictionary newFromAList: expects proper list");
+        }
+
+        entry = LT_car(alist);
+        if (!LT_Pair_p(entry)){
+            LT_error("Dictionary newFromAList: expects list of pairs");
+        }
+
+        LT_Dictionary_atPut(dictionary, LT_car(entry), LT_cdr(entry));
+        alist = LT_cdr(alist);
+    }
+
+    return dictionary;
+}
+
 size_t LT_Dictionary_size(LT_Dictionary* dictionary){
     return LT_InlineHash_count(&dictionary->table);
 }
@@ -162,6 +191,168 @@ int LT_Dictionary_at(
     }
     return 1;
 }
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_class_method_new,
+    "Dictionary class>>new",
+    "(self)",
+    "Return a new empty dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
+        LT_error("new class method is only supported on Dictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_Dictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_class_method_new_from_alist,
+    "Dictionary class>>newFromAList:",
+    "(self alist)",
+    "Return a dictionary initialized from an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value alist;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
+        LT_error("newFromAList: class method is only supported on Dictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_Dictionary_newFromAList(alist);
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_size,
+    "Dictionary>>size",
+    "(self)",
+    "Return dictionary size."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_smallinteger_from_size(
+        LT_Dictionary_size(dictionary_from_value(self)),
+        "Dictionary size does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_at,
+    "Dictionary>>at:",
+    "(self key)",
+    "Return value for key, or nil when key is absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    if (!LT_Dictionary_at(dictionary_from_value(self), key, &value)){
+        return LT_NIL;
+    }
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_at_put,
+    "Dictionary>>at:put:",
+    "(self key value)",
+    "Set value for key and return value."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_Dictionary_atPut(dictionary_from_value(self), key, value);
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_contains,
+    "Dictionary>>contains?:",
+    "(self key)",
+    "Return true when dictionary contains key."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    return LT_Dictionary_at(dictionary_from_value(self), key, NULL)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_remove,
+    "Dictionary>>remove:",
+    "(self key)",
+    "Remove key and return its value, or nil when key is absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    if (!LT_Dictionary_remove(dictionary_from_value(self), key, &value)){
+        return LT_NIL;
+    }
+    return value;
+}
+
+static LT_Method_Descriptor Dictionary_methods[] = {
+    {"size", &dictionary_method_size},
+    {"at:", &dictionary_method_at},
+    {"at:put:", &dictionary_method_at_put},
+    {"contains?:", &dictionary_method_contains},
+    {"remove:", &dictionary_method_remove},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor Dictionary_class_methods[] = {
+    {"new", &dictionary_class_method_new},
+    {"newFromAList:", &dictionary_class_method_new_from_alist},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_Dictionary) {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "Dictionary",
+    .instance_size = sizeof(LT_Dictionary),
+    .debugPrintOn = Dictionary_debugPrintOn,
+    .methods = Dictionary_methods,
+    .class_methods = Dictionary_class_methods,
+};
 
 int LT_Dictionary_remove(
     LT_Dictionary* dictionary,

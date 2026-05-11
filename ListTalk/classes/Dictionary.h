@@ -16,6 +16,7 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Dictionary);
 
 LT_Dictionary* LT_Dictionary_new(void);
+LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist);
 size_t LT_Dictionary_size(LT_Dictionary* dictionary);
 void LT_Dictionary_atPut(
     LT_Dictionary* dictionary,

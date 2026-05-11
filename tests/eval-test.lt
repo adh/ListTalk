@@ -197,6 +197,8 @@
        "early native class object inherits Object>>class")
 (check (primitive? [IdentityDictionary lookupSelector: :class])
        "early native class object inherits Class method lookup")
+(check (eq? [[Dictionary new] class] Dictionary)
+       "Dictionary class>>new returns dictionary")
 (check (eq? [[IdentityDictionary new] class] IdentityDictionary)
        "early native class method dispatch still works")
 (check (eq? [WeakKeyIdentityDictionary class] (type-of WeakKeyIdentityDictionary))
@@ -270,6 +272,23 @@
   (check (equal? [dictionary remove: a] "a") "IdentityDictionary>>remove: returns value")
   (check (not [dictionary contains?: a]) "IdentityDictionary>>remove: removes key"))
 
+(let ((dictionary [Dictionary newFromAList: '(("a" . 1) ("b" . 2) ("a" . 3))]))
+  (check (= [dictionary size] 2) "Dictionary class>>newFromAList: sets size")
+  (check (= [dictionary at: "a"] 3)
+         "Dictionary class>>newFromAList: uses structural keys")
+  (check (= [dictionary at: "b"] 2)
+         "Dictionary class>>newFromAList: stores values"))
+
+(let ((key (list 1)))
+  (let ((dictionary [IdentityDictionary newFromAList:
+                                      (list (cons key "first")
+                                            (cons (list 1) "second")
+                                            (cons key "third"))]))
+    (check (= [dictionary size] 2)
+           "IdentityDictionary class>>newFromAList: uses identity keys")
+    (check (equal? [dictionary at: key] "third")
+           "IdentityDictionary class>>newFromAList: overwrites identical key")))
+
 (let ((dictionary [WeakKeyIdentityDictionary new])
       (key (cons 1 2)))
   [dictionary at: key put: 99]
@@ -281,6 +300,18 @@
   [dictionary at: key put: 100]
   (check (= [dictionary at: key] 100)
          "WeakValueIdentityDictionary inherits IdentityDictionary methods"))
+
+(let ((key (list 2)))
+  (let ((dictionary [WeakKeyIdentityDictionary newFromAList:
+                                           (list (cons key 8))]))
+    (check (= [dictionary at: key] 8)
+           "WeakKeyIdentityDictionary class>>newFromAList: stores entries")))
+
+(let ((key (list 3)))
+  (let ((dictionary [WeakValueIdentityDictionary newFromAList:
+                                             (list (cons key 9))]))
+    (check (= [dictionary at: key] 9)
+           "WeakValueIdentityDictionary class>>newFromAList: stores entries")))
 
 (let ((variable [DynamicVariable new: "default"]))
   (check (equal? [variable value] "default")

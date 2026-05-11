@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/IdentityDictionary.h>
+#include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/WeakKeyIdentityDictionary.h>
 #include <ListTalk/classes/WeakValueIdentityDictionary.h>
@@ -140,6 +141,28 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    identity_dictionary_class_method_new_from_alist,
+    "IdentityDictionary class>>newFromAList:",
+    "(self alist)",
+    "Return an identity dictionary initialized from an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value alist;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_IdentityDictionary_class){
+        LT_error(
+            "newFromAList: class method is only supported on IdentityDictionary"
+        );
+    }
+    return (LT_Value)(uintptr_t)LT_IdentityDictionary_newFromAList(alist);
+}
+
+LT_DEFINE_PRIMITIVE(
     weak_key_identity_dictionary_class_method_new,
     "WeakKeyIdentityDictionary class>>new",
     "(self)",
@@ -158,6 +181,28 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    weak_key_identity_dictionary_class_method_new_from_alist,
+    "WeakKeyIdentityDictionary class>>newFromAList:",
+    "(self alist)",
+    "Return a weak-key identity dictionary initialized from an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value alist;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_WeakKeyIdentityDictionary_class){
+        LT_error(
+            "newFromAList: class method is only supported on WeakKeyIdentityDictionary"
+        );
+    }
+    return (LT_Value)(uintptr_t)LT_WeakKeyIdentityDictionary_newFromAList(alist);
+}
+
+LT_DEFINE_PRIMITIVE(
     weak_value_identity_dictionary_class_method_new,
     "WeakValueIdentityDictionary class>>new",
     "(self)",
@@ -173,6 +218,28 @@ LT_DEFINE_PRIMITIVE(
         LT_error("new class method is only supported on WeakValueIdentityDictionary");
     }
     return (LT_Value)(uintptr_t)LT_WeakValueIdentityDictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    weak_value_identity_dictionary_class_method_new_from_alist,
+    "WeakValueIdentityDictionary class>>newFromAList:",
+    "(self alist)",
+    "Return a weak-value identity dictionary initialized from an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value alist;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_WeakValueIdentityDictionary_class){
+        LT_error(
+            "newFromAList: class method is only supported on WeakValueIdentityDictionary"
+        );
+    }
+    return (LT_Value)(uintptr_t)LT_WeakValueIdentityDictionary_newFromAList(alist);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -289,16 +356,19 @@ static LT_Method_Descriptor IdentityDictionary_methods[] = {
 
 static LT_Method_Descriptor IdentityDictionary_class_methods[] = {
     {"new", &identity_dictionary_class_method_new},
+    {"newFromAList:", &identity_dictionary_class_method_new_from_alist},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor WeakKeyIdentityDictionary_class_methods[] = {
     {"new", &weak_key_identity_dictionary_class_method_new},
+    {"newFromAList:", &weak_key_identity_dictionary_class_method_new_from_alist},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor WeakValueIdentityDictionary_class_methods[] = {
     {"new", &weak_value_identity_dictionary_class_method_new},
+    {"newFromAList:", &weak_value_identity_dictionary_class_method_new_from_alist},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -440,16 +510,68 @@ LT_IdentityDictionary* LT_IdentityDictionary_new(void){
     return identity_dictionary_new_with_class(&LT_IdentityDictionary_class);
 }
 
+static LT_IdentityDictionary* identity_dictionary_new_from_alist_with_class(
+    LT_Class* klass,
+    LT_Value alist
+){
+    LT_IdentityDictionary* dictionary = identity_dictionary_new_with_class(klass);
+
+    while (alist != LT_NIL){
+        LT_Value entry;
+
+        if (!LT_Pair_p(alist)){
+            LT_error("IdentityDictionary newFromAList: expects proper list");
+        }
+
+        entry = LT_car(alist);
+        if (!LT_Pair_p(entry)){
+            LT_error("IdentityDictionary newFromAList: expects list of pairs");
+        }
+
+        LT_IdentityDictionary_atPut(dictionary, LT_car(entry), LT_cdr(entry));
+        alist = LT_cdr(alist);
+    }
+
+    return dictionary;
+}
+
+LT_IdentityDictionary* LT_IdentityDictionary_newFromAList(LT_Value alist){
+    return identity_dictionary_new_from_alist_with_class(
+        &LT_IdentityDictionary_class,
+        alist
+    );
+}
+
 LT_WeakKeyIdentityDictionary* LT_WeakKeyIdentityDictionary_new(void){
     return (LT_WeakKeyIdentityDictionary*)identity_dictionary_new_with_class(
         &LT_WeakKeyIdentityDictionary_class
     );
 }
 
+LT_WeakKeyIdentityDictionary* LT_WeakKeyIdentityDictionary_newFromAList(
+    LT_Value alist
+){
+    return (LT_WeakKeyIdentityDictionary*)
+        identity_dictionary_new_from_alist_with_class(
+            &LT_WeakKeyIdentityDictionary_class,
+            alist
+        );
+}
+
 LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_new(void){
     return (LT_WeakValueIdentityDictionary*)identity_dictionary_new_with_class(
         &LT_WeakValueIdentityDictionary_class
     );
+}
+
+LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_newFromAList(
+    LT_Value alist
+){
+    return (LT_WeakValueIdentityDictionary*)
+        identity_dictionary_new_from_alist_with_class(
+            &LT_WeakValueIdentityDictionary_class,
+            alist
+        );
 }
 
 size_t LT_IdentityDictionary_size(LT_IdentityDictionary* dictionary){
