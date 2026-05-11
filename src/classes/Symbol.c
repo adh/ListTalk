@@ -47,6 +47,14 @@ static LT_Package* symbol_package_designator(LT_Value value){
     return LT_Package_new(name);
 }
 
+static int symbol_name_starts_with(LT_Symbol* symbol, LT_String* prefix){
+    char* name = LT_Symbol_name(symbol);
+    size_t prefix_length = LT_String_byte_length(prefix);
+
+    return prefix_length <= strlen(name)
+        && memcmp(name, LT_String_value_cstr(prefix), prefix_length) == 0;
+}
+
 static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Symbol* symbol = (LT_Symbol*)LT_VALUE_POINTER_VALUE(obj);
     LT_Package* package = LT_Symbol_package(symbol);
@@ -141,6 +149,28 @@ LT_DEFINE_PRIMITIVE(
         LT_type_error(self, &LT_Symbol_class);
     }
     return LT_Symbol_package(LT_Symbol_from_value(self)) == LT_PACKAGE_KEYWORD
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_name_starts_with,
+    "Symbol>>nameStartsWith?:",
+    "(self prefix)",
+    "Return true when symbol name starts with prefix."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* prefix;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, prefix, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(self)){
+        LT_type_error(self, &LT_Symbol_class);
+    }
+    return symbol_name_starts_with(LT_Symbol_from_value(self), prefix)
         ? LT_TRUE
         : LT_FALSE;
 }
@@ -251,6 +281,7 @@ static LT_Method_Descriptor Symbol_methods[] = {
     {"name", &symbol_method_name},
     {"package", &symbol_method_package},
     {"keyword?", &symbol_method_keyword_p},
+    {"nameStartsWith?:", &symbol_method_name_starts_with},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

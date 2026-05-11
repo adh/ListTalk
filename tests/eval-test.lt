@@ -605,6 +605,12 @@
 (check ["bananana" contains?: "nan"] "String>>contains?: finds substring")
 (check (not ["bananana" contains?: "xyz"])
        "String>>contains?: rejects absent substring")
+(check ["aλ😀" startsWith?: "aλ"] "String>>startsWith?: accepts prefix")
+(check ["aλ😀" startsWith?: ""] "String>>startsWith?: accepts empty prefix")
+(check (not ["aλ😀" startsWith?: "λ"])
+       "String>>startsWith?: rejects non-prefix")
+(check (not ["aλ😀" startsWith?: "aλ😀z"])
+       "String>>startsWith?: rejects longer prefix")
 (check (= ["aλ😀λ" find: "😀"] 2)
        "String>>find: returns codepoint index")
 (check (null? ["aλ😀λ" find: "z"])
@@ -1385,6 +1391,10 @@
 (check [:eval-test-keyword keyword?] "Symbol>>keyword? true for keyword symbol")
 (check (not ['eval-test-alpha keyword?])
        "Symbol>>keyword? false for non-keyword symbol")
+(check ['eval-test-alpha nameStartsWith?: "eval"]
+       "Symbol>>nameStartsWith?: accepts prefix")
+(check (not ['eval-test-alpha nameStartsWith?: "alpha"])
+       "Symbol>>nameStartsWith?: rejects non-prefix")
 (check-error-message "Readonly slot" "symbol package slot is readonly"
   (slot-set! 'eval-test-alpha 'package 1))
 

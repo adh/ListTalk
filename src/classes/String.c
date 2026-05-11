@@ -281,6 +281,17 @@ int LT_String_contains(LT_String* string, LT_String* needle){
     ) != NULL;
 }
 
+int LT_String_startsWith(LT_String* string, LT_String* prefix){
+    size_t prefix_length = LT_String_byte_length(prefix);
+
+    return prefix_length <= LT_String_byte_length(string)
+        && memcmp(
+            LT_String_value_cstr(string),
+            LT_String_value_cstr(prefix),
+            prefix_length
+        ) == 0;
+}
+
 int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out){
     const char* match;
 
@@ -577,6 +588,26 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_starts_with,
+    "String>>startsWith?:",
+    "(self prefix)",
+    "Return true when string starts with prefix."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* prefix;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, prefix, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_startsWith(LT_String_from_value(self), prefix)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_find,
     "String>>find:",
     "(self needle)",
@@ -679,6 +710,7 @@ static LT_Method_Descriptor String_methods[] = {
     {"replaceFirst:with:", &string_method_replace_first_with},
     {"mapCharacters:", &string_method_map_characters},
     {"contains?:", &string_method_contains},
+    {"startsWith?:", &string_method_starts_with},
     {"find:", &string_method_find},
     {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},
