@@ -734,6 +734,24 @@ static int test_list_any_every_c_api(void){
     );
 }
 
+static int test_list_alist_plist_c_api(void){
+    LT_Value alist = eval_one("'((a . 1) (b . 2))");
+    LT_Value plist = eval_one("'(a 1 b 2)");
+    LT_Value converted_plist = LT_List_alistToPlist(alist);
+    LT_Value converted_alist = LT_List_plistToAlist(plist);
+
+    if (expect(
+        LT_Value_equal_p(converted_plist, plist),
+        "LT_List_alistToPlist converts associations to property list"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_equal_p(converted_alist, alist),
+        "LT_List_plistToAlist converts property list to associations"
+    );
+}
+
 static int test_define_package_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value value = LT_NIL;
@@ -2356,6 +2374,7 @@ int main(void){
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_list_for_each_c_api);
     RUN_TEST(test_list_any_every_c_api);
+    RUN_TEST(test_list_alist_plist_c_api);
     RUN_TEST(test_define_package_special_form);
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);

@@ -463,6 +463,38 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return assoc_with_predicate(key, alist, LT_Value_eqv_p);
 }
 
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_alist_to_plist,
+    "alist->plist",
+    "(alist)",
+    "Return property list converted from association list.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value alist;
+
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+
+    return LT_List_alistToPlist(alist);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_plist_to_alist,
+    "plist->alist",
+    "(plist)",
+    "Return association list converted from property list.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value plist;
+
+    LT_OBJECT_ARG(cursor, plist);
+    LT_ARG_END(cursor);
+
+    return LT_List_plistToAlist(plist);
+}
+
 void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_cons);
     LT_base_env_bind_static_primitive(environment, &primitive_car);
@@ -484,4 +516,6 @@ void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_assoc);
     LT_base_env_bind_static_primitive(environment, &primitive_assq);
     LT_base_env_bind_static_primitive(environment, &primitive_assv);
+    LT_base_env_bind_static_primitive(environment, &primitive_alist_to_plist);
+    LT_base_env_bind_static_primitive(environment, &primitive_plist_to_alist);
 }

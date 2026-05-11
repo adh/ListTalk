@@ -470,6 +470,57 @@ LT_Value LT_List_reduce_right(LT_Value callable, LT_Value list){
     return LT_List_reduce_right_many(callable, 1, &list);
 }
 
+LT_Value LT_List_alistToPlist(LT_Value alist){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    while (alist != LT_NIL){
+        LT_Value entry;
+
+        if (!LT_Pair_p(alist)){
+            LT_error("alist->plist expects proper list");
+        }
+
+        entry = LT_car(alist);
+        if (!LT_Pair_p(entry)){
+            LT_error("alist->plist expects list of pairs");
+        }
+
+        LT_ListBuilder_append(builder, LT_car(entry));
+        LT_ListBuilder_append(builder, LT_cdr(entry));
+        alist = LT_cdr(alist);
+    }
+
+    return LT_ListBuilder_value(builder);
+}
+
+LT_Value LT_List_plistToAlist(LT_Value plist){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    while (plist != LT_NIL){
+        LT_Value key;
+        LT_Value value;
+
+        if (!LT_Pair_p(plist)){
+            LT_error("plist->alist expects proper list");
+        }
+
+        key = LT_car(plist);
+        plist = LT_cdr(plist);
+        if (plist == LT_NIL){
+            LT_error("plist->alist expects even number of elements");
+        }
+        if (!LT_Pair_p(plist)){
+            LT_error("plist->alist expects proper list");
+        }
+
+        value = LT_car(plist);
+        LT_ListBuilder_append(builder, LT_cons(key, value));
+        plist = LT_cdr(plist);
+    }
+
+    return LT_ListBuilder_value(builder);
+}
+
 LT_DEFINE_PRIMITIVE(
     list_method_length,
     "List>>length",

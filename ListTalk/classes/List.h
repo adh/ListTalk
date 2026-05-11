@@ -79,6 +79,8 @@ LT_Value LT_List_reduce_right_many(
     size_t list_count,
     const LT_Value* lists
 );
+LT_Value LT_List_alistToPlist(LT_Value alist);
+LT_Value LT_List_plistToAlist(LT_Value plist);
 
 static inline int LT_List_p(LT_Value value){
     return value == LT_NIL
