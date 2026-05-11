@@ -100,6 +100,38 @@
           (error "define-method expects [Class selector ...] signature"))
       (error "define-method expects [Class selector ...] signature")))
 
+(ListTalk:define-macro (ListTalk:define-constructor signature . body)
+  (define (init-selector selector)
+    (let ((name [selector name]))
+      (if [selector nameStartsWith?: "new"]
+          [Symbol keyword: (string-append "init" (substring name 3 [name length]))]
+          (if [selector nameStartsWith?: "from"]
+              [Symbol keyword: (string-append "initFrom" (substring name 4 [name length]))]
+              (error "define-constructor selector must start with new or from")))))
+  (if (pair? signature)
+      (if (eq? (car signature) 'ListTalk:send)
+          (let ((class (cadr signature))
+                (constructor-selector (caddr signature))
+                (arguments (cdddr signature)))
+            (let ((initializer-selector (init-selector constructor-selector)))
+              `(begin
+                 (define-method
+                   ,(cons 'ListTalk:send
+                          (cons (list 'ListTalk:send class ':class)
+                                (cons constructor-selector arguments)))
+                   (let ((instance [ListTalk:self alloc]))
+                     ,(cons 'ListTalk:send
+                            (cons 'instance
+                                  (cons initializer-selector arguments)))))
+                 (define-method
+                   ,(cons 'ListTalk:send
+                          (cons class
+                                (cons initializer-selector arguments)))
+                   ,@body
+                   ListTalk:self))))
+          (error "define-constructor expects [Class selector ...] signature"))
+      (error "define-constructor expects [Class selector ...] signature")))
+
 (ListTalk:define-macro (ListTalk:send receiver selector . arguments)
   (if (and (symbol? receiver)
           (eq? receiver 'ListTalk:super))

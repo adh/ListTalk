@@ -1218,6 +1218,46 @@
 (check (= [(cons 1 2) setFirst: 77] 77)
        "set! macro dispatches %self-slot target to slot-set!")
 
+;;; define-constructor
+
+(define-class DefConstructorMeep (Object) (foo bar))
+(define-constructor [DefConstructorMeep newWithFoo: foo bar: bar]
+  (set! (%self-slot foo) foo)
+  (set! (%self-slot bar) bar))
+(let ((meep [DefConstructorMeep newWithFoo: 3 bar: 4]))
+  (check (eq? (type-of meep) DefConstructorMeep)
+         "define-constructor newWith... class method returns instance")
+  (check (= (slot-ref meep 'foo) 3)
+         "define-constructor newWith... initializes first slot")
+  (check (= (slot-ref meep 'bar) 4)
+         "define-constructor newWith... initializes second slot"))
+(check (closure? [[DefConstructorMeep class] lookupSelector: :newWithFoo:bar:])
+       "define-constructor installs newWith... class method")
+(check (closure? [DefConstructorMeep lookupSelector: :initWithFoo:bar:])
+       "define-constructor installs initWith... instance method")
+
+(define-class DefConstructorNew (Object) (foo))
+(define-constructor [DefConstructorNew newFoo: foo]
+  (set! (%self-slot foo) foo))
+(let ((value [DefConstructorNew newFoo: 17]))
+  (check (eq? (type-of value) DefConstructorNew)
+         "define-constructor new... class method returns instance")
+  (check (= (slot-ref value 'foo) 17)
+         "define-constructor new... initializes slot"))
+(check (closure? [DefConstructorNew lookupSelector: :initFoo:])
+       "define-constructor installs init... instance method")
+
+(define-class DefConstructorFrom (Object) (foo))
+(define-constructor [DefConstructorFrom fromFoo: foo]
+  (set! (%self-slot foo) foo))
+(let ((value [DefConstructorFrom fromFoo: 42]))
+  (check (eq? (type-of value) DefConstructorFrom)
+         "define-constructor from... class method returns instance")
+  (check (= (slot-ref value 'foo) 42)
+         "define-constructor from... initializes slot"))
+(check (closure? [DefConstructorFrom lookupSelector: :initFromFoo:])
+       "define-constructor installs initFrom... instance method")
+
 ;;; Rectangle example
 
 (define-class DefRectangle (Object) (width height))
