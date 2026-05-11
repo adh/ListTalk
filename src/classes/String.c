@@ -210,10 +210,7 @@ static int String_dictionary_at(LT_Value dictionary,
         );
     }
 
-    if (LT_Value_is_instance_of(
-        dictionary,
-        (LT_Value)(uintptr_t)&LT_Dictionary_class
-    )){
+    if (LT_Dictionary_p(dictionary)){
         return LT_Dictionary_at(
             (LT_Dictionary*)LT_VALUE_POINTER_VALUE(dictionary),
             key,

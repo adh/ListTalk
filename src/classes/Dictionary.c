@@ -21,19 +21,29 @@ struct LT_Dictionary_s {
     LT_InlineHash table;
 };
 
-static void Dictionary_debugPrintOn(LT_Value obj, FILE* stream){
+static void dictionary_debugPrintOnNamed(
+    LT_Value obj,
+    FILE* stream,
+    const char* name
+){
     LT_Dictionary* dictionary = LT_Dictionary_from_value(obj);
-    fprintf(stream, "#<Dictionary %p size=%zu>",
+    fprintf(stream, "#<%s %p size=%zu>",
+        name,
         (void*)dictionary,
         LT_InlineHash_count(&dictionary->table)
     );
 }
 
+static void ImmutableDictionary_debugPrintOn(LT_Value obj, FILE* stream){
+    dictionary_debugPrintOnNamed(obj, stream, "ImmutableDictionary");
+}
+
+static void Dictionary_debugPrintOn(LT_Value obj, FILE* stream){
+    dictionary_debugPrintOnNamed(obj, stream, "Dictionary");
+}
+
 static LT_Dictionary* dictionary_from_value(LT_Value value){
-    if (!LT_Value_is_instance_of(
-        value,
-        (LT_Value)(uintptr_t)&LT_Dictionary_class
-    )){
+    if (!LT_Dictionary_p(value)){
         LT_type_error(value, &LT_Dictionary_class);
     }
     return (LT_Dictionary*)LT_VALUE_POINTER_VALUE(value);
@@ -104,14 +114,27 @@ static LT_InlineHash_Entry* dictionary_find_entry(
     return NULL;
 }
 
-LT_Dictionary* LT_Dictionary_new(void){
-    LT_Dictionary* dictionary = LT_Class_ALLOC(LT_Dictionary);
+static LT_Dictionary* dictionary_new_with_class(LT_Class* klass){
+    LT_Dictionary* dictionary = (LT_Dictionary*)LT_Class_alloc(klass);
     LT_InlineHash_init(&dictionary->table);
     return dictionary;
 }
 
-LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist){
-    LT_Dictionary* dictionary = LT_Dictionary_new();
+LT_ImmutableDictionary* LT_ImmutableDictionary_new(void){
+    return (LT_ImmutableDictionary*)dictionary_new_with_class(
+        &LT_ImmutableDictionary_class
+    );
+}
+
+LT_Dictionary* LT_Dictionary_new(void){
+    return dictionary_new_with_class(&LT_Dictionary_class);
+}
+
+static LT_Dictionary* dictionary_new_from_alist_with_class(
+    LT_Value alist,
+    LT_Class* klass
+){
+    LT_Dictionary* dictionary = dictionary_new_with_class(klass);
 
     while (alist != LT_NIL){
         LT_Value entry;
@@ -130,6 +153,17 @@ LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist){
     }
 
     return dictionary;
+}
+
+LT_ImmutableDictionary* LT_ImmutableDictionary_newFromAList(LT_Value alist){
+    return (LT_ImmutableDictionary*)dictionary_new_from_alist_with_class(
+        alist,
+        &LT_ImmutableDictionary_class
+    );
+}
+
+LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist){
+    return dictionary_new_from_alist_with_class(alist, &LT_Dictionary_class);
 }
 
 size_t LT_Dictionary_size(LT_Dictionary* dictionary){
@@ -269,10 +303,10 @@ int LT_Dictionary_at(
 }
 
 LT_DEFINE_PRIMITIVE(
-    dictionary_class_method_new,
-    "Dictionary class>>new",
+    immutable_dictionary_class_method_new,
+    "ImmutableDictionary class>>new",
     "(self)",
-    "Return a new empty dictionary."
+    "Return a new empty immutable dictionary."
 ){
     LT_Value cursor = arguments;
     LT_Value self;
@@ -280,17 +314,17 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
-        LT_error("new class method is only supported on Dictionary");
+    if (self != (LT_Value)(uintptr_t)&LT_ImmutableDictionary_class){
+        LT_error("new class method is only supported on ImmutableDictionary");
     }
-    return (LT_Value)(uintptr_t)LT_Dictionary_new();
+    return (LT_Value)(uintptr_t)LT_ImmutableDictionary_new();
 }
 
 LT_DEFINE_PRIMITIVE(
-    dictionary_class_method_new_from_alist,
-    "Dictionary class>>newFromAList:",
+    immutable_dictionary_class_method_new_from_alist,
+    "ImmutableDictionary class>>newFromAList:",
     "(self alist)",
-    "Return a dictionary initialized from an association list."
+    "Return an immutable dictionary initialized from an association list."
 ){
     LT_Value cursor = arguments;
     LT_Value self;
@@ -300,10 +334,12 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, alist);
     LT_ARG_END(cursor);
-    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
-        LT_error("newFromAList: class method is only supported on Dictionary");
+    if (self != (LT_Value)(uintptr_t)&LT_ImmutableDictionary_class){
+        LT_error(
+            "newFromAList: class method is only supported on ImmutableDictionary"
+        );
     }
-    return (LT_Value)(uintptr_t)LT_Dictionary_newFromAList(alist);
+    return (LT_Value)(uintptr_t)LT_ImmutableDictionary_newFromAList(alist);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -456,16 +492,64 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor Dictionary_methods[] = {
-    {"size", &dictionary_method_size},
-    {"at:", &dictionary_method_at},
-    {"asAList", &dictionary_method_as_alist},
     {"at:put:", &dictionary_method_at_put},
-    {"contains?:", &dictionary_method_contains},
-    {"forEach:", &dictionary_method_for_each},
-    {"map:", &dictionary_method_map},
     {"remove:", &dictionary_method_remove},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
+
+static LT_Method_Descriptor ImmutableDictionary_methods[] = {
+    {"size", &dictionary_method_size},
+    {"at:", &dictionary_method_at},
+    {"asAList", &dictionary_method_as_alist},
+    {"contains?:", &dictionary_method_contains},
+    {"forEach:", &dictionary_method_for_each},
+    {"map:", &dictionary_method_map},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor ImmutableDictionary_class_methods[] = {
+    {"new", &immutable_dictionary_class_method_new},
+    {"newFromAList:", &immutable_dictionary_class_method_new_from_alist},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_class_method_new,
+    "Dictionary class>>new",
+    "(self)",
+    "Return a new empty dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
+        LT_error("new class method is only supported on Dictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_Dictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_class_method_new_from_alist,
+    "Dictionary class>>newFromAList:",
+    "(self alist)",
+    "Return a dictionary initialized from an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value alist;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
+        LT_error("newFromAList: class method is only supported on Dictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_Dictionary_newFromAList(alist);
+}
 
 static LT_Method_Descriptor Dictionary_class_methods[] = {
     {"new", &dictionary_class_method_new},
@@ -473,9 +557,20 @@ static LT_Method_Descriptor Dictionary_class_methods[] = {
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
-LT_DEFINE_CLASS(LT_Dictionary) {
+LT_DEFINE_CLASS(LT_ImmutableDictionary) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .name = "ImmutableDictionary",
+    .instance_size = sizeof(LT_Dictionary),
+    .class_flags = LT_CLASS_FLAG_IMMUTABLE,
+    .debugPrintOn = ImmutableDictionary_debugPrintOn,
+    .methods = ImmutableDictionary_methods,
+    .class_methods = ImmutableDictionary_class_methods,
+};
+
+LT_DEFINE_CLASS(LT_Dictionary) {
+    .superclass = &LT_ImmutableDictionary_class,
+    .metaclass_superclass = &LT_ImmutableDictionary_class_class,
     .name = "Dictionary",
     .instance_size = sizeof(LT_Dictionary),
     .debugPrintOn = Dictionary_debugPrintOn,

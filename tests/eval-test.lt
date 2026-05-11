@@ -200,6 +200,8 @@
        "early native class object inherits Object>>class")
 (check (primitive? [IdentityDictionary lookupSelector: :class])
        "early native class object inherits Class method lookup")
+(check (eq? [[ImmutableDictionary new] class] ImmutableDictionary)
+       "ImmutableDictionary class>>new returns immutable dictionary")
 (check (eq? [[Dictionary new] class] Dictionary)
        "Dictionary class>>new returns dictionary")
 (check (eq? [[IdentityDictionary new] class] IdentityDictionary)
@@ -290,6 +292,19 @@
                                    (lambda (key value) (set! sum (+ sum value)))])
                 (= sum 5)))
          "Dictionary>>forEach: applies callable to key/value pairs"))
+
+(let ((dictionary [ImmutableDictionary newFromAList:
+                   '(("a" . 1) ("b" . 2) ("a" . 3))]))
+  (check (= [dictionary size] 2)
+         "ImmutableDictionary class>>newFromAList: sets size")
+  (check (= [dictionary at: "a"] 3)
+         "ImmutableDictionary class>>newFromAList: uses structural keys")
+  (check [dictionary contains?: "b"]
+         "ImmutableDictionary inherits dictionary lookup protocol")
+  (check (equal? (assoc "a" [dictionary asAList]) '("a" . 3))
+         "ImmutableDictionary>>asAList returns associations")
+  (check (= [[dictionary map: (lambda (key value) value)] reduce: +] 5)
+         "ImmutableDictionary>>map: maps key/value pairs"))
 
 (let ((key (list 1)))
   (let ((dictionary [IdentityDictionary newFromAList:
