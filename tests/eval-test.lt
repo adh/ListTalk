@@ -174,6 +174,9 @@
 (check (not (boolean? 1)) "boolean? false for non-boolean")
 (check (symbol? 'foo) "symbol? true for symbol")
 (check (not (symbol? 1)) "symbol? false for non-symbol")
+(check (keyword? :foo) "keyword? true for keyword symbol")
+(check (not (keyword? 'foo)) "keyword? false for non-keyword symbol")
+(check (not (keyword? 1)) "keyword? false for non-symbol")
 
 ;;; number->string
 
@@ -1365,6 +1368,13 @@
 
 (check (not (null? (slot-ref 'eval-test-alpha 'package)))
        "symbol package slot exposes package object")
+(check (eq? ['eval-test-alpha package] (slot-ref 'eval-test-alpha 'package))
+       "Symbol>>package returns package object")
+(check (null? [[Symbol gensym] package])
+       "Symbol>>package returns nil for uninterned symbol")
+(check [:eval-test-keyword keyword?] "Symbol>>keyword? true for keyword symbol")
+(check (not ['eval-test-alpha keyword?])
+       "Symbol>>keyword? false for non-keyword symbol")
 (check-error-message "Readonly slot" "symbol package slot is readonly"
   (slot-set! 'eval-test-alpha 'package 1))
 

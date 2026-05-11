@@ -96,6 +96,46 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    symbol_method_package,
+    "Symbol>>package",
+    "(self)",
+    "Return symbol package, or nil for uninterned symbols."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Package* package;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(self)){
+        LT_type_error(self, &LT_Symbol_class);
+    }
+    package = LT_Symbol_package(LT_Symbol_from_value(self));
+    return package == NULL ? LT_NIL : (LT_Value)(uintptr_t)package;
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_keyword_p,
+    "Symbol>>keyword?",
+    "(self)",
+    "Return true when symbol is in the keyword package."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(self)){
+        LT_type_error(self, &LT_Symbol_class);
+    }
+    return LT_Symbol_package(LT_Symbol_from_value(self)) == LT_PACKAGE_KEYWORD
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     symbol_class_method_gensym,
     "Symbol class>>gensym",
     "(self [name])",
@@ -147,6 +187,8 @@ LT_DEFINE_PRIMITIVE(
 
 static LT_Method_Descriptor Symbol_methods[] = {
     {"name", &symbol_method_name},
+    {"package", &symbol_method_package},
+    {"keyword?", &symbol_method_keyword_p},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
