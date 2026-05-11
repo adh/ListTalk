@@ -1,0 +1,24 @@
+;;;;; -*- mode: scheme -*-
+;;;;; SPDX-License-Identifier: MIT
+;;;;; Copyright (c) 2026 Ales Hakl
+
+(in-package :html-gen)
+(ListTalk:use-package :ListTalk)
+
+(define-class Markup (Object) 
+  (content))
+
+(define-method [[Markup class] new: content]
+    (let ((instance [self alloc]))
+      [instance init: content]
+      instance))
+
+(define-method [Markup init: content]
+    (ListTalk:set! .content content)
+    self)
+
+(define )
+
+(define-method [[Markup class] fromString: string]
+    (Markup new: (escape string)))
+
