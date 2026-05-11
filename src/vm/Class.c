@@ -215,6 +215,59 @@ static LT_Value make_single_inheritance_precedence_list(LT_Class* klass,
     return precedence_list_storage(precedence_list);
 }
 
+static int class_basics_materialized_p(LT_Class* klass){
+    return klass->native_descriptor == NULL
+        && klass->methods != LT_INVALID
+        && klass->method_cache != LT_INVALID
+        && klass->name != LT_INVALID;
+}
+
+static void finalize_core_class_cycle_if_ready(void){
+    static int finalized = 0;
+
+    if (finalized){
+        return;
+    }
+    if (!class_basics_materialized_p(&LT_Object_class)
+        || !class_basics_materialized_p(&LT_Class_class)){
+        return;
+    }
+
+    LT_Object_class.superclasses = make_single_superclass_list(NULL);
+    LT_Object_class.precedence_list = make_single_inheritance_precedence_list(
+        &LT_Object_class,
+        NULL
+    );
+
+    LT_Class_class.superclasses = make_single_superclass_list(&LT_Object_class);
+    LT_Class_class.precedence_list = make_single_inheritance_precedence_list(
+        &LT_Class_class,
+        &LT_Object_class
+    );
+
+    LT_Class_class_class.superclasses = make_single_superclass_list(&LT_Class_class);
+    LT_Class_class_class.precedence_list = make_single_inheritance_precedence_list(
+        &LT_Class_class_class,
+        &LT_Class_class
+    );
+    LT_Class_class_class.slot_count = LT_Class_class.slot_count;
+    LT_Class_class_class.slots = LT_Class_class.slots;
+    LT_Class_class_class.hash = LT_Class_class.hash;
+    LT_Class_class_class.equal_p = LT_Class_class.equal_p;
+
+    LT_Object_class_class.superclasses = make_single_superclass_list(&LT_Class_class);
+    LT_Object_class_class.precedence_list = make_single_inheritance_precedence_list(
+        &LT_Object_class_class,
+        &LT_Class_class
+    );
+    LT_Object_class_class.slot_count = LT_Class_class.slot_count;
+    LT_Object_class_class.slots = LT_Class_class.slots;
+    LT_Object_class_class.hash = LT_Class_class.hash;
+    LT_Object_class_class.equal_p = LT_Class_class.equal_p;
+
+    finalized = 1;
+}
+
 static size_t count_slot_descriptors(LT_Slot_Descriptor* descriptor_slots){
     size_t count = 0;
 
@@ -601,6 +654,8 @@ void LT_init_native_class(LT_Class* klass){
             metaclass->slots = NULL;
         }
     }
+
+    finalize_core_class_cycle_if_ready();
 }
 
 LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names){

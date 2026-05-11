@@ -189,6 +189,10 @@
 ;;; OOP: class methods
 
 (check (eq? [1 class] SmallInteger) "Object>>class returns receiver class")
+(check (eq? [Object class] (type-of Object))
+       "Object class object inherits Object>>class")
+(check (primitive? [Object lookupSelector: :class])
+       "Object class object inherits Class method lookup")
 (check (primitive? [Pair lookupSelector: :car]) "Class>>lookupSelector: returns method")
 (check (primitive? [Pair >> :car]) "Class>>>> returns direct method")
 (check (null? [Pair lookupSelector: :does-not-exist])
