@@ -164,7 +164,7 @@ static int test_equal_p_still_handles_strings_lists_vectors(void){
 int main(void){
     int failures = 0;
 
-    LT_init();
+    LT_INIT();
 
     failures += test_string_keys_use_equal_semantics();
     failures += test_pair_keys_use_structural_equal_semantics();

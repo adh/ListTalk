@@ -245,7 +245,7 @@ static int test_weak_value_dictionary_clears_dead_values(void){
 int main(void){
     int failures = 0;
 
-    LT_init();
+    LT_INIT();
 
     failures += test_new_dictionary_is_empty();
     failures += test_at_put_and_at_roundtrip();

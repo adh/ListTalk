@@ -2291,7 +2291,7 @@ static int test_dynamic_variable_c_api_uses_thread_local_values(void){
 int main(void){
     int failures = 0;
 
-    LT_init();
+    LT_INIT();
 #define RUN_TEST(TEST_FN) \
     do { \
         LT_set_current_package(LT_PACKAGE_LISTTALK); \

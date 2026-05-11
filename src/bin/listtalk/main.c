@@ -241,7 +241,7 @@ int main(int argc, char**argv){
     char* source_path = NULL;
     LT_Value command_line_list = LT_NIL;
 
-    LT_init();
+    LT_INIT();
     LT_set_current_package(LT_PACKAGE_LISTTALK_USER);
     LT__repl_error_tag = LT_Symbol_new("repl-error");
     repl_handler = LT_Primitive_new(

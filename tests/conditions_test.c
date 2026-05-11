@@ -670,7 +670,7 @@ static int test_filestream_open_failure_signals_system_error(void){
 int main(void){
     int failures = 0;
 
-    LT_init();
+    LT_INIT();
 
     failures += test_signal_invokes_bound_handler_with_condition_value();
     failures += test_signal_runs_all_handlers_inside_out();

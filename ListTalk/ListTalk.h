@@ -65,7 +65,11 @@ LT__BEGIN_DECLS
 
 typedef struct LT_TailCallUnwindMarker_s LT_TailCallUnwindMarker;
 
-extern void LT_init(void);
+extern void LT__init(void);
+
+#define LT_INIT() \
+    GC_INIT(); \
+    LT__init()
 
 extern LT_Value LT_eval(
     LT_Value expression,

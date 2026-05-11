@@ -198,7 +198,7 @@ static int test_stack_trace_capture_returns_snapshot_list(void){
 int main(void){
     int failures = 0;
 
-    LT_init();
+    LT_INIT();
 
     failures += test_catch_matching_tag_captures_value();
     failures += test_catch_uses_nearest_matching_frame();

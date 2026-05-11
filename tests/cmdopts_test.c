@@ -206,7 +206,7 @@ static int test_required_string_list_argument_accepts_one_value(void){
 int main(void){
     int failures = 0;
 
-    LT_init();
+    LT_INIT();
 
     failures += test_options_and_arguments();
     failures += test_strict_order();

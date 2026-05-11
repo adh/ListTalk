@@ -77,7 +77,7 @@ int LT_PointerHash_remove(
     void** value_out
 );
 
-/* constructors registered here are called from LT_init() after symbols are
+/* constructors registered here are called from LT_INIT() after symbols are
  * setup and native class initialization. So the VM is guaranteed to not be
  * in some weird state. */
 void LT_register_constructor(void (*ctor)(void));

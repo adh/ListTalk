@@ -1627,7 +1627,7 @@ static int test_bytevector_prints_readable_byte_string(void){
 int main(void){
     int failures = 0;
 
-    LT_init();
+    LT_INIT();
     LT__reader_error_tag = LT_Symbol_new("reader-test-error");
 
     failures += test_symbol();
