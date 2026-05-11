@@ -19,6 +19,7 @@
 #include <ListTalk/classes/SourceLocation.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Vector.h>
@@ -76,6 +77,10 @@ static LT_Value read_bytevector_string_literal(
 );
 static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_complex_dispatch_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+);
+static LT_Value read_dictionary_dispatch_literal(
     LT_Reader* reader,
     LT_ReaderStream* stream
 );
@@ -1069,6 +1074,59 @@ static LT_Value read_complex_dispatch_literal(
     return LT_NIL;
 }
 
+static LT_Value read_dictionary_dispatch_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    LT_ImmutableDictionary* dictionary;
+    int ch = read_non_space_char(reader, stream);
+
+    if (ch != '('){
+        reader_error(reader, "#D expects list syntax");
+    }
+
+    dictionary = LT_ImmutableDictionary_new();
+    ch = read_non_space_char(reader, stream);
+    if (ch == ')'){
+        return (LT_Value)(uintptr_t)dictionary;
+    }
+
+    while (1){
+        LT_Value key;
+        LT_Value value;
+
+        if (ch == EOF){
+            reader_incomplete_input(reader, "Unterminated dictionary literal");
+        }
+        if (ch == '.'){
+            reader_error(reader, "Unexpected dot in dictionary literal");
+        }
+
+        key = read_object_from_first(reader, stream, ch);
+
+        ch = read_non_space_char(reader, stream);
+        if (ch == EOF){
+            reader_incomplete_input(reader, "Unterminated dictionary literal");
+        }
+        if (ch == ')'){
+            reader_error(reader, "#D expects an even number of forms");
+        }
+        if (ch == '.'){
+            reader_error(reader, "Unexpected dot in dictionary literal");
+        }
+
+        value = read_object_from_first(reader, stream, ch);
+        LT_Dictionary_atPut((LT_Dictionary*)dictionary, key, value);
+
+        ch = read_non_space_char(reader, stream);
+        if (ch == ')'){
+            break;
+        }
+    }
+
+    return (LT_Value)(uintptr_t)dictionary;
+}
+
 static LT_Value read_bytevector_dispatch_literal(
     LT_Reader* reader,
     LT_ReaderStream* stream
@@ -1158,6 +1216,10 @@ static LT_Value read_dispatch_macro(
         case 'C':
             ensure_dispatch_argument_unused(reader, argument);
             return read_complex_dispatch_literal(reader, stream);
+        case 'd':
+        case 'D':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_dictionary_dispatch_literal(reader, stream);
         case 'u':
         case 'U':
             ensure_dispatch_argument_unused(reader, argument);

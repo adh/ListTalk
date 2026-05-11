@@ -35,7 +35,27 @@ static void dictionary_debugPrintOnNamed(
 }
 
 static void ImmutableDictionary_debugPrintOn(LT_Value obj, FILE* stream){
-    dictionary_debugPrintOnNamed(obj, stream, "ImmutableDictionary");
+    LT_Dictionary* dictionary = LT_Dictionary_from_value(obj);
+    LT_InlineHash* table = &dictionary->table;
+    int first = 1;
+    size_t i;
+
+    fputs("#D(", stream);
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            if (!first){
+                fputc(' ', stream);
+            }
+            LT_Value_debugPrintOn((LT_Value)(uintptr_t)entry->key, stream);
+            fputc(' ', stream);
+            LT_Value_debugPrintOn((LT_Value)(uintptr_t)entry->value, stream);
+            first = 0;
+            entry = entry->next;
+        }
+    }
+    fputc(')', stream);
 }
 
 static void Dictionary_debugPrintOn(LT_Value obj, FILE* stream){

@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Condition.h>
+#include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Reader.h>
@@ -710,6 +711,90 @@ static int test_dispatch_complex_literal(void){
     }
     printed = debug_string_for_value(value);
     return expect(strcmp(printed, "1+1i") == 0, "#C exact complex print");
+}
+
+static int test_dictionary_dispatch_literal(void){
+    LT_Value value = read_one("#D(\"a\" 1 \"b\" 2 \"a\" 3)");
+    LT_ImmutableDictionary* immutable;
+    LT_Dictionary* dictionary;
+    LT_Value fetched = LT_NIL;
+
+    if (expect(
+        LT_Value_class(value) == &LT_ImmutableDictionary_class,
+        "#D returns immutable dictionary"
+    )){
+        return 1;
+    }
+
+    immutable = LT_ImmutableDictionary_from_value(value);
+    dictionary = (LT_Dictionary*)immutable;
+    if (expect(LT_Dictionary_size(dictionary) == 2, "#D dictionary size")){
+        return 1;
+    }
+    if (expect(
+        LT_Dictionary_at(
+            dictionary,
+            (LT_Value)(uintptr_t)LT_String_new_cstr("a"),
+            &fetched
+        ),
+        "#D dictionary structural key lookup"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(fetched) && LT_SmallInteger_value(fetched) == 3,
+        "#D dictionary duplicate key keeps last value"
+    );
+}
+
+static int test_dictionary_dispatch_literal_rejects_odd_forms(void){
+    LT_Value value = read_one_catch_error("#D(\"a\" 1 \"b\")");
+
+    if (expect(LT_ReaderError_p(value), "#D odd forms signal reader error")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "#D expects an even number of forms") == 0,
+        "#D odd forms message"
+    );
+}
+
+static int test_immutable_dictionary_prints_readable_dispatch_literal(void){
+    LT_Value value = read_one("#D(\"a\" 1 \"b\" 2)");
+    char* printed = debug_string_for_value(value);
+    LT_Value reparsed;
+    LT_Value fetched = LT_NIL;
+
+    if (printed == NULL){
+        return 1;
+    }
+    if (expect(strncmp(printed, "#D(", 3) == 0, "immutable dictionary prints #D")){
+        free(printed);
+        return 1;
+    }
+
+    reparsed = read_one(printed);
+    free(printed);
+    if (expect(
+        LT_Value_class(reparsed) == &LT_ImmutableDictionary_class,
+        "printed #D reads back immutable dictionary"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Dictionary_at(
+            LT_Dictionary_from_value(reparsed),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("b"),
+            &fetched
+        ),
+        "printed #D reads back entries"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(fetched) && LT_SmallInteger_value(fetched) == 2,
+        "printed #D reads back value"
+    );
 }
 
 static int test_quote_syntax(void){
@@ -1674,6 +1759,9 @@ int main(void){
     failures += test_pure_imaginary_complex_literal();
     failures += test_polar_complex_literal();
     failures += test_dispatch_complex_literal();
+    failures += test_dictionary_dispatch_literal();
+    failures += test_dictionary_dispatch_literal_rejects_odd_forms();
+    failures += test_immutable_dictionary_prints_readable_dispatch_literal();
     failures += test_quote_syntax();
     failures += test_quasiquote_syntax();
     failures += test_unquote_syntax();
