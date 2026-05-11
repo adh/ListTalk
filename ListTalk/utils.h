@@ -25,6 +25,11 @@ typedef struct LT_StringBuilder LT_StringBuilder;
 
 LT_StringBuilder* LT_StringBuilder_new();
 void LT_StringBuilder_append_str(LT_StringBuilder* builder, char*str);
+void LT_StringBuilder_append_bytes(
+    LT_StringBuilder* builder,
+    const char* bytes,
+    size_t length
+);
 void LT_StringBuilder_append_char(LT_StringBuilder* builder, char ch);
 char* LT_StringBuilder_value(LT_StringBuilder* builder);
 size_t LT_StringBuilder_length(LT_StringBuilder* builder);

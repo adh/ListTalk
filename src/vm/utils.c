@@ -94,6 +94,36 @@ void LT_StringBuilder_append_str(LT_StringBuilder* builder, char*str){
         str++;
     }
 }
+
+void LT_StringBuilder_append_bytes(LT_StringBuilder* builder,
+                                   const char* bytes,
+                                   size_t length){
+    size_t required_size;
+
+    if (length == 0){
+        return;
+    }
+
+    required_size = builder->length + length + 1;
+    if (builder->size < required_size){
+        size_t new_size = builder->size * 2 + 2;
+        char* new_buf;
+
+        while (new_size < required_size){
+            new_size = new_size * 2 + 2;
+        }
+
+        new_buf = GC_MALLOC_ATOMIC(new_size);
+        memcpy(new_buf, builder->buf, builder->length + 1);
+        builder->size = new_size;
+        builder->buf = new_buf;
+    }
+
+    memcpy(builder->buf + builder->length, bytes, length);
+    builder->length += length;
+    builder->buf[builder->length] = '\0';
+}
+
 void LT_StringBuilder_append_char(LT_StringBuilder* builder, char ch){
     if (builder->size < builder->length + 2){
         size_t new_size = builder->size * 2 + 2;

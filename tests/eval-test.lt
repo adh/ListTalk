@@ -527,6 +527,17 @@
        "String>>from:to: uses half-open codepoint indexes")
 (check (equal? ["aλ😀z" substringFrom: 1 to: 3] "λ😀")
        "String>>substringFrom:to: uses half-open codepoint indexes")
+(check (equal? ["bananana" replace: "na" with: "λ"] "baλλλ")
+       "String>>replace:with: replaces all occurrences")
+(check (equal? ["bananana" replaceFirst: "na" with: "λ"] "baλnana")
+       "String>>replaceFirst:with: replaces first occurrence")
+(check (equal? ["aλ😀" replace: "λ" with: "LL"] "aLL😀")
+       "String>>replace:with: handles Unicode codepoint boundaries")
+(let ((mapping [IdentityDictionary new]))
+  [mapping at: (string-ref "abc" 0) put: (string-ref "XYZ" 0)]
+  [mapping at: (string-ref "abc" 1) put: "yy"]
+  (check (equal? ["abcλ" mapCharacters: mapping] "Xyycλ")
+         "String>>mapCharacters: maps Character keys to Character or String values"))
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
