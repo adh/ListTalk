@@ -28,6 +28,15 @@ LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_newFromAList(
     LT_Value alist
 );
 size_t LT_IdentityDictionary_size(LT_IdentityDictionary* dictionary);
+LT_Value LT_IdentityDictionary_asAList(LT_IdentityDictionary* dictionary);
+void LT_IdentityDictionary_for_each(
+    LT_IdentityDictionary* dictionary,
+    LT_Value callable
+);
+LT_Value LT_IdentityDictionary_map(
+    LT_IdentityDictionary* dictionary,
+    LT_Value callable
+);
 void LT_IdentityDictionary_atPut(
     LT_IdentityDictionary* dictionary,
     LT_Value key,

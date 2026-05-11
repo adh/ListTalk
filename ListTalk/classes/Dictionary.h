@@ -18,6 +18,9 @@ LT_DECLARE_CLASS(LT_Dictionary);
 LT_Dictionary* LT_Dictionary_new(void);
 LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist);
 size_t LT_Dictionary_size(LT_Dictionary* dictionary);
+LT_Value LT_Dictionary_asAList(LT_Dictionary* dictionary);
+void LT_Dictionary_for_each(LT_Dictionary* dictionary, LT_Value callable);
+LT_Value LT_Dictionary_map(LT_Dictionary* dictionary, LT_Value callable);
 void LT_Dictionary_atPut(
     LT_Dictionary* dictionary,
     LT_Value key,

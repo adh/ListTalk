@@ -277,7 +277,16 @@
   (check (= [dictionary at: "a"] 3)
          "Dictionary class>>newFromAList: uses structural keys")
   (check (= [dictionary at: "b"] 2)
-         "Dictionary class>>newFromAList: stores values"))
+         "Dictionary class>>newFromAList: stores values")
+  (check (equal? (assoc "a" [dictionary asAList]) '("a" . 3))
+         "Dictionary>>asAList returns associations")
+  (check (= [[dictionary map: (lambda (key value) value)] reduce: +] 5)
+         "Dictionary>>map: maps key/value pairs")
+  (check (let ((sum 0))
+           (and (null? [dictionary forEach:
+                                   (lambda (key value) (set! sum (+ sum value)))])
+                (= sum 5)))
+         "Dictionary>>forEach: applies callable to key/value pairs"))
 
 (let ((key (list 1)))
   (let ((dictionary [IdentityDictionary newFromAList:
@@ -287,7 +296,19 @@
     (check (= [dictionary size] 2)
            "IdentityDictionary class>>newFromAList: uses identity keys")
     (check (equal? [dictionary at: key] "third")
-           "IdentityDictionary class>>newFromAList: overwrites identical key")))
+           "IdentityDictionary class>>newFromAList: overwrites identical key")
+    (check (equal? (assq key [dictionary asAList]) (cons key "third"))
+           "IdentityDictionary>>asAList returns associations")
+    (check (= [[dictionary map:
+                           (lambda (key value)
+                             (if (equal? value "third") 10 1))] reduce: +] 11)
+           "IdentityDictionary>>map: maps key/value pairs")
+    (check (let ((count 0))
+             (and (null? [dictionary forEach:
+                                     (lambda (key value)
+                                       (set! count (+ count 1)))])
+                  (= count 2)))
+           "IdentityDictionary>>forEach: applies callable to key/value pairs")))
 
 (let ((dictionary [WeakKeyIdentityDictionary new])
       (key (cons 1 2)))
@@ -305,13 +326,17 @@
   (let ((dictionary [WeakKeyIdentityDictionary newFromAList:
                                            (list (cons key 8))]))
     (check (= [dictionary at: key] 8)
-           "WeakKeyIdentityDictionary class>>newFromAList: stores entries")))
+           "WeakKeyIdentityDictionary class>>newFromAList: stores entries")
+    (check (= [[dictionary map: (lambda (key value) value)] car] 8)
+           "WeakKeyIdentityDictionary>>map: uses inherited method")))
 
 (let ((key (list 3)))
   (let ((dictionary [WeakValueIdentityDictionary newFromAList:
                                              (list (cons key 9))]))
     (check (= [dictionary at: key] 9)
-           "WeakValueIdentityDictionary class>>newFromAList: stores entries")))
+           "WeakValueIdentityDictionary class>>newFromAList: stores entries")
+    (check (= [(assq key [dictionary asAList]) cdr] 9)
+           "WeakValueIdentityDictionary>>asAList uses inherited method")))
 
 (let ((variable [DynamicVariable new: "default"]))
   (check (equal? [variable value] "default")

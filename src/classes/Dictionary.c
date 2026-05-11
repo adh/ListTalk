@@ -7,6 +7,7 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
@@ -133,6 +134,81 @@ LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist){
 
 size_t LT_Dictionary_size(LT_Dictionary* dictionary){
     return LT_InlineHash_count(&dictionary->table);
+}
+
+static LT_Value dictionary_apply2(LT_Value callable, LT_Value key, LT_Value value){
+    return LT_apply(
+        callable,
+        LT_cons(key, LT_cons(value, LT_NIL)),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
+LT_Value LT_Dictionary_asAList(LT_Dictionary* dictionary){
+    LT_InlineHash* table = &dictionary->table;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_ListBuilder_append(
+                builder,
+                LT_cons(
+                    (LT_Value)(uintptr_t)entry->key,
+                    (LT_Value)(uintptr_t)entry->value
+                )
+            );
+            entry = entry->next;
+        }
+    }
+
+    return LT_ListBuilder_value(builder);
+}
+
+void LT_Dictionary_for_each(LT_Dictionary* dictionary, LT_Value callable){
+    LT_InlineHash* table = &dictionary->table;
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            (void)dictionary_apply2(
+                callable,
+                (LT_Value)(uintptr_t)entry->key,
+                (LT_Value)(uintptr_t)entry->value
+            );
+            entry = entry->next;
+        }
+    }
+}
+
+LT_Value LT_Dictionary_map(LT_Dictionary* dictionary, LT_Value callable){
+    LT_InlineHash* table = &dictionary->table;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_ListBuilder_append(
+                builder,
+                dictionary_apply2(
+                    callable,
+                    (LT_Value)(uintptr_t)entry->key,
+                    (LT_Value)(uintptr_t)entry->value
+                )
+            );
+            entry = entry->next;
+        }
+    }
+
+    return LT_ListBuilder_value(builder);
 }
 
 void LT_Dictionary_atPut(
@@ -270,6 +346,21 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    dictionary_method_as_alist,
+    "Dictionary>>asAList",
+    "(self)",
+    "Return dictionary entries as an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Dictionary_asAList(dictionary_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
     dictionary_method_at_put,
     "Dictionary>>at:put:",
     "(self key value)",
@@ -309,6 +400,41 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    dictionary_method_for_each,
+    "Dictionary>>forEach:",
+    "(self callable)",
+    "Apply callable to each key and value, and return nil."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    LT_Dictionary_for_each(dictionary_from_value(self), callable);
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_map,
+    "Dictionary>>map:",
+    "(self callable)",
+    "Return list of callable results for each key and value."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_Dictionary_map(dictionary_from_value(self), callable);
+}
+
+LT_DEFINE_PRIMITIVE(
     dictionary_method_remove,
     "Dictionary>>remove:",
     "(self key)",
@@ -332,8 +458,11 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor Dictionary_methods[] = {
     {"size", &dictionary_method_size},
     {"at:", &dictionary_method_at},
+    {"asAList", &dictionary_method_as_alist},
     {"at:put:", &dictionary_method_at_put},
     {"contains?:", &dictionary_method_contains},
+    {"forEach:", &dictionary_method_for_each},
+    {"map:", &dictionary_method_map},
     {"remove:", &dictionary_method_remove},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
