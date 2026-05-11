@@ -31,6 +31,9 @@ LT_String* LT_String_replaceFirst(
     LT_String* replacement
 );
 LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary);
+int LT_String_contains(LT_String* string, LT_String* needle);
+int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out);
+LT_Value LT_String_findAll(LT_String* string, LT_String* needle);
 LT_String* LT_String_substring(LT_String* string, size_t from, size_t to);
 const char* LT_String_value_cstr(LT_String* string);
 size_t LT_String_length(LT_String* string);

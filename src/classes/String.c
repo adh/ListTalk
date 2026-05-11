@@ -91,6 +91,26 @@ static const char* String_find_bytes(const char* haystack,
     return NULL;
 }
 
+static void String_error_if_empty_needle(LT_String* needle,
+                                         const char* message){
+    if (LT_String_byte_length(needle) == 0){
+        LT_error(message);
+    }
+}
+
+static size_t String_codepoint_index_at_cursor(LT_String* string,
+                                               const char* target){
+    const char* cursor = LT_String_value_cstr(string);
+    size_t codepoint_index = 0;
+
+    while (cursor < target){
+        cursor = LT_String_utf8_next(cursor);
+        codepoint_index++;
+    }
+
+    return codepoint_index;
+}
+
 static LT_String* String_replace_impl(LT_String* string,
                                       LT_String* needle,
                                       LT_String* replacement,
@@ -102,15 +122,16 @@ static LT_String* String_replace_impl(LT_String* string,
     size_t needle_byte_length;
     size_t codepoint_length = 0;
 
-    needle_byte_length = LT_String_byte_length(needle);
-    if (needle_byte_length == 0){
-        LT_error("String replacement pattern must not be empty");
-    }
+    String_error_if_empty_needle(
+        needle,
+        "String replacement pattern must not be empty"
+    );
 
     builder = LT_StringBuilder_new();
     cursor = LT_String_value_cstr(string);
     end = cursor + LT_String_byte_length(string);
     needle_bytes = LT_String_value_cstr(needle);
+    needle_byte_length = LT_String_byte_length(needle);
 
     while (cursor < end){
         const char* match = String_find_bytes(
@@ -248,6 +269,80 @@ LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary){
         LT_StringBuilder_length(builder),
         codepoint_length
     );
+}
+
+int LT_String_contains(LT_String* string, LT_String* needle){
+    String_error_if_empty_needle(needle, "String search pattern must not be empty");
+    return String_find_bytes(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        LT_String_value_cstr(needle),
+        LT_String_byte_length(needle)
+    ) != NULL;
+}
+
+int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out){
+    const char* match;
+
+    String_error_if_empty_needle(needle, "String search pattern must not be empty");
+    match = String_find_bytes(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        LT_String_value_cstr(needle),
+        LT_String_byte_length(needle)
+    );
+    if (match == NULL){
+        return 0;
+    }
+
+    if (index_out != NULL){
+        *index_out = String_codepoint_index_at_cursor(string, match);
+    }
+    return 1;
+}
+
+LT_Value LT_String_findAll(LT_String* string, LT_String* needle){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    const char* needle_bytes;
+    size_t needle_byte_length;
+    size_t codepoint_index = 0;
+
+    String_error_if_empty_needle(needle, "String search pattern must not be empty");
+    needle_bytes = LT_String_value_cstr(needle);
+    needle_byte_length = LT_String_byte_length(needle);
+
+    while (cursor < end){
+        const char* match = String_find_bytes(
+            cursor,
+            (size_t)(end - cursor),
+            needle_bytes,
+            needle_byte_length
+        );
+
+        if (match == NULL){
+            break;
+        }
+
+        while (cursor < match){
+            cursor = LT_String_utf8_next(cursor);
+            codepoint_index++;
+        }
+
+        LT_ListBuilder_append(
+            builder,
+            LT_Number_smallinteger_from_size(
+                codepoint_index,
+                "String match index does not fit fixnum"
+            )
+        );
+
+        cursor += needle_byte_length;
+        codepoint_index += LT_String_length(needle);
+    }
+
+    return LT_ListBuilder_value(builder);
 }
 
 static size_t String_hash(LT_Value value){
@@ -462,6 +557,69 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_contains,
+    "String>>contains?:",
+    "(self needle)",
+    "Return true when string contains needle."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_contains(LT_String_from_value(self), needle)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_find,
+    "String>>find:",
+    "(self needle)",
+    "Return first codepoint index of needle, or nil when absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    size_t index;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    if (!LT_String_find(LT_String_from_value(self), needle, &index)){
+        return LT_NIL;
+    }
+    return LT_Number_smallinteger_from_size(
+        index,
+        "String match index does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_find_all,
+    "String>>findAll:",
+    "(self needle)",
+    "Return all codepoint indices where needle occurs."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_findAll(LT_String_from_value(self), needle);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_as_bytevector,
     "String>>asByteVector",
     "(self)",
@@ -520,6 +678,9 @@ static LT_Method_Descriptor String_methods[] = {
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
     {"mapCharacters:", &string_method_map_characters},
+    {"contains?:", &string_method_contains},
+    {"find:", &string_method_find},
+    {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},
     {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},

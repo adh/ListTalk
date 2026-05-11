@@ -533,6 +533,17 @@
        "String>>replaceFirst:with: replaces first occurrence")
 (check (equal? ["aλ😀" replace: "λ" with: "LL"] "aLL😀")
        "String>>replace:with: handles Unicode codepoint boundaries")
+(check ["bananana" contains?: "nan"] "String>>contains?: finds substring")
+(check (not ["bananana" contains?: "xyz"])
+       "String>>contains?: rejects absent substring")
+(check (= ["aλ😀λ" find: "😀"] 2)
+       "String>>find: returns codepoint index")
+(check (null? ["aλ😀λ" find: "z"])
+       "String>>find: returns nil for absent substring")
+(check (equal? ["bananana" findAll: "na"] '(2 4 6))
+       "String>>findAll: returns match codepoint indices")
+(check (equal? ["aλ😀λ" findAll: "λ"] '(1 3))
+       "String>>findAll: counts Unicode codepoints")
 (let ((mapping [IdentityDictionary new]))
   [mapping at: (string-ref "abc" 0) put: (string-ref "XYZ" 0)]
   [mapping at: (string-ref "abc" 1) put: "yy"]
