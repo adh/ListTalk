@@ -5,8 +5,11 @@
 
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/String.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/macros/arg_macros.h>
 
 #include <ListTalk/utils.h>
 #include <string.h>
@@ -39,12 +42,53 @@ static void Package_debugPrintOn(LT_Value obj, FILE* stream){
     fputc('>', stream);
 }
 
+static char* package_name_designator(LT_Value value){
+    if (LT_Symbol_p(value)){
+        return LT_Symbol_name(LT_Symbol_from_value(value));
+    }
+    if (LT_String_p(value)){
+        return (char*)LT_String_value_cstr(LT_String_from_value(value));
+    }
+    LT_error("Package name designator must be symbol or string");
+    return NULL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_class_method_named,
+    "Package class>>named:",
+    "(self name)",
+    "Return package with the provided name, creating it when needed."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name_designator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, name_designator);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Package_class){
+        LT_error("named: class method is only supported on Package");
+    }
+
+    return (LT_Value)(uintptr_t)LT_Package_new(
+        package_name_designator(name_designator)
+    );
+}
+
+static LT_Method_Descriptor Package_class_methods[] = {
+    {"named:", &package_class_method_named},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Package) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Package",
     .instance_size = sizeof(LT_Package),
     .debugPrintOn = Package_debugPrintOn,
+    .class_methods = Package_class_methods,
 };
 
 static LT_InlineHash* get_package_table(void){

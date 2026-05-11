@@ -1150,6 +1150,16 @@
 (let ((u [Symbol uninterned: 'temp]))
   (check (null? (slot-ref u 'package)) "Symbol class>>uninterned: returns uninterned symbol")
   (check (equal? ['temp name] "temp") "Symbol>>name returns symbol name string"))
+(let* ((package [Package named: "EvalSymbolClassPackage"])
+       (same-package [Package named: 'EvalSymbolClassPackage])
+       (symbol [Symbol intern: "value" in: package])
+       (same-symbol [Symbol intern: 'value in: "EvalSymbolClassPackage"])
+       (keyword [Symbol keyword: "class-keyword"]))
+  (check (eq? package same-package) "Package class>>named: returns existing package")
+  (check (eq? [symbol package] package) "Symbol class>>intern:in: uses package object")
+  (check (eq? symbol same-symbol) "Symbol class>>intern:in: interns by name and package")
+  (check (keyword? keyword) "Symbol class>>keyword: returns keyword symbol")
+  (check [keyword keyword?] "Symbol class>>keyword: result answers keyword?"))
 
 ;;; with-gensyms
 
