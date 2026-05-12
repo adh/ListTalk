@@ -4,7 +4,13 @@
  */
 
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Number.h>
+#include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/ListTalk.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/error.h>
 #include <ListTalk/utils.h>
 
 #include <stdint.h>
@@ -15,21 +21,53 @@ struct LT_Dictionary_s {
     LT_InlineHash table;
 };
 
-static void Dictionary_debugPrintOn(LT_Value obj, FILE* stream){
+static void dictionary_debugPrintOnNamed(
+    LT_Value obj,
+    FILE* stream,
+    const char* name
+){
     LT_Dictionary* dictionary = LT_Dictionary_from_value(obj);
-    fprintf(stream, "#<Dictionary %p size=%zu>",
+    fprintf(stream, "#<%s %p size=%zu>",
+        name,
         (void*)dictionary,
         LT_InlineHash_count(&dictionary->table)
     );
 }
 
-LT_DEFINE_CLASS(LT_Dictionary) {
-    .superclass = &LT_Object_class,
-    .metaclass_superclass = &LT_Class_class,
-    .name = "Dictionary",
-    .instance_size = sizeof(LT_Dictionary),
-    .debugPrintOn = Dictionary_debugPrintOn,
-};
+static void ImmutableDictionary_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_Dictionary* dictionary = LT_Dictionary_from_value(obj);
+    LT_InlineHash* table = &dictionary->table;
+    int first = 1;
+    size_t i;
+
+    fputs("#D(", stream);
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            if (!first){
+                fputc(' ', stream);
+            }
+            LT_Value_debugPrintOn((LT_Value)(uintptr_t)entry->key, stream);
+            fputc(' ', stream);
+            LT_Value_debugPrintOn((LT_Value)(uintptr_t)entry->value, stream);
+            first = 0;
+            entry = entry->next;
+        }
+    }
+    fputc(')', stream);
+}
+
+static void Dictionary_debugPrintOn(LT_Value obj, FILE* stream){
+    dictionary_debugPrintOnNamed(obj, stream, "Dictionary");
+}
+
+static LT_Dictionary* dictionary_from_value(LT_Value value){
+    if (!LT_Dictionary_p(value)){
+        LT_type_error(value, &LT_Dictionary_class);
+    }
+    return (LT_Dictionary*)LT_VALUE_POINTER_VALUE(value);
+}
 
 static void dictionary_grow_table(LT_Dictionary* dictionary){
     LT_InlineHash* table = &dictionary->table;
@@ -96,14 +134,135 @@ static LT_InlineHash_Entry* dictionary_find_entry(
     return NULL;
 }
 
-LT_Dictionary* LT_Dictionary_new(void){
-    LT_Dictionary* dictionary = LT_Class_ALLOC(LT_Dictionary);
+static LT_Dictionary* dictionary_new_with_class(LT_Class* klass){
+    LT_Dictionary* dictionary = (LT_Dictionary*)LT_Class_alloc(klass);
     LT_InlineHash_init(&dictionary->table);
     return dictionary;
 }
 
+LT_ImmutableDictionary* LT_ImmutableDictionary_new(void){
+    return (LT_ImmutableDictionary*)dictionary_new_with_class(
+        &LT_ImmutableDictionary_class
+    );
+}
+
+LT_Dictionary* LT_Dictionary_new(void){
+    return dictionary_new_with_class(&LT_Dictionary_class);
+}
+
+static LT_Dictionary* dictionary_new_from_alist_with_class(
+    LT_Value alist,
+    LT_Class* klass
+){
+    LT_Dictionary* dictionary = dictionary_new_with_class(klass);
+
+    while (alist != LT_NIL){
+        LT_Value entry;
+
+        if (!LT_Pair_p(alist)){
+            LT_error("Dictionary newFromAList: expects proper list");
+        }
+
+        entry = LT_car(alist);
+        if (!LT_Pair_p(entry)){
+            LT_error("Dictionary newFromAList: expects list of pairs");
+        }
+
+        LT_Dictionary_atPut(dictionary, LT_car(entry), LT_cdr(entry));
+        alist = LT_cdr(alist);
+    }
+
+    return dictionary;
+}
+
+LT_ImmutableDictionary* LT_ImmutableDictionary_newFromAList(LT_Value alist){
+    return (LT_ImmutableDictionary*)dictionary_new_from_alist_with_class(
+        alist,
+        &LT_ImmutableDictionary_class
+    );
+}
+
+LT_Dictionary* LT_Dictionary_newFromAList(LT_Value alist){
+    return dictionary_new_from_alist_with_class(alist, &LT_Dictionary_class);
+}
+
 size_t LT_Dictionary_size(LT_Dictionary* dictionary){
     return LT_InlineHash_count(&dictionary->table);
+}
+
+static LT_Value dictionary_apply2(LT_Value callable, LT_Value key, LT_Value value){
+    return LT_apply(
+        callable,
+        LT_cons(key, LT_cons(value, LT_NIL)),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
+LT_Value LT_Dictionary_asAList(LT_Dictionary* dictionary){
+    LT_InlineHash* table = &dictionary->table;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_ListBuilder_append(
+                builder,
+                LT_cons(
+                    (LT_Value)(uintptr_t)entry->key,
+                    (LT_Value)(uintptr_t)entry->value
+                )
+            );
+            entry = entry->next;
+        }
+    }
+
+    return LT_ListBuilder_value(builder);
+}
+
+void LT_Dictionary_for_each(LT_Dictionary* dictionary, LT_Value callable){
+    LT_InlineHash* table = &dictionary->table;
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            (void)dictionary_apply2(
+                callable,
+                (LT_Value)(uintptr_t)entry->key,
+                (LT_Value)(uintptr_t)entry->value
+            );
+            entry = entry->next;
+        }
+    }
+}
+
+LT_Value LT_Dictionary_map(LT_Dictionary* dictionary, LT_Value callable){
+    LT_InlineHash* table = &dictionary->table;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_ListBuilder_append(
+                builder,
+                dictionary_apply2(
+                    callable,
+                    (LT_Value)(uintptr_t)entry->key,
+                    (LT_Value)(uintptr_t)entry->value
+                )
+            );
+            entry = entry->next;
+        }
+    }
+
+    return LT_ListBuilder_value(builder);
 }
 
 void LT_Dictionary_atPut(
@@ -162,6 +321,282 @@ int LT_Dictionary_at(
     }
     return 1;
 }
+
+LT_DEFINE_PRIMITIVE(
+    immutable_dictionary_class_method_new,
+    "ImmutableDictionary class>>new",
+    "(self)",
+    "Return a new empty immutable dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_ImmutableDictionary_class){
+        LT_error("new class method is only supported on ImmutableDictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_ImmutableDictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    immutable_dictionary_class_method_new_from_alist,
+    "ImmutableDictionary class>>newFromAList:",
+    "(self alist)",
+    "Return an immutable dictionary initialized from an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value alist;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_ImmutableDictionary_class){
+        LT_error(
+            "newFromAList: class method is only supported on ImmutableDictionary"
+        );
+    }
+    return (LT_Value)(uintptr_t)LT_ImmutableDictionary_newFromAList(alist);
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_size,
+    "Dictionary>>size",
+    "(self)",
+    "Return dictionary size."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Number_smallinteger_from_size(
+        LT_Dictionary_size(dictionary_from_value(self)),
+        "Dictionary size does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_at,
+    "Dictionary>>at:",
+    "(self key)",
+    "Return value for key, or nil when key is absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    if (!LT_Dictionary_at(dictionary_from_value(self), key, &value)){
+        return LT_NIL;
+    }
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_as_alist,
+    "Dictionary>>asAList",
+    "(self)",
+    "Return dictionary entries as an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Dictionary_asAList(dictionary_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_at_put,
+    "Dictionary>>at:put:",
+    "(self key value)",
+    "Set value for key and return value."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_Dictionary_atPut(dictionary_from_value(self), key, value);
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_contains,
+    "Dictionary>>contains?:",
+    "(self key)",
+    "Return true when dictionary contains key."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    return LT_Dictionary_at(dictionary_from_value(self), key, NULL)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_for_each,
+    "Dictionary>>forEach:",
+    "(self callable)",
+    "Apply callable to each key and value, and return nil."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    LT_Dictionary_for_each(dictionary_from_value(self), callable);
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_map,
+    "Dictionary>>map:",
+    "(self callable)",
+    "Return list of callable results for each key and value."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_Dictionary_map(dictionary_from_value(self), callable);
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_method_remove,
+    "Dictionary>>remove:",
+    "(self key)",
+    "Remove key and return its value, or nil when key is absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value key;
+    LT_Value value = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, key);
+    LT_ARG_END(cursor);
+    if (!LT_Dictionary_remove(dictionary_from_value(self), key, &value)){
+        return LT_NIL;
+    }
+    return value;
+}
+
+static LT_Method_Descriptor Dictionary_methods[] = {
+    {"at:put:", &dictionary_method_at_put},
+    {"remove:", &dictionary_method_remove},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor ImmutableDictionary_methods[] = {
+    {"size", &dictionary_method_size},
+    {"at:", &dictionary_method_at},
+    {"asAList", &dictionary_method_as_alist},
+    {"contains?:", &dictionary_method_contains},
+    {"forEach:", &dictionary_method_for_each},
+    {"map:", &dictionary_method_map},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor ImmutableDictionary_class_methods[] = {
+    {"new", &immutable_dictionary_class_method_new},
+    {"newFromAList:", &immutable_dictionary_class_method_new_from_alist},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_class_method_new,
+    "Dictionary class>>new",
+    "(self)",
+    "Return a new empty dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
+        LT_error("new class method is only supported on Dictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_Dictionary_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    dictionary_class_method_new_from_alist,
+    "Dictionary class>>newFromAList:",
+    "(self alist)",
+    "Return a dictionary initialized from an association list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value alist;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, alist);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Dictionary_class){
+        LT_error("newFromAList: class method is only supported on Dictionary");
+    }
+    return (LT_Value)(uintptr_t)LT_Dictionary_newFromAList(alist);
+}
+
+static LT_Method_Descriptor Dictionary_class_methods[] = {
+    {"new", &dictionary_class_method_new},
+    {"newFromAList:", &dictionary_class_method_new_from_alist},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_ImmutableDictionary) {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "ImmutableDictionary",
+    .instance_size = sizeof(LT_Dictionary),
+    .class_flags = LT_CLASS_FLAG_IMMUTABLE,
+    .debugPrintOn = ImmutableDictionary_debugPrintOn,
+    .methods = ImmutableDictionary_methods,
+    .class_methods = ImmutableDictionary_class_methods,
+};
+
+LT_DEFINE_CLASS(LT_Dictionary) {
+    .superclass = &LT_ImmutableDictionary_class,
+    .metaclass_superclass = &LT_ImmutableDictionary_class_class,
+    .name = "Dictionary",
+    .instance_size = sizeof(LT_Dictionary),
+    .debugPrintOn = Dictionary_debugPrintOn,
+    .methods = Dictionary_methods,
+    .class_methods = Dictionary_class_methods,
+};
 
 int LT_Dictionary_remove(
     LT_Dictionary* dictionary,

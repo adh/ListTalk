@@ -136,6 +136,38 @@ static int test_remove_uses_equal_semantics(void){
     );
 }
 
+static int test_immutable_dictionary_uses_dictionary_c_api(void){
+    LT_ImmutableDictionary* immutable = LT_ImmutableDictionary_new();
+    LT_Dictionary* dictionary = (LT_Dictionary*)immutable;
+    LT_Value key = (LT_Value)(uintptr_t)LT_String_new_cstr("alpha");
+    LT_Value equal_key = (LT_Value)(uintptr_t)LT_String_new_cstr("alpha");
+    LT_Value value = LT_SmallInteger_new(123);
+    LT_Value fetched = LT_NIL;
+    LT_Value immutable_value = (LT_Value)(uintptr_t)immutable;
+
+    LT_Dictionary_atPut(dictionary, key, value);
+
+    if (expect(LT_Dictionary_p(immutable_value), "immutable dictionary passes Dictionary C predicate")){
+        return 1;
+    }
+    if (expect(
+        LT_Dictionary_from_value(immutable_value) == dictionary,
+        "immutable dictionary converts through Dictionary C API"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Dictionary_at(dictionary, equal_key, &fetched),
+        "immutable dictionary supports Dictionary C lookup"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(fetched) && LT_SmallInteger_value(fetched) == 123,
+        "immutable dictionary C lookup returns stored value"
+    );
+}
+
 static int test_equal_p_still_handles_strings_lists_vectors(void){
     LT_Value string_a = (LT_Value)(uintptr_t)LT_String_new_cstr("x");
     LT_Value string_b = (LT_Value)(uintptr_t)LT_String_new_cstr("x");
@@ -171,6 +203,7 @@ int main(void){
     failures += test_numeric_cross_type_keys_match();
     failures += test_vector_keys_use_structural_equal_semantics();
     failures += test_remove_uses_equal_semantics();
+    failures += test_immutable_dictionary_uses_dictionary_c_api();
     failures += test_equal_p_still_handles_strings_lists_vectors();
 
     if (failures == 0){

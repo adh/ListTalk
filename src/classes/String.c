@@ -5,9 +5,11 @@
 
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Character.h>
+#include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
@@ -30,15 +32,12 @@ static void StringBuilder_append_codepoint(LT_StringBuilder* builder,
                                            uint32_t codepoint){
     char buffer[4];
     size_t length;
-    size_t i;
 
     length = LT_utf8_encode(codepoint, buffer);
     if (length == 0){
         length = LT_utf8_encode(LT_UTF8_REPLACEMENT_CODEPOINT, buffer);
     }
-    for (i = 0; i < length; i++){
-        LT_StringBuilder_append_char(builder, buffer[i]);
-    }
+    LT_StringBuilder_append_bytes(builder, buffer, length);
 }
 
 static LT_String* String_new_normalized(const char* buf,
@@ -71,6 +70,287 @@ static size_t String_byte_offset_for_codepoint_index(LT_String* string,
     }
 
     return (size_t)(cursor - string->str);
+}
+
+static const char* String_find_bytes(const char* haystack,
+                                     size_t haystack_length,
+                                     const char* needle,
+                                     size_t needle_length){
+    size_t index;
+
+    if (needle_length == 0 || haystack_length < needle_length){
+        return NULL;
+    }
+
+    for (index = 0; index <= haystack_length - needle_length; index++){
+        if (memcmp(haystack + index, needle, needle_length) == 0){
+            return haystack + index;
+        }
+    }
+
+    return NULL;
+}
+
+static void String_error_if_empty_needle(LT_String* needle,
+                                         const char* message){
+    if (LT_String_byte_length(needle) == 0){
+        LT_error(message);
+    }
+}
+
+static size_t String_codepoint_index_at_cursor(LT_String* string,
+                                               const char* target){
+    const char* cursor = LT_String_value_cstr(string);
+    size_t codepoint_index = 0;
+
+    while (cursor < target){
+        cursor = LT_String_utf8_next(cursor);
+        codepoint_index++;
+    }
+
+    return codepoint_index;
+}
+
+static LT_String* String_replace_impl(LT_String* string,
+                                      LT_String* needle,
+                                      LT_String* replacement,
+                                      int first_only){
+    LT_StringBuilder* builder;
+    const char* cursor;
+    const char* end;
+    const char* needle_bytes;
+    size_t needle_byte_length;
+    size_t codepoint_length = 0;
+
+    String_error_if_empty_needle(
+        needle,
+        "String replacement pattern must not be empty"
+    );
+
+    builder = LT_StringBuilder_new();
+    cursor = LT_String_value_cstr(string);
+    end = cursor + LT_String_byte_length(string);
+    needle_bytes = LT_String_value_cstr(needle);
+    needle_byte_length = LT_String_byte_length(needle);
+
+    while (cursor < end){
+        const char* match = String_find_bytes(
+            cursor,
+            (size_t)(end - cursor),
+            needle_bytes,
+            needle_byte_length
+        );
+
+        if (match == NULL){
+            while (cursor < end){
+                const char* next = LT_String_utf8_next(cursor);
+                LT_StringBuilder_append_bytes(
+                    builder,
+                    cursor,
+                    (size_t)(next - cursor)
+                );
+                codepoint_length++;
+                cursor = next;
+            }
+            break;
+        }
+
+        while (cursor < match){
+            const char* next = LT_String_utf8_next(cursor);
+            LT_StringBuilder_append_bytes(
+                builder,
+                cursor,
+                (size_t)(next - cursor)
+            );
+            codepoint_length++;
+            cursor = next;
+        }
+
+        LT_StringBuilder_append_bytes(
+            builder,
+            LT_String_value_cstr(replacement),
+            LT_String_byte_length(replacement)
+        );
+        codepoint_length += LT_String_length(replacement);
+        cursor += needle_byte_length;
+
+        if (first_only){
+            while (cursor < end){
+                const char* next = LT_String_utf8_next(cursor);
+                LT_StringBuilder_append_bytes(
+                    builder,
+                    cursor,
+                    (size_t)(next - cursor)
+                );
+                codepoint_length++;
+                cursor = next;
+            }
+            break;
+        }
+    }
+
+    return String_new_normalized(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder),
+        codepoint_length
+    );
+}
+
+static int String_dictionary_at(LT_Value dictionary,
+                                LT_Value key,
+                                LT_Value* value_out){
+    if (LT_Value_is_instance_of(
+        dictionary,
+        (LT_Value)(uintptr_t)&LT_IdentityDictionary_class
+    )){
+        return LT_IdentityDictionary_at(
+            (LT_IdentityDictionary*)LT_VALUE_POINTER_VALUE(dictionary),
+            key,
+            value_out
+        );
+    }
+
+    if (LT_Dictionary_p(dictionary)){
+        return LT_Dictionary_at(
+            (LT_Dictionary*)LT_VALUE_POINTER_VALUE(dictionary),
+            key,
+            value_out
+        );
+    }
+
+    LT_error("Expected Dictionary or IdentityDictionary");
+    return 0;
+}
+
+LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    size_t codepoint_length = 0;
+
+    while (cursor < end){
+        const char* next = LT_String_utf8_next(cursor);
+        LT_Value character = LT_Character_new(LT_String_utf8_codepoint_at(cursor));
+        LT_Value mapped;
+
+        if (String_dictionary_at(dictionary, character, &mapped)){
+            if (LT_Character_p(mapped)){
+                StringBuilder_append_codepoint(builder, LT_Character_value(mapped));
+                codepoint_length++;
+            } else if (LT_String_p(mapped)){
+                LT_String* mapped_string = LT_String_from_value(mapped);
+
+                LT_StringBuilder_append_bytes(
+                    builder,
+                    LT_String_value_cstr(mapped_string),
+                    LT_String_byte_length(mapped_string)
+                );
+                codepoint_length += LT_String_length(mapped_string);
+            } else {
+                LT_error("Character mapping values must be Character or String");
+            }
+        } else {
+            LT_StringBuilder_append_bytes(
+                builder,
+                cursor,
+                (size_t)(next - cursor)
+            );
+            codepoint_length++;
+        }
+
+        cursor = next;
+    }
+
+    return String_new_normalized(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder),
+        codepoint_length
+    );
+}
+
+int LT_String_contains(LT_String* string, LT_String* needle){
+    String_error_if_empty_needle(needle, "String search pattern must not be empty");
+    return String_find_bytes(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        LT_String_value_cstr(needle),
+        LT_String_byte_length(needle)
+    ) != NULL;
+}
+
+int LT_String_startsWith(LT_String* string, LT_String* prefix){
+    size_t prefix_length = LT_String_byte_length(prefix);
+
+    return prefix_length <= LT_String_byte_length(string)
+        && memcmp(
+            LT_String_value_cstr(string),
+            LT_String_value_cstr(prefix),
+            prefix_length
+        ) == 0;
+}
+
+int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out){
+    const char* match;
+
+    String_error_if_empty_needle(needle, "String search pattern must not be empty");
+    match = String_find_bytes(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        LT_String_value_cstr(needle),
+        LT_String_byte_length(needle)
+    );
+    if (match == NULL){
+        return 0;
+    }
+
+    if (index_out != NULL){
+        *index_out = String_codepoint_index_at_cursor(string, match);
+    }
+    return 1;
+}
+
+LT_Value LT_String_findAll(LT_String* string, LT_String* needle){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    const char* needle_bytes;
+    size_t needle_byte_length;
+    size_t codepoint_index = 0;
+
+    String_error_if_empty_needle(needle, "String search pattern must not be empty");
+    needle_bytes = LT_String_value_cstr(needle);
+    needle_byte_length = LT_String_byte_length(needle);
+
+    while (cursor < end){
+        const char* match = String_find_bytes(
+            cursor,
+            (size_t)(end - cursor),
+            needle_bytes,
+            needle_byte_length
+        );
+
+        if (match == NULL){
+            break;
+        }
+
+        while (cursor < match){
+            cursor = LT_String_utf8_next(cursor);
+            codepoint_index++;
+        }
+
+        LT_ListBuilder_append(
+            builder,
+            LT_Number_smallinteger_from_size(
+                codepoint_index,
+                "String match index does not fit fixnum"
+            )
+        );
+
+        cursor += needle_byte_length;
+        codepoint_index += LT_String_length(needle);
+    }
+
+    return LT_ListBuilder_value(builder);
 }
 
 static size_t String_hash(LT_Value value){
@@ -216,6 +496,158 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_replace_with,
+    "String>>replace:with:",
+    "(self needle replacement)",
+    "Return a new string replacing all occurrences of needle with replacement."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    LT_String* replacement;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, replacement, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_replace(
+        LT_String_from_value(self),
+        needle,
+        replacement
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_replace_first_with,
+    "String>>replaceFirst:with:",
+    "(self needle replacement)",
+    "Return a new string replacing the first occurrence of needle with replacement."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    LT_String* replacement;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, replacement, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_replaceFirst(
+        LT_String_from_value(self),
+        needle,
+        replacement
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_map_characters,
+    "String>>mapCharacters:",
+    "(self dictionary)",
+    "Return a new string mapping characters through a dictionary."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value dictionary;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, dictionary);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_mapCharacters(
+        LT_String_from_value(self),
+        dictionary
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_contains,
+    "String>>contains?:",
+    "(self needle)",
+    "Return true when string contains needle."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_contains(LT_String_from_value(self), needle)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_starts_with,
+    "String>>startsWith?:",
+    "(self prefix)",
+    "Return true when string starts with prefix."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* prefix;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, prefix, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_startsWith(LT_String_from_value(self), prefix)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_find,
+    "String>>find:",
+    "(self needle)",
+    "Return first codepoint index of needle, or nil when absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    size_t index;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    if (!LT_String_find(LT_String_from_value(self), needle, &index)){
+        return LT_NIL;
+    }
+    return LT_Number_smallinteger_from_size(
+        index,
+        "String match index does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_find_all,
+    "String>>findAll:",
+    "(self needle)",
+    "Return all codepoint indices where needle occurs."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* needle;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, needle, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_findAll(LT_String_from_value(self), needle);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_as_bytevector,
     "String>>asByteVector",
     "(self)",
@@ -271,6 +703,13 @@ static LT_Method_Descriptor String_methods[] = {
     {"length", &string_method_length},
     {"at:", &string_method_at},
     {"append:", &string_method_append},
+    {"replace:with:", &string_method_replace_with},
+    {"replaceFirst:with:", &string_method_replace_first_with},
+    {"mapCharacters:", &string_method_map_characters},
+    {"contains?:", &string_method_contains},
+    {"startsWith?:", &string_method_starts_with},
+    {"find:", &string_method_find},
+    {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},
     {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},
@@ -333,6 +772,18 @@ LT_String* LT_String_append(LT_String* left, LT_String* right){
         LT_String_byte_length(right)
     );
     return String_new_normalized(buffer, byte_length, codepoint_length);
+}
+
+LT_String* LT_String_replace(LT_String* string,
+                             LT_String* needle,
+                             LT_String* replacement){
+    return String_replace_impl(string, needle, replacement, 0);
+}
+
+LT_String* LT_String_replaceFirst(LT_String* string,
+                                  LT_String* needle,
+                                  LT_String* replacement){
+    return String_replace_impl(string, needle, replacement, 1);
 }
 
 LT_String* LT_String_substring(LT_String* string, size_t from, size_t to){

@@ -37,6 +37,24 @@ static char* symbol_name_designator(LT_Value value){
     return NULL;
 }
 
+static LT_Package* symbol_package_designator(LT_Value value){
+    char* name;
+
+    if (LT_Package_p(value)){
+        return LT_Package_from_value(value);
+    }
+    name = symbol_name_designator(value);
+    return LT_Package_new(name);
+}
+
+static int symbol_name_starts_with(LT_Symbol* symbol, LT_String* prefix){
+    char* name = LT_Symbol_name(symbol);
+    size_t prefix_length = LT_String_byte_length(prefix);
+
+    return prefix_length <= strlen(name)
+        && memcmp(name, LT_String_value_cstr(prefix), prefix_length) == 0;
+}
+
 static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Symbol* symbol = (LT_Symbol*)LT_VALUE_POINTER_VALUE(obj);
     LT_Package* package = LT_Symbol_package(symbol);
@@ -96,6 +114,68 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    symbol_method_package,
+    "Symbol>>package",
+    "(self)",
+    "Return symbol package, or nil for uninterned symbols."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Package* package;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(self)){
+        LT_type_error(self, &LT_Symbol_class);
+    }
+    package = LT_Symbol_package(LT_Symbol_from_value(self));
+    return package == NULL ? LT_NIL : (LT_Value)(uintptr_t)package;
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_keyword_p,
+    "Symbol>>keyword?",
+    "(self)",
+    "Return true when symbol is in the keyword package."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(self)){
+        LT_type_error(self, &LT_Symbol_class);
+    }
+    return LT_Symbol_package(LT_Symbol_from_value(self)) == LT_PACKAGE_KEYWORD
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_name_starts_with,
+    "Symbol>>nameStartsWith?:",
+    "(self prefix)",
+    "Return true when symbol name starts with prefix."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* prefix;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, prefix, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    if (!LT_Symbol_p(self)){
+        LT_type_error(self, &LT_Symbol_class);
+    }
+    return symbol_name_starts_with(LT_Symbol_from_value(self), prefix)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     symbol_class_method_gensym,
     "Symbol class>>gensym",
     "(self [name])",
@@ -145,14 +225,71 @@ LT_DEFINE_PRIMITIVE(
     return LT_Symbol_new_uninterned(name);
 }
 
+LT_DEFINE_PRIMITIVE(
+    symbol_class_method_intern_in,
+    "Symbol class>>intern:in:",
+    "(self name package)",
+    "Return interned symbol with name in package."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name_designator;
+    LT_Value package_designator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, name_designator);
+    LT_OBJECT_ARG(cursor, package_designator);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Symbol_class){
+        LT_error("intern:in: class method is only supported on Symbol");
+    }
+
+    return LT_Symbol_new_in(
+        symbol_package_designator(package_designator),
+        symbol_name_designator(name_designator)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_class_method_keyword,
+    "Symbol class>>keyword:",
+    "(self name)",
+    "Return interned keyword symbol with name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name_designator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, name_designator);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Symbol_class){
+        LT_error("keyword: class method is only supported on Symbol");
+    }
+
+    return LT_Symbol_new_in(
+        LT_PACKAGE_KEYWORD,
+        symbol_name_designator(name_designator)
+    );
+}
+
 static LT_Method_Descriptor Symbol_methods[] = {
     {"name", &symbol_method_name},
+    {"package", &symbol_method_package},
+    {"keyword?", &symbol_method_keyword_p},
+    {"nameStartsWith?:", &symbol_method_name_starts_with},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor Symbol_class_methods[] = {
     {"gensym", &symbol_class_method_gensym},
     {"uninterned:", &symbol_class_method_uninterned},
+    {"intern:in:", &symbol_class_method_intern_in},
+    {"keyword:", &symbol_class_method_keyword},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

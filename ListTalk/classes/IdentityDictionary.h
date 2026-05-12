@@ -20,7 +20,23 @@ typedef struct LT_WeakValueIdentityDictionary_s LT_WeakValueIdentityDictionary;
 LT_IdentityDictionary* LT_IdentityDictionary_new(void);
 LT_WeakKeyIdentityDictionary* LT_WeakKeyIdentityDictionary_new(void);
 LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_new(void);
+LT_IdentityDictionary* LT_IdentityDictionary_newFromAList(LT_Value alist);
+LT_WeakKeyIdentityDictionary* LT_WeakKeyIdentityDictionary_newFromAList(
+    LT_Value alist
+);
+LT_WeakValueIdentityDictionary* LT_WeakValueIdentityDictionary_newFromAList(
+    LT_Value alist
+);
 size_t LT_IdentityDictionary_size(LT_IdentityDictionary* dictionary);
+LT_Value LT_IdentityDictionary_asAList(LT_IdentityDictionary* dictionary);
+void LT_IdentityDictionary_for_each(
+    LT_IdentityDictionary* dictionary,
+    LT_Value callable
+);
+LT_Value LT_IdentityDictionary_map(
+    LT_IdentityDictionary* dictionary,
+    LT_Value callable
+);
 void LT_IdentityDictionary_atPut(
     LT_IdentityDictionary* dictionary,
     LT_Value key,

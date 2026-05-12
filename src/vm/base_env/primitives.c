@@ -290,6 +290,24 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_keyword_p,
+    "keyword?",
+    "(value)",
+    "Return true when value is a symbol in the keyword package.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return (LT_Symbol_p(value)
+        && LT_Symbol_package(LT_Symbol_from_value(value)) == LT_PACKAGE_KEYWORD)
+            ? LT_TRUE
+            : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_symbol_name,
     "symbol-name",
     "(value)",
@@ -802,6 +820,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_boolean_p);
     LT_base_env_bind_static_primitive(environment, &primitive_number_p);
     LT_base_env_bind_static_primitive(environment, &primitive_symbol_p);
+    LT_base_env_bind_static_primitive(environment, &primitive_keyword_p);
     LT_base_env_bind_static_primitive(environment, &primitive_symbol_name);
     LT_base_env_bind_static_primitive(environment, &primitive_primitive_p);
     LT_base_env_bind_static_primitive(environment, &primitive_closure_p);

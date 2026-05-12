@@ -174,6 +174,9 @@
 (check (not (boolean? 1)) "boolean? false for non-boolean")
 (check (symbol? 'foo) "symbol? true for symbol")
 (check (not (symbol? 1)) "symbol? false for non-symbol")
+(check (keyword? :foo) "keyword? true for keyword symbol")
+(check (not (keyword? 'foo)) "keyword? false for non-keyword symbol")
+(check (not (keyword? 1)) "keyword? false for non-symbol")
 
 ;;; number->string
 
@@ -193,6 +196,20 @@
        "Object class object inherits Object>>class")
 (check (primitive? [Object lookupSelector: :class])
        "Object class object inherits Class method lookup")
+(check (eq? [IdentityDictionary class] (type-of IdentityDictionary))
+       "early native class object inherits Object>>class")
+(check (primitive? [IdentityDictionary lookupSelector: :class])
+       "early native class object inherits Class method lookup")
+(check (eq? [[ImmutableDictionary new] class] ImmutableDictionary)
+       "ImmutableDictionary class>>new returns immutable dictionary")
+(check (eq? [[Dictionary new] class] Dictionary)
+       "Dictionary class>>new returns dictionary")
+(check (eq? [[IdentityDictionary new] class] IdentityDictionary)
+       "early native class method dispatch still works")
+(check (eq? [WeakKeyIdentityDictionary class] (type-of WeakKeyIdentityDictionary))
+       "early native subclass class object inherits Object>>class")
+(check (eq? [WeakValueIdentityDictionary class] (type-of WeakValueIdentityDictionary))
+       "early native weak value class object inherits Object>>class")
 (check (primitive? [Pair lookupSelector: :car]) "Class>>lookupSelector: returns method")
 (check (primitive? [Pair >> :car]) "Class>>>> returns direct method")
 (check (null? [Pair lookupSelector: :does-not-exist])
@@ -260,6 +277,57 @@
   (check (equal? [dictionary remove: a] "a") "IdentityDictionary>>remove: returns value")
   (check (not [dictionary contains?: a]) "IdentityDictionary>>remove: removes key"))
 
+(let ((dictionary [Dictionary newFromAList: '(("a" . 1) ("b" . 2) ("a" . 3))]))
+  (check (= [dictionary size] 2) "Dictionary class>>newFromAList: sets size")
+  (check (= [dictionary at: "a"] 3)
+         "Dictionary class>>newFromAList: uses structural keys")
+  (check (= [dictionary at: "b"] 2)
+         "Dictionary class>>newFromAList: stores values")
+  (check (equal? (assoc "a" [dictionary asAList]) '("a" . 3))
+         "Dictionary>>asAList returns associations")
+  (check (= [[dictionary map: (lambda (key value) value)] reduce: +] 5)
+         "Dictionary>>map: maps key/value pairs")
+  (check (let ((sum 0))
+           (and (null? [dictionary forEach:
+                                   (lambda (key value) (set! sum (+ sum value)))])
+                (= sum 5)))
+         "Dictionary>>forEach: applies callable to key/value pairs"))
+
+(let ((dictionary [ImmutableDictionary newFromAList:
+                   '(("a" . 1) ("b" . 2) ("a" . 3))]))
+  (check (= [dictionary size] 2)
+         "ImmutableDictionary class>>newFromAList: sets size")
+  (check (= [dictionary at: "a"] 3)
+         "ImmutableDictionary class>>newFromAList: uses structural keys")
+  (check [dictionary contains?: "b"]
+         "ImmutableDictionary inherits dictionary lookup protocol")
+  (check (equal? (assoc "a" [dictionary asAList]) '("a" . 3))
+         "ImmutableDictionary>>asAList returns associations")
+  (check (= [[dictionary map: (lambda (key value) value)] reduce: +] 5)
+         "ImmutableDictionary>>map: maps key/value pairs"))
+
+(let ((key (list 1)))
+  (let ((dictionary [IdentityDictionary newFromAList:
+                                      (list (cons key "first")
+                                            (cons (list 1) "second")
+                                            (cons key "third"))]))
+    (check (= [dictionary size] 2)
+           "IdentityDictionary class>>newFromAList: uses identity keys")
+    (check (equal? [dictionary at: key] "third")
+           "IdentityDictionary class>>newFromAList: overwrites identical key")
+    (check (equal? (assq key [dictionary asAList]) (cons key "third"))
+           "IdentityDictionary>>asAList returns associations")
+    (check (= [[dictionary map:
+                           (lambda (key value)
+                             (if (equal? value "third") 10 1))] reduce: +] 11)
+           "IdentityDictionary>>map: maps key/value pairs")
+    (check (let ((count 0))
+             (and (null? [dictionary forEach:
+                                     (lambda (key value)
+                                       (set! count (+ count 1)))])
+                  (= count 2)))
+           "IdentityDictionary>>forEach: applies callable to key/value pairs")))
+
 (let ((dictionary [WeakKeyIdentityDictionary new])
       (key (cons 1 2)))
   [dictionary at: key put: 99]
@@ -271,6 +339,22 @@
   [dictionary at: key put: 100]
   (check (= [dictionary at: key] 100)
          "WeakValueIdentityDictionary inherits IdentityDictionary methods"))
+
+(let ((key (list 2)))
+  (let ((dictionary [WeakKeyIdentityDictionary newFromAList:
+                                           (list (cons key 8))]))
+    (check (= [dictionary at: key] 8)
+           "WeakKeyIdentityDictionary class>>newFromAList: stores entries")
+    (check (= [[dictionary map: (lambda (key value) value)] car] 8)
+           "WeakKeyIdentityDictionary>>map: uses inherited method")))
+
+(let ((key (list 3)))
+  (let ((dictionary [WeakValueIdentityDictionary newFromAList:
+                                             (list (cons key 9))]))
+    (check (= [dictionary at: key] 9)
+           "WeakValueIdentityDictionary class>>newFromAList: stores entries")
+    (check (= [(assq key [dictionary asAList]) cdr] 9)
+           "WeakValueIdentityDictionary>>asAList uses inherited method")))
 
 (let ((variable [DynamicVariable new: "default"]))
   (check (equal? [variable value] "default")
@@ -527,6 +611,34 @@
        "String>>from:to: uses half-open codepoint indexes")
 (check (equal? ["aλ😀z" substringFrom: 1 to: 3] "λ😀")
        "String>>substringFrom:to: uses half-open codepoint indexes")
+(check (equal? ["bananana" replace: "na" with: "λ"] "baλλλ")
+       "String>>replace:with: replaces all occurrences")
+(check (equal? ["bananana" replaceFirst: "na" with: "λ"] "baλnana")
+       "String>>replaceFirst:with: replaces first occurrence")
+(check (equal? ["aλ😀" replace: "λ" with: "LL"] "aLL😀")
+       "String>>replace:with: handles Unicode codepoint boundaries")
+(check ["bananana" contains?: "nan"] "String>>contains?: finds substring")
+(check (not ["bananana" contains?: "xyz"])
+       "String>>contains?: rejects absent substring")
+(check ["aλ😀" startsWith?: "aλ"] "String>>startsWith?: accepts prefix")
+(check ["aλ😀" startsWith?: ""] "String>>startsWith?: accepts empty prefix")
+(check (not ["aλ😀" startsWith?: "λ"])
+       "String>>startsWith?: rejects non-prefix")
+(check (not ["aλ😀" startsWith?: "aλ😀z"])
+       "String>>startsWith?: rejects longer prefix")
+(check (= ["aλ😀λ" find: "😀"] 2)
+       "String>>find: returns codepoint index")
+(check (null? ["aλ😀λ" find: "z"])
+       "String>>find: returns nil for absent substring")
+(check (equal? ["bananana" findAll: "na"] '(2 4 6))
+       "String>>findAll: returns match codepoint indices")
+(check (equal? ["aλ😀λ" findAll: "λ"] '(1 3))
+       "String>>findAll: counts Unicode codepoints")
+(let ((mapping [IdentityDictionary new]))
+  [mapping at: (string-ref "abc" 0) put: (string-ref "XYZ" 0)]
+  [mapping at: (string-ref "abc" 1) put: "yy"]
+  (check (equal? ["abcλ" mapCharacters: mapping] "Xyycλ")
+         "String>>mapCharacters: maps Character keys to Character or String values"))
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
@@ -750,6 +862,12 @@
 (check (equal? (assq 'b '((a . 1) (b . 2))) '(b . 2)) "assq matches by identity")
 (check (not (assq (string-append "a" "") '(("a" . 1)))) "assq returns false on identity miss")
 (check (equal? (assv 1.0 '((1 . 9))) '(1 . 9)) "assv matches numerically equivalent keys")
+(check (equal? (alist->plist '((a . 1) (b . 2))) '(a 1 b 2))
+       "alist->plist converts associations to property list")
+(check (equal? (plist->alist '(a 1 b 2)) '((a . 1) (b . 2)))
+       "plist->alist converts property list to associations")
+(check-raises "plist->alist raises on odd length property list"
+  (plist->alist '(a 1 b)))
 (check (= (list-ref '(4 5 6) 1) 5) "list-ref returns item at index")
 (check-error-message "List index out of bounds"
                      "list-ref signals out of bounds"
@@ -1053,6 +1171,16 @@
 (let ((u [Symbol uninterned: 'temp]))
   (check (null? (slot-ref u 'package)) "Symbol class>>uninterned: returns uninterned symbol")
   (check (equal? ['temp name] "temp") "Symbol>>name returns symbol name string"))
+(let* ((package [Package named: "EvalSymbolClassPackage"])
+       (same-package [Package named: 'EvalSymbolClassPackage])
+       (symbol [Symbol intern: "value" in: package])
+       (same-symbol [Symbol intern: 'value in: "EvalSymbolClassPackage"])
+       (keyword [Symbol keyword: "class-keyword"]))
+  (check (eq? package same-package) "Package class>>named: returns existing package")
+  (check (eq? [symbol package] package) "Symbol class>>intern:in: uses package object")
+  (check (eq? symbol same-symbol) "Symbol class>>intern:in: interns by name and package")
+  (check (keyword? keyword) "Symbol class>>keyword: returns keyword symbol")
+  (check [keyword keyword?] "Symbol class>>keyword: result answers keyword?"))
 
 ;;; with-gensyms
 
@@ -1104,6 +1232,46 @@
 
 (check (= [(cons 1 2) setFirst: 77] 77)
        "set! macro dispatches %self-slot target to slot-set!")
+
+;;; define-constructor
+
+(define-class DefConstructorMeep (Object) (foo bar))
+(define-constructor [DefConstructorMeep newWithFoo: foo bar: bar]
+  (set! (%self-slot foo) foo)
+  (set! (%self-slot bar) bar))
+(let ((meep [DefConstructorMeep newWithFoo: 3 bar: 4]))
+  (check (eq? (type-of meep) DefConstructorMeep)
+         "define-constructor newWith... class method returns instance")
+  (check (= (slot-ref meep 'foo) 3)
+         "define-constructor newWith... initializes first slot")
+  (check (= (slot-ref meep 'bar) 4)
+         "define-constructor newWith... initializes second slot"))
+(check (closure? [[DefConstructorMeep class] lookupSelector: :newWithFoo:bar:])
+       "define-constructor installs newWith... class method")
+(check (closure? [DefConstructorMeep lookupSelector: :initWithFoo:bar:])
+       "define-constructor installs initWith... instance method")
+
+(define-class DefConstructorNew (Object) (foo))
+(define-constructor [DefConstructorNew newFoo: foo]
+  (set! (%self-slot foo) foo))
+(let ((value [DefConstructorNew newFoo: 17]))
+  (check (eq? (type-of value) DefConstructorNew)
+         "define-constructor new... class method returns instance")
+  (check (= (slot-ref value 'foo) 17)
+         "define-constructor new... initializes slot"))
+(check (closure? [DefConstructorNew lookupSelector: :initFoo:])
+       "define-constructor installs init... instance method")
+
+(define-class DefConstructorFrom (Object) (foo))
+(define-constructor [DefConstructorFrom fromFoo: foo]
+  (set! (%self-slot foo) foo))
+(let ((value [DefConstructorFrom fromFoo: 42]))
+  (check (eq? (type-of value) DefConstructorFrom)
+         "define-constructor from... class method returns instance")
+  (check (= (slot-ref value 'foo) 42)
+         "define-constructor from... initializes slot"))
+(check (closure? [DefConstructorFrom lookupSelector: :initFromFoo:])
+       "define-constructor installs initFrom... instance method")
 
 ;;; Rectangle example
 
@@ -1271,6 +1439,17 @@
 
 (check (not (null? (slot-ref 'eval-test-alpha 'package)))
        "symbol package slot exposes package object")
+(check (eq? ['eval-test-alpha package] (slot-ref 'eval-test-alpha 'package))
+       "Symbol>>package returns package object")
+(check (null? [[Symbol gensym] package])
+       "Symbol>>package returns nil for uninterned symbol")
+(check [:eval-test-keyword keyword?] "Symbol>>keyword? true for keyword symbol")
+(check (not ['eval-test-alpha keyword?])
+       "Symbol>>keyword? false for non-keyword symbol")
+(check ['eval-test-alpha nameStartsWith?: "eval"]
+       "Symbol>>nameStartsWith?: accepts prefix")
+(check (not ['eval-test-alpha nameStartsWith?: "alpha"])
+       "Symbol>>nameStartsWith?: rejects non-prefix")
 (check-error-message "Readonly slot" "symbol package slot is readonly"
   (slot-set! 'eval-test-alpha 'package 1))
 

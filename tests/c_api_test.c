@@ -734,6 +734,24 @@ static int test_list_any_every_c_api(void){
     );
 }
 
+static int test_list_alist_plist_c_api(void){
+    LT_Value alist = eval_one("'((a . 1) (b . 2))");
+    LT_Value plist = eval_one("'(a 1 b 2)");
+    LT_Value converted_plist = LT_List_alistToPlist(alist);
+    LT_Value converted_alist = LT_List_plistToAlist(plist);
+
+    if (expect(
+        LT_Value_equal_p(converted_plist, plist),
+        "LT_List_alistToPlist converts associations to property list"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_equal_p(converted_alist, alist),
+        "LT_List_plistToAlist converts property list to associations"
+    );
+}
+
 static int test_define_package_special_form(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value value = LT_NIL;
@@ -2019,6 +2037,46 @@ static int test_string_append_and_substring_c_api_use_codepoint_indexes(void){
     );
 }
 
+static int test_string_search_c_api_uses_codepoint_indexes(void){
+    LT_String* string = LT_String_new_cstr("a\xce\xbb\xf0\x9f\x98\x80\xce\xbb");
+    LT_String* lambda = LT_String_new_cstr("\xce\xbb");
+    LT_String* emoji = LT_String_new_cstr("\xf0\x9f\x98\x80");
+    LT_String* missing = LT_String_new_cstr("z");
+    LT_Value matches;
+    size_t index = 0;
+
+    if (expect(LT_String_contains(string, lambda), "LT_String_contains finds substring")){
+        return 1;
+    }
+    if (expect(!LT_String_contains(string, missing), "LT_String_contains rejects absent substring")){
+        return 1;
+    }
+    if (expect(LT_String_find(string, emoji, &index), "LT_String_find finds substring")){
+        return 1;
+    }
+    if (expect(index == 2, "LT_String_find returns codepoint index")){
+        return 1;
+    }
+    if (expect(!LT_String_find(string, missing, NULL), "LT_String_find rejects absent substring")){
+        return 1;
+    }
+
+    matches = LT_String_findAll(string, lambda);
+    if (expect(LT_Pair_p(matches), "LT_String_findAll returns first match")){
+        return 1;
+    }
+    if (expect(
+            LT_SmallInteger_value(LT_List_at(matches, 0)) == 1,
+            "LT_String_findAll first codepoint index"
+        )){
+        return 1;
+    }
+    return expect(
+        LT_SmallInteger_value(LT_List_at(matches, 1)) == 3,
+        "LT_String_findAll second codepoint index"
+    );
+}
+
 static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
     FILE* file = tmpfile();
     LT_Value stream;
@@ -2316,6 +2374,7 @@ int main(void){
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_list_for_each_c_api);
     RUN_TEST(test_list_any_every_c_api);
+    RUN_TEST(test_list_alist_plist_c_api);
     RUN_TEST(test_define_package_special_form);
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);
@@ -2352,6 +2411,7 @@ int main(void){
     RUN_TEST(test_string_api_uses_unicode_codepoints);
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
+    RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);
