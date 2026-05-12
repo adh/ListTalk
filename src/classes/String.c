@@ -565,6 +565,27 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_join,
+    "String>>join:",
+    "(self strings)",
+    "Join a list of strings using self as the delimiter."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value strings;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, strings);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_join(
+        LT_String_from_value(self),
+        strings
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_contains,
     "String>>contains?:",
     "(self needle)",
@@ -706,6 +727,7 @@ static LT_Method_Descriptor String_methods[] = {
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
     {"mapCharacters:", &string_method_map_characters},
+    {"join:", &string_method_join},
     {"contains?:", &string_method_contains},
     {"startsWith?:", &string_method_starts_with},
     {"find:", &string_method_find},
@@ -784,6 +806,46 @@ LT_String* LT_String_replaceFirst(LT_String* string,
                                   LT_String* needle,
                                   LT_String* replacement){
     return String_replace_impl(string, needle, replacement, 1);
+}
+
+LT_String* LT_String_join(LT_String* delimiter, LT_Value strings){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    LT_Value cursor = strings;
+    size_t codepoint_length = 0;
+    int first = 1;
+
+    while (cursor != LT_NIL){
+        LT_String* string;
+
+        if (!LT_Pair_p(cursor)){
+            LT_error("string-join expects a proper list of strings");
+        }
+
+        string = LT_String_from_value(LT_car(cursor));
+        if (!first){
+            LT_StringBuilder_append_bytes(
+                builder,
+                LT_String_value_cstr(delimiter),
+                LT_String_byte_length(delimiter)
+            );
+            codepoint_length += LT_String_length(delimiter);
+        }
+
+        LT_StringBuilder_append_bytes(
+            builder,
+            LT_String_value_cstr(string),
+            LT_String_byte_length(string)
+        );
+        codepoint_length += LT_String_length(string);
+        first = 0;
+        cursor = LT_cdr(cursor);
+    }
+
+    return String_new_normalized(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder),
+        codepoint_length
+    );
 }
 
 LT_String* LT_String_substring(LT_String* string, size_t from, size_t to){

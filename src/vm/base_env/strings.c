@@ -134,6 +134,23 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_string_join,
+    "string-join",
+    "(delimiter strings)",
+    "Join a list of strings with delimiter."
+){
+    LT_Value cursor = arguments;
+    LT_String* delimiter;
+    LT_Value strings;
+
+    LT_GENERIC_ARG(cursor, delimiter, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, strings);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_join(delimiter, strings);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_substring,
     "substring",
     "(string from to)",
@@ -190,6 +207,7 @@ void LT_base_env_bind_strings(LT_Environment* environment){
         &primitive_character_list_to_string
     );
     LT_base_env_bind_static_primitive(environment, &primitive_string_append);
+    LT_base_env_bind_static_primitive(environment, &primitive_string_join);
     LT_base_env_bind_static_primitive(environment, &primitive_substring);
     LT_base_env_bind_static_primitive(environment, &primitive_number_to_string);
 }

@@ -639,6 +639,12 @@
   [mapping at: (string-ref "abc" 1) put: "yy"]
   (check (equal? ["abcλ" mapCharacters: mapping] "Xyycλ")
          "String>>mapCharacters: maps Character keys to Character or String values"))
+(check (equal? (string-join ", " '("a" "λ" "😀")) "a, λ, 😀")
+       "string-join joins list with delimiter")
+(check (equal? ["-" join: '("a" "λ" "😀")] "a-λ-😀")
+       "String>>join: uses receiver as delimiter")
+(check (equal? [", " join: '()] "")
+       "String>>join: returns empty string for empty list")
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
