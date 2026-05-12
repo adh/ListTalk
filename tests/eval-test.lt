@@ -653,15 +653,15 @@
                      (lambda (each) (set! seen (cons each seen)))])
               (equal? seen '("" "😀" "" "λ" "a"))))
        "String>>substrings:do: calls callable for empty substrings")
-(check (equal? ["a,λ,,😀," splitOn: (string-ref "," 0)] '("a" "λ" "" "😀" ""))
+(check (equal? ["a,λ,,😀," splitOn: #\,] '("a" "λ" "" "😀" ""))
        "String>>splitOn: splits on Character")
 (check (equal? ["a,λ;😀" splitOn: ",;"] '("a" "λ" "😀"))
        "String>>splitOn: splits on any character in String")
-(check (equal? ["a,λ;😀" splitOn: [Set fromList: (list (string-ref "," 0) (string-ref ";" 0))]]
+(check (equal? ["a,λ;😀" splitOn: [Set fromList: (list #\, #\;)]]
                '("a" "λ" "😀"))
        "String>>splitOn: splits on any character in Set")
 (check (let ((seen '()))
-         (and (null? ["a,λ,,😀," splitOn: (string-ref "," 0) do:
+         (and (null? ["a,λ,,😀," splitOn: #\, do:
                      (lambda (each) (set! seen (cons each seen)))])
               (equal? seen '("" "😀" "" "λ" "a"))))
        "String>>splitOn:do: calls callable for empty substrings")

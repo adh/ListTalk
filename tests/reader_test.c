@@ -613,6 +613,73 @@ static int test_dispatch_character_unicode(void){
     );
 }
 
+static int test_dispatch_character_delimiter_literals(void){
+    LT_Value comma = read_one("#\\, ");
+    LT_Value semicolon = read_one("#\\; ");
+    LT_Value close_paren = read_one("(#\\))");
+
+    if (expect(
+            LT_Character_p(comma) && LT_Character_value(comma) == (uint32_t)',',
+            "dispatch character comma delimiter literal"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(semicolon) && LT_Character_value(semicolon) == (uint32_t)';',
+            "dispatch character semicolon delimiter literal"
+        )){
+        return 1;
+    }
+    if (expect(LT_Pair_p(close_paren), "dispatch character close paren inside list")){
+        return 1;
+    }
+    close_paren = LT_car(close_paren);
+    return expect(
+        LT_Character_p(close_paren)
+            && LT_Character_value(close_paren) == (uint32_t)')',
+        "dispatch character close paren delimiter literal"
+    );
+}
+
+static int test_dispatch_character_utf8_single_literal(void){
+    LT_Value value = read_one("#\\λ ");
+
+    if (expect(LT_Character_p(value), "dispatch character utf8 single type")){
+        return 1;
+    }
+    return expect(
+        LT_Character_value(value) == UINT32_C(0x03bb),
+        "dispatch character utf8 single value"
+    );
+}
+
+static int test_dispatch_character_literal_requires_separator(void){
+    LT_Value value = read_one_catch_error("#\\;abc");
+
+    if (expect(LT_ReaderError_p(value), "character delimiter literal requires separator")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            condition_message_cstr(value),
+            "Character literal expects delimiter after character"
+        ) == 0,
+        "character delimiter literal separator error message"
+    );
+}
+
+static int test_dispatch_character_literal_rejects_whitespace(void){
+    LT_Value value = read_one_catch_error("#\\ ");
+
+    if (expect(LT_ReaderError_p(value), "character literal rejects raw whitespace")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Invalid character literal") == 0,
+        "character literal raw whitespace error message"
+    );
+}
+
 static int test_dispatch_bang_comment(void){
     LT_Value value = read_one("#! read-comment\nalpha");
     return expect(
@@ -1749,6 +1816,10 @@ int main(void){
     failures += test_dispatch_character_single();
     failures += test_dispatch_character_named();
     failures += test_dispatch_character_unicode();
+    failures += test_dispatch_character_delimiter_literals();
+    failures += test_dispatch_character_utf8_single_literal();
+    failures += test_dispatch_character_literal_requires_separator();
+    failures += test_dispatch_character_literal_rejects_whitespace();
     failures += test_dispatch_bang_comment();
     failures += test_dispatch_binary_number();
     failures += test_dispatch_octal_number();

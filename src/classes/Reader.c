@@ -1236,17 +1236,98 @@ static LT_Value read_dispatch_macro(
     }
 }
 
+static int character_literal_codepoint_disallowed(uint32_t codepoint){
+    return codepoint <= (uint32_t)UCHAR_MAX
+        && (isspace((int)codepoint) || iscntrl((int)codepoint));
+}
+
+static uint32_t read_utf8_character_literal_codepoint(LT_Reader* reader,
+                                                      LT_ReaderStream* stream,
+                                                      int first){
+    unsigned char bytes[4];
+    size_t length;
+    size_t i;
+
+    bytes[0] = (unsigned char)first;
+    length = LT_utf8_sequence_length(bytes[0]);
+    if (length == 0){
+        reader_error(reader, "Invalid UTF-8 in character literal");
+    }
+
+    for (i = 1; i < length; i++){
+        int ch = reader_getc(reader, stream);
+
+        if (ch == EOF){
+            reader_incomplete_input(reader, "Unterminated UTF-8 character literal");
+        }
+        bytes[i] = (unsigned char)ch;
+    }
+
+    if (!LT_utf8_sequence_valid(bytes, length)){
+        reader_error(reader, "Invalid UTF-8 in character literal");
+    }
+
+    return LT_utf8_decode_valid(bytes, length);
+}
+
+static void read_character_literal_separator(LT_Reader* reader,
+                                             LT_ReaderStream* stream){
+    int separator = reader_getc(reader, stream);
+
+    if (!is_delimiter(separator)){
+        reader_error(reader, "Character literal expects delimiter after character");
+    }
+    if (separator != EOF){
+        reader_ungetc(reader, stream, separator);
+    }
+}
+
 static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream){
     int ch = reader_getc(reader, stream);
     char* token;
     char* end;
     unsigned long parsed;
 
-    if (ch == EOF || is_delimiter(ch)){
+    if (ch == EOF){
         reader_incomplete_input(
             reader,
             "Character literal expects token after '#\\\\'"
         );
+    }
+
+    if (character_literal_codepoint_disallowed((uint32_t)(unsigned char)ch)){
+        reader_error(reader, "Invalid character literal");
+    }
+
+    if ((unsigned char)ch >= 0x80){
+        uint32_t codepoint = read_utf8_character_literal_codepoint(
+            reader,
+            stream,
+            ch
+        );
+
+        if (character_literal_codepoint_disallowed(codepoint)){
+            reader_error(reader, "Invalid character literal");
+        }
+        read_character_literal_separator(reader, stream);
+        return LT_Character_new(codepoint);
+    }
+
+    if (is_delimiter(ch)){
+        read_character_literal_separator(reader, stream);
+        return LT_Character_new((uint32_t)(unsigned char)ch);
+    }
+
+    {
+        int next = reader_getc(reader, stream);
+
+        if (is_delimiter(next)){
+            if (next != EOF){
+                reader_ungetc(reader, stream, next);
+            }
+            return LT_Character_new((uint32_t)(unsigned char)ch);
+        }
+        reader_ungetc(reader, stream, next);
     }
 
     token = read_token_string(reader, ch, stream);
