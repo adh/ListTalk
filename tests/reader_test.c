@@ -601,6 +601,48 @@ static int test_dispatch_character_named(void){
     );
 }
 
+static int test_dispatch_character_control_names(void){
+    LT_Value end_of_transmission = read_one("#\\end-of-transmission");
+    LT_Value mixed_case = read_one("#\\End-Of-Transmission");
+    LT_Value next_line = read_one("#\\next-line");
+    LT_Value file_separator = read_one("#\\file-separator");
+    LT_Value information_separator_four = read_one("#\\information-separator-four");
+
+    if (expect(
+            LT_Character_p(end_of_transmission)
+                && LT_Character_value(end_of_transmission) == UINT32_C(0x04),
+            "dispatch character C0 control name"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(mixed_case)
+                && LT_Character_value(mixed_case) == UINT32_C(0x04),
+            "dispatch character control name is case folded"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(next_line)
+                && LT_Character_value(next_line) == UINT32_C(0x85),
+            "dispatch character C1 control name"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(file_separator)
+                && LT_Character_value(file_separator) == UINT32_C(0x1c),
+            "dispatch character ASCII information separator name"
+        )){
+        return 1;
+    }
+    return expect(
+        LT_Character_p(information_separator_four)
+            && LT_Character_value(information_separator_four) == UINT32_C(0x1c),
+        "dispatch character Unicode information separator name"
+    );
+}
+
 static int test_dispatch_character_unicode(void){
     LT_Value value = read_one("#\\u+03bb");
 
@@ -1815,6 +1857,7 @@ int main(void){
     failures += test_dispatch_nil_short();
     failures += test_dispatch_character_single();
     failures += test_dispatch_character_named();
+    failures += test_dispatch_character_control_names();
     failures += test_dispatch_character_unicode();
     failures += test_dispatch_character_delimiter_literals();
     failures += test_dispatch_character_utf8_single_literal();
