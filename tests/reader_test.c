@@ -604,6 +604,7 @@ static int test_dispatch_character_named(void){
 static int test_dispatch_character_control_names(void){
     LT_Value end_of_transmission = read_one("#\\end-of-transmission");
     LT_Value mixed_case = read_one("#\\End-Of-Transmission");
+    LT_Value rubout = read_one("#\\rubout");
     LT_Value next_line = read_one("#\\next-line");
     LT_Value file_separator = read_one("#\\file-separator");
     LT_Value information_separator_four = read_one("#\\information-separator-four");
@@ -619,6 +620,13 @@ static int test_dispatch_character_control_names(void){
             LT_Character_p(mixed_case)
                 && LT_Character_value(mixed_case) == UINT32_C(0x04),
             "dispatch character control name is case folded"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(rubout)
+                && LT_Character_value(rubout) == UINT32_C(0x7f),
+            "dispatch character rubout alias"
         )){
         return 1;
     }

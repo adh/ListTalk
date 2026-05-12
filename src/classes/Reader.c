@@ -1379,6 +1379,7 @@ static int named_character_codepoint(const char* token, uint32_t* codepoint){
         {"space", 0x20},
         {"delete", 0x7f},
         {"del", 0x7f},
+        {"rubout", 0x7f},
         {"padding-character", 0x80},
         {"pad", 0x80},
         {"high-octet-preset", 0x81},
