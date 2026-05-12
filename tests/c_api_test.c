@@ -2134,23 +2134,23 @@ static int test_string_split_c_api(void){
     LT_String* delimited = LT_String_new_cstr("a--\xce\xbb----\xf0\x9f\x98\x80--");
     LT_String* separator_source = LT_String_new_cstr("a,\xce\xbb;\xf0\x9f\x98\x80");
     LT_Set* separators = LT_Set_new();
-    LT_Value pieces = LT_String_subStrings(whitespace);
+    LT_Value pieces = LT_String_substringsWhitespace(whitespace);
     struct substring_capture capture = {{NULL}, 0};
 
-    if (expect(test_list_length(pieces) == 3, "LT_String_subStrings omits empty fields")){
+    if (expect(test_list_length(pieces) == 3, "LT_String_substringsWhitespace omits empty fields")){
         return 1;
     }
-    if (expect_list_string_at(pieces, 0, "a", "LT_String_subStrings first substring")){
+    if (expect_list_string_at(pieces, 0, "a", "LT_String_substringsWhitespace first substring")){
         return 1;
     }
-    if (expect_list_string_at(pieces, 1, "\xce\xbb", "LT_String_subStrings unicode substring")){
+    if (expect_list_string_at(pieces, 1, "\xce\xbb", "LT_String_substringsWhitespace unicode substring")){
         return 1;
     }
     if (expect_list_string_at(
             pieces,
             2,
             "\xf0\x9f\x98\x80",
-            "LT_String_subStrings emoji substring"
+            "LT_String_substringsWhitespace emoji substring"
         )){
         return 1;
     }

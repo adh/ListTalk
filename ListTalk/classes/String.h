@@ -33,12 +33,12 @@ LT_String* LT_String_replaceFirst(
     LT_String* replacement
 );
 LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary);
-void LT_String_subStringsDo(
+void LT_String_substringsDoWhitespace(
     LT_String* string,
     LT_String_SubstringCallback callback,
     void* baton
 );
-LT_Value LT_String_subStrings(LT_String* string);
+LT_Value LT_String_substringsWhitespace(LT_String* string);
 void LT_String_substringsDo(
     LT_String* string,
     LT_String* delimiter,

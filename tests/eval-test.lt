@@ -639,13 +639,13 @@
   [mapping at: (string-ref "abc" 1) put: "yy"]
   (check (equal? ["abcλ" mapCharacters: mapping] "Xyycλ")
          "String>>mapCharacters: maps Character keys to Character or String values"))
-(check (equal? ["  a\tλ\n 😀  " subStrings] '("a" "λ" "😀"))
-       "String>>subStrings splits on whitespace without empty substrings")
+(check (equal? ["  a\tλ\n 😀  " substrings] '("a" "λ" "😀"))
+       "String>>substrings splits on whitespace without empty substrings")
 (check (let ((seen '()))
-         (and (null? ["  a λ  " subStringsDo:
+         (and (null? ["  a λ  " substringsDo:
                      (lambda (each) (set! seen (cons each seen)))])
               (equal? seen '("λ" "a"))))
-       "String>>subStringsDo: calls callable without constructing a list")
+       "String>>substringsDo: calls callable without constructing a list")
 (check (equal? ["a--λ----😀--" substrings: "--"] '("a" "λ" "" "😀" ""))
        "String>>substrings: splits on delimiter string with empty substrings")
 (check (let ((seen '()))

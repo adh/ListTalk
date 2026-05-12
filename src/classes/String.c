@@ -349,9 +349,9 @@ LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary){
     );
 }
 
-void LT_String_subStringsDo(LT_String* string,
-                            LT_String_SubstringCallback callback,
-                            void* baton){
+void LT_String_substringsDoWhitespace(LT_String* string,
+                                      LT_String_SubstringCallback callback,
+                                      void* baton){
     const char* cursor = LT_String_value_cstr(string);
     const char* end = cursor + LT_String_byte_length(string);
 
@@ -380,10 +380,10 @@ void LT_String_subStringsDo(LT_String* string,
     }
 }
 
-LT_Value LT_String_subStrings(LT_String* string){
+LT_Value LT_String_substringsWhitespace(LT_String* string){
     LT_ListBuilder* builder = LT_ListBuilder_new();
 
-    LT_String_subStringsDo(string, String_list_callback, builder);
+    LT_String_substringsDoWhitespace(string, String_list_callback, builder);
     return LT_ListBuilder_value(builder);
 }
 
@@ -768,8 +768,8 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    string_method_sub_strings,
-    "String>>subStrings",
+    string_method_substrings_whitespace,
+    "String>>substrings",
     "(self)",
     "Return non-empty substrings split on whitespace."
 ){
@@ -780,12 +780,12 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
 
-    return LT_String_subStrings(LT_String_from_value(self));
+    return LT_String_substringsWhitespace(LT_String_from_value(self));
 }
 
 LT_DEFINE_PRIMITIVE(
-    string_method_sub_strings_do,
-    "String>>subStringsDo:",
+    string_method_substrings_do_whitespace,
+    "String>>substringsDo:",
     "(self callable)",
     "Call callable for each non-empty substring split on whitespace."
 ){
@@ -798,7 +798,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
 
-    LT_String_subStringsDo(
+    LT_String_substringsDoWhitespace(
         LT_String_from_value(self),
         String_callable_callback,
         &callable
@@ -1057,8 +1057,8 @@ static LT_Method_Descriptor String_methods[] = {
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
     {"mapCharacters:", &string_method_map_characters},
-    {"subStrings", &string_method_sub_strings},
-    {"subStringsDo:", &string_method_sub_strings_do},
+    {"substrings", &string_method_substrings_whitespace},
+    {"substringsDo:", &string_method_substrings_do_whitespace},
     {"substrings:", &string_method_substrings},
     {"substrings:do:", &string_method_substrings_do},
     {"splitOn:", &string_method_split_on},
