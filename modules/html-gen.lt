@@ -8,17 +8,20 @@
 (define-class Markup (Object) 
   (content))
 
-(define-method [[Markup class] new: content]
-    (let ((instance [self alloc]))
-      [instance init: content]
-      instance))
-
-(define-method [Markup init: content]
+(define-constructor [[Markup class] new: content]
     (ListTalk:set! .content content)
     self)
 
-(define )
+(define (escape string)
+  [string mapCharacters: #d(#\< "&lt;" 
+                            #\> "&gt;"
+                            #\& "&amp;"
+                            #\" "&quot;"
+                            #\' "&apos;")])
 
 (define-method [[Markup class] fromString: string]
     (Markup new: (escape string)))
+
+(define-method [Markup content]
+  .content)
 
