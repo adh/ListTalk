@@ -17,6 +17,8 @@ LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_String);
 
+typedef void (*LT_String_SubstringCallback)(LT_String* substring, void* baton);
+
 LT_String* LT_String_new(char* buf, size_t len);
 LT_String* LT_String_new_cstr(char* str);
 LT_String* LT_String_append(LT_String* left, LT_String* right);
@@ -31,6 +33,26 @@ LT_String* LT_String_replaceFirst(
     LT_String* replacement
 );
 LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary);
+void LT_String_subStringsDo(
+    LT_String* string,
+    LT_String_SubstringCallback callback,
+    void* baton
+);
+LT_Value LT_String_subStrings(LT_String* string);
+void LT_String_substringsDo(
+    LT_String* string,
+    LT_String* delimiter,
+    LT_String_SubstringCallback callback,
+    void* baton
+);
+LT_Value LT_String_substrings(LT_String* string, LT_String* delimiter);
+void LT_String_splitOnDo(
+    LT_String* string,
+    LT_Value delimiters,
+    LT_String_SubstringCallback callback,
+    void* baton
+);
+LT_Value LT_String_splitOn(LT_String* string, LT_Value delimiters);
 LT_String* LT_String_join(LT_String* delimiter, LT_Value strings);
 int LT_String_startsWith(LT_String* string, LT_String* prefix);
 int LT_String_contains(LT_String* string, LT_String* needle);

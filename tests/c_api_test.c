@@ -2077,6 +2077,134 @@ static int test_string_search_c_api_uses_codepoint_indexes(void){
     );
 }
 
+struct substring_capture {
+    LT_String* items[8];
+    size_t count;
+};
+
+static void capture_substring(LT_String* substring, void* baton){
+    struct substring_capture* capture = (struct substring_capture*)baton;
+
+    if (capture->count < 8){
+        capture->items[capture->count] = substring;
+    }
+    capture->count++;
+}
+
+static size_t test_list_length(LT_Value list){
+    size_t length = 0;
+
+    while (LT_Pair_p(list)){
+        length++;
+        list = LT_cdr(list);
+    }
+    return length;
+}
+
+static int expect_list_string_at(LT_Value list,
+                                 size_t index,
+                                 const char* expected,
+                                 const char* message){
+    LT_Value item = LT_List_at(list, index);
+
+    if (expect(LT_String_p(item), message)){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(item)), expected) == 0,
+        message
+    );
+}
+
+static int expect_captured_string_at(struct substring_capture* capture,
+                                     size_t index,
+                                     const char* expected,
+                                     const char* message){
+    if (expect(index < capture->count, message)){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(capture->items[index]), expected) == 0,
+        message
+    );
+}
+
+static int test_string_split_c_api(void){
+    LT_String* whitespace = LT_String_new_cstr("  a\t\xce\xbb\n\xf0\x9f\x98\x80  ");
+    LT_String* delimited = LT_String_new_cstr("a--\xce\xbb----\xf0\x9f\x98\x80--");
+    LT_String* separator_source = LT_String_new_cstr("a,\xce\xbb;\xf0\x9f\x98\x80");
+    LT_Set* separators = LT_Set_new();
+    LT_Value pieces = LT_String_subStrings(whitespace);
+    struct substring_capture capture = {{NULL}, 0};
+
+    if (expect(test_list_length(pieces) == 3, "LT_String_subStrings omits empty fields")){
+        return 1;
+    }
+    if (expect_list_string_at(pieces, 0, "a", "LT_String_subStrings first substring")){
+        return 1;
+    }
+    if (expect_list_string_at(pieces, 1, "\xce\xbb", "LT_String_subStrings unicode substring")){
+        return 1;
+    }
+    if (expect_list_string_at(
+            pieces,
+            2,
+            "\xf0\x9f\x98\x80",
+            "LT_String_subStrings emoji substring"
+        )){
+        return 1;
+    }
+
+    LT_String_substringsDo(
+        delimited,
+        LT_String_new_cstr("--"),
+        capture_substring,
+        &capture
+    );
+    if (expect(capture.count == 5, "LT_String_substringsDo preserves empty fields")){
+        return 1;
+    }
+    if (expect_captured_string_at(&capture, 2, "", "LT_String_substringsDo empty field")){
+        return 1;
+    }
+    if (expect_captured_string_at(
+            &capture,
+            3,
+            "\xf0\x9f\x98\x80",
+            "LT_String_substringsDo emoji field"
+        )){
+        return 1;
+    }
+
+    capture.count = 0;
+    LT_Set_put(separators, LT_Character_new((uint32_t)','));
+    LT_Set_put(separators, LT_Character_new((uint32_t)';'));
+    LT_String_splitOnDo(
+        separator_source,
+        (LT_Value)(uintptr_t)separators,
+        capture_substring,
+        &capture
+    );
+    if (expect(capture.count == 3, "LT_String_splitOnDo splits on Set characters")){
+        return 1;
+    }
+    if (expect_captured_string_at(&capture, 1, "\xce\xbb", "LT_String_splitOnDo unicode field")){
+        return 1;
+    }
+
+    pieces = LT_String_splitOn(
+        LT_String_new_cstr("a,\xce\xbb,,"),
+        LT_Character_new((uint32_t)',')
+    );
+    if (expect(test_list_length(pieces) == 4, "LT_String_splitOn preserves trailing field")){
+        return 1;
+    }
+    if (expect_list_string_at(pieces, 2, "", "LT_String_splitOn preserves empty field")){
+        return 1;
+    }
+    return expect_list_string_at(pieces, 3, "", "LT_String_splitOn preserves final field");
+}
+
 static int test_file_stream_c_api_reads_writes_and_borrowed_close(void){
     FILE* file = tmpfile();
     LT_Value stream;
@@ -2412,6 +2540,7 @@ int main(void){
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
+    RUN_TEST(test_string_split_c_api);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);

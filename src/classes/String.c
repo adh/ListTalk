@@ -3,6 +3,7 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Dictionary.h>
@@ -11,6 +12,7 @@
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Set.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -18,6 +20,7 @@
 #include <ListTalk/utils/utf8.h>
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -196,6 +199,84 @@ static LT_String* String_replace_impl(LT_String* string,
     );
 }
 
+static LT_String* String_from_span(const char* start,
+                                   size_t byte_length,
+                                   size_t codepoint_length){
+    return String_new_normalized(start, byte_length, codepoint_length);
+}
+
+static int String_codepoint_is_ascii_space(uint32_t codepoint){
+    return codepoint <= (uint32_t)UCHAR_MAX
+        && isspace((int)codepoint);
+}
+
+static size_t String_count_codepoints_in_span(const char* start,
+                                              const char* end){
+    const char* cursor = start;
+    size_t count = 0;
+
+    while (cursor < end){
+        cursor = LT_String_utf8_next(cursor);
+        count++;
+    }
+    return count;
+}
+
+static int String_contains_codepoint(LT_String* string, uint32_t codepoint){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+
+    while (cursor < end){
+        if (LT_String_utf8_codepoint_at(cursor) == codepoint){
+            return 1;
+        }
+        cursor = LT_String_utf8_next(cursor);
+    }
+    return 0;
+}
+
+static int String_splitOn_delimiter_p(LT_Value delimiters, uint32_t codepoint){
+    if (LT_Character_p(delimiters)){
+        return LT_Character_value(delimiters) == codepoint;
+    }
+
+    if (LT_String_p(delimiters)){
+        return String_contains_codepoint(
+            LT_String_from_value(delimiters),
+            codepoint
+        );
+    }
+
+    if (LT_Value_is_instance_of(
+        delimiters,
+        (LT_Value)(uintptr_t)&LT_Set_class
+    )){
+        return LT_Set_contains(
+            (LT_Set*)LT_VALUE_POINTER_VALUE(delimiters),
+            LT_Character_new(codepoint)
+        );
+    }
+
+    LT_error("splitOn: expects Character, String, or Set");
+    return 0;
+}
+
+static void String_list_callback(LT_String* substring, void* baton){
+    LT_ListBuilder_append((LT_ListBuilder*)baton, (LT_Value)(uintptr_t)substring);
+}
+
+static void String_callable_callback(LT_String* substring, void* baton){
+    LT_Value callable = *(LT_Value*)baton;
+
+    (void)LT_apply(
+        callable,
+        LT_cons((LT_Value)(uintptr_t)substring, LT_NIL),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
 static int String_dictionary_at(LT_Value dictionary,
                                 LT_Value key,
                                 LT_Value* value_out){
@@ -266,6 +347,128 @@ LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary){
         LT_StringBuilder_length(builder),
         codepoint_length
     );
+}
+
+void LT_String_subStringsDo(LT_String* string,
+                            LT_String_SubstringCallback callback,
+                            void* baton){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+
+    while (cursor < end){
+        const char* start;
+        size_t codepoint_length = 0;
+
+        while (cursor < end
+            && String_codepoint_is_ascii_space(LT_String_utf8_codepoint_at(cursor))){
+            cursor = LT_String_utf8_next(cursor);
+        }
+
+        start = cursor;
+        while (cursor < end
+            && !String_codepoint_is_ascii_space(LT_String_utf8_codepoint_at(cursor))){
+            cursor = LT_String_utf8_next(cursor);
+            codepoint_length++;
+        }
+
+        if (start < cursor){
+            callback(
+                String_from_span(start, (size_t)(cursor - start), codepoint_length),
+                baton
+            );
+        }
+    }
+}
+
+LT_Value LT_String_subStrings(LT_String* string){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_String_subStringsDo(string, String_list_callback, builder);
+    return LT_ListBuilder_value(builder);
+}
+
+void LT_String_substringsDo(LT_String* string,
+                            LT_String* delimiter,
+                            LT_String_SubstringCallback callback,
+                            void* baton){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    const char* delimiter_bytes = LT_String_value_cstr(delimiter);
+    size_t delimiter_byte_length = LT_String_byte_length(delimiter);
+
+    if (delimiter_byte_length == 0){
+        LT_error("String delimiter must not be empty");
+    }
+
+    while (1){
+        const char* match = String_find_bytes(
+            cursor,
+            (size_t)(end - cursor),
+            delimiter_bytes,
+            delimiter_byte_length
+        );
+        const char* segment_end = match == NULL ? end : match;
+
+        callback(
+            String_from_span(
+                cursor,
+                (size_t)(segment_end - cursor),
+                String_count_codepoints_in_span(cursor, segment_end)
+            ),
+            baton
+        );
+
+        if (match == NULL){
+            break;
+        }
+        cursor = match + delimiter_byte_length;
+    }
+}
+
+LT_Value LT_String_substrings(LT_String* string, LT_String* delimiter){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_String_substringsDo(string, delimiter, String_list_callback, builder);
+    return LT_ListBuilder_value(builder);
+}
+
+void LT_String_splitOnDo(LT_String* string,
+                         LT_Value delimiters,
+                         LT_String_SubstringCallback callback,
+                         void* baton){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    const char* start = cursor;
+    size_t codepoint_length = 0;
+
+    while (cursor < end){
+        uint32_t codepoint = LT_String_utf8_codepoint_at(cursor);
+        const char* next = LT_String_utf8_next(cursor);
+
+        if (String_splitOn_delimiter_p(delimiters, codepoint)){
+            callback(
+                String_from_span(start, (size_t)(cursor - start), codepoint_length),
+                baton
+            );
+            start = next;
+            codepoint_length = 0;
+        } else {
+            codepoint_length++;
+        }
+        cursor = next;
+    }
+
+    callback(
+        String_from_span(start, (size_t)(end - start), codepoint_length),
+        baton
+    );
+}
+
+LT_Value LT_String_splitOn(LT_String* string, LT_Value delimiters){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_String_splitOnDo(string, delimiters, String_list_callback, builder);
+    return LT_ListBuilder_value(builder);
 }
 
 int LT_String_contains(LT_String* string, LT_String* needle){
@@ -565,6 +768,133 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_sub_strings,
+    "String>>subStrings",
+    "(self)",
+    "Return non-empty substrings split on whitespace."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    return LT_String_subStrings(LT_String_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_sub_strings_do,
+    "String>>subStringsDo:",
+    "(self callable)",
+    "Call callable for each non-empty substring split on whitespace."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    LT_String_subStringsDo(
+        LT_String_from_value(self),
+        String_callable_callback,
+        &callable
+    );
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_substrings,
+    "String>>substrings:",
+    "(self delimiter)",
+    "Return substrings split on delimiter string, including empty substrings."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* delimiter;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, delimiter, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_substrings(LT_String_from_value(self), delimiter);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_substrings_do,
+    "String>>substrings:do:",
+    "(self delimiter callable)",
+    "Call callable for each substring split on delimiter string."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* delimiter;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, delimiter, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    LT_String_substringsDo(
+        LT_String_from_value(self),
+        delimiter,
+        String_callable_callback,
+        &callable
+    );
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_split_on,
+    "String>>splitOn:",
+    "(self delimiters)",
+    "Return substrings split on a delimiter character, delimiter string, or set of characters."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value delimiters;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, delimiters);
+    LT_ARG_END(cursor);
+
+    return LT_String_splitOn(LT_String_from_value(self), delimiters);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_split_on_do,
+    "String>>splitOn:do:",
+    "(self delimiters callable)",
+    "Call callable for substrings split on a delimiter character, delimiter string, or set of characters."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value delimiters;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, delimiters);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    LT_String_splitOnDo(
+        LT_String_from_value(self),
+        delimiters,
+        String_callable_callback,
+        &callable
+    );
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_join,
     "String>>join:",
     "(self strings)",
@@ -727,6 +1057,12 @@ static LT_Method_Descriptor String_methods[] = {
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
     {"mapCharacters:", &string_method_map_characters},
+    {"subStrings", &string_method_sub_strings},
+    {"subStringsDo:", &string_method_sub_strings_do},
+    {"substrings:", &string_method_substrings},
+    {"substrings:do:", &string_method_substrings_do},
+    {"splitOn:", &string_method_split_on},
+    {"splitOn:do:", &string_method_split_on_do},
     {"join:", &string_method_join},
     {"contains?:", &string_method_contains},
     {"startsWith?:", &string_method_starts_with},

@@ -639,6 +639,32 @@
   [mapping at: (string-ref "abc" 1) put: "yy"]
   (check (equal? ["abcλ" mapCharacters: mapping] "Xyycλ")
          "String>>mapCharacters: maps Character keys to Character or String values"))
+(check (equal? ["  a\tλ\n 😀  " subStrings] '("a" "λ" "😀"))
+       "String>>subStrings splits on whitespace without empty substrings")
+(check (let ((seen '()))
+         (and (null? ["  a λ  " subStringsDo:
+                     (lambda (each) (set! seen (cons each seen)))])
+              (equal? seen '("λ" "a"))))
+       "String>>subStringsDo: calls callable without constructing a list")
+(check (equal? ["a--λ----😀--" substrings: "--"] '("a" "λ" "" "😀" ""))
+       "String>>substrings: splits on delimiter string with empty substrings")
+(check (let ((seen '()))
+         (and (null? ["a--λ----😀--" substrings: "--" do:
+                     (lambda (each) (set! seen (cons each seen)))])
+              (equal? seen '("" "😀" "" "λ" "a"))))
+       "String>>substrings:do: calls callable for empty substrings")
+(check (equal? ["a,λ,,😀," splitOn: (string-ref "," 0)] '("a" "λ" "" "😀" ""))
+       "String>>splitOn: splits on Character")
+(check (equal? ["a,λ;😀" splitOn: ",;"] '("a" "λ" "😀"))
+       "String>>splitOn: splits on any character in String")
+(check (equal? ["a,λ;😀" splitOn: [Set fromList: (list (string-ref "," 0) (string-ref ";" 0))]]
+               '("a" "λ" "😀"))
+       "String>>splitOn: splits on any character in Set")
+(check (let ((seen '()))
+         (and (null? ["a,λ,,😀," splitOn: (string-ref "," 0) do:
+                     (lambda (each) (set! seen (cons each seen)))])
+              (equal? seen '("" "😀" "" "λ" "a"))))
+       "String>>splitOn:do: calls callable for empty substrings")
 (check (equal? (string-join ", " '("a" "λ" "😀")) "a, λ, 😀")
        "string-join joins list with delimiter")
 (check (equal? ["-" join: '("a" "λ" "😀")] "a-λ-😀")
