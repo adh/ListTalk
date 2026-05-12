@@ -838,6 +838,14 @@
 ;;; List operations
 
 (check (equal? (append '(1 2) '(3 4)) '(1 2 3 4)) "append")
+(check (= (length '(1 2 3)) 3) "length returns proper list length")
+(check (= (length '()) 0) "length returns zero for empty list")
+(check-raises "length raises on improper list"
+  (length '(1 . 2)))
+(check (equal? (reverse '(1 2 3)) '(3 2 1)) "reverse returns reversed list")
+(check (equal? (reverse '()) '()) "reverse returns empty list for empty list")
+(check-raises "reverse raises on improper list"
+  (reverse '(1 . 2)))
 (check (equal? (map (lambda (x) (+ x 1)) '(1 2 3)) '(2 3 4))
        "map applies callable across single list")
 (check (equal? (map + '(1 2 3) '(10 20 30 40)) '(11 22 33))
@@ -904,6 +912,12 @@
 (check-error-message "List index out of bounds"
                      "list-ref signals out of bounds"
   (list-ref '(4 5 6) 3))
+(check (equal? (vector->list (list->vector '(4 5 6))) '(4 5 6))
+       "list->vector and vector->list round-trip")
+(check (= (vector-length (list->vector '())) 0)
+       "list->vector accepts empty list")
+(check-raises "list->vector raises on improper list"
+  (list->vector '(1 . 2)))
 (check (= (caar '((1 . 2) . 3)) 1) "caar")
 (check (= (cadr '(1 2 3)) 2) "cadr")
 (check (= (caddr '(1 2 3 4)) 3) "caddr")
@@ -948,6 +962,8 @@
 (check (= (vector-length #(1 2 3)) 3) "vector-length")
 (check (= (vector-ref (vector 4 5 6) 2) 6) "vector constructor and vector-ref")
 (check (= (vector-ref (make-vector 3 9) 1) 9) "make-vector with fill value")
+(check (equal? (vector->list #(1 2 3)) '(1 2 3)) "vector->list converts elements")
+(check (equal? (vector->list (make-vector 0)) '()) "vector->list accepts empty vector")
 (let ((v (vector 1 2 3)))
   (vector-set! v 1 99)
   (check (= (vector-ref v 1) 99) "vector-set! mutates vector"))
