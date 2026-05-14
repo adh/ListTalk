@@ -25,9 +25,13 @@
 #include <ListTalk/utils/utf8.h>
 
 #include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 struct LT_String_s {
     LT_Object base;
@@ -599,6 +603,140 @@ static int String_equal_p(LT_Value left, LT_Value right){
     ) == 0;
 }
 
+static LT_String* read_file_string(const char* path){
+    int fd;
+    LT_StringBuilder* builder;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0){
+        LT_system_error("Could not open file for reading", errno);
+    }
+
+    builder = LT_StringBuilder_new();
+    while (1){
+        char buffer[8192];
+        ssize_t bytes_read = read(fd, buffer, sizeof(buffer));
+
+        if (bytes_read < 0){
+            int saved_errno = errno;
+
+            close(fd);
+            LT_system_error("Could not read file", saved_errno);
+        }
+        if (bytes_read == 0){
+            break;
+        }
+        LT_StringBuilder_append_bytes(builder, buffer, (size_t)bytes_read);
+    }
+    if (close(fd) != 0){
+        LT_system_error("Could not close file", errno);
+    }
+
+    return LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
+}
+
+static void write_file_bytes_atomically(const char* path,
+                                        const char* bytes,
+                                        size_t length){
+    size_t path_length = strlen(path);
+    const char* suffix = ".tmp.XXXXXX";
+    size_t suffix_length = strlen(suffix);
+    char* temp_path = GC_MALLOC_ATOMIC(path_length + suffix_length + 1);
+    int fd;
+    size_t offset = 0;
+
+    memcpy(temp_path, path, path_length);
+    memcpy(temp_path + path_length, suffix, suffix_length + 1);
+
+    fd = mkstemp(temp_path);
+    if (fd < 0){
+        LT_system_error("Could not create temporary file", errno);
+    }
+
+    while (offset < length){
+        size_t chunk = length - offset;
+        ssize_t written;
+
+        written = write(fd, bytes + offset, chunk);
+        if (written < 0){
+            int saved_errno = errno;
+
+            close(fd);
+            unlink(temp_path);
+            LT_system_error("Could not write file", saved_errno);
+        }
+        if (written == 0){
+            close(fd);
+            unlink(temp_path);
+            LT_error("Could not write file");
+        }
+        offset += (size_t)written;
+    }
+
+    if (close(fd) != 0){
+        int saved_errno = errno;
+
+        unlink(temp_path);
+        LT_system_error("Could not close file", saved_errno);
+    }
+    if (rename(temp_path, path) != 0){
+        int saved_errno = errno;
+
+        unlink(temp_path);
+        LT_system_error("Could not replace file", saved_errno);
+    }
+}
+
+static LT_Value split_string_lines(const char* bytes, size_t length){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t line_start = 0;
+    size_t index = 0;
+
+    while (index < length){
+        if (bytes[index] == '\n'){
+            size_t line_end = index;
+
+            while (line_end > line_start && bytes[line_end - 1] == '\r'){
+                line_end--;
+            }
+            LT_ListBuilder_append(
+                builder,
+                (LT_Value)(uintptr_t)LT_String_new(
+                    (char*)bytes + line_start,
+                    line_end - line_start
+                )
+            );
+            index++;
+            while (index < length && bytes[index] == '\r'){
+                index++;
+            }
+            line_start = index;
+        } else {
+            index++;
+        }
+    }
+
+    if (line_start < length){
+        size_t line_end = length;
+
+        while (line_end > line_start && bytes[line_end - 1] == '\r'){
+            line_end--;
+        }
+        LT_ListBuilder_append(
+            builder,
+            (LT_Value)(uintptr_t)LT_String_new(
+                (char*)bytes + line_start,
+                line_end - line_start
+            )
+        );
+    }
+
+    return LT_ListBuilder_value(builder);
+}
+
 static void String_debugPrintOn(LT_Value obj, FILE* stream){
     LT_String* string = LT_String_from_value(obj);
     const char* cursor = LT_String_value_cstr(string);
@@ -900,6 +1038,67 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_class_method_from_file,
+    "String class>>fromFile:",
+    "(self filename)",
+    "Return file contents as a string."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* filename;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    (void)self;
+
+    return (LT_Value)(uintptr_t)read_file_string(LT_String_value_cstr(filename));
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_write_to_file,
+    "String>>writeToFile:",
+    "(self filename)",
+    "Write string to a file atomically and return filename."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    LT_String* filename;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    write_file_bytes_atomically(
+        LT_String_value_cstr(filename),
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string)
+    );
+    return (LT_Value)(uintptr_t)filename;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_split_lines,
+    "String>>splitLines",
+    "(self)",
+    "Return string lines without line terminators."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return split_string_lines(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_join,
     "String>>join:",
     "(self strings)",
@@ -1110,8 +1309,15 @@ static LT_Method_Descriptor String_methods[] = {
     {"asByteVector", &string_method_as_bytevector},
     {"asString", &string_method_as_string},
     {"asList", &string_method_as_list},
+    {"writeToFile:", &string_method_write_to_file},
+    {"splitLines", &string_method_split_lines},
     {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor String_class_methods[] = {
+    {"fromFile:", &string_class_method_from_file},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -1124,6 +1330,7 @@ LT_DEFINE_CLASS(LT_String) {
     .equal_p = String_equal_p,
     .debugPrintOn = String_debugPrintOn,
     .methods = String_methods,
+    .class_methods = String_class_methods,
 };
 
 LT_String* LT_String_new(char* buf, size_t len){

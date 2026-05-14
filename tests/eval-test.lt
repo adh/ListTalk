@@ -663,6 +663,12 @@
 (check (equal? ["a,λ;😀" splitOn: [Set fromList: (list #\, #\;)]]
                '("a" "λ" "😀"))
        "String>>splitOn: splits on any character in Set")
+(check (equal? ["a\r\n\rb\n" splitLines] '("a" "b"))
+       "String>>splitLines strips line terminators and surrounding CR bytes")
+(check (equal? ["a\n" splitLines] '("a"))
+       "String>>splitLines omits final empty line after terminator")
+(check (equal? ["\n" splitLines] '(""))
+       "String>>splitLines preserves empty terminated line")
 (check (let ((seen '()))
          (and (null? ["a,λ,,😀," splitOn: #\, do:
                      (lambda (each) (set! seen (cons each seen)))])
@@ -721,6 +727,11 @@
        "ByteVector>>from:to: uses half-open byte indexes")
 (check (equal? [(bytevector 65 200 66) asList] '(65 200 66))
        "ByteVector>>asList converts bytes")
+(check (equal? [(bytevector 97 13 10 13 98 10) splitLines]
+               (list (bytevector 97) (bytevector 98)))
+       "ByteVector>>splitLines strips line terminators and surrounding CR bytes")
+(check (equal? [(bytevector 97 10) splitLines] (list (bytevector 97)))
+       "ByteVector>>splitLines omits final empty line after terminator")
 (check (equal? ["aλ" asByteVector] (string->bytevector "aλ"))
        "String>>asByteVector converts to ByteVector")
 (check (equal? [(string->bytevector "aλ") asString] "aλ")
@@ -1059,7 +1070,9 @@
        (original (string-append root "/alpha.txt"))
        (moved (string-append root "/beta.txt"))
        (hard (string-append root "/hard.txt"))
-       (soft (string-append root "/soft.txt")))
+       (soft (string-append root "/soft.txt"))
+       (string-file (string-append root "/string.txt"))
+       (bytevector-file (string-append root "/bytes.bin")))
   (ListTalk-OS:mkdir root)
   (check (ListTalk-OS:access root) "mkdir creates directory")
   (let ((root-stat [ListTalk-OS:Stat file: root]))
@@ -1108,6 +1121,13 @@
          "regular-file? recognizes file path")
   (check (not (ListTalk-OS:directory? original))
          "directory? rejects file path")
+  ["alpha\nλ" writeToFile: string-file]
+  (check (equal? [String fromFile: string-file] "alpha\nλ")
+         "String class>>fromFile: reads file written by String>>writeToFile:")
+  [(bytevector 0 65 255 10) writeToFile: bytevector-file]
+  (check (equal? [ByteVector fromFile: bytevector-file]
+                 (bytevector 0 65 255 10))
+         "ByteVector class>>fromFile: reads file written by ByteVector>>writeToFile:")
   (ListTalk-OS:move original moved)
   (check (ListTalk-OS:access moved) "move renames file")
   (check (not (ListTalk-OS:access original)) "move removes old path")
@@ -1122,6 +1142,8 @@
     (check (contains-string? entries "soft.txt") "list-directory contains symlink"))
   (ListTalk-OS:unlink hard)
   (ListTalk-OS:unlink soft)
+  (ListTalk-OS:unlink string-file)
+  (ListTalk-OS:unlink bytevector-file)
   (ListTalk-OS:unlink moved))
 
 ;;; Slot access
