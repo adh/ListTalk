@@ -13,6 +13,7 @@
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Set.h>
+#include <ListTalk/classes/Symbol.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -1201,6 +1202,81 @@ LT_String* LT_String_join(LT_String* delimiter, LT_Value strings){
         LT_StringBuilder_value(builder),
         LT_StringBuilder_length(builder),
         codepoint_length
+    );
+}
+
+static void String_format_append_string(LT_StringBuilder* builder,
+                                        LT_Value value){
+    LT_String* string = LT_String_from_value(value);
+
+    LT_StringBuilder_append_bytes(
+        builder,
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string)
+    );
+}
+
+static LT_Value String_format_next_argument(LT_Value* cursor){
+    LT_Value value;
+
+    LT_OBJECT_ARG(*cursor, value);
+    return value;
+}
+
+LT_String* LT_String_format(LT_String* format_string, LT_Value arguments){
+    LT_Value cursor = arguments;
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    const char* text = LT_String_value_cstr(format_string);
+    const char* end = text + LT_String_byte_length(format_string);
+
+    while (text < end){
+        char ch = *text++;
+
+        if (ch != '~'){
+            LT_StringBuilder_append_char(builder, ch);
+            continue;
+        }
+
+        if (text == end){
+            LT_error("Incomplete format directive");
+        }
+
+        ch = *text++;
+        switch (ch){
+            case 'a':
+                String_format_append_string(
+                    builder,
+                    LT_send(
+                        String_format_next_argument(&cursor),
+                        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "asString"),
+                        LT_NIL,
+                        NULL
+                    )
+                );
+                break;
+            case 's':
+                String_format_append_string(
+                    builder,
+                    (LT_Value)(uintptr_t)LT_Value_asString(
+                        String_format_next_argument(&cursor)
+                    )
+                );
+                break;
+            case '%':
+                LT_StringBuilder_append_char(builder, '\n');
+                break;
+            case '~':
+                LT_StringBuilder_append_char(builder, '~');
+                break;
+            default:
+                LT_error("Unknown format directive");
+        }
+    }
+
+    LT_ARG_END(cursor);
+    return LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
     );
 }
 

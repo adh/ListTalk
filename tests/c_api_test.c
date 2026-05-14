@@ -2086,6 +2086,22 @@ static int test_string_search_c_api_uses_codepoint_indexes(void){
     );
 }
 
+static int test_string_format_c_api(void){
+    LT_String* result = LT_String_format(
+        LT_String_new_cstr("a=~a s=~s~~~%"),
+        LT_list(
+            LT_SmallInteger_new(42),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("x"),
+            LT_INVALID
+        )
+    );
+
+    return expect(
+        strcmp(LT_String_value_cstr(result), "a=42 s=\"x\"~\n") == 0,
+        "LT_String_format supports SRFI-28-style directives"
+    );
+}
+
 struct substring_capture {
     LT_String* items[8];
     size_t count;
@@ -2550,6 +2566,7 @@ int main(void){
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
+    RUN_TEST(test_string_format_c_api);
     RUN_TEST(test_string_split_c_api);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
