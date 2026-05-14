@@ -2187,6 +2187,32 @@ static int test_string_format_c_api(void){
     return 0;
 }
 
+static int test_integer_from_intmax_c_api(void){
+    LT_Value negative = LT_Integer_from_intmax((intmax_t)-42);
+    LT_Value large_unsigned = LT_Integer_from_uintmax(UINTMAX_MAX);
+    char* large_unsigned_string = LT_Number_to_string(large_unsigned);
+
+    if (expect(
+        negative == LT_SmallInteger_new(-42),
+        "LT_Integer_from_intmax returns fixnum when possible"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(large_unsigned, LT_STATIC_CLASS(LT_Integer)),
+        "LT_Integer_from_uintmax returns integer"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(large_unsigned_string, "18446744073709551615") == 0,
+        "LT_Integer_from_uintmax preserves UINTMAX_MAX"
+    )){
+        return 1;
+    }
+    return 0;
+}
+
 struct substring_capture {
     LT_String* items[8];
     size_t count;
@@ -2652,6 +2678,7 @@ int main(void){
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
     RUN_TEST(test_string_format_c_api);
+    RUN_TEST(test_integer_from_intmax_c_api);
     RUN_TEST(test_string_split_c_api);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);

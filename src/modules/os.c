@@ -4,6 +4,8 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Integer.h>
+#include <ListTalk/classes/Instant.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/String.h>
@@ -14,11 +16,20 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/random.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+LT_DECLARE_CLASS(LT_OS_Stat);
+
+struct LT_OS_Stat_s {
+    LT_Object base;
+    LT_Value path;
+    struct stat stat_buffer;
+};
 
 static mode_t mode_from_fixnum(int64_t value){
     if (value < 0){
@@ -76,6 +87,61 @@ static void mkdirs(const char* path, mode_t mode){
     mkdir_existing_ok(copy, mode);
 }
 
+static LT_OS_Stat* os_stat_new(LT_String* path){
+    LT_OS_Stat* stat_object = LT_Class_ALLOC(LT_OS_Stat);
+
+    stat_object->path = (LT_Value)(uintptr_t)path;
+    if (stat(LT_String_value_cstr(path), &stat_object->stat_buffer) != 0){
+        LT_system_error("Could not stat path", errno);
+    }
+    return stat_object;
+}
+
+static int mode_is_regular_file(mode_t mode){
+    return S_ISREG(mode);
+}
+
+static int mode_is_directory(mode_t mode){
+    return S_ISDIR(mode);
+}
+
+static int mode_is_pipe(mode_t mode){
+    return S_ISFIFO(mode);
+}
+
+static int mode_is_device(mode_t mode){
+    return S_ISCHR(mode) || S_ISBLK(mode);
+}
+
+static int mode_is_socket(mode_t mode){
+#ifdef S_ISSOCK
+    return S_ISSOCK(mode);
+#else
+    (void)mode;
+    return 0;
+#endif
+}
+
+static LT_Value boolean_from_int(int value){
+    return value ? LT_TRUE : LT_FALSE;
+}
+
+static LT_Value instant_from_epoch_seconds(intmax_t seconds){
+    return LT_Instant_new(LT_Number_multiply2(
+        LT_Integer_from_intmax(seconds),
+        LT_SmallInteger_new(1000000)
+    ));
+}
+
+static LT_Value stat_predicate_from_path(LT_String* path, int (*predicate)(mode_t)){
+    struct stat stat_buffer;
+
+    if (stat(LT_String_value_cstr(path), &stat_buffer) != 0){
+        LT_system_error("Could not stat path", errno);
+    }
+    return boolean_from_int(predicate(stat_buffer.st_mode));
+}
+
 static LT_String* string_from_getcwd(void){
     size_t size = 256;
 
@@ -106,6 +172,294 @@ static void bind_os_primitive(LT_Environment* environment,
 
 #define OS_STRING_ARG(cursor, name) \
     LT_GENERIC_ARG(cursor, name, LT_String*, LT_String_from_value)
+
+#define OS_STAT_ARG(cursor, name) \
+    LT_GENERIC_ARG(cursor, name, LT_OS_Stat*, LT_OS_Stat_from_value)
+
+#define DEFINE_OS_STAT_PREDICATE_METHOD(c_name, selector, predicate, description) \
+    LT_DEFINE_PRIMITIVE(                                                          \
+        c_name,                                                                   \
+        "Stat>>" selector,                                                        \
+        "(self)",                                                                 \
+        description                                                               \
+    ){                                                                            \
+        LT_Value cursor = arguments;                                              \
+        LT_OS_Stat* self;                                                         \
+        (void)tail_call_unwind_marker;                                            \
+        (void)invocation_context_kind;                                            \
+        (void)invocation_context_data;                                            \
+                                                                                  \
+        OS_STAT_ARG(cursor, self);                                                \
+        LT_ARG_END(cursor);                                                       \
+                                                                                  \
+        return boolean_from_int(predicate(self->stat_buffer.st_mode));            \
+    }
+
+#define DEFINE_OS_PATH_PREDICATE(c_name, primitive_name, predicate, description) \
+    LT_DEFINE_PRIMITIVE(                                                         \
+        c_name,                                                                  \
+        primitive_name,                                                           \
+        "(path)",                                                                \
+        description                                                              \
+    ){                                                                           \
+        LT_Value cursor = arguments;                                             \
+        LT_String* path;                                                         \
+        (void)tail_call_unwind_marker;                                           \
+        (void)invocation_context_kind;                                           \
+        (void)invocation_context_data;                                           \
+                                                                                 \
+        OS_STRING_ARG(cursor, path);                                             \
+        LT_ARG_END(cursor);                                                      \
+                                                                                 \
+        return stat_predicate_from_path(path, predicate);                        \
+    }
+
+#define DEFINE_OS_STAT_UINT_FIELD_METHOD(c_name, selector, field, description) \
+    LT_DEFINE_PRIMITIVE(                                                       \
+        c_name,                                                                \
+        "Stat>>" selector,                                                     \
+        "(self)",                                                              \
+        description                                                            \
+    ){                                                                         \
+        LT_Value cursor = arguments;                                           \
+        LT_OS_Stat* self;                                                      \
+        (void)tail_call_unwind_marker;                                         \
+        (void)invocation_context_kind;                                         \
+        (void)invocation_context_data;                                         \
+                                                                               \
+        OS_STAT_ARG(cursor, self);                                             \
+        LT_ARG_END(cursor);                                                    \
+                                                                               \
+        return LT_Integer_from_uintmax((uintmax_t)self->stat_buffer.field);    \
+    }
+
+#define DEFINE_OS_STAT_INT_FIELD_METHOD(c_name, selector, field, description) \
+    LT_DEFINE_PRIMITIVE(                                                      \
+        c_name,                                                               \
+        "Stat>>" selector,                                                    \
+        "(self)",                                                             \
+        description                                                           \
+    ){                                                                        \
+        LT_Value cursor = arguments;                                          \
+        LT_OS_Stat* self;                                                     \
+        (void)tail_call_unwind_marker;                                        \
+        (void)invocation_context_kind;                                        \
+        (void)invocation_context_data;                                        \
+                                                                              \
+        OS_STAT_ARG(cursor, self);                                            \
+        LT_ARG_END(cursor);                                                   \
+                                                                              \
+        return LT_Integer_from_intmax((intmax_t)self->stat_buffer.field);     \
+    }
+
+#define DEFINE_OS_STAT_TIME_FIELD_METHOD(c_name, selector, field, description) \
+    LT_DEFINE_PRIMITIVE(                                                       \
+        c_name,                                                                \
+        "Stat>>" selector,                                                     \
+        "(self)",                                                              \
+        description                                                            \
+    ){                                                                         \
+        LT_Value cursor = arguments;                                           \
+        LT_OS_Stat* self;                                                      \
+        (void)tail_call_unwind_marker;                                         \
+        (void)invocation_context_kind;                                         \
+        (void)invocation_context_data;                                         \
+                                                                               \
+        OS_STAT_ARG(cursor, self);                                             \
+        LT_ARG_END(cursor);                                                    \
+                                                                               \
+        return instant_from_epoch_seconds((intmax_t)self->stat_buffer.field);  \
+    }
+
+LT_DEFINE_PRIMITIVE(
+    stat_class_method_file,
+    "Stat class>>file:",
+    "(self path)",
+    "Return filesystem status for path."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* path;
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    OS_STRING_ARG(cursor, path);
+    LT_ARG_END(cursor);
+    (void)self;
+
+    return (LT_Value)(uintptr_t)os_stat_new(path);
+}
+
+DEFINE_OS_STAT_PREDICATE_METHOD(
+    stat_method_regular_file_p,
+    "regular-file?",
+    mode_is_regular_file,
+    "Return true when this status describes a regular file."
+)
+
+DEFINE_OS_STAT_PREDICATE_METHOD(
+    stat_method_directory_p,
+    "directory?",
+    mode_is_directory,
+    "Return true when this status describes a directory."
+)
+
+DEFINE_OS_STAT_PREDICATE_METHOD(
+    stat_method_pipe_p,
+    "pipe?",
+    mode_is_pipe,
+    "Return true when this status describes a pipe."
+)
+
+DEFINE_OS_STAT_PREDICATE_METHOD(
+    stat_method_device_p,
+    "device?",
+    mode_is_device,
+    "Return true when this status describes a device."
+)
+
+DEFINE_OS_STAT_PREDICATE_METHOD(
+    stat_method_socket_p,
+    "socket?",
+    mode_is_socket,
+    "Return true when this status describes a socket."
+)
+
+DEFINE_OS_STAT_UINT_FIELD_METHOD(
+    stat_method_dev,
+    "dev",
+    st_dev,
+    "Return the device ID."
+)
+
+DEFINE_OS_STAT_UINT_FIELD_METHOD(
+    stat_method_ino,
+    "ino",
+    st_ino,
+    "Return the inode number."
+)
+
+DEFINE_OS_STAT_UINT_FIELD_METHOD(
+    stat_method_mode,
+    "mode",
+    st_mode,
+    "Return the file mode bits."
+)
+
+DEFINE_OS_STAT_UINT_FIELD_METHOD(
+    stat_method_nlink,
+    "nlink",
+    st_nlink,
+    "Return the link count."
+)
+
+DEFINE_OS_STAT_UINT_FIELD_METHOD(
+    stat_method_uid,
+    "uid",
+    st_uid,
+    "Return the owner user ID."
+)
+
+DEFINE_OS_STAT_UINT_FIELD_METHOD(
+    stat_method_gid,
+    "gid",
+    st_gid,
+    "Return the owner group ID."
+)
+
+DEFINE_OS_STAT_UINT_FIELD_METHOD(
+    stat_method_rdev,
+    "rdev",
+    st_rdev,
+    "Return the device ID for special files."
+)
+
+DEFINE_OS_STAT_INT_FIELD_METHOD(
+    stat_method_size,
+    "size",
+    st_size,
+    "Return the file size in bytes."
+)
+
+DEFINE_OS_STAT_INT_FIELD_METHOD(
+    stat_method_blksize,
+    "blksize",
+    st_blksize,
+    "Return the preferred block size for filesystem I/O."
+)
+
+DEFINE_OS_STAT_INT_FIELD_METHOD(
+    stat_method_blocks,
+    "blocks",
+    st_blocks,
+    "Return the number of allocated blocks."
+)
+
+DEFINE_OS_STAT_TIME_FIELD_METHOD(
+    stat_method_atime,
+    "atime",
+    st_atime,
+    "Return the last access time as an Instant."
+)
+
+DEFINE_OS_STAT_TIME_FIELD_METHOD(
+    stat_method_mtime,
+    "mtime",
+    st_mtime,
+    "Return the last modification time as an Instant."
+)
+
+DEFINE_OS_STAT_TIME_FIELD_METHOD(
+    stat_method_ctime,
+    "ctime",
+    st_ctime,
+    "Return the last status change time as an Instant."
+)
+
+static LT_Slot_Descriptor Stat_slots[] = {
+    {"path", offsetof(LT_OS_Stat, path), &LT_SlotType_ReadonlyObject},
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
+};
+
+static LT_Method_Descriptor Stat_methods[] = {
+    {"regular-file?", &stat_method_regular_file_p},
+    {"directory?", &stat_method_directory_p},
+    {"pipe?", &stat_method_pipe_p},
+    {"device?", &stat_method_device_p},
+    {"socket?", &stat_method_socket_p},
+    {"dev", &stat_method_dev},
+    {"ino", &stat_method_ino},
+    {"mode", &stat_method_mode},
+    {"nlink", &stat_method_nlink},
+    {"uid", &stat_method_uid},
+    {"gid", &stat_method_gid},
+    {"rdev", &stat_method_rdev},
+    {"size", &stat_method_size},
+    {"blksize", &stat_method_blksize},
+    {"blocks", &stat_method_blocks},
+    {"atime", &stat_method_atime},
+    {"mtime", &stat_method_mtime},
+    {"ctime", &stat_method_ctime},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor Stat_class_methods[] = {
+    {"file:", &stat_class_method_file},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_OS_Stat) {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "Stat",
+    .instance_size = sizeof(LT_OS_Stat),
+    .class_flags = LT_CLASS_FLAG_FINAL,
+    .slots = Stat_slots,
+    .methods = Stat_methods,
+    .class_methods = Stat_class_methods,
+};
 
 LT_DEFINE_PRIMITIVE(
     primitive_os_exit,
@@ -205,6 +559,41 @@ LT_DEFINE_PRIMITIVE(
         ? LT_TRUE
         : LT_FALSE;
 }
+
+DEFINE_OS_PATH_PREDICATE(
+    primitive_os_regular_file_p,
+    "regular-file?",
+    mode_is_regular_file,
+    "Return true when path names a regular file."
+)
+
+DEFINE_OS_PATH_PREDICATE(
+    primitive_os_directory_p,
+    "directory?",
+    mode_is_directory,
+    "Return true when path names a directory."
+)
+
+DEFINE_OS_PATH_PREDICATE(
+    primitive_os_pipe_p,
+    "pipe?",
+    mode_is_pipe,
+    "Return true when path names a pipe."
+)
+
+DEFINE_OS_PATH_PREDICATE(
+    primitive_os_device_p,
+    "device?",
+    mode_is_device,
+    "Return true when path names a device."
+)
+
+DEFINE_OS_PATH_PREDICATE(
+    primitive_os_socket_p,
+    "socket?",
+    mode_is_socket,
+    "Return true when path names a socket."
+)
 
 LT_DEFINE_PRIMITIVE(
     primitive_os_mkdir,
@@ -438,11 +827,24 @@ LT_DEFINE_PRIMITIVE(
 void ListTalk_os_load(LT_Environment* environment){
     LT_Package* package = LT_Package_new("ListTalk-OS");
 
+    LT_init_native_class(&LT_OS_Stat_class);
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new_in(package, "Stat"),
+        LT_STATIC_CLASS(LT_OS_Stat),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
     bind_os_primitive(environment, package, &primitive_os_exit);
     bind_os_primitive(environment, package, &primitive_os_getenv);
     bind_os_primitive(environment, package, &primitive_os_getpwd);
     bind_os_primitive(environment, package, &primitive_os_chdir);
     bind_os_primitive(environment, package, &primitive_os_access);
+    bind_os_primitive(environment, package, &primitive_os_regular_file_p);
+    bind_os_primitive(environment, package, &primitive_os_directory_p);
+    bind_os_primitive(environment, package, &primitive_os_pipe_p);
+    bind_os_primitive(environment, package, &primitive_os_device_p);
+    bind_os_primitive(environment, package, &primitive_os_socket_p);
     bind_os_primitive(environment, package, &primitive_os_mkdir);
     bind_os_primitive(environment, package, &primitive_os_mkdirs);
     bind_os_primitive(environment, package, &primitive_os_move);
