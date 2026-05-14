@@ -7,6 +7,7 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/String.h>
+#include <ListTalk/utils.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -253,6 +254,31 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_list,
+    "ByteVector>>asList",
+    "(self)",
+    "Return bytevector bytes as a list of unsigned fixnums."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    LT_ListBuilder* builder;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+
+    builder = LT_ListBuilder_new();
+    for (i = 0; i < LT_ByteVector_length(bytevector); i++){
+        LT_ListBuilder_append(
+            builder,
+            LT_SmallInteger_new((int64_t)LT_ByteVector_at(bytevector, i))
+        );
+    }
+    return LT_ListBuilder_value(builder);
+}
+
 static LT_Method_Descriptor ByteVector_methods[] = {
     {"length", &bytevector_method_length},
     {"at:", &bytevector_method_at},
@@ -260,6 +286,7 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"append:", &bytevector_method_append},
     {"from:to:", &bytevector_method_from_to},
     {"asString", &bytevector_method_as_string},
+    {"asList", &bytevector_method_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

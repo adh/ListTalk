@@ -6,6 +6,7 @@
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/utils.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -138,10 +139,33 @@ LT_DEFINE_PRIMITIVE(
     return value;
 }
 
+LT_DEFINE_PRIMITIVE(
+    vector_method_as_list,
+    "Vector>>asList",
+    "(self)",
+    "Return vector elements as a list."
+){
+    LT_Value cursor = arguments;
+    LT_Vector* vector;
+    LT_ListBuilder* builder;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, vector, LT_Vector*, LT_Vector_from_value);
+    LT_ARG_END(cursor);
+
+    builder = LT_ListBuilder_new();
+    for (i = 0; i < LT_Vector_length(vector); i++){
+        LT_ListBuilder_append(builder, LT_Vector_at(vector, i));
+    }
+    return LT_ListBuilder_value(builder);
+}
+
 static LT_Method_Descriptor Vector_methods[] = {
     {"length", &vector_method_length},
     {"at:", &vector_method_at},
     {"at:put:", &vector_method_at_put},
+    {"asList", &vector_method_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

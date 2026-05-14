@@ -1041,6 +1041,21 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_as_list,
+    "String>>asList",
+    "(self)",
+    "Return string characters as a list."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_to_character_list(string);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_substring_from_to,
     "String>>substringFrom:to:",
     "(self from to)",
@@ -1094,6 +1109,7 @@ static LT_Method_Descriptor String_methods[] = {
     {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},
     {"asString", &string_method_as_string},
+    {"asList", &string_method_as_list},
     {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
@@ -1313,6 +1329,20 @@ static LT_Value String_format_next_argument(LT_Value* cursor){
     return value;
 }
 
+static LT_Value String_format_as_list(LT_Value value){
+    LT_Value list = LT_send(
+        value,
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "asList"),
+        LT_NIL,
+        NULL
+    );
+
+    if (!LT_List_p(list)){
+        LT_error("Format iteration asList must return a list");
+    }
+    return list;
+}
+
 typedef struct String_FormatDirective_s {
     char directive;
     int colon;
@@ -1421,13 +1451,18 @@ static void String_format_iteration_into(LT_StringBuilder* builder,
         : (size_t)-1;
 
     if (directive.atsign){
-        while (*cursor != LT_NIL && iteration_count < iteration_limit){
-            if (directive.colon){
-                LT_Value sub_cursor = String_format_next_argument(cursor);
+        LT_Value iteration_cursor =
+            String_format_as_list(String_format_next_argument(cursor));
 
-                if (!LT_List_p(sub_cursor)){
-                    LT_error("Format iteration expects a proper list");
-                }
+        while (iteration_cursor != LT_NIL && iteration_count < iteration_limit){
+            if (!LT_Pair_p(iteration_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            if (directive.colon){
+                LT_Value sub_cursor = String_format_as_list(
+                    LT_car(iteration_cursor)
+                );
 
                 String_format_into(
                     builder,
@@ -1438,14 +1473,23 @@ static void String_format_iteration_into(LT_StringBuilder* builder,
                 );
                 LT_ARG_END(sub_cursor);
             } else {
-                LT_Value previous_cursor = *cursor;
+                LT_Value previous_cursor = iteration_cursor;
 
-                String_format_into(builder, text, iteration_end, cursor, 0);
-                if (*cursor == previous_cursor){
+                String_format_into(
+                    builder,
+                    text,
+                    iteration_end,
+                    &iteration_cursor,
+                    0
+                );
+                if (iteration_cursor == previous_cursor){
                     LT_error(
                         "Format iteration body must consume an argument"
                     );
                 }
+            }
+            if (directive.colon){
+                iteration_cursor = LT_cdr(iteration_cursor);
             }
             iteration_count++;
         }

@@ -682,10 +682,10 @@
        "format iteration body can consume multiple arguments")
 (check (equal? (format "~:{~a=~s; ~}" '(("x" 1) ("y" 2))) "x=1; y=2; ")
        "format supports colon iteration over argument lists")
-(check (equal? (format "~2{[~a]~} ~@{~a~}" '(1 2 3) "a" "b") "[1][2] ab")
-       "format supports numeric iteration limits and at-sign iteration")
-(check (equal? (format "~:@{~a=~s; ~}" '("x" 1) '("y" 2)) "x=1; y=2; ")
-       "format supports colon-at-sign iteration over remaining argument lists")
+(check (equal? (format "~2{[~a]~} ~@{~a~}" '(1 2 3) "ab") "[1][2] ab")
+       "format supports numeric iteration limits and at-sign asList iteration")
+(check (equal? (format "~:@{~a=~s; ~}" #(#("x" 1) #("y" 2))) "x=1; y=2; ")
+       "format supports colon-at-sign iteration over asList sublists")
 (check (equal? (format "~d ~d ~b ~o ~x" 42 5/2 -10 #o777 #xBEEF)
                "42 2.5 -1010 777 beef")
        "format supports decimal, binary, octal, and hexadecimal numeric directives")
@@ -704,6 +704,8 @@
   (check (not (equal? (format "~s" value) "custom-format-value"))
          "format ~s uses debug printing without asString dispatch"))
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
+(check (equal? ['(1 2 3) asList] '(1 2 3)) "List>>asList returns receiver")
+(check (equal? [#(1 2 3) asList] '(1 2 3)) "Vector>>asList converts elements")
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
   (check (eq? [v at: 1] 9) "Vector>>at:put: mutates element"))
@@ -717,10 +719,13 @@
        "ByteVector>>append: concatenates")
 (check (equal? [(bytevector 10 20 30 40) from: 1 to: 3] (bytevector 20 30))
        "ByteVector>>from:to: uses half-open byte indexes")
+(check (equal? [(bytevector 65 200 66) asList] '(65 200 66))
+       "ByteVector>>asList converts bytes")
 (check (equal? ["aλ" asByteVector] (string->bytevector "aλ"))
        "String>>asByteVector converts to ByteVector")
 (check (equal? [(string->bytevector "aλ") asString] "aλ")
        "ByteVector>>asString converts to String")
+(check (equal? ["aλ" asList] '(#\a #\λ)) "String>>asList converts characters")
 
 ;;; make-class and make-instance
 

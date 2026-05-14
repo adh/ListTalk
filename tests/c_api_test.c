@@ -2087,6 +2087,8 @@ static int test_string_search_c_api_uses_codepoint_indexes(void){
 }
 
 static int test_string_format_c_api(void){
+    uint8_t first_row[] = {1, 2};
+    uint8_t second_row[] = {3, 4};
     LT_String* result = LT_String_format(
         LT_String_new_cstr("a=~a s=~s~~~%"),
         LT_list(
@@ -2096,7 +2098,10 @@ static int test_string_format_c_api(void){
         )
     );
     LT_String* iteration = LT_String_format(
-        LT_String_new_cstr("~{[~a]~} ~{~a=~s; ~} ~:{(~a ~s)~} ~2{~a~} ~@{~a~}"),
+        LT_String_new_cstr(
+            "~{[~a]~} ~{~a=~s; ~} ~:{(~a ~s)~} "
+            "~2{~a~} ~@{~a~} ~:@{(~d ~d)~}"
+        ),
         LT_list(
             LT_list(
                 LT_SmallInteger_new(1),
@@ -2130,8 +2135,12 @@ static int test_string_format_c_api(void){
                 (LT_Value)(uintptr_t)LT_String_new_cstr("w"),
                 LT_INVALID
             ),
-            (LT_Value)(uintptr_t)LT_String_new_cstr("r"),
-            (LT_Value)(uintptr_t)LT_String_new_cstr("s"),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("rs"),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_ByteVector_new(first_row, 2),
+                (LT_Value)(uintptr_t)LT_ByteVector_new(second_row, 2),
+                LT_INVALID
+            ),
             LT_INVALID
         )
     );
@@ -2160,9 +2169,9 @@ static int test_string_format_c_api(void){
     if (expect(
         strcmp(
             LT_String_value_cstr(iteration),
-            "[1][2][3] x=1; y=2;  (a 10)(b 20) uv rs"
+            "[1][2][3] x=1; y=2;  (a 10)(b 20) uv rs (1 2)(3 4)"
         ) == 0,
-        "LT_String_format supports iteration modifiers and numeric arguments"
+        "LT_String_format supports iteration modifiers, asList, and numeric arguments"
     )){
         return 1;
     }

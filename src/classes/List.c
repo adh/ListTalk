@@ -671,6 +671,21 @@ LT_DEFINE_PRIMITIVE(
     return LT_List_fold_left(callable, initial, self);
 }
 
+LT_DEFINE_PRIMITIVE(
+    list_method_as_list,
+    "List>>asList",
+    "(self)",
+    "Return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return self;
+}
+
 static LT_Method_Descriptor List_methods[] = {
     {"length", &list_method_length},
     {"at:", &list_method_at},
@@ -680,6 +695,7 @@ static LT_Method_Descriptor List_methods[] = {
     {"every:", &list_method_every},
     {"reduce:", &list_method_reduce},
     {"inject:into:", &list_method_inject_into},
+    {"asList", &list_method_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
