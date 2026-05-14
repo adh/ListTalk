@@ -1232,6 +1232,23 @@ static char* String_format_decimal_cstr(LT_Value value){
     return LT_sprintf("%.17g", LT_Number_to_double(value));
 }
 
+static char* String_format_float_cstr(LT_Value value, char directive){
+    if (!LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_RealNumber))){
+        LT_type_error(value, &LT_RealNumber_class);
+    }
+
+    switch (directive){
+        case 'f':
+            return LT_sprintf("%f", LT_Number_to_double(value));
+        case 'e':
+            return LT_sprintf("%e", LT_Number_to_double(value));
+        case 'g':
+            return LT_sprintf("%g", LT_Number_to_double(value));
+        default:
+            LT_error("Internal float format directive error");
+    }
+}
+
 static char* String_format_integer_radix_cstr(LT_Value value,
                                               unsigned int radix){
     static const char digits[] = "0123456789abcdef";
@@ -1565,6 +1582,17 @@ static void String_format_into(LT_StringBuilder* builder,
                     String_format_integer_radix_cstr(
                         String_format_next_argument(cursor),
                         16
+                    )
+                );
+                break;
+            case 'f':
+            case 'e':
+            case 'g':
+                String_format_append_cstr(
+                    builder,
+                    String_format_float_cstr(
+                        String_format_next_argument(cursor),
+                        ch
                     )
                 );
                 break;

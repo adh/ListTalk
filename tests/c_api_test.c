@@ -2136,7 +2136,7 @@ static int test_string_format_c_api(void){
         )
     );
     LT_String* numbers = LT_String_format(
-        LT_String_new_cstr("~d ~d ~b ~o ~x ~x"),
+        LT_String_new_cstr("~d ~d ~b ~o ~x ~x ~f ~e ~g"),
         LT_list(
             LT_SmallInteger_new(42),
             LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
@@ -2144,6 +2144,9 @@ static int test_string_format_c_api(void){
             LT_SmallInteger_new(511),
             LT_SmallInteger_new(48879),
             LT_BigInteger_new_from_digits("10000000000000000", 16),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_SmallInteger_new(2500),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
             LT_INVALID
         )
     );
@@ -2166,7 +2169,7 @@ static int test_string_format_c_api(void){
     if (expect(
         strcmp(
             LT_String_value_cstr(numbers),
-            "42 2.5 -1010 777 beef 10000000000000000"
+            "42 2.5 -1010 777 beef 10000000000000000 2.500000 2.500000e+03 2.5"
         ) == 0,
         "LT_String_format supports numeric directives"
     )){
