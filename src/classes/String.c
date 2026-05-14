@@ -1017,6 +1017,25 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_as_string,
+    "String>>asString",
+    "(self)",
+    "Return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    if (!LT_String_p(self)){
+        LT_type_error(self, &LT_String_class);
+    }
+    return self;
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_substring_from_to,
     "String>>substringFrom:to:",
     "(self from to)",
@@ -1069,6 +1088,7 @@ static LT_Method_Descriptor String_methods[] = {
     {"find:", &string_method_find},
     {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},
+    {"asString", &string_method_as_string},
     {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
