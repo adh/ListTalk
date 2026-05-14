@@ -3,15 +3,19 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include "BigInteger_internal.h"
+
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/RealNumber.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/vm/Class.h>
@@ -1216,6 +1220,75 @@ static void String_format_append_string(LT_StringBuilder* builder,
     );
 }
 
+static char* String_format_decimal_cstr(LT_Value value){
+    if (!LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_RealNumber))){
+        LT_type_error(value, &LT_RealNumber_class);
+    }
+
+    if (LT_Integer_value_p(value)){
+        return LT_Number_to_string(value);
+    }
+
+    return LT_sprintf("%.17g", LT_Number_to_double(value));
+}
+
+static char* String_format_integer_radix_cstr(LT_Value value,
+                                              unsigned int radix){
+    static const char digits[] = "0123456789abcdef";
+    LT_StringBuilder* reversed = LT_StringBuilder_new();
+    char* reversed_digits;
+    char* result;
+    size_t digit_count;
+    size_t index;
+    int negative;
+
+    if (!LT_Integer_value_p(value)){
+        LT_type_error(value, &LT_Integer_class);
+    }
+
+    negative = LT_Integer_negative_p(value);
+    value = LT_Integer_abs(value);
+
+    if (LT_Integer_is_zero(value)){
+        return "0";
+    }
+
+    while (!LT_Integer_is_zero(value)){
+        LT_Value quotient;
+        LT_Value remainder;
+        uint32_t digit;
+
+        LT_Integer_divmod(
+            value,
+            LT_SmallInteger_new((int64_t)radix),
+            &quotient,
+            &remainder
+        );
+        if (!LT_Integer_to_uint32(remainder, &digit) || digit >= radix){
+            LT_error("Internal integer radix conversion error");
+        }
+        LT_StringBuilder_append_char(reversed, digits[digit]);
+        value = quotient;
+    }
+
+    reversed_digits = LT_StringBuilder_value(reversed);
+    digit_count = LT_StringBuilder_length(reversed);
+    result = GC_MALLOC_ATOMIC(digit_count + (negative ? 2 : 1));
+    if (negative){
+        result[0] = '-';
+    }
+    for (index = 0; index < digit_count; index++){
+        result[(negative ? 1 : 0) + index] =
+            reversed_digits[digit_count - index - 1];
+    }
+    result[digit_count + (negative ? 1 : 0)] = '\0';
+    return result;
+}
+
+static void String_format_append_cstr(LT_StringBuilder* builder, char* text){
+    LT_StringBuilder_append_str(builder, text);
+}
+
 static LT_Value String_format_next_argument(LT_Value* cursor){
     LT_Value value;
 
@@ -1457,6 +1530,41 @@ static void String_format_into(LT_StringBuilder* builder,
                     builder,
                     (LT_Value)(uintptr_t)LT_Value_asString(
                         String_format_next_argument(cursor)
+                    )
+                );
+                break;
+            case 'd':
+                String_format_append_cstr(
+                    builder,
+                    String_format_decimal_cstr(
+                        String_format_next_argument(cursor)
+                    )
+                );
+                break;
+            case 'b':
+                String_format_append_cstr(
+                    builder,
+                    String_format_integer_radix_cstr(
+                        String_format_next_argument(cursor),
+                        2
+                    )
+                );
+                break;
+            case 'o':
+                String_format_append_cstr(
+                    builder,
+                    String_format_integer_radix_cstr(
+                        String_format_next_argument(cursor),
+                        8
+                    )
+                );
+                break;
+            case 'x':
+                String_format_append_cstr(
+                    builder,
+                    String_format_integer_radix_cstr(
+                        String_format_next_argument(cursor),
+                        16
                     )
                 );
                 break;

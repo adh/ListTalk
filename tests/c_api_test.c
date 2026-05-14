@@ -2135,6 +2135,18 @@ static int test_string_format_c_api(void){
             LT_INVALID
         )
     );
+    LT_String* numbers = LT_String_format(
+        LT_String_new_cstr("~d ~d ~b ~o ~x ~x"),
+        LT_list(
+            LT_SmallInteger_new(42),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_SmallInteger_new(-10),
+            LT_SmallInteger_new(511),
+            LT_SmallInteger_new(48879),
+            LT_BigInteger_new_from_digits("10000000000000000", 16),
+            LT_INVALID
+        )
+    );
 
     if (expect(
         strcmp(LT_String_value_cstr(result), "a=42 s=\"x\"~\n") == 0,
@@ -2142,13 +2154,25 @@ static int test_string_format_c_api(void){
     )){
         return 1;
     }
-    return expect(
+    if (expect(
         strcmp(
             LT_String_value_cstr(iteration),
             "[1][2][3] x=1; y=2;  (a 10)(b 20) uv rs"
         ) == 0,
         "LT_String_format supports iteration modifiers and numeric arguments"
-    );
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(numbers),
+            "42 2.5 -1010 777 beef 10000000000000000"
+        ) == 0,
+        "LT_String_format supports numeric directives"
+    )){
+        return 1;
+    }
+    return 0;
 }
 
 struct substring_capture {
