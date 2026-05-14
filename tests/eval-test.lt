@@ -445,6 +445,7 @@
 (check (equal? [(+ 340282366920938463463374607431768211456 1) asString]
                "340282366920938463463374607431768211457")
        "Number>>asString formats big integers")
+(check (equal? [#true asString] "#true") "Object>>asString uses debug printing")
 (check (= [3 asFloat] 3.0) "RealNumber>>asFloat converts integers")
 (check (= [1/2 asFloat] 0.5) "RealNumber>>asFloat converts rationals")
 

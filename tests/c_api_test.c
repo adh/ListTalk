@@ -239,6 +239,15 @@ static char* debug_string_for_value(LT_Value value){
     return buffer;
 }
 
+static int test_value_asString_c_api_uses_debug_print(void){
+    LT_String* string = LT_Value_asString(LT_TRUE);
+
+    return expect(
+        strcmp(LT_String_value_cstr(string), "#true") == 0,
+        "LT_Value_asString uses debug printing"
+    );
+}
+
 static int test_send_primitive_uses_direct_method_dictionary(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "sum");
     LT_Value result;
@@ -2485,6 +2494,7 @@ int main(void){
     } while (0)
 
     RUN_TEST(test_send_primitive_uses_direct_method_dictionary);
+    RUN_TEST(test_value_asString_c_api_uses_debug_print);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
