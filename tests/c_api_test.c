@@ -2095,10 +2095,59 @@ static int test_string_format_c_api(void){
             LT_INVALID
         )
     );
+    LT_String* iteration = LT_String_format(
+        LT_String_new_cstr("~{[~a]~} ~{~a=~s; ~} ~:{(~a ~s)~} ~2{~a~} ~@{~a~}"),
+        LT_list(
+            LT_list(
+                LT_SmallInteger_new(1),
+                LT_SmallInteger_new(2),
+                LT_SmallInteger_new(3),
+                LT_INVALID
+            ),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_String_new_cstr("x"),
+                LT_SmallInteger_new(1),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("y"),
+                LT_SmallInteger_new(2),
+                LT_INVALID
+            ),
+            LT_list(
+                LT_list(
+                    (LT_Value)(uintptr_t)LT_String_new_cstr("a"),
+                    LT_SmallInteger_new(10),
+                    LT_INVALID
+                ),
+                LT_list(
+                    (LT_Value)(uintptr_t)LT_String_new_cstr("b"),
+                    LT_SmallInteger_new(20),
+                    LT_INVALID
+                ),
+                LT_INVALID
+            ),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_String_new_cstr("u"),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("v"),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("w"),
+                LT_INVALID
+            ),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("r"),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("s"),
+            LT_INVALID
+        )
+    );
 
-    return expect(
+    if (expect(
         strcmp(LT_String_value_cstr(result), "a=42 s=\"x\"~\n") == 0,
         "LT_String_format supports SRFI-28-style directives"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(iteration),
+            "[1][2][3] x=1; y=2;  (a 10)(b 20) uv rs"
+        ) == 0,
+        "LT_String_format supports iteration modifiers and numeric arguments"
     );
 }
 

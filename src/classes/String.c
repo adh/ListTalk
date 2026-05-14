@@ -1223,11 +1223,206 @@ static LT_Value String_format_next_argument(LT_Value* cursor){
     return value;
 }
 
-LT_String* LT_String_format(LT_String* format_string, LT_Value arguments){
-    LT_Value cursor = arguments;
-    LT_StringBuilder* builder = LT_StringBuilder_new();
-    const char* text = LT_String_value_cstr(format_string);
-    const char* end = text + LT_String_byte_length(format_string);
+typedef struct String_FormatDirective_s {
+    char directive;
+    int colon;
+    int atsign;
+    int has_numeric_argument;
+    size_t numeric_argument;
+} String_FormatDirective;
+
+static String_FormatDirective String_format_parse_directive(const char** text,
+                                                            const char* end){
+    String_FormatDirective directive = {0, 0, 0, 0, 0};
+    int parsing = 1;
+
+    while (parsing){
+        if (*text == end){
+            LT_error("Incomplete format directive");
+        }
+
+        if (isdigit((unsigned char)**text)){
+            if (directive.has_numeric_argument){
+                LT_error("Too many format directive numeric arguments");
+            }
+
+            directive.has_numeric_argument = 1;
+            while (*text < end && isdigit((unsigned char)**text)){
+                directive.numeric_argument =
+                    directive.numeric_argument * 10
+                    + (size_t)(*(*text)++ - '0');
+            }
+            continue;
+        }
+
+        switch (**text){
+            case ':':
+                directive.colon = 1;
+                (*text)++;
+                break;
+            case '@':
+                directive.atsign = 1;
+                (*text)++;
+                break;
+            default:
+                parsing = 0;
+                break;
+        }
+    }
+
+    if (*text == end){
+        LT_error("Incomplete format directive");
+    }
+
+    directive.directive = *(*text)++;
+    return directive;
+}
+
+static void String_format_into(LT_StringBuilder* builder,
+                               const char* text,
+                               const char* end,
+                               LT_Value* cursor,
+                               int allow_iteration_end);
+
+static const char* String_format_find_iteration_end(const char* text,
+                                                    const char* end,
+                                                    const char** closing_end){
+    size_t depth = 1;
+
+    while (text < end){
+        const char* directive_start;
+
+        if (*text++ != '~'){
+            continue;
+        }
+
+        if (text == end){
+            LT_error("Incomplete format directive");
+        }
+
+        directive_start = text - 1;
+        switch (String_format_parse_directive(&text, end).directive){
+            case '{':
+                depth++;
+                break;
+            case '}':
+                depth--;
+                if (depth == 0){
+                    *closing_end = text;
+                    return directive_start;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    LT_error("Unterminated format iteration directive");
+}
+
+static void String_format_iteration_into(LT_StringBuilder* builder,
+                                         const char* text,
+                                         const char* iteration_end,
+                                         LT_Value* cursor,
+                                         String_FormatDirective directive){
+    size_t iteration_count = 0;
+    size_t iteration_limit = directive.has_numeric_argument
+        ? directive.numeric_argument
+        : (size_t)-1;
+
+    if (directive.atsign){
+        while (*cursor != LT_NIL && iteration_count < iteration_limit){
+            if (directive.colon){
+                LT_Value sub_cursor = String_format_next_argument(cursor);
+
+                if (!LT_List_p(sub_cursor)){
+                    LT_error("Format iteration expects a proper list");
+                }
+
+                String_format_into(
+                    builder,
+                    text,
+                    iteration_end,
+                    &sub_cursor,
+                    0
+                );
+                LT_ARG_END(sub_cursor);
+            } else {
+                LT_Value previous_cursor = *cursor;
+
+                String_format_into(builder, text, iteration_end, cursor, 0);
+                if (*cursor == previous_cursor){
+                    LT_error(
+                        "Format iteration body must consume an argument"
+                    );
+                }
+            }
+            iteration_count++;
+        }
+        return;
+    }
+
+    if (directive.colon){
+        LT_Value outer_cursor = String_format_next_argument(cursor);
+
+        while (outer_cursor != LT_NIL && iteration_count < iteration_limit){
+            LT_Value sub_cursor;
+
+            if (!LT_Pair_p(outer_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            sub_cursor = LT_car(outer_cursor);
+            if (!LT_List_p(sub_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            String_format_into(
+                builder,
+                text,
+                iteration_end,
+                &sub_cursor,
+                0
+            );
+            LT_ARG_END(sub_cursor);
+            outer_cursor = LT_cdr(outer_cursor);
+            iteration_count++;
+        }
+        return;
+    }
+
+    {
+        LT_Value iteration_cursor = String_format_next_argument(cursor);
+
+        while (iteration_cursor != LT_NIL && iteration_count < iteration_limit){
+            LT_Value previous_cursor = iteration_cursor;
+
+            if (!LT_Pair_p(iteration_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            String_format_into(
+                builder,
+                text,
+                iteration_end,
+                &iteration_cursor,
+                0
+            );
+            if (iteration_cursor == previous_cursor){
+                LT_error(
+                    "Format iteration body must consume an argument"
+                );
+            }
+            iteration_count++;
+        }
+    }
+}
+
+static void String_format_into(LT_StringBuilder* builder,
+                               const char* text,
+                               const char* end,
+                               LT_Value* cursor,
+                               int allow_iteration_end){
 
     while (text < end){
         char ch = *text++;
@@ -1241,13 +1436,16 @@ LT_String* LT_String_format(LT_String* format_string, LT_Value arguments){
             LT_error("Incomplete format directive");
         }
 
-        ch = *text++;
-        switch (ch){
+        {
+            String_FormatDirective directive =
+                String_format_parse_directive(&text, end);
+            ch = directive.directive;
+            switch (ch){
             case 'a':
                 String_format_append_string(
                     builder,
                     LT_send(
-                        String_format_next_argument(&cursor),
+                        String_format_next_argument(cursor),
                         LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "asString"),
                         LT_NIL,
                         NULL
@@ -1258,7 +1456,7 @@ LT_String* LT_String_format(LT_String* format_string, LT_Value arguments){
                 String_format_append_string(
                     builder,
                     (LT_Value)(uintptr_t)LT_Value_asString(
-                        String_format_next_argument(&cursor)
+                        String_format_next_argument(cursor)
                     )
                 );
                 break;
@@ -1268,11 +1466,43 @@ LT_String* LT_String_format(LT_String* format_string, LT_Value arguments){
             case '~':
                 LT_StringBuilder_append_char(builder, '~');
                 break;
+            case '{': {
+                const char* closing_end;
+                const char* iteration_end =
+                    String_format_find_iteration_end(
+                        text,
+                        end,
+                        &closing_end
+                    );
+                String_format_iteration_into(
+                    builder,
+                    text,
+                    iteration_end,
+                    cursor,
+                    directive
+                );
+                text = closing_end;
+                break;
+            }
+            case '}':
+                if (allow_iteration_end){
+                    return;
+                }
+                LT_error("Unmatched format iteration terminator");
             default:
                 LT_error("Unknown format directive");
+            }
         }
     }
+}
 
+LT_String* LT_String_format(LT_String* format_string, LT_Value arguments){
+    LT_Value cursor = arguments;
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    const char* text = LT_String_value_cstr(format_string);
+    const char* end = text + LT_String_byte_length(format_string);
+
+    String_format_into(builder, text, end, &cursor, 0);
     LT_ARG_END(cursor);
     return LT_String_new(
         LT_StringBuilder_value(builder),
