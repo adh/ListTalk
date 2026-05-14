@@ -27,6 +27,55 @@ static mode_t mode_from_fixnum(int64_t value){
     return (mode_t)value;
 }
 
+static int path_is_directory(const char* path){
+    struct stat stat_buffer;
+
+    return stat(path, &stat_buffer) == 0 && S_ISDIR(stat_buffer.st_mode);
+}
+
+static void mkdir_existing_ok(const char* path, mode_t mode){
+    if (mkdir(path, mode) == 0){
+        return;
+    }
+    if (errno == EEXIST && path_is_directory(path)){
+        return;
+    }
+    LT_system_error("Could not create directory", errno);
+}
+
+static void mkdirs(const char* path, mode_t mode){
+    size_t length = strlen(path);
+    char* copy;
+    char* cursor;
+
+    if (length == 0){
+        mkdir_existing_ok(path, mode);
+        return;
+    }
+
+    copy = GC_MALLOC_ATOMIC(length + 1);
+    memcpy(copy, path, length + 1);
+
+    cursor = copy;
+    while (*cursor == '/'){
+        cursor++;
+    }
+
+    while (*cursor != '\0'){
+        if (*cursor == '/'){
+            *cursor = '\0';
+            mkdir_existing_ok(copy, mode);
+            *cursor = '/';
+            while (cursor[1] == '/'){
+                cursor++;
+            }
+        }
+        cursor++;
+    }
+
+    mkdir_existing_ok(copy, mode);
+}
+
 static LT_String* string_from_getcwd(void){
     size_t size = 256;
 
@@ -176,6 +225,26 @@ LT_DEFINE_PRIMITIVE(
     if (mkdir(LT_String_value_cstr(path), mode_from_fixnum(mode)) != 0){
         LT_system_error("Could not create directory", errno);
     }
+    return (LT_Value)(uintptr_t)path;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_os_mkdirs,
+    "mkdirs",
+    "(path [mode])",
+    "Create a directory and missing parent directories, returning its path."
+){
+    LT_Value cursor = arguments;
+    LT_String* path;
+    LT_Value mode_value = LT_SmallInteger_new(0777);
+    int64_t mode;
+
+    OS_STRING_ARG(cursor, path);
+    LT_OBJECT_ARG_OPT(cursor, mode_value, mode_value);
+    LT_ARG_END(cursor);
+
+    mode = LT_SmallInteger_value(mode_value);
+    mkdirs(LT_String_value_cstr(path), mode_from_fixnum(mode));
     return (LT_Value)(uintptr_t)path;
 }
 
@@ -375,6 +444,7 @@ void ListTalk_os_load(LT_Environment* environment){
     bind_os_primitive(environment, package, &primitive_os_chdir);
     bind_os_primitive(environment, package, &primitive_os_access);
     bind_os_primitive(environment, package, &primitive_os_mkdir);
+    bind_os_primitive(environment, package, &primitive_os_mkdirs);
     bind_os_primitive(environment, package, &primitive_os_move);
     bind_os_primitive(environment, package, &primitive_os_unlink);
     bind_os_primitive(environment, package, &primitive_os_link);
