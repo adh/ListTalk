@@ -3,6 +3,7 @@
 ; Copyright (c) 2023 - 2026 Ales Hakl
 
 (load! :os)
+(load! :gc)
 
 ;;; Test framework
 
@@ -1087,6 +1088,31 @@
 (check (= (bytevector-length (string->bytevector "λ")) 2)
        "string->bytevector exposes UTF-8 bytes")
 
+;;; GC module
+
+(check (primitive? ListTalk-GC:collect!) "gc module exposes collect!")
+(check (integer? (ListTalk-GC:heap-size)) "heap-size returns integer")
+(check (integer? (ListTalk-GC:free-bytes)) "free-bytes returns integer")
+(check (integer? (ListTalk-GC:unmapped-bytes)) "unmapped-bytes returns integer")
+(check (integer? (ListTalk-GC:bytes-since-gc)) "bytes-since-gc returns integer")
+(check (integer? (ListTalk-GC:total-bytes)) "total-bytes returns integer")
+(check (integer? (ListTalk-GC:collection-count))
+       "collection-count returns integer")
+(let ((stats (ListTalk-GC:statistics)))
+  (check (pair? (assq :heap-size stats)) "statistics includes heap size")
+  (check (pair? (assq :free-bytes stats)) "statistics includes free bytes")
+  (check (pair? (assq :unmapped-bytes stats))
+         "statistics includes unmapped bytes")
+  (check (pair? (assq :bytes-since-gc stats))
+         "statistics includes bytes since gc")
+  (check (pair? (assq :total-bytes stats)) "statistics includes total bytes")
+  (check (pair? (assq :collection-count stats))
+         "statistics includes collection count"))
+(let ((before (ListTalk-GC:collection-count)))
+  (ListTalk-GC:collect!)
+  (check (>= (ListTalk-GC:collection-count) before)
+         "collect! leaves collection count monotonic"))
+
 ;;; OS module
 
 (define (contains-string? items target)
@@ -1600,6 +1626,8 @@
 
 (check (primitive? ListTalk-OS:exit) "load! loads native module primitive")
 (check (pair? (memq :os ListTalk:%modules)) "native module records provided module")
+(check (primitive? ListTalk-GC:collect!) "load! loads gc native module primitive")
+(check (pair? (memq :gc ListTalk:%modules)) "gc native module records provided module")
 
 ;;; catch / throw / unwind-protect / handler-bind
 
