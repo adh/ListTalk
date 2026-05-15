@@ -1658,12 +1658,7 @@ static LT_Value String_format_next_argument(LT_Value* cursor){
 }
 
 static LT_Value String_format_as_list(LT_Value value){
-    LT_Value list = LT_send(
-        value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "asList"),
-        LT_NIL,
-        NULL
-    );
+    LT_Value list = LT_SEND(value, "asList");
 
     if (!LT_List_p(list)){
         LT_error("Format iteration asList must return a list");
@@ -1906,12 +1901,7 @@ static void String_format_into(LT_StringBuilder* builder,
             case 'a':
                 String_format_append_string(
                     builder,
-                    LT_send(
-                        String_format_next_argument(cursor),
-                        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "asString"),
-                        LT_NIL,
-                        NULL
-                    )
+                    LT_SEND(String_format_next_argument(cursor), "asString")
                 );
                 break;
             case 's':

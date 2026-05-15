@@ -391,7 +391,7 @@ static int test_send_passes_invocation_context_kind_to_primitive_method(void){
         LT_Primitive_from_static(&primitive_test_invocation_context_kind_method)
     );
 
-    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    result = LT_SEND(LT_SmallInteger_new(1), "invocation-context-kind");
     return expect(
         result == (LT_Value)(uintptr_t)&LT_send_invocation_context,
         "send passes send invocation context kind to method"
@@ -408,7 +408,7 @@ static int test_send_passes_next_precedence_tail_as_invocation_context_data(void
         LT_Primitive_from_static(&primitive_test_invocation_context_data_method)
     );
 
-    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    result = LT_SEND(LT_SmallInteger_new(1), "next-precedence-tail");
     if (expect(
         LT_ImmutableList_p(result),
         "send passes immutable precedence tail as invocation context data"
@@ -540,10 +540,8 @@ static int test_immutable_list_methods(void){
         LT_SmallInteger_new(5),
     };
     LT_Value immutable_list = LT_ImmutableList_new(2, values);
-    LT_Value selector_car = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "car");
-    LT_Value selector_cdr = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "cdr");
-    LT_Value car_value = LT_send(immutable_list, selector_car, LT_NIL, NULL);
-    LT_Value cdr_value = LT_send(immutable_list, selector_cdr, LT_NIL, NULL);
+    LT_Value car_value = LT_SEND(immutable_list, "car");
+    LT_Value cdr_value = LT_SEND(immutable_list, "cdr");
 
     if (expect(
         LT_Value_is_fixnum(car_value) && LT_SmallInteger_value(car_value) == 4,
@@ -2610,30 +2608,15 @@ static int test_file_stream_class_constructors(void){
     }
     close(fd);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForOutput:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForOutput:", filename);
     LT_Stream_writeString(stream_value, LT_String_new_cstr("one"));
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForAppending:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForAppending:", filename);
     LT_Stream_writeString(stream_value, LT_String_new_cstr(" two"));
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForInput:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForInput:", filename);
     contents = LT_Stream_readString(stream_value);
     failed += expect(
         strcmp(LT_String_value_cstr(contents), "one two") == 0,
@@ -2641,12 +2624,7 @@ static int test_file_stream_class_constructors(void){
     );
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "new:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "new:", filename);
     failed += expect(
         LT_Stream_isReadable(stream_value),
         "FileStream new: is readable"

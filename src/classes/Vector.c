@@ -15,7 +15,6 @@
 
 typedef struct VectorSortComparator_s {
     LT_Value callable;
-    LT_Value selector;
 } VectorSortComparator;
 
 struct LT_Vector_s {
@@ -31,12 +30,7 @@ static int sort_compare_values(LT_Value left,
     int64_t comparison;
 
     if (comparator->callable == LT_NIL){
-        result = LT_send(
-            left,
-            comparator->selector,
-            LT_cons(right, LT_NIL),
-            NULL
-        );
+        result = LT_SEND(left, "compareWith:", right);
     } else {
         result = LT_apply(
             comparator->callable,
@@ -102,9 +96,6 @@ static void sort_values(LT_Value* items,
     }
 
     comparator.callable = callable;
-    comparator.selector = callable == LT_NIL
-        ? LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "compareWith:")
-        : LT_NIL;
     scratch = GC_MALLOC(sizeof(LT_Value) * length);
     merge_sort_values(items, scratch, 0, length, &comparator);
 }
