@@ -678,6 +678,44 @@ static int test_list_at_c_api(void){
     );
 }
 
+static int test_list_constructor_helpers_c_api(void){
+    LT_Value counted_list = LT_listn(
+        3,
+        LT_SmallInteger_new(4),
+        LT_INVALID,
+        LT_SmallInteger_new(6)
+    );
+
+    if (expect(
+        LT_listn(0) == LT_NIL,
+        "LT_listn returns nil for zero items"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SmallInteger_value(LT_List_at(counted_list, 0)) == 4,
+        "LT_listn keeps first counted item"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_List_at(counted_list, 1) == LT_INVALID,
+        "LT_listn keeps LT_INVALID as counted item"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SmallInteger_value(LT_List_at(counted_list, 2)) == 6,
+        "LT_listn keeps items after LT_INVALID"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_cdr(LT_cdr(LT_cdr(counted_list))) == LT_NIL,
+        "LT_listn terminates after explicit item count"
+    );
+}
+
 static int test_list_map_many_c_api(void){
     LT_Value lists[] = {
         LT_cons(
@@ -2635,6 +2673,7 @@ int main(void){
     RUN_TEST(test_immutable_list_trailer_values);
     RUN_TEST(test_immutable_list_missing_trailer_values_are_nil);
     RUN_TEST(test_list_at_c_api);
+    RUN_TEST(test_list_constructor_helpers_c_api);
     RUN_TEST(test_list_map_single_c_api);
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_list_for_each_c_api);

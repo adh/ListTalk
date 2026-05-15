@@ -200,6 +200,18 @@ LT_Value LT_list(LT_Value first, ...){
     return LT_ListBuilder_valueWithRest(builder, LT_NIL);
 }
 
+LT_Value LT_listn(size_t count, ...){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    va_list args;
+
+    va_start(args, count);
+    for (size_t i = 0; i < count; i++){
+        LT_ListBuilder_append(builder, va_arg(args, LT_Value));
+    }
+    va_end(args);
+    return LT_ListBuilder_valueWithRest(builder, LT_NIL);
+}
+
 LT_Value LT_list_with_rest(LT_Value first, ...){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     va_list args;
