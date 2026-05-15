@@ -130,6 +130,25 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_test_add_argument_method,
+    "test-add-argument-method",
+    "(self value)",
+    "Test helper method: add receiver and argument."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_add2(self, value);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_test_small_integer_marker_method,
     "test-small-integer-marker-method",
     "(self)",
@@ -262,6 +281,50 @@ static int test_send_primitive_uses_direct_method_dictionary(void){
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 3,
         "send dispatches to direct method"
+    );
+}
+
+static int test_send_site_macros_c_api(void){
+    LT_Value sum_selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "plus:");
+    LT_Value pair = LT_cons(LT_SmallInteger_new(1), LT_SmallInteger_new(2));
+    LT_Value car_result;
+    LT_Value send_args_result;
+    LT_Value send_result;
+
+    LT_Class_addMethod(
+        &LT_Integer_class,
+        sum_selector,
+        LT_Primitive_from_static(&primitive_test_add_argument_method)
+    );
+
+    car_result = LT_SEND(pair, "car");
+    if (expect(
+        LT_Value_is_fixnum(car_result) && LT_SmallInteger_value(car_result) == 1,
+        "LT_SEND supports zero-argument sends"
+    )){
+        return 1;
+    }
+
+    send_args_result = LT_SEND_ARGS(
+        LT_SmallInteger_new(3),
+        "plus:",
+        LT_list(LT_SmallInteger_new(4), LT_INVALID)
+    );
+    if (expect(
+        LT_Value_is_fixnum(send_args_result) && LT_SmallInteger_value(send_args_result) == 7,
+        "LT_SEND_ARGS sends with prebuilt arguments"
+    )){
+        return 1;
+    }
+
+    send_result = LT_SEND(
+        LT_SmallInteger_new(5),
+        "plus:",
+        LT_SmallInteger_new(6)
+    );
+    return expect(
+        LT_Value_is_fixnum(send_result) && LT_SmallInteger_value(send_result) == 11,
+        "LT_SEND builds argument list from varargs"
     );
 }
 
@@ -2659,6 +2722,7 @@ int main(void){
     } while (0)
 
     RUN_TEST(test_send_primitive_uses_direct_method_dictionary);
+    RUN_TEST(test_send_site_macros_c_api);
     RUN_TEST(test_value_asString_c_api_uses_debug_print);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
