@@ -244,6 +244,10 @@ static int String_contains_codepoint(LT_String* string, uint32_t codepoint){
     return 0;
 }
 
+static int comparison_sign(int comparison){
+    return comparison < 0 ? -1 : (comparison > 0 ? 1 : 0);
+}
+
 static int String_splitOn_delimiter_p(LT_Value delimiters, uint32_t codepoint){
     if (LT_Character_p(delimiters)){
         return LT_Character_value(delimiters) == codepoint;
@@ -499,6 +503,30 @@ int LT_String_startsWith(LT_String* string, LT_String* prefix){
             LT_String_value_cstr(prefix),
             prefix_length
         ) == 0;
+}
+
+int LT_String_compare(LT_String* left, LT_String* right){
+    size_t left_length = LT_String_byte_length(left);
+    size_t right_length = LT_String_byte_length(right);
+    size_t common_length = left_length < right_length
+        ? left_length
+        : right_length;
+    int result = memcmp(
+        LT_String_value_cstr(left),
+        LT_String_value_cstr(right),
+        common_length
+    );
+
+    if (result != 0){
+        return comparison_sign(result);
+    }
+    if (left_length < right_length){
+        return -1;
+    }
+    if (left_length > right_length){
+        return 1;
+    }
+    return 0;
 }
 
 int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out){
@@ -1160,6 +1188,94 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_compare_with,
+    "String>>compareWith:",
+    "(self other)",
+    "Return -1, 0, or 1 when receiver is lexicographically less than, equal to, or greater than argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    int comparison;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    comparison = LT_String_compare(self, other);
+    return LT_SmallInteger_new((int64_t)comparison);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_less_than,
+    "String>><",
+    "(self other)",
+    "Return true when receiver is lexicographically less than argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) < 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_greater_than,
+    "String>>>",
+    "(self other)",
+    "Return true when receiver is lexicographically greater than argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) > 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_less_than_or_equal,
+    "String>><=",
+    "(self other)",
+    "Return true when receiver is lexicographically less than or equal to argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) <= 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_greater_than_or_equal,
+    "String>>>=",
+    "(self other)",
+    "Return true when receiver is lexicographically greater than or equal to argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) >= 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_find,
     "String>>find:",
     "(self needle)",
@@ -1304,6 +1420,11 @@ static LT_Method_Descriptor String_methods[] = {
     {"join:", &string_method_join},
     {"contains?:", &string_method_contains},
     {"startsWith?:", &string_method_starts_with},
+    {"compareWith:", &string_method_compare_with},
+    {"<", &string_method_less_than},
+    {">", &string_method_greater_than},
+    {"<=", &string_method_less_than_or_equal},
+    {">=", &string_method_greater_than_or_equal},
     {"find:", &string_method_find},
     {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},

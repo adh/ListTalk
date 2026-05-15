@@ -27,6 +27,10 @@ struct LT_ByteVector_s {
     uint8_t bytes[];
 };
 
+static int comparison_sign(int comparison){
+    return comparison < 0 ? -1 : (comparison > 0 ? 1 : 0);
+}
+
 static size_t ByteVector_hash(LT_Value value){
     LT_ByteVector* bytevector = LT_ByteVector_from_value(value);
     size_t length = LT_ByteVector_length(bytevector);
@@ -446,6 +450,94 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    bytevector_method_compare_with,
+    "ByteVector>>compareWith:",
+    "(self other)",
+    "Return -1, 0, or 1 when receiver is lexicographically less than, equal to, or greater than argument."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* self;
+    LT_ByteVector* other;
+    int comparison;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+
+    comparison = LT_ByteVector_compare(self, other);
+    return LT_SmallInteger_new((int64_t)comparison);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_less_than,
+    "ByteVector>><",
+    "(self other)",
+    "Return true when receiver is lexicographically less than argument."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* self;
+    LT_ByteVector* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    return LT_ByteVector_compare(self, other) < 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_greater_than,
+    "ByteVector>>>",
+    "(self other)",
+    "Return true when receiver is lexicographically greater than argument."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* self;
+    LT_ByteVector* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    return LT_ByteVector_compare(self, other) > 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_less_than_or_equal,
+    "ByteVector>><=",
+    "(self other)",
+    "Return true when receiver is lexicographically less than or equal to argument."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* self;
+    LT_ByteVector* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    return LT_ByteVector_compare(self, other) <= 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_greater_than_or_equal,
+    "ByteVector>>>=",
+    "(self other)",
+    "Return true when receiver is lexicographically greater than or equal to argument."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* self;
+    LT_ByteVector* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    return LT_ByteVector_compare(self, other) >= 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     bytevector_method_as_string,
     "ByteVector>>asString",
     "(self)",
@@ -494,6 +586,11 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"at:put:", &bytevector_method_at_put},
     {"append:", &bytevector_method_append},
     {"from:to:", &bytevector_method_from_to},
+    {"compareWith:", &bytevector_method_compare_with},
+    {"<", &bytevector_method_less_than},
+    {">", &bytevector_method_greater_than},
+    {"<=", &bytevector_method_less_than_or_equal},
+    {">=", &bytevector_method_greater_than_or_equal},
     {"asString", &bytevector_method_as_string},
     {"asList", &bytevector_method_as_list},
     {"writeToFile:", &bytevector_method_write_to_file},
@@ -586,6 +683,30 @@ LT_ByteVector* LT_ByteVector_from_to(LT_ByteVector* bytevector,
         LT_ByteVector_bytes(bytevector) + from,
         to - from
     );
+}
+
+int LT_ByteVector_compare(LT_ByteVector* left, LT_ByteVector* right){
+    size_t left_length = LT_ByteVector_length(left);
+    size_t right_length = LT_ByteVector_length(right);
+    size_t common_length = left_length < right_length
+        ? left_length
+        : right_length;
+    int result = memcmp(
+        LT_ByteVector_bytes(left),
+        LT_ByteVector_bytes(right),
+        common_length
+    );
+
+    if (result != 0){
+        return comparison_sign(result);
+    }
+    if (left_length < right_length){
+        return -1;
+    }
+    if (left_length > right_length){
+        return 1;
+    }
+    return 0;
 }
 
 size_t LT_ByteVector_length(LT_ByteVector* bytevector){

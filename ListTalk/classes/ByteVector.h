@@ -25,6 +25,7 @@ LT_ByteVector* LT_ByteVector_append(LT_ByteVector* left,
 LT_ByteVector* LT_ByteVector_from_to(LT_ByteVector* bytevector,
                                      size_t from,
                                      size_t to);
+int LT_ByteVector_compare(LT_ByteVector* left, LT_ByteVector* right);
 size_t LT_ByteVector_length(LT_ByteVector* bytevector);
 uint8_t LT_ByteVector_at(LT_ByteVector* bytevector, size_t index);
 void LT_ByteVector_atPut(LT_ByteVector* bytevector,
