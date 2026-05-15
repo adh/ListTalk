@@ -9,9 +9,15 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
+
+typedef struct ListSortComparator_s {
+    LT_Value callable;
+    LT_Value selector;
+} ListSortComparator;
 
 static size_t list_length(LT_Value value){
     size_t length = 0;
@@ -25,6 +31,91 @@ static size_t list_length(LT_Value value){
         LT_error("List length requires proper list");
     }
     return length;
+}
+
+static int sort_compare_values(LT_Value left,
+                               LT_Value right,
+                               ListSortComparator* comparator){
+    LT_Value result;
+    int64_t comparison;
+
+    if (comparator->callable == LT_NIL){
+        result = LT_send(
+            left,
+            comparator->selector,
+            LT_cons(right, LT_NIL),
+            NULL
+        );
+    } else {
+        result = LT_apply(
+            comparator->callable,
+            LT_cons(left, LT_cons(right, LT_NIL)),
+            LT_NIL,
+            LT_NIL,
+            NULL
+        );
+    }
+
+    comparison = LT_SmallInteger_value(result);
+    return comparison < 0 ? -1 : (comparison > 0 ? 1 : 0);
+}
+
+static void merge_sort_values(LT_Value* items,
+                              LT_Value* scratch,
+                              size_t from,
+                              size_t to,
+                              ListSortComparator* comparator){
+    size_t middle;
+    size_t left;
+    size_t right;
+    size_t out;
+    size_t i;
+
+    if (to - from < 2){
+        return;
+    }
+
+    middle = from + (to - from) / 2;
+    merge_sort_values(items, scratch, from, middle, comparator);
+    merge_sort_values(items, scratch, middle, to, comparator);
+
+    left = from;
+    right = middle;
+    out = from;
+    while (left < middle && right < to){
+        if (sort_compare_values(items[left], items[right], comparator) <= 0){
+            scratch[out++] = items[left++];
+        } else {
+            scratch[out++] = items[right++];
+        }
+    }
+    while (left < middle){
+        scratch[out++] = items[left++];
+    }
+    while (right < to){
+        scratch[out++] = items[right++];
+    }
+    for (i = from; i < to; i++){
+        items[i] = scratch[i];
+    }
+}
+
+static void sort_values(LT_Value* items,
+                        size_t length,
+                        LT_Value callable){
+    ListSortComparator comparator;
+    LT_Value* scratch;
+
+    if (length < 2){
+        return;
+    }
+
+    comparator.callable = callable;
+    comparator.selector = callable == LT_NIL
+        ? LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "compareWith:")
+        : LT_NIL;
+    scratch = GC_MALLOC(sizeof(LT_Value) * length);
+    merge_sort_values(items, scratch, 0, length, &comparator);
 }
 
 size_t LT_List_hash(LT_Value value){
@@ -470,6 +561,35 @@ LT_Value LT_List_reduce_right(LT_Value callable, LT_Value list){
     return LT_List_reduce_right_many(callable, 1, &list);
 }
 
+LT_Value LT_List_sortUsing(LT_Value list, LT_Value callable){
+    size_t length = list_length(list);
+    LT_Value* items;
+    LT_ListBuilder* builder;
+    size_t i;
+
+    if (length == 0){
+        return LT_NIL;
+    }
+
+    items = GC_MALLOC(sizeof(LT_Value) * length);
+    for (i = 0; i < length; i++){
+        items[i] = LT_car(list);
+        list = LT_cdr(list);
+    }
+
+    sort_values(items, length, callable);
+
+    builder = LT_ListBuilder_new();
+    for (i = 0; i < length; i++){
+        LT_ListBuilder_append(builder, items[i]);
+    }
+    return LT_ListBuilder_value(builder);
+}
+
+LT_Value LT_List_sort(LT_Value list){
+    return LT_List_sortUsing(list, LT_NIL);
+}
+
 LT_Value LT_List_alistToPlist(LT_Value alist){
     LT_ListBuilder* builder = LT_ListBuilder_new();
 
@@ -672,6 +792,38 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    list_method_sort,
+    "List>>sort",
+    "(self)",
+    "Return a fresh list sorted with element compareWith:."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_List_sort(self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    list_method_sort_using,
+    "List>>sortUsing:",
+    "(self callable)",
+    "Return a fresh list sorted with a two-argument comparator."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_List_sortUsing(self, callable);
+}
+
+LT_DEFINE_PRIMITIVE(
     list_method_as_list,
     "List>>asList",
     "(self)",
@@ -695,6 +847,8 @@ static LT_Method_Descriptor List_methods[] = {
     {"every:", &list_method_every},
     {"reduce:", &list_method_reduce},
     {"inject:into:", &list_method_inject_into},
+    {"sort", &list_method_sort},
+    {"sortUsing:", &list_method_sort_using},
     {"asList", &list_method_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };

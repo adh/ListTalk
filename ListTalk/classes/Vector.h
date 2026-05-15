@@ -16,6 +16,8 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Vector);
 
 LT_Vector* LT_Vector_new(size_t length);
+LT_Vector* LT_Vector_sort(LT_Vector* vector);
+LT_Vector* LT_Vector_sortUsing(LT_Vector* vector, LT_Value callable);
 size_t LT_Vector_length(LT_Vector* vector);
 LT_Value LT_Vector_at(LT_Vector* vector, size_t index);
 void LT_Vector_atPut(LT_Vector* vector, size_t index, LT_Value value);

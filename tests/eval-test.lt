@@ -727,6 +727,15 @@
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
   (check (eq? [v at: 1] 9) "Vector>>at:put: mutates element"))
+(let ((v #(3 1 2 1)))
+  (check (equal? [v sort] #(1 1 2 3)) "Vector>>sort returns sorted fresh vector")
+  (check (equal? v #(3 1 2 1)) "Vector>>sort does not mutate receiver"))
+(check (equal? [#("b" "aa" "c") sort] #("aa" "b" "c"))
+       "Vector>>sort uses element compareWith:")
+(check (equal? [#(3 1 2) sortUsing: (lambda (a b) [b compareWith: a])]
+               #(3 2 1))
+       "Vector>>sortUsing: uses callable comparator")
+(check (equal? [#() sort] #()) "Vector>>sort handles empty vector")
 (check (= [(bytevector 65 200 66) length] 3) "ByteVector>>length")
 (check (= [(bytevector 65 200 66) at: 1] 200)
        "ByteVector>>at: returns unsigned bytes")
@@ -805,6 +814,14 @@
          (and (null? ['(1 2 3) forEach: (lambda (x) (set! seen (cons x seen)))])
               (equal? seen '(3 2 1))))
        "List>>forEach: applies callable across receiver")
+(check (equal? ['(3 1 2 1) sort] '(1 1 2 3))
+       "List>>sort returns sorted fresh list")
+(check (equal? ['("b" "aa" "c") sort] '("aa" "b" "c"))
+       "List>>sort uses element compareWith:")
+(check (equal? ['(3 1 2) sortUsing: (lambda (a b) [b compareWith: a])]
+               '(3 2 1))
+       "List>>sortUsing: uses callable comparator")
+(check (equal? ['() sort] '()) "List>>sort handles empty list")
 (check ['(1 2 3) any: (lambda (x) (= x 2))]
        "List>>any: returns true when any element matches")
 (check (not ['(1 2 3) any: (lambda (x) (= x 9))])
