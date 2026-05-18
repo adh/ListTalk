@@ -1,6 +1,8 @@
 project('ListTalk', 'c',
+        version : '0.1.0',
         default_options : ['c_std=c11'])
 
+pkg = import('pkgconfig')
 bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
@@ -111,6 +113,16 @@ vm_lib = library(
                 'src/classes/DateTime.c'
         ], 
         install : true, dependencies : [bdwgc, libm])
+
+pkg.generate(
+        vm_lib,
+        filebase : 'ListTalkVM',
+        name : 'ListTalkVM',
+        description : 'ListTalk virtual machine library',
+        subdirs : '.',
+        requires : [bdwgc],
+        libraries_private : [libm]
+)
 
 os_module = shared_module(
         'os',
