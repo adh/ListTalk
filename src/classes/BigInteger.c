@@ -379,6 +379,12 @@ static LT_Value make_integer_from_limbs(
     return (LT_Value)(uintptr_t)integer;
 }
 
+LT_Value LT_BigInteger_new_from_limbs(int negative,
+                                      size_t limb_count,
+                                      const uint32_t* limbs){
+    return make_integer_from_limbs(negative, limb_count, limbs);
+}
+
 static void divide_abs_values(
     size_t dividend_count,
     const uint32_t* dividend_limbs,

@@ -145,6 +145,29 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)vector;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_vector_to_list,
+    "vector->list",
+    "(vector)",
+    "Return a list containing the elements of vector."
+){
+    LT_Value cursor = arguments;
+    LT_Vector* vector;
+    LT_Value result = LT_NIL;
+    size_t index;
+
+    LT_GENERIC_ARG(cursor, vector, LT_Vector*, LT_Vector_from_value);
+    LT_ARG_END(cursor);
+
+    index = LT_Vector_length(vector);
+    while (index > 0){
+        index--;
+        result = LT_cons(LT_Vector_at(vector, index), result);
+    }
+
+    return result;
+}
+
 void LT_base_env_bind_vectors(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_vector_p);
     LT_base_env_bind_static_primitive(environment, &primitive_vector_length);
@@ -152,4 +175,5 @@ void LT_base_env_bind_vectors(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_vector_set_bang);
     LT_base_env_bind_static_primitive(environment, &primitive_make_vector);
     LT_base_env_bind_static_primitive(environment, &primitive_vector);
+    LT_base_env_bind_static_primitive(environment, &primitive_vector_to_list);
 }

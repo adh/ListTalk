@@ -3,14 +3,21 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include "BigInteger_internal.h"
+
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/RealNumber.h>
+#include <ListTalk/classes/Set.h>
+#include <ListTalk/classes/Symbol.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -18,8 +25,13 @@
 #include <ListTalk/utils/utf8.h>
 
 #include <ctype.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 struct LT_String_s {
     LT_Object base;
@@ -196,6 +208,88 @@ static LT_String* String_replace_impl(LT_String* string,
     );
 }
 
+static LT_String* String_from_span(const char* start,
+                                   size_t byte_length,
+                                   size_t codepoint_length){
+    return String_new_normalized(start, byte_length, codepoint_length);
+}
+
+static int String_codepoint_is_ascii_space(uint32_t codepoint){
+    return codepoint <= (uint32_t)UCHAR_MAX
+        && isspace((int)codepoint);
+}
+
+static size_t String_count_codepoints_in_span(const char* start,
+                                              const char* end){
+    const char* cursor = start;
+    size_t count = 0;
+
+    while (cursor < end){
+        cursor = LT_String_utf8_next(cursor);
+        count++;
+    }
+    return count;
+}
+
+static int String_contains_codepoint(LT_String* string, uint32_t codepoint){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+
+    while (cursor < end){
+        if (LT_String_utf8_codepoint_at(cursor) == codepoint){
+            return 1;
+        }
+        cursor = LT_String_utf8_next(cursor);
+    }
+    return 0;
+}
+
+static int comparison_sign(int comparison){
+    return comparison < 0 ? -1 : (comparison > 0 ? 1 : 0);
+}
+
+static int String_splitOn_delimiter_p(LT_Value delimiters, uint32_t codepoint){
+    if (LT_Character_p(delimiters)){
+        return LT_Character_value(delimiters) == codepoint;
+    }
+
+    if (LT_String_p(delimiters)){
+        return String_contains_codepoint(
+            LT_String_from_value(delimiters),
+            codepoint
+        );
+    }
+
+    if (LT_Value_is_instance_of(
+        delimiters,
+        (LT_Value)(uintptr_t)&LT_Set_class
+    )){
+        return LT_Set_contains(
+            (LT_Set*)LT_VALUE_POINTER_VALUE(delimiters),
+            LT_Character_new(codepoint)
+        );
+    }
+
+    LT_error("splitOn: expects Character, String, or Set");
+    return 0;
+}
+
+static void String_list_callback(LT_String* substring, void* baton){
+    LT_ListBuilder_append((LT_ListBuilder*)baton, (LT_Value)(uintptr_t)substring);
+}
+
+static void String_callable_callback(LT_String* substring, void* baton){
+    LT_Value callable = *(LT_Value*)baton;
+
+    (void)LT_apply(
+        callable,
+        LT_cons((LT_Value)(uintptr_t)substring, LT_NIL),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
 static int String_dictionary_at(LT_Value dictionary,
                                 LT_Value key,
                                 LT_Value* value_out){
@@ -268,6 +362,128 @@ LT_String* LT_String_mapCharacters(LT_String* string, LT_Value dictionary){
     );
 }
 
+void LT_String_substringsDoWhitespace(LT_String* string,
+                                      LT_String_SubstringCallback callback,
+                                      void* baton){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+
+    while (cursor < end){
+        const char* start;
+        size_t codepoint_length = 0;
+
+        while (cursor < end
+            && String_codepoint_is_ascii_space(LT_String_utf8_codepoint_at(cursor))){
+            cursor = LT_String_utf8_next(cursor);
+        }
+
+        start = cursor;
+        while (cursor < end
+            && !String_codepoint_is_ascii_space(LT_String_utf8_codepoint_at(cursor))){
+            cursor = LT_String_utf8_next(cursor);
+            codepoint_length++;
+        }
+
+        if (start < cursor){
+            callback(
+                String_from_span(start, (size_t)(cursor - start), codepoint_length),
+                baton
+            );
+        }
+    }
+}
+
+LT_Value LT_String_substringsWhitespace(LT_String* string){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_String_substringsDoWhitespace(string, String_list_callback, builder);
+    return LT_ListBuilder_value(builder);
+}
+
+void LT_String_substringsDo(LT_String* string,
+                            LT_String* delimiter,
+                            LT_String_SubstringCallback callback,
+                            void* baton){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    const char* delimiter_bytes = LT_String_value_cstr(delimiter);
+    size_t delimiter_byte_length = LT_String_byte_length(delimiter);
+
+    if (delimiter_byte_length == 0){
+        LT_error("String delimiter must not be empty");
+    }
+
+    while (1){
+        const char* match = String_find_bytes(
+            cursor,
+            (size_t)(end - cursor),
+            delimiter_bytes,
+            delimiter_byte_length
+        );
+        const char* segment_end = match == NULL ? end : match;
+
+        callback(
+            String_from_span(
+                cursor,
+                (size_t)(segment_end - cursor),
+                String_count_codepoints_in_span(cursor, segment_end)
+            ),
+            baton
+        );
+
+        if (match == NULL){
+            break;
+        }
+        cursor = match + delimiter_byte_length;
+    }
+}
+
+LT_Value LT_String_substrings(LT_String* string, LT_String* delimiter){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_String_substringsDo(string, delimiter, String_list_callback, builder);
+    return LT_ListBuilder_value(builder);
+}
+
+void LT_String_splitOnDo(LT_String* string,
+                         LT_Value delimiters,
+                         LT_String_SubstringCallback callback,
+                         void* baton){
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    const char* start = cursor;
+    size_t codepoint_length = 0;
+
+    while (cursor < end){
+        uint32_t codepoint = LT_String_utf8_codepoint_at(cursor);
+        const char* next = LT_String_utf8_next(cursor);
+
+        if (String_splitOn_delimiter_p(delimiters, codepoint)){
+            callback(
+                String_from_span(start, (size_t)(cursor - start), codepoint_length),
+                baton
+            );
+            start = next;
+            codepoint_length = 0;
+        } else {
+            codepoint_length++;
+        }
+        cursor = next;
+    }
+
+    callback(
+        String_from_span(start, (size_t)(end - start), codepoint_length),
+        baton
+    );
+}
+
+LT_Value LT_String_splitOn(LT_String* string, LT_Value delimiters){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_String_splitOnDo(string, delimiters, String_list_callback, builder);
+    return LT_ListBuilder_value(builder);
+}
+
 int LT_String_contains(LT_String* string, LT_String* needle){
     String_error_if_empty_needle(needle, "String search pattern must not be empty");
     return String_find_bytes(
@@ -287,6 +503,30 @@ int LT_String_startsWith(LT_String* string, LT_String* prefix){
             LT_String_value_cstr(prefix),
             prefix_length
         ) == 0;
+}
+
+int LT_String_compare(LT_String* left, LT_String* right){
+    size_t left_length = LT_String_byte_length(left);
+    size_t right_length = LT_String_byte_length(right);
+    size_t common_length = left_length < right_length
+        ? left_length
+        : right_length;
+    int result = memcmp(
+        LT_String_value_cstr(left),
+        LT_String_value_cstr(right),
+        common_length
+    );
+
+    if (result != 0){
+        return comparison_sign(result);
+    }
+    if (left_length < right_length){
+        return -1;
+    }
+    if (left_length > right_length){
+        return 1;
+    }
+    return 0;
 }
 
 int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out){
@@ -389,6 +629,140 @@ static int String_equal_p(LT_Value left, LT_Value right){
         LT_String_value_cstr(right_string),
         length
     ) == 0;
+}
+
+static LT_String* read_file_string(const char* path){
+    int fd;
+    LT_StringBuilder* builder;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0){
+        LT_system_error("Could not open file for reading", errno);
+    }
+
+    builder = LT_StringBuilder_new();
+    while (1){
+        char buffer[8192];
+        ssize_t bytes_read = read(fd, buffer, sizeof(buffer));
+
+        if (bytes_read < 0){
+            int saved_errno = errno;
+
+            close(fd);
+            LT_system_error("Could not read file", saved_errno);
+        }
+        if (bytes_read == 0){
+            break;
+        }
+        LT_StringBuilder_append_bytes(builder, buffer, (size_t)bytes_read);
+    }
+    if (close(fd) != 0){
+        LT_system_error("Could not close file", errno);
+    }
+
+    return LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
+}
+
+static void write_file_bytes_atomically(const char* path,
+                                        const char* bytes,
+                                        size_t length){
+    size_t path_length = strlen(path);
+    const char* suffix = ".tmp.XXXXXX";
+    size_t suffix_length = strlen(suffix);
+    char* temp_path = GC_MALLOC_ATOMIC(path_length + suffix_length + 1);
+    int fd;
+    size_t offset = 0;
+
+    memcpy(temp_path, path, path_length);
+    memcpy(temp_path + path_length, suffix, suffix_length + 1);
+
+    fd = mkstemp(temp_path);
+    if (fd < 0){
+        LT_system_error("Could not create temporary file", errno);
+    }
+
+    while (offset < length){
+        size_t chunk = length - offset;
+        ssize_t written;
+
+        written = write(fd, bytes + offset, chunk);
+        if (written < 0){
+            int saved_errno = errno;
+
+            close(fd);
+            unlink(temp_path);
+            LT_system_error("Could not write file", saved_errno);
+        }
+        if (written == 0){
+            close(fd);
+            unlink(temp_path);
+            LT_error("Could not write file");
+        }
+        offset += (size_t)written;
+    }
+
+    if (close(fd) != 0){
+        int saved_errno = errno;
+
+        unlink(temp_path);
+        LT_system_error("Could not close file", saved_errno);
+    }
+    if (rename(temp_path, path) != 0){
+        int saved_errno = errno;
+
+        unlink(temp_path);
+        LT_system_error("Could not replace file", saved_errno);
+    }
+}
+
+static LT_Value split_string_lines(const char* bytes, size_t length){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t line_start = 0;
+    size_t index = 0;
+
+    while (index < length){
+        if (bytes[index] == '\n'){
+            size_t line_end = index;
+
+            while (line_end > line_start && bytes[line_end - 1] == '\r'){
+                line_end--;
+            }
+            LT_ListBuilder_append(
+                builder,
+                (LT_Value)(uintptr_t)LT_String_new(
+                    (char*)bytes + line_start,
+                    line_end - line_start
+                )
+            );
+            index++;
+            while (index < length && bytes[index] == '\r'){
+                index++;
+            }
+            line_start = index;
+        } else {
+            index++;
+        }
+    }
+
+    if (line_start < length){
+        size_t line_end = length;
+
+        while (line_end > line_start && bytes[line_end - 1] == '\r'){
+            line_end--;
+        }
+        LT_ListBuilder_append(
+            builder,
+            (LT_Value)(uintptr_t)LT_String_new(
+                (char*)bytes + line_start,
+                line_end - line_start
+            )
+        );
+    }
+
+    return LT_ListBuilder_value(builder);
 }
 
 static void String_debugPrintOn(LT_Value obj, FILE* stream){
@@ -565,6 +939,215 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_substrings_whitespace,
+    "String>>substrings",
+    "(self)",
+    "Return non-empty substrings split on whitespace."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    return LT_String_substringsWhitespace(LT_String_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_substrings_do_whitespace,
+    "String>>substringsDo:",
+    "(self callable)",
+    "Call callable for each non-empty substring split on whitespace."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    LT_String_substringsDoWhitespace(
+        LT_String_from_value(self),
+        String_callable_callback,
+        &callable
+    );
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_substrings,
+    "String>>substrings:",
+    "(self delimiter)",
+    "Return substrings split on delimiter string, including empty substrings."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* delimiter;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, delimiter, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_String_substrings(LT_String_from_value(self), delimiter);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_substrings_do,
+    "String>>substrings:do:",
+    "(self delimiter callable)",
+    "Call callable for each substring split on delimiter string."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* delimiter;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, delimiter, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    LT_String_substringsDo(
+        LT_String_from_value(self),
+        delimiter,
+        String_callable_callback,
+        &callable
+    );
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_split_on,
+    "String>>splitOn:",
+    "(self delimiters)",
+    "Return substrings split on a delimiter character, delimiter string, or set of characters."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value delimiters;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, delimiters);
+    LT_ARG_END(cursor);
+
+    return LT_String_splitOn(LT_String_from_value(self), delimiters);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_split_on_do,
+    "String>>splitOn:do:",
+    "(self delimiters callable)",
+    "Call callable for substrings split on a delimiter character, delimiter string, or set of characters."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value delimiters;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, delimiters);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    LT_String_splitOnDo(
+        LT_String_from_value(self),
+        delimiters,
+        String_callable_callback,
+        &callable
+    );
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_class_method_from_file,
+    "String class>>fromFile:",
+    "(self filename)",
+    "Return file contents as a string."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* filename;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    (void)self;
+
+    return (LT_Value)(uintptr_t)read_file_string(LT_String_value_cstr(filename));
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_write_to_file,
+    "String>>writeToFile:",
+    "(self filename)",
+    "Write string to a file atomically and return filename."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    LT_String* filename;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    write_file_bytes_atomically(
+        LT_String_value_cstr(filename),
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string)
+    );
+    return (LT_Value)(uintptr_t)filename;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_split_lines,
+    "String>>splitLines",
+    "(self)",
+    "Return string lines without line terminators."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return split_string_lines(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_join,
+    "String>>join:",
+    "(self strings)",
+    "Join a list of strings using self as the delimiter."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value strings;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, strings);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_String_join(
+        LT_String_from_value(self),
+        strings
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_contains,
     "String>>contains?:",
     "(self needle)",
@@ -602,6 +1185,94 @@ LT_DEFINE_PRIMITIVE(
     return LT_String_startsWith(LT_String_from_value(self), prefix)
         ? LT_TRUE
         : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_compare_with,
+    "String>>compareWith:",
+    "(self other)",
+    "Return -1, 0, or 1 when receiver is lexicographically less than, equal to, or greater than argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    int comparison;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    comparison = LT_String_compare(self, other);
+    return LT_SmallInteger_new((int64_t)comparison);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_less_than,
+    "String>><",
+    "(self other)",
+    "Return true when receiver is lexicographically less than argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) < 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_greater_than,
+    "String>>>",
+    "(self other)",
+    "Return true when receiver is lexicographically greater than argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) > 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_less_than_or_equal,
+    "String>><=",
+    "(self other)",
+    "Return true when receiver is lexicographically less than or equal to argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) <= 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_greater_than_or_equal,
+    "String>>>=",
+    "(self other)",
+    "Return true when receiver is lexicographically greater than or equal to argument."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* other;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_compare(self, other) >= 0 ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -666,6 +1337,40 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_as_string,
+    "String>>asString",
+    "(self)",
+    "Return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    if (!LT_String_p(self)){
+        LT_type_error(self, &LT_String_class);
+    }
+    return self;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_as_list,
+    "String>>asList",
+    "(self)",
+    "Return string characters as a list."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return LT_String_to_character_list(string);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_substring_from_to,
     "String>>substringFrom:to:",
     "(self from to)",
@@ -706,13 +1411,34 @@ static LT_Method_Descriptor String_methods[] = {
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
     {"mapCharacters:", &string_method_map_characters},
+    {"substrings", &string_method_substrings_whitespace},
+    {"substringsDo:", &string_method_substrings_do_whitespace},
+    {"substrings:", &string_method_substrings},
+    {"substrings:do:", &string_method_substrings_do},
+    {"splitOn:", &string_method_split_on},
+    {"splitOn:do:", &string_method_split_on_do},
+    {"join:", &string_method_join},
     {"contains?:", &string_method_contains},
     {"startsWith?:", &string_method_starts_with},
+    {"compareWith:", &string_method_compare_with},
+    {"<", &string_method_less_than},
+    {">", &string_method_greater_than},
+    {"<=", &string_method_less_than_or_equal},
+    {">=", &string_method_greater_than_or_equal},
     {"find:", &string_method_find},
     {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},
+    {"asString", &string_method_as_string},
+    {"asList", &string_method_as_list},
+    {"writeToFile:", &string_method_write_to_file},
+    {"splitLines", &string_method_split_lines},
     {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor String_class_methods[] = {
+    {"fromFile:", &string_class_method_from_file},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -725,6 +1451,7 @@ LT_DEFINE_CLASS(LT_String) {
     .equal_p = String_equal_p,
     .debugPrintOn = String_debugPrintOn,
     .methods = String_methods,
+    .class_methods = String_class_methods,
 };
 
 LT_String* LT_String_new(char* buf, size_t len){
@@ -784,6 +1511,501 @@ LT_String* LT_String_replaceFirst(LT_String* string,
                                   LT_String* needle,
                                   LT_String* replacement){
     return String_replace_impl(string, needle, replacement, 1);
+}
+
+LT_String* LT_String_join(LT_String* delimiter, LT_Value strings){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    LT_Value cursor = strings;
+    size_t codepoint_length = 0;
+    int first = 1;
+
+    while (cursor != LT_NIL){
+        LT_String* string;
+
+        if (!LT_Pair_p(cursor)){
+            LT_error("string-join expects a proper list of strings");
+        }
+
+        string = LT_String_from_value(LT_car(cursor));
+        if (!first){
+            LT_StringBuilder_append_bytes(
+                builder,
+                LT_String_value_cstr(delimiter),
+                LT_String_byte_length(delimiter)
+            );
+            codepoint_length += LT_String_length(delimiter);
+        }
+
+        LT_StringBuilder_append_bytes(
+            builder,
+            LT_String_value_cstr(string),
+            LT_String_byte_length(string)
+        );
+        codepoint_length += LT_String_length(string);
+        first = 0;
+        cursor = LT_cdr(cursor);
+    }
+
+    return String_new_normalized(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder),
+        codepoint_length
+    );
+}
+
+static void String_format_append_string(LT_StringBuilder* builder,
+                                        LT_Value value){
+    LT_String* string = LT_String_from_value(value);
+
+    LT_StringBuilder_append_bytes(
+        builder,
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string)
+    );
+}
+
+static char* String_format_decimal_cstr(LT_Value value){
+    if (!LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_RealNumber))){
+        LT_type_error(value, &LT_RealNumber_class);
+    }
+
+    if (LT_Integer_value_p(value)){
+        return LT_Number_to_string(value);
+    }
+
+    return LT_sprintf("%.17g", LT_Number_to_double(value));
+}
+
+static char* String_format_float_cstr(LT_Value value, char directive){
+    if (!LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_RealNumber))){
+        LT_type_error(value, &LT_RealNumber_class);
+    }
+
+    switch (directive){
+        case 'f':
+            return LT_sprintf("%f", LT_Number_to_double(value));
+        case 'e':
+            return LT_sprintf("%e", LT_Number_to_double(value));
+        case 'g':
+            return LT_sprintf("%g", LT_Number_to_double(value));
+        default:
+            LT_error("Internal float format directive error");
+    }
+}
+
+static char* String_format_integer_radix_cstr(LT_Value value,
+                                              unsigned int radix){
+    static const char digits[] = "0123456789abcdef";
+    LT_StringBuilder* reversed = LT_StringBuilder_new();
+    char* reversed_digits;
+    char* result;
+    size_t digit_count;
+    size_t index;
+    int negative;
+
+    if (!LT_Integer_value_p(value)){
+        LT_type_error(value, &LT_Integer_class);
+    }
+
+    negative = LT_Integer_negative_p(value);
+    value = LT_Integer_abs(value);
+
+    if (LT_Integer_is_zero(value)){
+        return "0";
+    }
+
+    while (!LT_Integer_is_zero(value)){
+        LT_Value quotient;
+        LT_Value remainder;
+        uint32_t digit;
+
+        LT_Integer_divmod(
+            value,
+            LT_SmallInteger_new((int64_t)radix),
+            &quotient,
+            &remainder
+        );
+        if (!LT_Integer_to_uint32(remainder, &digit) || digit >= radix){
+            LT_error("Internal integer radix conversion error");
+        }
+        LT_StringBuilder_append_char(reversed, digits[digit]);
+        value = quotient;
+    }
+
+    reversed_digits = LT_StringBuilder_value(reversed);
+    digit_count = LT_StringBuilder_length(reversed);
+    result = GC_MALLOC_ATOMIC(digit_count + (negative ? 2 : 1));
+    if (negative){
+        result[0] = '-';
+    }
+    for (index = 0; index < digit_count; index++){
+        result[(negative ? 1 : 0) + index] =
+            reversed_digits[digit_count - index - 1];
+    }
+    result[digit_count + (negative ? 1 : 0)] = '\0';
+    return result;
+}
+
+static void String_format_append_cstr(LT_StringBuilder* builder, char* text){
+    LT_StringBuilder_append_str(builder, text);
+}
+
+static LT_Value String_format_next_argument(LT_Value* cursor){
+    LT_Value value;
+
+    LT_OBJECT_ARG(*cursor, value);
+    return value;
+}
+
+static LT_Value String_format_as_list(LT_Value value){
+    LT_Value list = LT_SEND(value, "asList");
+
+    if (!LT_List_p(list)){
+        LT_error("Format iteration asList must return a list");
+    }
+    return list;
+}
+
+typedef struct String_FormatDirective_s {
+    char directive;
+    int colon;
+    int atsign;
+    int has_numeric_argument;
+    size_t numeric_argument;
+} String_FormatDirective;
+
+static String_FormatDirective String_format_parse_directive(const char** text,
+                                                            const char* end){
+    String_FormatDirective directive = {0, 0, 0, 0, 0};
+    int parsing = 1;
+
+    while (parsing){
+        if (*text == end){
+            LT_error("Incomplete format directive");
+        }
+
+        if (isdigit((unsigned char)**text)){
+            if (directive.has_numeric_argument){
+                LT_error("Too many format directive numeric arguments");
+            }
+
+            directive.has_numeric_argument = 1;
+            while (*text < end && isdigit((unsigned char)**text)){
+                directive.numeric_argument =
+                    directive.numeric_argument * 10
+                    + (size_t)(*(*text)++ - '0');
+            }
+            continue;
+        }
+
+        switch (**text){
+            case ':':
+                directive.colon = 1;
+                (*text)++;
+                break;
+            case '@':
+                directive.atsign = 1;
+                (*text)++;
+                break;
+            default:
+                parsing = 0;
+                break;
+        }
+    }
+
+    if (*text == end){
+        LT_error("Incomplete format directive");
+    }
+
+    directive.directive = *(*text)++;
+    return directive;
+}
+
+static void String_format_into(LT_StringBuilder* builder,
+                               const char* text,
+                               const char* end,
+                               LT_Value* cursor,
+                               int allow_iteration_end);
+
+static const char* String_format_find_iteration_end(const char* text,
+                                                    const char* end,
+                                                    const char** closing_end){
+    size_t depth = 1;
+
+    while (text < end){
+        const char* directive_start;
+
+        if (*text++ != '~'){
+            continue;
+        }
+
+        if (text == end){
+            LT_error("Incomplete format directive");
+        }
+
+        directive_start = text - 1;
+        switch (String_format_parse_directive(&text, end).directive){
+            case '{':
+                depth++;
+                break;
+            case '}':
+                depth--;
+                if (depth == 0){
+                    *closing_end = text;
+                    return directive_start;
+                }
+                break;
+            default:
+                break;
+        }
+    }
+
+    LT_error("Unterminated format iteration directive");
+}
+
+static void String_format_iteration_into(LT_StringBuilder* builder,
+                                         const char* text,
+                                         const char* iteration_end,
+                                         LT_Value* cursor,
+                                         String_FormatDirective directive){
+    size_t iteration_count = 0;
+    size_t iteration_limit = directive.has_numeric_argument
+        ? directive.numeric_argument
+        : (size_t)-1;
+
+    if (directive.atsign){
+        LT_Value iteration_cursor =
+            String_format_as_list(String_format_next_argument(cursor));
+
+        while (iteration_cursor != LT_NIL && iteration_count < iteration_limit){
+            if (!LT_Pair_p(iteration_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            if (directive.colon){
+                LT_Value sub_cursor = String_format_as_list(
+                    LT_car(iteration_cursor)
+                );
+
+                String_format_into(
+                    builder,
+                    text,
+                    iteration_end,
+                    &sub_cursor,
+                    0
+                );
+                LT_ARG_END(sub_cursor);
+            } else {
+                LT_Value previous_cursor = iteration_cursor;
+
+                String_format_into(
+                    builder,
+                    text,
+                    iteration_end,
+                    &iteration_cursor,
+                    0
+                );
+                if (iteration_cursor == previous_cursor){
+                    LT_error(
+                        "Format iteration body must consume an argument"
+                    );
+                }
+            }
+            if (directive.colon){
+                iteration_cursor = LT_cdr(iteration_cursor);
+            }
+            iteration_count++;
+        }
+        return;
+    }
+
+    if (directive.colon){
+        LT_Value outer_cursor = String_format_next_argument(cursor);
+
+        while (outer_cursor != LT_NIL && iteration_count < iteration_limit){
+            LT_Value sub_cursor;
+
+            if (!LT_Pair_p(outer_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            sub_cursor = LT_car(outer_cursor);
+            if (!LT_List_p(sub_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            String_format_into(
+                builder,
+                text,
+                iteration_end,
+                &sub_cursor,
+                0
+            );
+            LT_ARG_END(sub_cursor);
+            outer_cursor = LT_cdr(outer_cursor);
+            iteration_count++;
+        }
+        return;
+    }
+
+    {
+        LT_Value iteration_cursor = String_format_next_argument(cursor);
+
+        while (iteration_cursor != LT_NIL && iteration_count < iteration_limit){
+            LT_Value previous_cursor = iteration_cursor;
+
+            if (!LT_Pair_p(iteration_cursor)){
+                LT_error("Format iteration expects a proper list");
+            }
+
+            String_format_into(
+                builder,
+                text,
+                iteration_end,
+                &iteration_cursor,
+                0
+            );
+            if (iteration_cursor == previous_cursor){
+                LT_error(
+                    "Format iteration body must consume an argument"
+                );
+            }
+            iteration_count++;
+        }
+    }
+}
+
+static void String_format_into(LT_StringBuilder* builder,
+                               const char* text,
+                               const char* end,
+                               LT_Value* cursor,
+                               int allow_iteration_end){
+
+    while (text < end){
+        char ch = *text++;
+
+        if (ch != '~'){
+            LT_StringBuilder_append_char(builder, ch);
+            continue;
+        }
+
+        if (text == end){
+            LT_error("Incomplete format directive");
+        }
+
+        {
+            String_FormatDirective directive =
+                String_format_parse_directive(&text, end);
+            ch = directive.directive;
+            switch (ch){
+            case 'a':
+                String_format_append_string(
+                    builder,
+                    LT_SEND(String_format_next_argument(cursor), "asString")
+                );
+                break;
+            case 's':
+                String_format_append_string(
+                    builder,
+                    (LT_Value)(uintptr_t)LT_Value_asString(
+                        String_format_next_argument(cursor)
+                    )
+                );
+                break;
+            case 'd':
+                String_format_append_cstr(
+                    builder,
+                    String_format_decimal_cstr(
+                        String_format_next_argument(cursor)
+                    )
+                );
+                break;
+            case 'b':
+                String_format_append_cstr(
+                    builder,
+                    String_format_integer_radix_cstr(
+                        String_format_next_argument(cursor),
+                        2
+                    )
+                );
+                break;
+            case 'o':
+                String_format_append_cstr(
+                    builder,
+                    String_format_integer_radix_cstr(
+                        String_format_next_argument(cursor),
+                        8
+                    )
+                );
+                break;
+            case 'x':
+                String_format_append_cstr(
+                    builder,
+                    String_format_integer_radix_cstr(
+                        String_format_next_argument(cursor),
+                        16
+                    )
+                );
+                break;
+            case 'f':
+            case 'e':
+            case 'g':
+                String_format_append_cstr(
+                    builder,
+                    String_format_float_cstr(
+                        String_format_next_argument(cursor),
+                        ch
+                    )
+                );
+                break;
+            case '%':
+                LT_StringBuilder_append_char(builder, '\n');
+                break;
+            case '~':
+                LT_StringBuilder_append_char(builder, '~');
+                break;
+            case '{': {
+                const char* closing_end;
+                const char* iteration_end =
+                    String_format_find_iteration_end(
+                        text,
+                        end,
+                        &closing_end
+                    );
+                String_format_iteration_into(
+                    builder,
+                    text,
+                    iteration_end,
+                    cursor,
+                    directive
+                );
+                text = closing_end;
+                break;
+            }
+            case '}':
+                if (allow_iteration_end){
+                    return;
+                }
+                LT_error("Unmatched format iteration terminator");
+            default:
+                LT_error("Unknown format directive");
+            }
+        }
+    }
+}
+
+LT_String* LT_String_format(LT_String* format_string, LT_Value arguments){
+    LT_Value cursor = arguments;
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    const char* text = LT_String_value_cstr(format_string);
+    const char* end = text + LT_String_byte_length(format_string);
+
+    String_format_into(builder, text, end, &cursor, 0);
+    LT_ARG_END(cursor);
+    return LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
 }
 
 LT_String* LT_String_substring(LT_String* string, size_t from, size_t to){

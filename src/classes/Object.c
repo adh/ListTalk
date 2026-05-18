@@ -63,6 +63,22 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    object_method_as_string,
+    "Object>>asString",
+    "(self)",
+    "Return receiver debug-printed as a string.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_Value_asString(self);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     object_method_identity_equal,
     "Object>>==",
     "(self other)",
@@ -131,6 +147,7 @@ static LT_Method_Descriptor Object_methods[] = {
     {"class", &object_method_class},
     {"slot:", &object_method_slot},
     {"slot:put:", &object_method_slot_put},
+    {"asString", &object_method_as_string},
     {"==", &object_method_identity_equal},
     {"=",  &object_method_equal},
     {"subclassResponsibility", &object_method_subclass_responsibility},
