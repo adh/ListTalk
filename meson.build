@@ -7,6 +7,7 @@ bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
 libm = cc.find_library('m', required : false)
+listtalk_module_dir = get_option('libdir') / 'ListTalk'
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 
@@ -131,7 +132,8 @@ os_module = shared_module(
         name_suffix : 'ltm',
         link_with : [vm_lib],
         dependencies : listtalk_deps,
-        install : true
+        install : true,
+        install_dir : listtalk_module_dir
 )
 
 gc_module = shared_module(
@@ -141,7 +143,8 @@ gc_module = shared_module(
         name_suffix : 'ltm',
         link_with : [vm_lib],
         dependencies : [bdwgc],
-        install : true
+        install : true,
+        install_dir : listtalk_module_dir
 )
 
 listtalk_exe = executable(
