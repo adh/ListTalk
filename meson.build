@@ -122,6 +122,16 @@ os_module = shared_module(
         install : true
 )
 
+gc_module = shared_module(
+        'gc',
+        'src/modules/gc.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : [bdwgc],
+        install : true
+)
+
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -199,7 +209,7 @@ test(
                 '-L', meson.current_source_dir() / 'tests' / 'fixtures',
                 meson.current_source_dir() / 'tests' / 'eval-test.lt'
         ],
-        depends : [os_module]
+        depends : [os_module, gc_module]
 )
 
 test(

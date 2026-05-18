@@ -5,11 +5,11 @@
 
 #include "internal.h"
 
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/utils.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/value.h>
@@ -134,6 +134,19 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_format,
+    "format",
+    "(format-string argument ...)",
+    "Return a formatted string using SRFI-28-style directives."
+){
+    LT_Value cursor = arguments;
+    LT_String* format_string;
+
+    LT_GENERIC_ARG(cursor, format_string, LT_String*, LT_String_from_value);
+    return (LT_Value)(uintptr_t)LT_String_format(format_string, cursor);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_string_join,
     "string-join",
     "(delimiter strings)",
@@ -207,6 +220,7 @@ void LT_base_env_bind_strings(LT_Environment* environment){
         &primitive_character_list_to_string
     );
     LT_base_env_bind_static_primitive(environment, &primitive_string_append);
+    LT_base_env_bind_static_primitive(environment, &primitive_format);
     LT_base_env_bind_static_primitive(environment, &primitive_string_join);
     LT_base_env_bind_static_primitive(environment, &primitive_substring);
     LT_base_env_bind_static_primitive(environment, &primitive_number_to_string);

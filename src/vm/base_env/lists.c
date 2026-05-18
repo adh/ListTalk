@@ -6,6 +6,7 @@
 #include "internal.h"
 
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Vector.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
 
@@ -186,6 +187,93 @@ LT_DEFINE_PRIMITIVE(
     LT_FIXNUM_ARG(cursor, index_value);
     LT_ARG_END(cursor);
     return LT_List_at(list, checked_nonnegative_from_fixnum(index_value));
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_length,
+    "length",
+    "(list)",
+    "Return the length of a proper list."
+){
+    LT_Value cursor = arguments;
+    LT_Value list;
+    size_t length = 0;
+
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+
+    while (list != LT_NIL){
+        if (!LT_Pair_p(list)){
+            LT_error("length expects proper list");
+        }
+        length++;
+        list = LT_cdr(list);
+    }
+
+    return LT_Number_smallinteger_from_size(
+        length,
+        "List length does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_reverse,
+    "reverse",
+    "(list)",
+    "Return a fresh list containing list items in reverse order."
+){
+    LT_Value cursor = arguments;
+    LT_Value list;
+    LT_Value result = LT_NIL;
+
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+
+    while (list != LT_NIL){
+        if (!LT_Pair_p(list)){
+            LT_error("reverse expects proper list");
+        }
+        result = LT_cons(LT_car(list), result);
+        list = LT_cdr(list);
+    }
+
+    return result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_list_to_vector,
+    "list->vector",
+    "(list)",
+    "Return a vector containing the elements of a proper list."
+){
+    LT_Value cursor = arguments;
+    LT_Value list;
+    LT_Value list_cursor;
+    LT_Vector* vector;
+    size_t length = 0;
+    size_t index = 0;
+
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+
+    list_cursor = list;
+    while (list_cursor != LT_NIL){
+        if (!LT_Pair_p(list_cursor)){
+            LT_error("list->vector expects proper list");
+        }
+        length++;
+        list_cursor = LT_cdr(list_cursor);
+    }
+
+    vector = LT_Vector_new(length);
+    list_cursor = list;
+    while (list_cursor != LT_NIL){
+        LT_Vector_atPut(vector, index, LT_car(list_cursor));
+        index++;
+        list_cursor = LT_cdr(list_cursor);
+    }
+
+    return (LT_Value)(uintptr_t)vector;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -503,6 +591,9 @@ void LT_base_env_bind_lists(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_list);
     LT_base_env_bind_static_primitive(environment, &primitive_list_p);
     LT_base_env_bind_static_primitive(environment, &primitive_list_ref);
+    LT_base_env_bind_static_primitive(environment, &primitive_length);
+    LT_base_env_bind_static_primitive(environment, &primitive_reverse);
+    LT_base_env_bind_static_primitive(environment, &primitive_list_to_vector);
     LT_base_env_bind_static_primitive(environment, &primitive_append);
     LT_base_env_bind_static_primitive(environment, &primitive_map);
     LT_base_env_bind_static_primitive(environment, &primitive_for_each);

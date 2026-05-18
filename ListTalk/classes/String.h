@@ -54,6 +54,8 @@ void LT_String_splitOnDo(
 );
 LT_Value LT_String_splitOn(LT_String* string, LT_Value delimiters);
 LT_String* LT_String_join(LT_String* delimiter, LT_Value strings);
+LT_String* LT_String_format(LT_String* format_string, LT_Value arguments);
+int LT_String_compare(LT_String* left, LT_String* right);
 int LT_String_startsWith(LT_String* string, LT_String* prefix);
 int LT_String_contains(LT_String* string, LT_String* needle);
 int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out);

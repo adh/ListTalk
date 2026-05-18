@@ -1282,11 +1282,186 @@ static void read_character_literal_separator(LT_Reader* reader,
     }
 }
 
+typedef struct NamedCharacter_s {
+    const char* name;
+    uint32_t codepoint;
+} NamedCharacter;
+
+static int character_literal_name_equal(const char* left, const char* right){
+    while (*left != '\0' && *right != '\0'){
+        unsigned char left_ch = (unsigned char)*left;
+        unsigned char right_ch = (unsigned char)*right;
+
+        if (tolower((int)left_ch) != tolower((int)right_ch)){
+            return 0;
+        }
+        left++;
+        right++;
+    }
+    return *left == '\0' && *right == '\0';
+}
+
+static int named_character_codepoint(const char* token, uint32_t* codepoint){
+    static const NamedCharacter named_characters[] = {
+        {"null", 0x00},
+        {"nul", 0x00},
+        {"start-of-heading", 0x01},
+        {"soh", 0x01},
+        {"start-of-text", 0x02},
+        {"stx", 0x02},
+        {"end-of-text", 0x03},
+        {"etx", 0x03},
+        {"end-of-transmission", 0x04},
+        {"eot", 0x04},
+        {"enquiry", 0x05},
+        {"enq", 0x05},
+        {"acknowledge", 0x06},
+        {"ack", 0x06},
+        {"bell", 0x07},
+        {"bel", 0x07},
+        {"backspace", 0x08},
+        {"bs", 0x08},
+        {"tab", 0x09},
+        {"character-tabulation", 0x09},
+        {"horizontal-tabulation", 0x09},
+        {"ht", 0x09},
+        {"newline", 0x0a},
+        {"line-feed", 0x0a},
+        {"lf", 0x0a},
+        {"line-tabulation", 0x0b},
+        {"vertical-tabulation", 0x0b},
+        {"vt", 0x0b},
+        {"form-feed", 0x0c},
+        {"ff", 0x0c},
+        {"return", 0x0d},
+        {"carriage-return", 0x0d},
+        {"cr", 0x0d},
+        {"shift-out", 0x0e},
+        {"so", 0x0e},
+        {"shift-in", 0x0f},
+        {"si", 0x0f},
+        {"data-link-escape", 0x10},
+        {"dle", 0x10},
+        {"device-control-one", 0x11},
+        {"dc1", 0x11},
+        {"device-control-two", 0x12},
+        {"dc2", 0x12},
+        {"device-control-three", 0x13},
+        {"dc3", 0x13},
+        {"device-control-four", 0x14},
+        {"dc4", 0x14},
+        {"negative-acknowledge", 0x15},
+        {"nak", 0x15},
+        {"synchronous-idle", 0x16},
+        {"syn", 0x16},
+        {"end-of-transmission-block", 0x17},
+        {"etb", 0x17},
+        {"cancel", 0x18},
+        {"can", 0x18},
+        {"end-of-medium", 0x19},
+        {"em", 0x19},
+        {"substitute", 0x1a},
+        {"sub", 0x1a},
+        {"escape", 0x1b},
+        {"esc", 0x1b},
+        {"file-separator", 0x1c},
+        {"information-separator-four", 0x1c},
+        {"fs", 0x1c},
+        {"group-separator", 0x1d},
+        {"information-separator-three", 0x1d},
+        {"gs", 0x1d},
+        {"record-separator", 0x1e},
+        {"information-separator-two", 0x1e},
+        {"rs", 0x1e},
+        {"unit-separator", 0x1f},
+        {"information-separator-one", 0x1f},
+        {"us", 0x1f},
+        {"space", 0x20},
+        {"delete", 0x7f},
+        {"del", 0x7f},
+        {"rubout", 0x7f},
+        {"padding-character", 0x80},
+        {"pad", 0x80},
+        {"high-octet-preset", 0x81},
+        {"hop", 0x81},
+        {"break-permitted-here", 0x82},
+        {"bph", 0x82},
+        {"no-break-here", 0x83},
+        {"nbh", 0x83},
+        {"index", 0x84},
+        {"ind", 0x84},
+        {"next-line", 0x85},
+        {"nel", 0x85},
+        {"start-of-selected-area", 0x86},
+        {"ssa", 0x86},
+        {"end-of-selected-area", 0x87},
+        {"esa", 0x87},
+        {"character-tabulation-set", 0x88},
+        {"hts", 0x88},
+        {"character-tabulation-with-justification", 0x89},
+        {"htj", 0x89},
+        {"line-tabulation-set", 0x8a},
+        {"vts", 0x8a},
+        {"partial-line-forward", 0x8b},
+        {"pld", 0x8b},
+        {"partial-line-backward", 0x8c},
+        {"plu", 0x8c},
+        {"reverse-line-feed", 0x8d},
+        {"ri", 0x8d},
+        {"single-shift-two", 0x8e},
+        {"ss2", 0x8e},
+        {"single-shift-three", 0x8f},
+        {"ss3", 0x8f},
+        {"device-control-string", 0x90},
+        {"dcs", 0x90},
+        {"private-use-one", 0x91},
+        {"pu1", 0x91},
+        {"private-use-two", 0x92},
+        {"pu2", 0x92},
+        {"set-transmit-state", 0x93},
+        {"sts", 0x93},
+        {"cancel-character", 0x94},
+        {"cch", 0x94},
+        {"message-waiting", 0x95},
+        {"mw", 0x95},
+        {"start-of-guarded-area", 0x96},
+        {"spa", 0x96},
+        {"end-of-guarded-area", 0x97},
+        {"epa", 0x97},
+        {"start-of-string", 0x98},
+        {"sos", 0x98},
+        {"single-graphic-character-introducer", 0x99},
+        {"sgc", 0x99},
+        {"single-character-introducer", 0x9a},
+        {"sci", 0x9a},
+        {"control-sequence-introducer", 0x9b},
+        {"csi", 0x9b},
+        {"string-terminator", 0x9c},
+        {"st", 0x9c},
+        {"operating-system-command", 0x9d},
+        {"osc", 0x9d},
+        {"privacy-message", 0x9e},
+        {"pm", 0x9e},
+        {"application-program-command", 0x9f},
+        {"apc", 0x9f}
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(named_characters) / sizeof(named_characters[0]); i++){
+        if (character_literal_name_equal(token, named_characters[i].name)){
+            *codepoint = named_characters[i].codepoint;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream){
     int ch = reader_getc(reader, stream);
     char* token;
     char* end;
     unsigned long parsed;
+    uint32_t named_codepoint;
 
     if (ch == EOF){
         reader_incomplete_input(
@@ -1335,17 +1510,8 @@ static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* strea
     if (token[0] != '\0' && *LT_utf8_next(token) == '\0'){
         return LT_Character_new(LT_utf8_codepoint_at(token));
     }
-    if (strcmp(token, "space") == 0){
-        return LT_Character_new((uint32_t)' ');
-    }
-    if (strcmp(token, "tab") == 0){
-        return LT_Character_new((uint32_t)'\t');
-    }
-    if (strcmp(token, "newline") == 0){
-        return LT_Character_new((uint32_t)'\n');
-    }
-    if (strcmp(token, "return") == 0){
-        return LT_Character_new((uint32_t)'\r');
+    if (named_character_codepoint(token, &named_codepoint)){
+        return LT_Character_new(named_codepoint);
     }
     if ((token[0] == 'u' || token[0] == 'U')
         && token[1] == '+'

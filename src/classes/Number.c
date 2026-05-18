@@ -46,6 +46,10 @@ static int Number_class_equal_p(LT_Value left, LT_Value right){
     return LT_Number_equal_p(left, right);
 }
 
+static int comparison_sign(int comparison){
+    return comparison < 0 ? -1 : (comparison > 0 ? 1 : 0);
+}
+
 static bool value_is_exact_integer(LT_Value value){
     return LT_Integer_value_p(value);
 }
@@ -1048,6 +1052,27 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
+    number_method_compare_with,
+    "Number>>compareWith:",
+    "(self other)",
+    "Return -1, 0, or 1 when receiver is less than, equal to, or greater than argument.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    int comparison;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+
+    comparison = LT_Number_compare(self, other);
+    return LT_SmallInteger_new((int64_t)comparison);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
     number_method_less_than,
     "Number>><",
     "(self other)",
@@ -1144,6 +1169,7 @@ static LT_Method_Descriptor Number_methods[] = {
     {"log", &number_method_log},
     {"expt", &number_method_expt},
     {"expt:", &number_method_expt_colon},
+    {"compareWith:", &number_method_compare_with},
     {"<",  &number_method_less_than},
     {">",  &number_method_greater_than},
     {"<=", &number_method_less_than_or_equal},
@@ -1311,7 +1337,7 @@ bool LT_Number_equal_p(LT_Value left, LT_Value right){
 }
 
 int LT_Number_compare(LT_Value left, LT_Value right){
-    return compare_real_numbers(left, right);
+    return comparison_sign(compare_real_numbers(left, right));
 }
 
 LT_Value LT_Number_add2(LT_Value left, LT_Value right){

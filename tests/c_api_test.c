@@ -130,6 +130,25 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_test_add_argument_method,
+    "test-add-argument-method",
+    "(self value)",
+    "Test helper method: add receiver and argument."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_add2(self, value);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_test_small_integer_marker_method,
     "test-small-integer-marker-method",
     "(self)",
@@ -239,6 +258,15 @@ static char* debug_string_for_value(LT_Value value){
     return buffer;
 }
 
+static int test_value_asString_c_api_uses_debug_print(void){
+    LT_String* string = LT_Value_asString(LT_TRUE);
+
+    return expect(
+        strcmp(LT_String_value_cstr(string), "#true") == 0,
+        "LT_Value_asString uses debug printing"
+    );
+}
+
 static int test_send_primitive_uses_direct_method_dictionary(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "sum");
     LT_Value result;
@@ -253,6 +281,50 @@ static int test_send_primitive_uses_direct_method_dictionary(void){
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 3,
         "send dispatches to direct method"
+    );
+}
+
+static int test_send_site_macros_c_api(void){
+    LT_Value sum_selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "plus:");
+    LT_Value pair = LT_cons(LT_SmallInteger_new(1), LT_SmallInteger_new(2));
+    LT_Value car_result;
+    LT_Value send_args_result;
+    LT_Value send_result;
+
+    LT_Class_addMethod(
+        &LT_Integer_class,
+        sum_selector,
+        LT_Primitive_from_static(&primitive_test_add_argument_method)
+    );
+
+    car_result = LT_SEND(pair, "car");
+    if (expect(
+        LT_Value_is_fixnum(car_result) && LT_SmallInteger_value(car_result) == 1,
+        "LT_SEND supports zero-argument sends"
+    )){
+        return 1;
+    }
+
+    send_args_result = LT_SEND_ARGS(
+        LT_SmallInteger_new(3),
+        "plus:",
+        LT_list(LT_SmallInteger_new(4), LT_INVALID)
+    );
+    if (expect(
+        LT_Value_is_fixnum(send_args_result) && LT_SmallInteger_value(send_args_result) == 7,
+        "LT_SEND_ARGS sends with prebuilt arguments"
+    )){
+        return 1;
+    }
+
+    send_result = LT_SEND(
+        LT_SmallInteger_new(5),
+        "plus:",
+        LT_SmallInteger_new(6)
+    );
+    return expect(
+        LT_Value_is_fixnum(send_result) && LT_SmallInteger_value(send_result) == 11,
+        "LT_SEND builds argument list from varargs"
     );
 }
 
@@ -319,7 +391,7 @@ static int test_send_passes_invocation_context_kind_to_primitive_method(void){
         LT_Primitive_from_static(&primitive_test_invocation_context_kind_method)
     );
 
-    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    result = LT_SEND(LT_SmallInteger_new(1), "invocation-context-kind");
     return expect(
         result == (LT_Value)(uintptr_t)&LT_send_invocation_context,
         "send passes send invocation context kind to method"
@@ -336,7 +408,7 @@ static int test_send_passes_next_precedence_tail_as_invocation_context_data(void
         LT_Primitive_from_static(&primitive_test_invocation_context_data_method)
     );
 
-    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    result = LT_SEND(LT_SmallInteger_new(1), "next-precedence-tail");
     if (expect(
         LT_ImmutableList_p(result),
         "send passes immutable precedence tail as invocation context data"
@@ -468,10 +540,8 @@ static int test_immutable_list_methods(void){
         LT_SmallInteger_new(5),
     };
     LT_Value immutable_list = LT_ImmutableList_new(2, values);
-    LT_Value selector_car = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "car");
-    LT_Value selector_cdr = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "cdr");
-    LT_Value car_value = LT_send(immutable_list, selector_car, LT_NIL, NULL);
-    LT_Value cdr_value = LT_send(immutable_list, selector_cdr, LT_NIL, NULL);
+    LT_Value car_value = LT_SEND(immutable_list, "car");
+    LT_Value cdr_value = LT_SEND(immutable_list, "cdr");
 
     if (expect(
         LT_Value_is_fixnum(car_value) && LT_SmallInteger_value(car_value) == 4,
@@ -666,6 +736,44 @@ static int test_list_at_c_api(void){
     return expect(
         LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
         "LT_List_at returns indexed item"
+    );
+}
+
+static int test_list_constructor_helpers_c_api(void){
+    LT_Value counted_list = LT_listn(
+        3,
+        LT_SmallInteger_new(4),
+        LT_INVALID,
+        LT_SmallInteger_new(6)
+    );
+
+    if (expect(
+        LT_listn(0) == LT_NIL,
+        "LT_listn returns nil for zero items"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SmallInteger_value(LT_List_at(counted_list, 0)) == 4,
+        "LT_listn keeps first counted item"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_List_at(counted_list, 1) == LT_INVALID,
+        "LT_listn keeps LT_INVALID as counted item"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SmallInteger_value(LT_List_at(counted_list, 2)) == 6,
+        "LT_listn keeps items after LT_INVALID"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_cdr(LT_cdr(LT_cdr(counted_list))) == LT_NIL,
+        "LT_listn terminates after explicit item count"
     );
 }
 
@@ -2077,6 +2185,133 @@ static int test_string_search_c_api_uses_codepoint_indexes(void){
     );
 }
 
+static int test_string_format_c_api(void){
+    uint8_t first_row[] = {1, 2};
+    uint8_t second_row[] = {3, 4};
+    LT_String* result = LT_String_format(
+        LT_String_new_cstr("a=~a s=~s~~~%"),
+        LT_list(
+            LT_SmallInteger_new(42),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("x"),
+            LT_INVALID
+        )
+    );
+    LT_String* iteration = LT_String_format(
+        LT_String_new_cstr(
+            "~{[~a]~} ~{~a=~s; ~} ~:{(~a ~s)~} "
+            "~2{~a~} ~@{~a~} ~:@{(~d ~d)~}"
+        ),
+        LT_list(
+            LT_list(
+                LT_SmallInteger_new(1),
+                LT_SmallInteger_new(2),
+                LT_SmallInteger_new(3),
+                LT_INVALID
+            ),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_String_new_cstr("x"),
+                LT_SmallInteger_new(1),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("y"),
+                LT_SmallInteger_new(2),
+                LT_INVALID
+            ),
+            LT_list(
+                LT_list(
+                    (LT_Value)(uintptr_t)LT_String_new_cstr("a"),
+                    LT_SmallInteger_new(10),
+                    LT_INVALID
+                ),
+                LT_list(
+                    (LT_Value)(uintptr_t)LT_String_new_cstr("b"),
+                    LT_SmallInteger_new(20),
+                    LT_INVALID
+                ),
+                LT_INVALID
+            ),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_String_new_cstr("u"),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("v"),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("w"),
+                LT_INVALID
+            ),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("rs"),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_ByteVector_new(first_row, 2),
+                (LT_Value)(uintptr_t)LT_ByteVector_new(second_row, 2),
+                LT_INVALID
+            ),
+            LT_INVALID
+        )
+    );
+    LT_String* numbers = LT_String_format(
+        LT_String_new_cstr("~d ~d ~b ~o ~x ~x ~f ~e ~g"),
+        LT_list(
+            LT_SmallInteger_new(42),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_SmallInteger_new(-10),
+            LT_SmallInteger_new(511),
+            LT_SmallInteger_new(48879),
+            LT_BigInteger_new_from_digits("10000000000000000", 16),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_SmallInteger_new(2500),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_INVALID
+        )
+    );
+
+    if (expect(
+        strcmp(LT_String_value_cstr(result), "a=42 s=\"x\"~\n") == 0,
+        "LT_String_format supports SRFI-28-style directives"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(iteration),
+            "[1][2][3] x=1; y=2;  (a 10)(b 20) uv rs (1 2)(3 4)"
+        ) == 0,
+        "LT_String_format supports iteration modifiers, asList, and numeric arguments"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(numbers),
+            "42 2.5 -1010 777 beef 10000000000000000 2.500000 2.500000e+03 2.5"
+        ) == 0,
+        "LT_String_format supports numeric directives"
+    )){
+        return 1;
+    }
+    return 0;
+}
+
+static int test_integer_from_intmax_c_api(void){
+    LT_Value negative = LT_Integer_from_intmax((intmax_t)-42);
+    LT_Value large_unsigned = LT_Integer_from_uintmax(UINTMAX_MAX);
+    char* large_unsigned_string = LT_Number_to_string(large_unsigned);
+
+    if (expect(
+        negative == LT_SmallInteger_new(-42),
+        "LT_Integer_from_intmax returns fixnum when possible"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(large_unsigned, LT_STATIC_CLASS(LT_Integer)),
+        "LT_Integer_from_uintmax returns integer"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(large_unsigned_string, "18446744073709551615") == 0,
+        "LT_Integer_from_uintmax preserves UINTMAX_MAX"
+    )){
+        return 1;
+    }
+    return 0;
+}
+
 struct substring_capture {
     LT_String* items[8];
     size_t count;
@@ -2373,30 +2608,15 @@ static int test_file_stream_class_constructors(void){
     }
     close(fd);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForOutput:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForOutput:", filename);
     LT_Stream_writeString(stream_value, LT_String_new_cstr("one"));
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForAppending:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForAppending:", filename);
     LT_Stream_writeString(stream_value, LT_String_new_cstr(" two"));
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForInput:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForInput:", filename);
     contents = LT_Stream_readString(stream_value);
     failed += expect(
         strcmp(LT_String_value_cstr(contents), "one two") == 0,
@@ -2404,12 +2624,7 @@ static int test_file_stream_class_constructors(void){
     );
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "new:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "new:", filename);
     failed += expect(
         LT_Stream_isReadable(stream_value),
         "FileStream new: is readable"
@@ -2485,6 +2700,8 @@ int main(void){
     } while (0)
 
     RUN_TEST(test_send_primitive_uses_direct_method_dictionary);
+    RUN_TEST(test_send_site_macros_c_api);
+    RUN_TEST(test_value_asString_c_api_uses_debug_print);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
@@ -2498,6 +2715,7 @@ int main(void){
     RUN_TEST(test_immutable_list_trailer_values);
     RUN_TEST(test_immutable_list_missing_trailer_values_are_nil);
     RUN_TEST(test_list_at_c_api);
+    RUN_TEST(test_list_constructor_helpers_c_api);
     RUN_TEST(test_list_map_single_c_api);
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_list_for_each_c_api);
@@ -2540,6 +2758,8 @@ int main(void){
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
+    RUN_TEST(test_string_format_c_api);
+    RUN_TEST(test_integer_from_intmax_c_api);
     RUN_TEST(test_string_split_c_api);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
