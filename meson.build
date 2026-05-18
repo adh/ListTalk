@@ -1,11 +1,25 @@
 project('ListTalk', 'c',
         default_options : ['c_std=c11'])
 
+fs = import('fs')
 bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
 libm = cc.find_library('m', required : false)
-listtalk_share_module_dir = get_option('datadir') / 'ListTalk' / 'modules'
+listtalk_native_module_dir = get_option('libdir') / 'ListTalk'
+listtalk_source_module_dir = get_option('datadir') / 'ListTalk' / 'modules'
+
+if fs.is_absolute(listtalk_native_module_dir)
+        listtalk_native_module_runtime_dir = listtalk_native_module_dir
+else
+        listtalk_native_module_runtime_dir = get_option('prefix') / listtalk_native_module_dir
+endif
+
+if fs.is_absolute(listtalk_source_module_dir)
+        listtalk_source_module_runtime_dir = listtalk_source_module_dir
+else
+        listtalk_source_module_runtime_dir = get_option('prefix') / listtalk_source_module_dir
+endif
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 
@@ -120,7 +134,8 @@ os_module = shared_module(
         name_suffix : 'ltm',
         link_with : [vm_lib],
         dependencies : listtalk_deps,
-        install : true
+        install : true,
+        install_dir : listtalk_native_module_dir
 )
 
 gc_module = shared_module(
@@ -130,7 +145,8 @@ gc_module = shared_module(
         name_suffix : 'ltm',
         link_with : [vm_lib],
         dependencies : [bdwgc],
-        install : true
+        install : true,
+        install_dir : listtalk_native_module_dir
 )
 
 listtalk_exe = executable(
@@ -138,7 +154,10 @@ listtalk_exe = executable(
         'src/bin/listtalk/main.c', 
         link_with: [vm_lib], 
         dependencies : listtalk_deps,
-        c_args : listtalk_c_args,
+        c_args : listtalk_c_args + [
+                '-DLT_NATIVE_MODULE_DIR="@0@"'.format(listtalk_native_module_runtime_dir),
+                '-DLT_SOURCE_MODULE_DIR="@0@"'.format(listtalk_source_module_runtime_dir)
+        ],
         install : true
 )
 
@@ -245,5 +264,5 @@ install_subdir(
 
 install_data(
         'modules/html-gen.lt',
-        install_dir : listtalk_share_module_dir
+        install_dir : listtalk_source_module_dir
 )

@@ -232,6 +232,21 @@ static void load_path_option_callback(LT_CmdOpts* parser,
     LT_base_environment_prepend_module_resolver(environment, value);
 }
 
+static void prepend_standard_module_resolvers(LT_Environment* environment){
+#ifdef LT_SOURCE_MODULE_DIR
+    LT_base_environment_prepend_module_resolver(
+        environment,
+        LT_SOURCE_MODULE_DIR
+    );
+#endif
+#ifdef LT_NATIVE_MODULE_DIR
+    LT_base_environment_prepend_module_resolver(
+        environment,
+        LT_NATIVE_MODULE_DIR
+    );
+#endif
+}
+
 int main(int argc, char**argv){
     LT_Value repl_handler;
     LT_Value file_handler;
@@ -240,6 +255,7 @@ int main(int argc, char**argv){
     LT_CmdOpts* cmdopts;
     char* source_path = NULL;
     LT_Value command_line_list = LT_NIL;
+    int no_std_lib = 0;
 
     LT_INIT();
     LT_set_current_package(LT_PACKAGE_LISTTALK_USER);
@@ -267,9 +283,14 @@ int main(int argc, char**argv){
         load_path_option_callback,
         base_environment
     );
+    LT_CmdOpts_addFlagSet(cmdopts, '\0', "no-std-lib", 1, &no_std_lib);
     LT_CmdOpts_addStringArgument(cmdopts, 0, &source_path);
     LT_CmdOpts_addStringListArgument(cmdopts, 0, &command_line_list);
     LT_CmdOpts_parseArgv(cmdopts, argc - 1, argv + 1);
+
+    if (!no_std_lib){
+        prepend_standard_module_resolvers(base_environment);
+    }
 
     if (source_path == NULL){
         return eval_repl(repl_handler, file_handler, base_environment);
