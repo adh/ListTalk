@@ -1,13 +1,16 @@
 project('ListTalk', 'c',
+        version : '0.1.0',
         default_options : ['c_std=c11'])
 
 fs = import('fs')
+pkg = import('pkgconfig')
 bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
 libm = cc.find_library('m', required : false)
+listtalk_home_dir = get_option('datadir') / 'ListTalk'
 listtalk_native_module_dir = get_option('libdir') / 'ListTalk'
-listtalk_source_module_dir = get_option('datadir') / 'ListTalk' / 'modules'
+listtalk_source_module_dir = listtalk_home_dir / 'modules'
 
 if fs.is_absolute(listtalk_native_module_dir)
         listtalk_native_module_runtime_dir = listtalk_native_module_dir
@@ -126,6 +129,24 @@ vm_lib = library(
                 'src/classes/DateTime.c'
         ], 
         install : true, dependencies : [bdwgc, libm])
+
+pkg.generate(
+        vm_lib,
+        filebase : 'ListTalkVM',
+        name : 'ListTalkVM',
+        description : 'ListTalk virtual machine library',
+        subdirs : '.',
+        requires : [bdwgc],
+        libraries_private : [libm],
+        variables : [
+                'ListTalk_repl=${prefix}/@0@/listtalk'.format(get_option('bindir')),
+                'ListTalk_home=${prefix}/@0@'.format(listtalk_home_dir)
+        ],
+        uninstalled_variables : [
+                'ListTalk_repl=${prefix}/listtalk',
+                'ListTalk_home=${pcfiledir}'
+        ]
+)
 
 os_module = shared_module(
         'os',
