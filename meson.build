@@ -5,6 +5,7 @@ bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
 libm = cc.find_library('m', required : false)
+listtalk_share_module_dir = get_option('datadir') / 'ListTalk' / 'modules'
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 
@@ -240,4 +241,9 @@ test(
 install_subdir(
         'ListTalk',
         install_dir: get_option('includedir')
+)
+
+install_data(
+        'modules/html-gen.lt',
+        install_dir : listtalk_share_module_dir
 )

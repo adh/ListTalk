@@ -25,3 +25,7 @@
 (define-method [Markup content]
   .content)
 
+(define-method [Markup asString]
+  .content)
+
+
