@@ -27,7 +27,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -666,58 +665,6 @@ static LT_String* read_file_string(const char* path){
     );
 }
 
-static void write_file_bytes_atomically(const char* path,
-                                        const char* bytes,
-                                        size_t length){
-    size_t path_length = strlen(path);
-    const char* suffix = ".tmp.XXXXXX";
-    size_t suffix_length = strlen(suffix);
-    char* temp_path = GC_MALLOC_ATOMIC(path_length + suffix_length + 1);
-    int fd;
-    size_t offset = 0;
-
-    memcpy(temp_path, path, path_length);
-    memcpy(temp_path + path_length, suffix, suffix_length + 1);
-
-    fd = mkstemp(temp_path);
-    if (fd < 0){
-        LT_system_error("Could not create temporary file", errno);
-    }
-
-    while (offset < length){
-        size_t chunk = length - offset;
-        ssize_t written;
-
-        written = write(fd, bytes + offset, chunk);
-        if (written < 0){
-            int saved_errno = errno;
-
-            close(fd);
-            unlink(temp_path);
-            LT_system_error("Could not write file", saved_errno);
-        }
-        if (written == 0){
-            close(fd);
-            unlink(temp_path);
-            LT_error("Could not write file");
-        }
-        offset += (size_t)written;
-    }
-
-    if (close(fd) != 0){
-        int saved_errno = errno;
-
-        unlink(temp_path);
-        LT_system_error("Could not close file", saved_errno);
-    }
-    if (rename(temp_path, path) != 0){
-        int saved_errno = errno;
-
-        unlink(temp_path);
-        LT_system_error("Could not replace file", saved_errno);
-    }
-}
-
 static LT_Value split_string_lines(const char* bytes, size_t length){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     size_t line_start = 0;
@@ -1099,7 +1046,7 @@ LT_DEFINE_PRIMITIVE(
     LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
     LT_ARG_END(cursor);
 
-    write_file_bytes_atomically(
+    LT_write_file_bytes_atomically(
         LT_String_value_cstr(filename),
         LT_String_value_cstr(string),
         LT_String_byte_length(string)

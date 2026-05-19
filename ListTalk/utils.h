@@ -20,6 +20,11 @@ extern uint32_t LT_pointer_hash(void* pointer);
 
 extern char* LT_strdup(char*);
 extern char* LT_sprintf(const char* fmt, ...);
+void LT_write_file_bytes_atomically(
+    const char* path,
+    const void* bytes,
+    size_t length
+);
 
 typedef struct LT_StringBuilder LT_StringBuilder;
 
