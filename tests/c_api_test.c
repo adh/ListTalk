@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
@@ -256,6 +257,28 @@ static char* debug_string_for_value(LT_Value value){
     LT_Value_debugPrintOn(value, stream);
     fclose(stream);
     return buffer;
+}
+
+static int expect_bytevector_bytes(LT_Value value,
+                                   const uint8_t* expected,
+                                   size_t expected_length,
+                                   const char* message){
+    LT_ByteVector* bytevector;
+    size_t i;
+
+    if (expect(LT_ByteVector_p(value), message)){
+        return 1;
+    }
+    bytevector = LT_ByteVector_from_value(value);
+    if (expect(LT_ByteVector_length(bytevector) == expected_length, message)){
+        return 1;
+    }
+    for (i = 0; i < expected_length; i++){
+        if (expect(LT_ByteVector_at(bytevector, i) == expected[i], message)){
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static int test_value_asString_c_api_uses_debug_print(void){
@@ -2312,6 +2335,107 @@ static int test_integer_from_intmax_c_api(void){
     return 0;
 }
 
+static int test_integer_bytevector_conversions(void){
+    static const uint8_t zero[] = {0x00};
+    static const uint8_t unsigned_255[] = {0xff};
+    static const uint8_t unsigned_255_2[] = {0x00, 0xff};
+    static const uint8_t unsigned_256[] = {0x01, 0x00};
+    static const uint8_t twos_127[] = {0x7f};
+    static const uint8_t twos_128[] = {0x00, 0x80};
+    static const uint8_t twos_minus_1[] = {0xff};
+    static const uint8_t twos_minus_1_2[] = {0xff, 0xff};
+    static const uint8_t twos_minus_128[] = {0x80};
+    static const uint8_t twos_minus_129[] = {0xff, 0x7f};
+    int failed = 0;
+    LT_Value decoded;
+
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(0), "toBytes"),
+        zero,
+        sizeof(zero),
+        "Integer>>toBytes encodes zero as one byte"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(255), "toBytes"),
+        unsigned_255,
+        sizeof(unsigned_255),
+        "Integer>>toBytes encodes unsigned magnitude"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(255), "toBytes:", LT_SmallInteger_new(2)),
+        unsigned_255_2,
+        sizeof(unsigned_255_2),
+        "Integer>>toBytes: pads unsigned magnitude"
+    );
+    decoded = LT_SEND(
+        LT_STATIC_CLASS(LT_Integer),
+        "fromBytes:",
+        (LT_Value)(uintptr_t)LT_ByteVector_new(unsigned_256, sizeof(unsigned_256))
+    );
+    failed += expect(
+        LT_Value_is_fixnum(decoded) && LT_SmallInteger_value(decoded) == 256,
+        "Integer class>>fromBytes: decodes unsigned magnitude"
+    );
+
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(127), "toTwosComplement"),
+        twos_127,
+        sizeof(twos_127),
+        "Integer>>toTwosComplement encodes largest positive one-byte value"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(128), "toTwosComplement"),
+        twos_128,
+        sizeof(twos_128),
+        "Integer>>toTwosComplement prefixes positive sign byte when needed"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-1), "toTwosComplement"),
+        twos_minus_1,
+        sizeof(twos_minus_1),
+        "Integer>>toTwosComplement encodes -1 minimally"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-1), "toTwosComplement:", LT_SmallInteger_new(2)),
+        twos_minus_1_2,
+        sizeof(twos_minus_1_2),
+        "Integer>>toTwosComplement: sign-extends negative values"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-128), "toTwosComplement"),
+        twos_minus_128,
+        sizeof(twos_minus_128),
+        "Integer>>toTwosComplement encodes smallest one-byte value"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-129), "toTwosComplement"),
+        twos_minus_129,
+        sizeof(twos_minus_129),
+        "Integer>>toTwosComplement sign-extends when negative value needs another byte"
+    );
+
+    decoded = LT_SEND(
+        LT_STATIC_CLASS(LT_Integer),
+        "fromTwosComplement:",
+        (LT_Value)(uintptr_t)LT_ByteVector_new(twos_128, sizeof(twos_128))
+    );
+    failed += expect(
+        LT_Value_is_fixnum(decoded) && LT_SmallInteger_value(decoded) == 128,
+        "Integer class>>fromTwosComplement: decodes positive sign-prefixed value"
+    );
+    decoded = LT_SEND(
+        LT_STATIC_CLASS(LT_Integer),
+        "fromTwosComplement:",
+        (LT_Value)(uintptr_t)LT_ByteVector_new(twos_minus_129, sizeof(twos_minus_129))
+    );
+    failed += expect(
+        LT_Value_is_fixnum(decoded) && LT_SmallInteger_value(decoded) == -129,
+        "Integer class>>fromTwosComplement: decodes negative value"
+    );
+
+    return failed;
+}
+
 struct substring_capture {
     LT_String* items[8];
     size_t count;
@@ -2760,6 +2884,7 @@ int main(void){
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
     RUN_TEST(test_string_format_c_api);
     RUN_TEST(test_integer_from_intmax_c_api);
+    RUN_TEST(test_integer_bytevector_conversions);
     RUN_TEST(test_string_split_c_api);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
