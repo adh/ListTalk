@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/vm/Class.h>
 
 #include <inttypes.h>
@@ -37,7 +38,7 @@ static void Closure_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_Closure) {
-    .superclass = &LT_Object_class,
+    .superclass = &LT_Function_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Closure",
     .documentation = "Callable function object with captured environment.",

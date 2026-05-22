@@ -238,6 +238,15 @@
 (check (memq 'name [Class slots]) "Class>>slots contains name")
 
 (check (class? Message) "Message is a class")
+(check (class? Function) "Function is a class")
+(check (primitive? [Function >> :documentation])
+       "Function defines documentation protocol")
+(check (primitive? [Function >> :arguments])
+       "Function defines arguments protocol")
+(check (primitive? [Primitive lookupSelector: :documentation])
+       "Primitive inherits Function>>documentation")
+(check (primitive? [Closure lookupSelector: :arguments])
+       "Closure inherits Function>>arguments")
 
 (define-class DNUReceiver (Object) ())
 (define-method [DNUReceiver doesNotUnderstand: message]

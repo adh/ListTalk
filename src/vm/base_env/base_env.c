@@ -29,6 +29,7 @@
 #include <ListTalk/classes/Message.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/InvocationContextKind.h>
@@ -98,6 +99,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"String", &LT_String_class},
     {"Symbol", &LT_Symbol_class},
     {"Package", &LT_Package_class},
+    {"Function", &LT_Function_class},
     {"Closure", &LT_Closure_class},
     {"Primitive", &LT_Primitive_class},
     {"InvocationContextKind", &LT_InvocationContextKind_class},

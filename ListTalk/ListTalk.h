@@ -43,6 +43,7 @@
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Condition.h>
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/InvocationContextKind.h>

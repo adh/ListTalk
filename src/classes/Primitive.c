@@ -3,6 +3,7 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/utils.h>
@@ -19,7 +20,7 @@ static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_Primitive) {
-    .superclass = &LT_Object_class,
+    .superclass = &LT_Function_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Primitive",
     .documentation = "Callable function implemented in native code.",
