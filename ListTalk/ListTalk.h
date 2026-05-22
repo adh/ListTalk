@@ -40,6 +40,8 @@
 #include <ListTalk/classes/SourceLocation.h>
 #include <ListTalk/classes/StackFrame.h>
 #include <ListTalk/classes/Message.h>
+#include <ListTalk/classes/ReflectedBinding.h>
+#include <ListTalk/classes/ReflectedMethod.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Condition.h>

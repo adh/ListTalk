@@ -4,11 +4,13 @@
  */
 
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/IdentitySet.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/ReflectedMethod.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -141,13 +143,25 @@ LT_DECLARE_PRIMITIVE(
     class_method_methods_do,
     "Class>>methodsDo:",
     "(self callable)",
-    "Call callable for each direct selector and method."
+    "Call callable for each direct reflected method."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_methods_as_list,
+    "Class>>methodsAsList",
+    "(self)",
+    "Return direct reflected methods as a list."
 );
 LT_DECLARE_PRIMITIVE(
     class_method_all_methods_do,
     "Class>>allMethodsDo:",
     "(self callable)",
-    "Call callable for each direct and inherited selector and method."
+    "Call callable for each most-specific reflected method."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_all_methods_as_list,
+    "Class>>allMethodsAsList",
+    "(self)",
+    "Return most-specific direct and inherited reflected methods as a list."
 );
 LT_DECLARE_PRIMITIVE(
     class_method_add_method_with_selector,
@@ -172,7 +186,9 @@ static LT_Method_Descriptor Class_methods[] = {
     {"selectorsAsList", &class_method_selectors_as_list},
     {"allSelectorsAsList", &class_method_all_selectors_as_list},
     {"methodsDo:", &class_method_methods_do},
+    {"methodsAsList", &class_method_methods_as_list},
     {"allMethodsDo:", &class_method_all_methods_do},
+    {"allMethodsAsList", &class_method_all_methods_as_list},
     {"addMethod:withSelector:", &class_method_add_method_with_selector},
     {"alloc", &class_method_alloc},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
@@ -922,6 +938,157 @@ static LT_Value class_direct_method(LT_Class* klass, LT_Value selector){
     return method;
 }
 
+struct LT_Class_MethodReflectionBaton {
+    LT_Class* klass;
+    LT_Value callable;
+    LT_ListBuilder* builder;
+    LT_IdentitySet* seen;
+};
+
+static LT_Value class_reflected_method(LT_Class* klass, LT_Value selector){
+    LT_Value callable;
+
+    if (!LT_IdentityDictionary_at(
+        LT_IdentityDictionary_from_value(klass->methods),
+        selector,
+        &callable
+    )){
+        return LT_NIL;
+    }
+
+    return LT_ReflectedMethod_new(
+        selector,
+        callable,
+        (LT_Value)(uintptr_t)klass
+    );
+}
+
+static void class_direct_method_do(LT_Value selector, void* baton_value){
+    struct LT_Class_MethodReflectionBaton* baton =
+        (struct LT_Class_MethodReflectionBaton*)baton_value;
+    LT_Value method = class_reflected_method(baton->klass, selector);
+
+    (void)LT_apply(baton->callable, LT_cons(method, LT_NIL), LT_NIL, LT_NIL, NULL);
+}
+
+static void class_direct_method_append(LT_Value selector, void* baton_value){
+    struct LT_Class_MethodReflectionBaton* baton =
+        (struct LT_Class_MethodReflectionBaton*)baton_value;
+
+    LT_ListBuilder_append(
+        baton->builder,
+        class_reflected_method(baton->klass, selector)
+    );
+}
+
+static void class_all_method_do(LT_Value selector, void* baton_value){
+    struct LT_Class_MethodReflectionBaton* baton =
+        (struct LT_Class_MethodReflectionBaton*)baton_value;
+    LT_Value method;
+
+    if (LT_Set_contains((LT_Set*)baton->seen, selector)){
+        return;
+    }
+    LT_Set_put((LT_Set*)baton->seen, selector);
+    method = class_reflected_method(baton->klass, selector);
+    (void)LT_apply(baton->callable, LT_cons(method, LT_NIL), LT_NIL, LT_NIL, NULL);
+}
+
+static void class_all_method_append(LT_Value selector, void* baton_value){
+    struct LT_Class_MethodReflectionBaton* baton =
+        (struct LT_Class_MethodReflectionBaton*)baton_value;
+
+    if (LT_Set_contains((LT_Set*)baton->seen, selector)){
+        return;
+    }
+    LT_Set_put((LT_Set*)baton->seen, selector);
+    LT_ListBuilder_append(
+        baton->builder,
+        class_reflected_method(baton->klass, selector)
+    );
+}
+
+static void class_direct_methods_do(LT_Class* klass, LT_Value callable){
+    struct LT_Class_MethodReflectionBaton baton = {
+        .klass = klass,
+        .callable = callable,
+        .builder = NULL,
+        .seen = NULL,
+    };
+
+    LT_IdentityDictionary_keys_do(
+        LT_IdentityDictionary_from_value(klass->methods),
+        class_direct_method_do,
+        &baton
+    );
+}
+
+static LT_Value class_direct_methods_as_list(LT_Class* klass){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    struct LT_Class_MethodReflectionBaton baton = {
+        .klass = klass,
+        .callable = LT_NIL,
+        .builder = builder,
+        .seen = NULL,
+    };
+
+    LT_IdentityDictionary_keys_do(
+        LT_IdentityDictionary_from_value(klass->methods),
+        class_direct_method_append,
+        &baton
+    );
+    return LT_ListBuilder_value(builder);
+}
+
+static void class_all_methods_do(LT_Class* klass, LT_Value callable){
+    LT_Value precedence_cursor = LT_Class_precedence_list(klass);
+    LT_IdentitySet* seen = LT_IdentitySet_new();
+
+    while (precedence_cursor != LT_NIL){
+        LT_Value class_value = LT_ImmutableList_car(precedence_cursor);
+        LT_Class* current = LT_Class_from_object(class_value);
+        struct LT_Class_MethodReflectionBaton baton = {
+            .klass = current,
+            .callable = callable,
+            .builder = NULL,
+            .seen = seen,
+        };
+
+        LT_IdentityDictionary_keys_do(
+            LT_IdentityDictionary_from_value(current->methods),
+            class_all_method_do,
+            &baton
+        );
+        precedence_cursor = LT_ImmutableList_cdr(precedence_cursor);
+    }
+}
+
+static LT_Value class_all_methods_as_list(LT_Class* klass){
+    LT_Value precedence_cursor = LT_Class_precedence_list(klass);
+    LT_IdentitySet* seen = LT_IdentitySet_new();
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    while (precedence_cursor != LT_NIL){
+        LT_Value class_value = LT_ImmutableList_car(precedence_cursor);
+        LT_Class* current = LT_Class_from_object(class_value);
+        struct LT_Class_MethodReflectionBaton baton = {
+            .klass = current,
+            .callable = LT_NIL,
+            .builder = builder,
+            .seen = seen,
+        };
+
+        LT_IdentityDictionary_keys_do(
+            LT_IdentityDictionary_from_value(current->methods),
+            class_all_method_append,
+            &baton
+        );
+        precedence_cursor = LT_ImmutableList_cdr(precedence_cursor);
+    }
+
+    return LT_ListBuilder_value(builder);
+}
+
 static LT_IdentitySet* class_direct_selectors(LT_Class* klass){
     LT_IdentitySet* selectors = LT_IdentitySet_new();
 
@@ -1120,44 +1287,48 @@ LT_PRIMITIVE_HEAD(class_method_methods_do){
     LT_Value cursor = arguments;
     LT_Value self;
     LT_Value callable;
-    LT_Class* klass;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
 
-    klass = LT_Class_from_object(self);
-    LT_IdentityDictionary_for_each(
-        LT_IdentityDictionary_from_value(klass->methods),
-        callable
-    );
+    class_direct_methods_do(LT_Class_from_object(self), callable);
     return LT_NIL;
+}
+
+LT_PRIMITIVE_HEAD(class_method_methods_as_list){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return class_direct_methods_as_list(LT_Class_from_object(self));
 }
 
 LT_PRIMITIVE_HEAD(class_method_all_methods_do){
     LT_Value cursor = arguments;
     LT_Value self;
     LT_Value callable;
-    LT_Value precedence_cursor;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
 
-    precedence_cursor = LT_Class_precedence_list(LT_Class_from_object(self));
-    while (precedence_cursor != LT_NIL){
-        LT_Value class_value = LT_ImmutableList_car(precedence_cursor);
-        LT_Class* current = LT_Class_from_object(class_value);
-
-        LT_IdentityDictionary_for_each(
-            LT_IdentityDictionary_from_value(current->methods),
-            callable
-        );
-        precedence_cursor = LT_ImmutableList_cdr(precedence_cursor);
-    }
+    class_all_methods_do(LT_Class_from_object(self), callable);
     return LT_NIL;
+}
+
+LT_PRIMITIVE_HEAD(class_method_all_methods_as_list){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return class_all_methods_as_list(LT_Class_from_object(self));
 }
 
 LT_PRIMITIVE_HEAD(class_method_add_method_with_selector){

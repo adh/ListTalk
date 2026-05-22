@@ -5,11 +5,14 @@
 
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/InvocationContextKind.h>
+#include <ListTalk/classes/ReflectedBinding.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
 
 #include <stddef.h>
+#include <stdint.h>
 
 struct LT_Environment_Binding {
     LT_Value value;
@@ -39,6 +42,25 @@ static void Environment_debugPrintOn(LT_Value obj, FILE* stream){
     fprintf(stream, "#<Environment %p>", (void*)environment);
 }
 
+LT_DECLARE_PRIMITIVE(
+    environment_method_bindings_do,
+    "Environment>>bindingsDo:",
+    "(self callable)",
+    "Call callable for each direct binding reflection."
+);
+LT_DECLARE_PRIMITIVE(
+    environment_method_bindings_as_list,
+    "Environment>>bindingsAsList",
+    "(self)",
+    "Return direct binding reflections as a list."
+);
+
+static LT_Method_Descriptor Environment_methods[] = {
+    {"bindingsDo:", &environment_method_bindings_do},
+    {"bindingsAsList", &environment_method_bindings_as_list},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Environment) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
@@ -47,6 +69,7 @@ LT_DEFINE_CLASS(LT_Environment) {
     .instance_size = sizeof(LT_Environment),
     .debugPrintOn = Environment_debugPrintOn,
     .slots = Environment_slots,
+    .methods = Environment_methods,
 };
 
 static void* environment_symbol_key(LT_Value symbol){
@@ -131,6 +154,80 @@ int LT_Environment_lookup(LT_Environment* environment,
     }
 
     return 0;
+}
+
+static void environment_binding_do(LT_Value binding, LT_Value callable){
+    (void)LT_apply(callable, LT_cons(binding, LT_NIL), LT_NIL, LT_NIL, NULL);
+}
+
+static void Environment_bindings_do(LT_Environment* environment, LT_Value callable){
+    LT_InlineHash* table = &environment->bindings;
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* table_entry = table->vector[i];
+
+        while (table_entry != NULL){
+            struct LT_Environment_Binding* entry =
+                (struct LT_Environment_Binding*)table_entry->value;
+            LT_Value symbol = (LT_Value)(uintptr_t)table_entry->key;
+            LT_Value binding = LT_ReflectedBinding_new(
+                symbol,
+                entry->value,
+                entry->flags
+            );
+
+            environment_binding_do(binding, callable);
+            table_entry = table_entry->next;
+        }
+    }
+}
+
+static LT_Value Environment_bindings_as_list(LT_Environment* environment){
+    LT_InlineHash* table = &environment->bindings;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* table_entry = table->vector[i];
+
+        while (table_entry != NULL){
+            struct LT_Environment_Binding* entry =
+                (struct LT_Environment_Binding*)table_entry->value;
+            LT_Value symbol = (LT_Value)(uintptr_t)table_entry->key;
+            LT_ListBuilder_append(
+                builder,
+                LT_ReflectedBinding_new(symbol, entry->value, entry->flags)
+            );
+            table_entry = table_entry->next;
+        }
+    }
+
+    return LT_ListBuilder_value(builder);
+}
+
+LT_PRIMITIVE_HEAD(environment_method_bindings_do){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    Environment_bindings_do(LT_Environment_from_value(self), callable);
+    return LT_NIL;
+}
+
+LT_PRIMITIVE_HEAD(environment_method_bindings_as_list){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return Environment_bindings_as_list(LT_Environment_from_value(self));
 }
 
 int LT_Environment_set(LT_Environment* environment,

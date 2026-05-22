@@ -246,20 +246,59 @@
                "Runtime representation of classes and metaclasses.")
        "Class>>documentation returns class documentation")
 (let ((selectors '()))
-  [Pair methodsDo: (lambda (selector function)
-                     (set! selectors (cons selector selectors))
-                     (check (function? function)
-                            "Class>>methodsDo: passes method"))]
+  [Pair methodsDo: (lambda (method)
+                     (set! selectors (cons [method selector] selectors))
+                     (check (eq? (type-of method) ReflectedMethod)
+                            "Class>>methodsDo: passes reflected method")
+                     (check (function? [method callable])
+                            "ReflectedMethod>>callable returns method")
+                     (check (eq? [method implementing-class] Pair)
+                            "ReflectedMethod>>implementing-class returns direct class"))]
   (check (memq :car selectors) "Class>>methodsDo: visits direct method")
   (check (not (memq :length selectors))
          "Class>>methodsDo: excludes inherited method"))
+(check (memq :car (map (lambda (method) [method selector]) [Pair methodsAsList]))
+       "Class>>methodsAsList returns reflected direct methods")
 (let ((selectors '()))
-  [Nil allMethodsDo: (lambda (selector function)
-                       (set! selectors (cons selector selectors))
-                       (check (function? function)
-                              "Class>>allMethodsDo: passes method"))]
+  [Nil allMethodsDo: (lambda (method)
+                       (set! selectors (cons [method selector] selectors))
+                       (check (function? [method callable])
+                              "Class>>allMethodsDo: passes reflected method"))]
   (check (memq :length selectors) "Class>>allMethodsDo: visits inherited method")
   (check (memq :class selectors) "Class>>allMethodsDo: visits Object method"))
+(check (memq :class (map (lambda (method) [method selector]) [Nil allMethodsAsList]))
+       "Class>>allMethodsAsList returns inherited reflected methods")
+(define-class ReflectionOverride (Object) ())
+(define-method [ReflectionOverride asString] "reflection-override")
+(let ((as-string-methods '()))
+  [ReflectionOverride allMethodsDo:
+                      (lambda (method)
+                        (if (eq? [method selector] :asString)
+                            (set! as-string-methods
+                                  (cons [method implementing-class]
+                                        as-string-methods))))]
+  (check (equal? as-string-methods (list ReflectionOverride))
+         "Class>>allMethodsDo: keeps most-specific implementation"))
+(let ((reflection-local 88)
+      (symbols '()))
+  (let ((environment (get-current-environment)))
+    [environment bindingsDo:
+                 (lambda (binding)
+                   (set! symbols (cons [binding symbol] symbols))
+                   (if (eq? [binding symbol] 'reflection-local)
+                       (begin
+                         (check (eq? (type-of binding) ReflectedBinding)
+                                "Environment>>bindingsDo: passes reflected binding")
+                         (check (= [binding value] 88)
+                                "ReflectedBinding>>value returns value")
+                         (check (= [binding flags] 0)
+                                "ReflectedBinding>>flags returns flags"))))]
+    (check (memq 'reflection-local symbols)
+           "Environment>>bindingsDo: visits direct binding")
+    (check (memq 'reflection-local
+                 (map (lambda (binding) [binding symbol])
+                      [environment bindingsAsList]))
+           "Environment>>bindingsAsList returns reflected bindings")))
 
 (check (class? Message) "Message is a class")
 (check (class? CompoundForm) "CompoundForm is a class")
