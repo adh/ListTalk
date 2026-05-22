@@ -217,18 +217,14 @@
 
 (ListTalk:define-macro (ListTalk:require module . resolvers)
   (if (null? resolvers)
-      `(if (memq ',module ListTalk:%modules)
-           ',module
-           (ListTalk-implementation:%load!
-             (get-current-environment)
-             ',module
-             ListTalk:module-resolvers))
-      `(if (memq ',module ListTalk:%modules)
-           ',module
-           (ListTalk-implementation:%load!
-             (get-current-environment)
-             ',module
-             (append ',resolvers ListTalk:module-resolvers)))))
+      `(ListTalk-implementation:%require
+         (get-current-environment)
+         ',module
+         ListTalk:module-resolvers)
+      `(ListTalk-implementation:%require
+         (get-current-environment)
+         ',module
+         (append ',resolvers ListTalk:module-resolvers))))
 
 ; TODO: delalamoize this
 (ListTalk:define-macro (ListTalk:with-gensyms symbols . body)

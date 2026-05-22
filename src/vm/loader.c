@@ -261,6 +261,79 @@ LT_Value LT_loader_load(LT_Environment* target_environment,
     return load_from_resolvers(target_environment, module_name, resolvers);
 }
 
+static int module_provided_p(LT_Environment* target_environment,
+                             char* module_name){
+    LT_Value modules_symbol;
+    LT_Value module_symbol;
+    LT_Value modules = LT_NIL;
+    LT_Value cursor;
+
+    if (target_environment == NULL){
+        LT_error("Loader expects environment");
+    }
+    if (module_name == NULL){
+        LT_error("Loader expects module name");
+    }
+
+    modules_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%modules");
+    module_symbol = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, module_name);
+
+    if (!LT_Environment_lookup(target_environment, modules_symbol, &modules, NULL)){
+        LT_error("Module list variable is not bound");
+    }
+
+    cursor = modules;
+    while (cursor != LT_NIL){
+        if (!LT_Pair_p(cursor)){
+            LT_error("Module list must be proper");
+        }
+        if (LT_car(cursor) == module_symbol){
+            return 1;
+        }
+        cursor = LT_cdr(cursor);
+    }
+    return 0;
+}
+
+static LT_Value module_resolvers_from_environment(LT_Environment* target_environment){
+    LT_Value resolvers_symbol;
+    LT_Value resolvers = LT_NIL;
+
+    if (target_environment == NULL){
+        LT_error("Loader expects environment");
+    }
+
+    resolvers_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "module-resolvers");
+    if (!LT_Environment_lookup(target_environment, resolvers_symbol, &resolvers, NULL)){
+        LT_error("Module resolver variable is not bound");
+    }
+    return resolvers;
+}
+
+LT_Value LT_loader_require_with_resolvers(LT_Environment* target_environment,
+                                          LT_Value module_designator,
+                                          LT_Value resolvers){
+    char* module_name;
+
+    if (target_environment == NULL){
+        LT_error("Loader expects environment");
+    }
+    module_name = module_name_from_designator(module_designator);
+    if (module_provided_p(target_environment, module_name)){
+        return module_designator;
+    }
+    return LT_loader_load(target_environment, module_designator, resolvers);
+}
+
+LT_Value LT_loader_require(LT_Environment* target_environment,
+                           LT_Value module_designator){
+    return LT_loader_require_with_resolvers(
+        target_environment,
+        module_designator,
+        module_resolvers_from_environment(target_environment)
+    );
+}
+
 void LT_loader_provide(LT_Environment* target_environment, char* module_name){
     LT_Value modules_symbol;
     LT_Value module_symbol;

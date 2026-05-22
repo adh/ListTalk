@@ -24,6 +24,17 @@ LT_Value LT_loader_load(
     LT_Value resolvers
 );
 
+LT_Value LT_loader_require(
+    LT_Environment* target_environment,
+    LT_Value module_designator
+);
+
+LT_Value LT_loader_require_with_resolvers(
+    LT_Environment* target_environment,
+    LT_Value module_designator,
+    LT_Value resolvers
+);
+
 void LT_loader_provide(
     LT_Environment* target_environment,
     char* module_name

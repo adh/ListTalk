@@ -258,6 +258,18 @@ test(
 )
 
 test(
+        'listtalk_cli_test',
+        python3,
+        args : [
+                meson.current_source_dir() / 'tests' / 'listtalk_cli_test.py',
+                listtalk_exe.full_path(),
+                meson.current_build_dir(),
+                meson.current_source_dir() / 'tests' / 'fixtures'
+        ],
+        depends : [listtalk_exe]
+)
+
+test(
         'throw_catch_test',
         throw_catch_test_exe
 )
