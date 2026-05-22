@@ -69,6 +69,19 @@ LT_DEFINE_PRIMITIVE(
     return LT_Number_add2(LT_car(self), LT_cdr(self));
 }
 
+static LT_Value primitive_test_noop_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    (void)arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+    return LT_NIL;
+}
+
 LT_DEFINE_PRIMITIVE(
     primitive_test_object_class_name_method,
     "test-object-class-name-method",
@@ -1084,6 +1097,48 @@ static int test_anonymous_closure_debug_print_includes_address(void){
     );
     free(printed);
     return result;
+}
+
+static int test_primitive_arguments_falls_back_to_string(void){
+    LT_Value primitive = LT_Primitive_new(
+        "bad-arguments",
+        "(not closed",
+        "primitive with malformed argument metadata",
+        primitive_test_noop_impl
+    );
+    LT_Value result = LT_SEND(primitive, "arguments");
+
+    if (expect(LT_String_p(result), "malformed primitive arguments return string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "(not closed"
+        ) == 0,
+        "malformed primitive arguments preserve original text"
+    );
+}
+
+static int test_primitive_documentation_returns_description_string(void){
+    LT_Value primitive = LT_Primitive_new(
+        "documented",
+        "(value)",
+        "primitive documentation text",
+        primitive_test_noop_impl
+    );
+    LT_Value result = LT_SEND(primitive, "documentation");
+
+    if (expect(LT_String_p(result), "primitive documentation returns string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "primitive documentation text"
+        ) == 0,
+        "primitive documentation preserves description"
+    );
 }
 
 static int test_symbol_uninterned_and_gensym_c_api(void){
@@ -2853,6 +2908,8 @@ int main(void){
     RUN_TEST(test_define_function_shorthand_sets_closure_name);
     RUN_TEST(test_closure_debug_print_includes_name);
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
+    RUN_TEST(test_primitive_arguments_falls_back_to_string);
+    RUN_TEST(test_primitive_documentation_returns_description_string);
     RUN_TEST(test_symbol_uninterned_and_gensym_c_api);
     RUN_TEST(test_gensym_primitive);
     RUN_TEST(test_symbol_class_methods_for_uninterned_and_gensym);

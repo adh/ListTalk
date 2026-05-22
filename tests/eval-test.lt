@@ -247,6 +247,15 @@
        "Primitive inherits Function>>documentation")
 (check (primitive? [Closure lookupSelector: :arguments])
        "Closure inherits Function>>arguments")
+(check (equal? [[Primitive >> :arguments] arguments] '(self))
+       "Primitive>>arguments parses primitive argument metadata")
+(check (equal? [[Primitive >> :documentation] documentation]
+               "Return primitive documentation.")
+       "Primitive>>documentation returns primitive description")
+(check (equal? [(lambda (x y) (+ x y)) arguments] '(x y))
+       "Closure>>arguments returns closure parameters")
+(check (null? [(lambda (x) x) documentation])
+       "Closure>>documentation returns nil")
 
 (define-class DNUReceiver (Object) ())
 (define-method [DNUReceiver doesNotUnderstand: message]

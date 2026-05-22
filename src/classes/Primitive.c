@@ -5,8 +5,41 @@
 
 #include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Reader.h>
+#include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Symbol.h>
+#include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/utils.h>
+
+static _Thread_local LT_Value primitive_reader_error_tag = LT_NIL;
+
+static LT_Value primitive_reader_error_handler_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    (void)condition;
+    LT_throw(primitive_reader_error_tag, LT_TRUE);
+}
+
+static LT_Primitive primitive_reader_error_handler = {
+    .function = primitive_reader_error_handler_impl,
+    .flags = 0,
+    .name = "primitive-reader-error-handler",
+    .arguments = "(condition)",
+    .description = "Catch reader errors while parsing primitive metadata."
+};
 
 static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Primitive* primitive = LT_Primitive_from_value(obj);
@@ -19,6 +52,78 @@ static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
     fputc('>', stream);
 }
 
+static LT_Value primitive_string_or_nil(char* string){
+    if (string == NULL){
+        return LT_NIL;
+    }
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(string);
+}
+
+static LT_Value primitive_parse_arguments_or_string(char* arguments_text){
+    LT_Value caught = LT_NIL;
+    LT_Value parsed = LT_NIL;
+    LT_Reader* reader;
+    LT_ReaderStream* stream;
+
+    if (arguments_text == NULL){
+        return LT_NIL;
+    }
+
+    reader = LT_Reader_new(LT_NIL);
+    stream = LT_ReaderStream_newForString(arguments_text);
+    primitive_reader_error_tag = LT_Symbol_new("primitive-reader-error");
+    LT_CATCH(primitive_reader_error_tag, caught, {
+        LT_HANDLER_BIND(LT_Primitive_from_static(&primitive_reader_error_handler), {
+            parsed = LT_Reader_readObject(reader, stream);
+        });
+    });
+
+    if (caught != LT_NIL){
+        return (LT_Value)(uintptr_t)LT_String_new_cstr(arguments_text);
+    }
+    return parsed;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_method_documentation,
+    "Primitive>>documentation",
+    "(self)",
+    "Return primitive documentation."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return primitive_string_or_nil(
+        LT_Primitive_description(LT_Primitive_from_value(self))
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_method_arguments,
+    "Primitive>>arguments",
+    "(self)",
+    "Return primitive argument list, or the raw argument string if it cannot be read."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return primitive_parse_arguments_or_string(
+        LT_Primitive_arguments(LT_Primitive_from_value(self))
+    );
+}
+
+static LT_Method_Descriptor Primitive_methods[] = {
+    {"documentation", &primitive_method_documentation},
+    {"arguments", &primitive_method_arguments},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Primitive) {
     .superclass = &LT_Function_class,
     .metaclass_superclass = &LT_Class_class,
@@ -27,6 +132,7 @@ LT_DEFINE_CLASS(LT_Primitive) {
     .instance_size = sizeof(LT_Primitive),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = Primitive_debugPrintOn,
+    .methods = Primitive_methods,
 };
 
 LT_Value LT_Primitive_new(char* name,
