@@ -299,6 +299,54 @@
                  (map (lambda (binding) [binding symbol])
                       [environment bindingsAsList]))
            "Environment>>bindingsAsList returns binding descriptors")))
+(let ((environment [Environment new]))
+  (check (environment? environment) "Environment class>>new returns environment")
+  (check (not [environment contains?: 'missing-environment-binding])
+         "Environment>>contains?: rejects missing binding")
+  (check-error-message "Environment binding not found"
+                       "Environment>>at: signals error for missing binding"
+                       [environment at: 'missing-environment-binding])
+  (check (= [environment at: 'environment-value put: 123] 123)
+         "Environment>>at:put: returns value")
+  (check [environment contains?: 'environment-value]
+         "Environment>>contains?: finds direct binding")
+  (check (= [environment at: 'environment-value] 123)
+         "Environment>>at: reads direct binding")
+  (check (not [environment constant?: 'environment-value])
+         "Environment>>constant?: false for mutable binding")
+  (check (= [environment at: 'environment-constant putConstant: 456] 456)
+         "Environment>>at:putConstant: returns value")
+  (check [environment constant?: 'environment-constant]
+         "Environment>>constant?: true for constant binding")
+  (check (not [environment constant?: 'missing-environment-binding])
+         "Environment>>constant?: false for missing binding")
+  (let ((constant-descriptor-seen #false))
+    [environment bindingsDo:
+                 (lambda (binding)
+                   (if (eq? [binding symbol] 'environment-constant)
+                       (set! constant-descriptor-seen [binding constant?])))]
+    (check constant-descriptor-seen
+           "BindingDescriptor>>constant? true for constant binding")))
+(let ((parent [Environment new]))
+  [parent at: 'parent-value put: 789]
+  [parent at: 'parent-constant putConstant: 987]
+  (let ((child [Environment newWithParent: parent]))
+    (check (environment? child)
+           "Environment class>>newWithParent: returns environment")
+    (check [child contains?: 'parent-value]
+           "Environment>>contains?: finds parent binding")
+    (check (= [child at: 'parent-value] 789)
+           "Environment>>at: reads parent binding")
+    (check [child constant?: 'parent-constant]
+           "Environment>>constant?: sees parent constant binding")))
+(check (environment? [Environment sharedBase])
+       "Environment class>>sharedBase returns environment")
+(check (eq? [Environment sharedBase] [Environment sharedBase])
+       "Environment class>>sharedBase returns shared instance")
+(let ((base-environment [Environment newBase]))
+  (check (and (environment? base-environment)
+              [base-environment contains?: '+])
+         "Environment class>>newBase returns initialized base environment"))
 
 (check (class? Message) "Message is a class")
 (check (class? CompoundForm) "CompoundForm is a class")

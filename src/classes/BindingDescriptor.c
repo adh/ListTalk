@@ -10,6 +10,7 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/Environment.h>
 
 #include <stddef.h>
 #include <stdint.h>
@@ -83,10 +84,27 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
+LT_DEFINE_PRIMITIVE(
+    binding_descriptor_method_constant,
+    "BindingDescriptor>>constant?",
+    "(self)",
+    "Return true when binding is constant."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_BindingDescriptor_flags(LT_BindingDescriptor_from_value(self))
+        & LT_ENV_BINDING_FLAG_CONSTANT) != 0 ? LT_TRUE : LT_FALSE;
+}
+
 static LT_Method_Descriptor BindingDescriptor_methods[] = {
     {"symbol", &binding_descriptor_method_symbol},
     {"value", &binding_descriptor_method_value},
     {"flags", &binding_descriptor_method_flags},
+    {"constant?", &binding_descriptor_method_constant},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
