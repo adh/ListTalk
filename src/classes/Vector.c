@@ -290,6 +290,7 @@ LT_DEFINE_CLASS(LT_Vector) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Vector",
+    .documentation = "Mutable indexed sequence of object values.",
     .instance_size = sizeof(LT_Vector),
     .class_flags = LT_CLASS_FLAG_FLEXIBLE,
     .hash = Vector_hash,

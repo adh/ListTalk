@@ -15,6 +15,7 @@ LT_DEFINE_CLASS(LT_Printer) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Printer",
+    .documentation = "Renderer for printing ListTalk values.",
     .instance_size = sizeof(LT_Printer),
 };
 

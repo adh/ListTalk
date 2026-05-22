@@ -100,6 +100,7 @@ LT_DEFINE_CLASS(LT_Condition) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Condition",
+    .documentation = "Base class for signaled conditions.",
     .instance_size = sizeof(LT_Condition),
     .debugPrintOn = Condition_debugPrintOn,
     .slots = Condition_slots,
@@ -109,6 +110,7 @@ LT_DEFINE_CLASS(LT_Warning) {
     .superclass = &LT_Condition_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Warning",
+    .documentation = "Non-fatal condition reported to handlers.",
     .instance_size = sizeof(LT_Warning),
     .debugPrintOn = Condition_debugPrintOn,
 };
@@ -117,6 +119,7 @@ LT_DEFINE_CLASS(LT_Error) {
     .superclass = &LT_Condition_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Error",
+    .documentation = "Fatal condition reported to handlers.",
     .instance_size = sizeof(LT_Error),
     .debugPrintOn = Condition_debugPrintOn,
 };
@@ -125,6 +128,7 @@ LT_DEFINE_CLASS(LT_SubclassResponsibilityError) {
     .superclass = &LT_Error_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SubclassResponsibilityError",
+    .documentation = "Error signaled when an abstract method is not overridden.",
     .instance_size = sizeof(LT_SubclassResponsibilityError),
     .debugPrintOn = Condition_debugPrintOn,
 };
@@ -133,6 +137,7 @@ LT_DEFINE_CLASS(LT_SystemError) {
     .superclass = &LT_Error_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SystemError",
+    .documentation = "Error representing an operating system failure.",
     .instance_size = sizeof(LT_SystemError),
     .debugPrintOn = Condition_debugPrintOn,
     .slots = SystemError_slots,
@@ -142,6 +147,7 @@ LT_DEFINE_CLASS(LT_ReaderError) {
     .superclass = &LT_Error_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "ReaderError",
+    .documentation = "Error signaled while reading source text.",
     .instance_size = sizeof(LT_ReaderError),
     .debugPrintOn = Condition_debugPrintOn,
     .slots = ReaderError_slots,
@@ -151,6 +157,7 @@ LT_DEFINE_CLASS(LT_IncompleteInputSyntaxError) {
     .superclass = &LT_ReaderError_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "IncompleteInputSyntaxError",
+    .documentation = "Reader error for syntactically incomplete input.",
     .instance_size = sizeof(LT_IncompleteInputSyntaxError),
     .debugPrintOn = Condition_debugPrintOn,
 };

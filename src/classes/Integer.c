@@ -367,6 +367,7 @@ LT_DEFINE_CLASS(LT_Integer) {
     .superclass = &LT_RationalNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Integer",
+    .documentation = "Abstract root for exact integer values.",
     .instance_size = sizeof(LT_Integer),
     .class_flags = LT_CLASS_FLAG_ABSTRACT
         | LT_CLASS_FLAG_IMMUTABLE

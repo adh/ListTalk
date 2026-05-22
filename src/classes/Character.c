@@ -76,6 +76,7 @@ LT_DEFINE_CLASS(LT_Character) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Character",
+    .documentation = "Unicode scalar character value.",
     .instance_size = sizeof(LT_Character),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,

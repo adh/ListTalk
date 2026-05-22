@@ -21,6 +21,7 @@ LT_DEFINE_CLASS(LT_InvocationContextKind) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "InvocationContextKind",
+    .documentation = "Kind tag for invocation context records.",
     .instance_size = sizeof(LT_InvocationContextKind),
     .class_flags = LT_CLASS_FLAG_FINAL,
     .debugPrintOn = InvocationContextKind_debugPrintOn,

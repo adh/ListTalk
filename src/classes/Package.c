@@ -86,6 +86,7 @@ LT_DEFINE_CLASS(LT_Package) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Package",
+    .documentation = "Namespace for interned symbols.",
     .instance_size = sizeof(LT_Package),
     .debugPrintOn = Package_debugPrintOn,
     .class_methods = Package_class_methods,

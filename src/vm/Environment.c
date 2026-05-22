@@ -43,6 +43,7 @@ LT_DEFINE_CLASS(LT_Environment) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Environment",
+    .documentation = "Mapping from names to values during evaluation.",
     .instance_size = sizeof(LT_Environment),
     .debugPrintOn = Environment_debugPrintOn,
     .slots = Environment_slots,

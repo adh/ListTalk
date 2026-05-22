@@ -108,6 +108,7 @@ LT_DEFINE_CLASS(LT_DynamicVariable) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "DynamicVariable",
+    .documentation = "Dynamically scoped variable binding.",
     .instance_size = sizeof(LT_DynamicVariable),
     .debugPrintOn = DynamicVariable_debugPrintOn,
     .slots = DynamicVariable_slots,

@@ -1989,6 +1989,7 @@ LT_DEFINE_CLASS(LT_Reader) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Reader",
+    .documentation = "Parser for ListTalk source forms.",
     .instance_size = sizeof(LT_Reader),
     .slots = Reader_slots,
 };

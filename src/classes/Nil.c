@@ -26,6 +26,7 @@ LT_DEFINE_CLASS(LT_Nil) {
     .superclass = &LT_List_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Nil",
+    .documentation = "The distinguished empty-list and falsey nil value.",
     .instance_size = sizeof(LT_Object),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_IMMUTABLE,
     .hash = Nil_hash,

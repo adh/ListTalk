@@ -27,6 +27,7 @@ LT_DEFINE_CLASS(LT_Fraction) {
     .superclass = &LT_RationalNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Fraction",
+    .documentation = "Exact rational number with arbitrary-precision parts.",
     .instance_size = sizeof(LT_Fraction),
     .class_flags = LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
     .debugPrintOn = Fraction_debugPrintOn,

@@ -22,6 +22,7 @@ LT_DEFINE_CLASS(LT_Float) {
     .superclass = &LT_RealNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Float",
+    .documentation = "Inexact floating-point real number.",
     .instance_size = sizeof(LT_Float),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,

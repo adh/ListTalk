@@ -128,6 +128,7 @@ struct LT_Class_Descriptor_s {
     LT_Class* metaclass_superclass;
     char* package;
     char* name;
+    char* documentation;
     size_t instance_size;
     int class_flags;
     LT_Class_debugPrintOn_Func debugPrintOn;

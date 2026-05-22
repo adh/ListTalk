@@ -454,6 +454,7 @@ LT_DEFINE_CLASS(LT_OS_Stat) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Stat",
+    .documentation = "Filesystem metadata returned by stat operations.",
     .instance_size = sizeof(LT_OS_Stat),
     .class_flags = LT_CLASS_FLAG_FINAL,
     .slots = Stat_slots,

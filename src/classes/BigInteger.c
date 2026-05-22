@@ -490,6 +490,7 @@ LT_DEFINE_CLASS(LT_BigInteger) {
     .superclass = &LT_Integer_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "BigInteger",
+    .documentation = "Arbitrary-precision exact integer value.",
     .instance_size = sizeof(LT_BigInteger),
     .class_flags = LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
     .debugPrintOn = BigInteger_debugPrintOn,

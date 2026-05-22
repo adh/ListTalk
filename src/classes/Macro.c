@@ -29,6 +29,7 @@ LT_DEFINE_CLASS(LT_Macro) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Macro",
+    .documentation = "Source transformation invoked during evaluation.",
     .instance_size = sizeof(LT_Macro),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = Macro_debugPrintOn,

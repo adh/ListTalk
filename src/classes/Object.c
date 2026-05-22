@@ -159,6 +159,7 @@ LT_DEFINE_CLASS(LT_Object) {
     .superclass = NULL,
     .metaclass_superclass = &LT_Class_class,
     .name = "Object",
+    .documentation = "Root of the object hierarchy.",
     .instance_size = sizeof(LT_Object),
     .class_flags = LT_CLASS_FLAG_ABSTRACT,
     .methods = Object_methods,

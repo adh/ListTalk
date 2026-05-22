@@ -1181,6 +1181,7 @@ LT_DEFINE_CLASS(LT_Number) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Number",
+    .documentation = "Abstract root for numeric values.",
     .instance_size = sizeof(LT_Number),
     .hash = Number_class_hash,
     .equal_p = Number_class_equal_p,

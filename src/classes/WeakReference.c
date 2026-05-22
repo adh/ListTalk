@@ -102,6 +102,7 @@ LT_DEFINE_CLASS(LT_WeakReference) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "WeakReference",
+    .documentation = "Reference that does not keep its target alive.",
     .instance_size = sizeof(LT_WeakReference),
     .methods = WeakReference_methods,
     .class_methods = WeakReference_class_methods,

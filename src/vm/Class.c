@@ -10,6 +10,7 @@
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Set.h>
+#include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
@@ -160,6 +161,7 @@ LT_DEFINE_CLASS(LT_Class) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Class",
+    .documentation = "Runtime representation of classes and metaclasses.",
     .instance_size = sizeof(LT_Class),
     .class_flags = LT_CLASS_FLAG_ABSTRACT,
     .debugPrintOn = Class_debugPrintOn,
@@ -364,6 +366,16 @@ static void materialize_direct_methods(
         );
         i++;
     }
+}
+
+static LT_Value materialize_documentation(LT_Class* klass, char* documentation){
+    if (documentation == NULL){
+        return LT_NIL;
+    }
+    if (klass != &LT_String_class){
+        LT_init_native_class(&LT_String_class);
+    }
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(documentation);
 }
 
 static LT_Value make_metaclass_name(LT_Value class_name){
@@ -672,7 +684,8 @@ void LT_init_native_class(LT_Class* klass){
     klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->cache_version = LT_Class_method_cache_global_version;
-    klass->documentation = LT_NIL;
+    klass->documentation =
+        materialize_documentation(klass, descriptor->documentation);
     klass->superclasses = make_single_superclass_list(descriptor->superclass);
     klass->precedence_list = make_single_inheritance_precedence_list(
         klass,

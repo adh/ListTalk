@@ -40,6 +40,7 @@ LT_DEFINE_CLASS(LT_RealNumber) {
     .superclass = &LT_ComplexNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "RealNumber",
+    .documentation = "Abstract root for real numeric values.",
     .instance_size = sizeof(LT_RealNumber),
     .methods = RealNumber_methods,
     .class_flags = LT_CLASS_FLAG_ABSTRACT

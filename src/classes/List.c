@@ -848,6 +848,7 @@ LT_DEFINE_CLASS(LT_List) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "List",
+    .documentation = "Abstract root for linked list values.",
     .instance_size = 0,
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_ABSTRACT,
     .hash = LT_List_hash,

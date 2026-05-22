@@ -22,6 +22,7 @@ LT_DEFINE_CLASS(LT_SpecialForm) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SpecialForm",
+    .documentation = "Evaluator form with special argument rules.",
     .instance_size = sizeof(LT_SpecialForm),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = SpecialForm_debugPrintOn,

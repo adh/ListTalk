@@ -15,6 +15,7 @@ LT_DEFINE_CLASS(LT_RationalNumber) {
     .superclass = &LT_RealNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "RationalNumber",
+    .documentation = "Abstract root for exact rational numbers.",
     .instance_size = sizeof(LT_RationalNumber),
     .class_flags = LT_CLASS_FLAG_ABSTRACT
         | LT_CLASS_FLAG_IMMUTABLE

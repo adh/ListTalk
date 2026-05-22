@@ -551,6 +551,7 @@ LT_DEFINE_CLASS(LT_ByteVector) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "ByteVector",
+    .documentation = "Mutable indexed sequence of bytes.",
     .instance_size = sizeof(LT_ByteVector),
     .class_flags = LT_CLASS_FLAG_FLEXIBLE,
     .hash = ByteVector_hash,

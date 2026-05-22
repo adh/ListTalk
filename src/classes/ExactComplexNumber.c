@@ -75,6 +75,7 @@ LT_DEFINE_CLASS(LT_ExactComplexNumber) {
     .superclass = &LT_ComplexNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "ExactComplexNumber",
+    .documentation = "Complex number with exact real and imaginary parts.",
     .instance_size = sizeof(LT_ExactComplexNumber),
     .class_flags = LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
     .debugPrintOn = ExactComplexNumber_debugPrintOn,
