@@ -96,6 +96,12 @@ LT_DECLARE_PRIMITIVE(
     "Return class slot names."
 );
 LT_DECLARE_PRIMITIVE(
+    class_method_documentation,
+    "Class>>documentation",
+    "(self)",
+    "Return class documentation."
+);
+LT_DECLARE_PRIMITIVE(
     class_method_binary_lookup_selector,
     "Class>>>>",
     "(self selector)",
@@ -132,6 +138,18 @@ LT_DECLARE_PRIMITIVE(
     "Return direct and inherited method selectors as a list."
 );
 LT_DECLARE_PRIMITIVE(
+    class_method_methods_do,
+    "Class>>methodsDo:",
+    "(self callable)",
+    "Call callable for each direct selector and method."
+);
+LT_DECLARE_PRIMITIVE(
+    class_method_all_methods_do,
+    "Class>>allMethodsDo:",
+    "(self callable)",
+    "Call callable for each direct and inherited selector and method."
+);
+LT_DECLARE_PRIMITIVE(
     class_method_add_method_with_selector,
     "Class>>addMethod:withSelector:",
     "(self method selector)",
@@ -146,12 +164,15 @@ LT_DECLARE_PRIMITIVE(
 
 static LT_Method_Descriptor Class_methods[] = {
     {"slots", &class_method_slots},
+    {"documentation", &class_method_documentation},
     {">>", &class_method_binary_lookup_selector},
     {"lookupSelector:", &class_method_lookup_selector},
     {"selectors", &class_method_selectors},
     {"allSelectors", &class_method_all_selectors},
     {"selectorsAsList", &class_method_selectors_as_list},
     {"allSelectorsAsList", &class_method_all_selectors_as_list},
+    {"methodsDo:", &class_method_methods_do},
+    {"allMethodsDo:", &class_method_all_methods_do},
     {"addMethod:withSelector:", &class_method_add_method_with_selector},
     {"alloc", &class_method_alloc},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
@@ -1012,6 +1033,16 @@ LT_PRIMITIVE_HEAD(class_method_slots){
     return LT_Class_slots(LT_Class_from_object(self));
 }
 
+LT_PRIMITIVE_HEAD(class_method_documentation){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Class_from_object(self)->documentation;
+}
+
 LT_PRIMITIVE_HEAD(class_method_binary_lookup_selector){
     LT_Value cursor = arguments;
     LT_Value self;
@@ -1083,6 +1114,50 @@ LT_PRIMITIVE_HEAD(class_method_all_selectors_as_list){
     LT_ARG_END(cursor);
     selectors = class_all_selectors(LT_Class_from_object(self));
     return LT_Set_asList((LT_Set*)selectors);
+}
+
+LT_PRIMITIVE_HEAD(class_method_methods_do){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    LT_Class* klass;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    klass = LT_Class_from_object(self);
+    LT_IdentityDictionary_for_each(
+        LT_IdentityDictionary_from_value(klass->methods),
+        callable
+    );
+    return LT_NIL;
+}
+
+LT_PRIMITIVE_HEAD(class_method_all_methods_do){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    LT_Value precedence_cursor;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    precedence_cursor = LT_Class_precedence_list(LT_Class_from_object(self));
+    while (precedence_cursor != LT_NIL){
+        LT_Value class_value = LT_ImmutableList_car(precedence_cursor);
+        LT_Class* current = LT_Class_from_object(class_value);
+
+        LT_IdentityDictionary_for_each(
+            LT_IdentityDictionary_from_value(current->methods),
+            callable
+        );
+        precedence_cursor = LT_ImmutableList_cdr(precedence_cursor);
+    }
+    return LT_NIL;
 }
 
 LT_PRIMITIVE_HEAD(class_method_add_method_with_selector){

@@ -236,6 +236,24 @@
 (check (memq :length [Pair allSelectorsAsList])
        "Class>>allSelectorsAsList contains inherited method")
 (check (memq 'name [Class slots]) "Class>>slots contains name")
+(check (equal? [Class documentation]
+               "Runtime representation of classes and metaclasses.")
+       "Class>>documentation returns class documentation")
+(let ((selectors '()))
+  [Pair methodsDo: (lambda (selector function)
+                     (set! selectors (cons selector selectors))
+                     (check (or (primitive? function) (function? function))
+                            "Class>>methodsDo: passes method"))]
+  (check (memq :car selectors) "Class>>methodsDo: visits direct method")
+  (check (not (memq :length selectors))
+         "Class>>methodsDo: excludes inherited method"))
+(let ((selectors '()))
+  [Nil allMethodsDo: (lambda (selector function)
+                       (set! selectors (cons selector selectors))
+                       (check (or (primitive? function) (function? function))
+                              "Class>>allMethodsDo: passes method"))]
+  (check (memq :length selectors) "Class>>allMethodsDo: visits inherited method")
+  (check (memq :class selectors) "Class>>allMethodsDo: visits Object method"))
 
 (check (class? Message) "Message is a class")
 (check (class? Function) "Function is a class")
