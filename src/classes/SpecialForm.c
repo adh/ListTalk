@@ -3,7 +3,7 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
-#include <ListTalk/classes/Function.h>
+#include <ListTalk/classes/CompoundForm.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/SpecialForm.h>
@@ -126,7 +126,7 @@ static LT_Method_Descriptor SpecialForm_methods[] = {
 };
 
 LT_DEFINE_CLASS(LT_SpecialForm) {
-    .superclass = &LT_Function_class,
+    .superclass = &LT_CompoundForm_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SpecialForm",
     .documentation = "Evaluator form with special argument rules.",
