@@ -77,6 +77,23 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
+LT_DEFINE_PRIMITIVE(
+    package_method_name,
+    "Package>>name",
+    "(self)",
+    "Return package name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(
+        LT_Package_name(LT_Package_from_value(self))
+    );
+}
+
 static int normalize_comparison(int comparison){
     if (comparison < 0){
         return -1;
@@ -188,6 +205,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor Package_methods[] = {
+    {"name", &package_method_name},
     {"compareWith:", &package_method_compare_with},
     {"<", &package_method_less_than},
     {">", &package_method_greater_than},

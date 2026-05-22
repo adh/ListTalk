@@ -104,6 +104,12 @@ LT_DECLARE_PRIMITIVE(
     "Return class documentation."
 );
 LT_DECLARE_PRIMITIVE(
+    class_method_precedence_list,
+    "Class>>precedenceList",
+    "(self)",
+    "Return class precedence list."
+);
+LT_DECLARE_PRIMITIVE(
     class_method_binary_lookup_selector,
     "Class>>>>",
     "(self selector)",
@@ -179,6 +185,7 @@ LT_DECLARE_PRIMITIVE(
 static LT_Method_Descriptor Class_methods[] = {
     {"slots", &class_method_slots},
     {"documentation", &class_method_documentation},
+    {"precedenceList", &class_method_precedence_list},
     {">>", &class_method_binary_lookup_selector},
     {"lookupSelector:", &class_method_lookup_selector},
     {"selectors", &class_method_selectors},
@@ -1208,6 +1215,16 @@ LT_PRIMITIVE_HEAD(class_method_documentation){
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
     return LT_Class_from_object(self)->documentation;
+}
+
+LT_PRIMITIVE_HEAD(class_method_precedence_list){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Class_precedence_list(LT_Class_from_object(self));
 }
 
 LT_PRIMITIVE_HEAD(class_method_binary_lookup_selector){
