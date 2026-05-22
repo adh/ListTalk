@@ -77,6 +77,125 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
+static int normalize_comparison(int comparison){
+    if (comparison < 0){
+        return -1;
+    }
+    if (comparison > 0){
+        return 1;
+    }
+    return 0;
+}
+
+static int package_compare(LT_Package* self, LT_Package* other){
+    return normalize_comparison(strcmp(LT_Package_name(self), LT_Package_name(other)));
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_compare_with,
+    "Package>>compareWith:",
+    "(self other)",
+    "Return -1, 0, or 1 when receiver name is lexicographically less than, equal to, or greater than argument name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_SmallInteger_new(package_compare(
+        LT_Package_from_value(self),
+        LT_Package_from_value(other)
+    ));
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_less_than,
+    "Package>><",
+    "(self other)",
+    "Return true when receiver name is lexicographically less than argument name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return package_compare(LT_Package_from_value(self), LT_Package_from_value(other)) < 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_greater_than,
+    "Package>>>",
+    "(self other)",
+    "Return true when receiver name is lexicographically greater than argument name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return package_compare(LT_Package_from_value(self), LT_Package_from_value(other)) > 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_less_than_or_equal,
+    "Package>><=",
+    "(self other)",
+    "Return true when receiver name is lexicographically less than or equal to argument name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return package_compare(LT_Package_from_value(self), LT_Package_from_value(other)) <= 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_greater_than_or_equal,
+    "Package>>>=",
+    "(self other)",
+    "Return true when receiver name is lexicographically greater than or equal to argument name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return package_compare(LT_Package_from_value(self), LT_Package_from_value(other)) >= 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+static LT_Method_Descriptor Package_methods[] = {
+    {"compareWith:", &package_method_compare_with},
+    {"<", &package_method_less_than},
+    {">", &package_method_greater_than},
+    {"<=", &package_method_less_than_or_equal},
+    {">=", &package_method_greater_than_or_equal},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 static LT_Method_Descriptor Package_class_methods[] = {
     {"named:", &package_class_method_named},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
@@ -89,6 +208,7 @@ LT_DEFINE_CLASS(LT_Package) {
     .documentation = "Namespace for interned symbols.",
     .instance_size = sizeof(LT_Package),
     .debugPrintOn = Package_debugPrintOn,
+    .methods = Package_methods,
     .class_methods = Package_class_methods,
 };
 

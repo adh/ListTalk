@@ -259,6 +259,10 @@
          "Class>>methodsDo: excludes inherited method"))
 (check (memq :car (map (lambda (method) [method selector]) [Pair methodsAsList]))
        "Class>>methodsAsList returns method descriptors")
+(let ((methods [Pair methodsAsList]))
+  (let ((sorted-methods [methods sort]))
+    (check [(car sorted-methods) <= (cadr sorted-methods)]
+           "MethodDescriptor ordering forwards to selector")))
 (let ((selectors '()))
   [Nil allMethodsDo: (lambda (method)
                        (set! selectors (cons [method selector] selectors))
@@ -298,7 +302,11 @@
     (check (memq 'reflection-local
                  (map (lambda (binding) [binding symbol])
                       [environment bindingsAsList]))
-           "Environment>>bindingsAsList returns binding descriptors")))
+           "Environment>>bindingsAsList returns binding descriptors")
+    (let ((bindings [environment bindingsAsList]))
+      (let ((sorted-bindings [bindings sort]))
+        (check [(car sorted-bindings) <= (cadr sorted-bindings)]
+               "BindingDescriptor ordering forwards to symbol")))))
 (let ((environment [Environment new]))
   (check (environment? environment) "Environment class>>new returns environment")
   (check (not [environment contains?: 'missing-environment-binding])
@@ -1814,6 +1822,27 @@
        "Symbol>>nameStartsWith?: accepts prefix")
 (check (not ['eval-test-alpha nameStartsWith?: "alpha"])
        "Symbol>>nameStartsWith?: rejects non-prefix")
+(let ((alpha-package [Package named: "OrderingAlpha"])
+      (beta-package [Package named: "OrderingBeta"]))
+  (check [alpha-package < beta-package]
+         "Package>>< compares package names lexicographically")
+  (check [beta-package > alpha-package]
+         "Package>>> compares package names lexicographically")
+  (check [alpha-package <= alpha-package]
+         "Package>><= accepts equality")
+  (check (= [alpha-package compareWith: beta-package] -1)
+         "Package>>compareWith: returns -1 for less")
+  (let ((alpha-a [Symbol intern: "a" in: alpha-package])
+        (alpha-b [Symbol intern: "b" in: alpha-package])
+        (beta-a [Symbol intern: "a" in: beta-package]))
+    (check [alpha-a < alpha-b]
+           "Symbol>>< compares local names within package")
+    (check [alpha-b < beta-a]
+           "Symbol>>< compares packages before local names")
+    (check [alpha-a <= alpha-a]
+           "Symbol>><= accepts equality")
+    (check (= [alpha-a compareWith: alpha-b] -1)
+           "Symbol>>compareWith: returns -1 for local name ordering")))
 (check-error-message "Readonly slot" "symbol package slot is readonly"
   (slot-set! 'eval-test-alpha 'package 1))
 

@@ -175,6 +175,145 @@ LT_DEFINE_PRIMITIVE(
         : LT_FALSE;
 }
 
+static int normalize_comparison(int comparison){
+    if (comparison < 0){
+        return -1;
+    }
+    if (comparison > 0){
+        return 1;
+    }
+    return 0;
+}
+
+static char* symbol_package_name(LT_Symbol* symbol){
+    LT_Package* package = LT_Symbol_package(symbol);
+
+    if (package == NULL){
+        return "";
+    }
+    return LT_Package_name(package);
+}
+
+static char* symbol_local_name(LT_Symbol* symbol){
+    char* name = LT_Symbol_name(symbol);
+
+    if (name == NULL){
+        return "";
+    }
+    return name;
+}
+
+static int symbol_compare(LT_Symbol* self, LT_Symbol* other){
+    int package_comparison = strcmp(
+        symbol_package_name(self),
+        symbol_package_name(other)
+    );
+
+    if (package_comparison != 0){
+        return normalize_comparison(package_comparison);
+    }
+    return normalize_comparison(strcmp(
+        symbol_local_name(self),
+        symbol_local_name(other)
+    ));
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_compare_with,
+    "Symbol>>compareWith:",
+    "(self other)",
+    "Return -1, 0, or 1 when receiver sorts before, with, or after argument by package then local name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_SmallInteger_new(symbol_compare(
+        LT_Symbol_from_value(self),
+        LT_Symbol_from_value(other)
+    ));
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_less_than,
+    "Symbol>><",
+    "(self other)",
+    "Return true when receiver sorts before argument by package then local name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return symbol_compare(LT_Symbol_from_value(self), LT_Symbol_from_value(other)) < 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_greater_than,
+    "Symbol>>>",
+    "(self other)",
+    "Return true when receiver sorts after argument by package then local name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return symbol_compare(LT_Symbol_from_value(self), LT_Symbol_from_value(other)) > 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_less_than_or_equal,
+    "Symbol>><=",
+    "(self other)",
+    "Return true when receiver sorts before or with argument by package then local name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return symbol_compare(LT_Symbol_from_value(self), LT_Symbol_from_value(other)) <= 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    symbol_method_greater_than_or_equal,
+    "Symbol>>>=",
+    "(self other)",
+    "Return true when receiver sorts after or with argument by package then local name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return symbol_compare(LT_Symbol_from_value(self), LT_Symbol_from_value(other)) >= 0
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
 LT_DEFINE_PRIMITIVE(
     symbol_class_method_gensym,
     "Symbol class>>gensym",
@@ -282,6 +421,11 @@ static LT_Method_Descriptor Symbol_methods[] = {
     {"package", &symbol_method_package},
     {"keyword?", &symbol_method_keyword_p},
     {"nameStartsWith?:", &symbol_method_name_starts_with},
+    {"compareWith:", &symbol_method_compare_with},
+    {"<", &symbol_method_less_than},
+    {">", &symbol_method_greater_than},
+    {"<=", &symbol_method_less_than_or_equal},
+    {">=", &symbol_method_greater_than_or_equal},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

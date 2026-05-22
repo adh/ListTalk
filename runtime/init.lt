@@ -138,6 +138,56 @@
 (ListTalk:define-method [ListTalk:Macro arguments]
   [.callable arguments])
 
+(ListTalk:define-method [ListTalk:BindingDescriptor compareWith: other]
+  (let ((symbol [ListTalk:self symbol])
+        (other-symbol [other symbol]))
+    [symbol compareWith: other-symbol]))
+
+(ListTalk:define-method [ListTalk:BindingDescriptor < other]
+  (let ((symbol [ListTalk:self symbol])
+        (other-symbol [other symbol]))
+    [symbol < other-symbol]))
+
+(ListTalk:define-method [ListTalk:BindingDescriptor > other]
+  (let ((symbol [ListTalk:self symbol])
+        (other-symbol [other symbol]))
+    [symbol > other-symbol]))
+
+(ListTalk:define-method [ListTalk:BindingDescriptor <= other]
+  (let ((symbol [ListTalk:self symbol])
+        (other-symbol [other symbol]))
+    [symbol <= other-symbol]))
+
+(ListTalk:define-method [ListTalk:BindingDescriptor >= other]
+  (let ((symbol [ListTalk:self symbol])
+        (other-symbol [other symbol]))
+    [symbol >= other-symbol]))
+
+(ListTalk:define-method [ListTalk:MethodDescriptor compareWith: other]
+  (let ((selector [ListTalk:self selector])
+        (other-selector [other selector]))
+    [selector compareWith: other-selector]))
+
+(ListTalk:define-method [ListTalk:MethodDescriptor < other]
+  (let ((selector [ListTalk:self selector])
+        (other-selector [other selector]))
+    [selector < other-selector]))
+
+(ListTalk:define-method [ListTalk:MethodDescriptor > other]
+  (let ((selector [ListTalk:self selector])
+        (other-selector [other selector]))
+    [selector > other-selector]))
+
+(ListTalk:define-method [ListTalk:MethodDescriptor <= other]
+  (let ((selector [ListTalk:self selector])
+        (other-selector [other selector]))
+    [selector <= other-selector]))
+
+(ListTalk:define-method [ListTalk:MethodDescriptor >= other]
+  (let ((selector [ListTalk:self selector])
+        (other-selector [other selector]))
+    [selector >= other-selector]))
+
 (ListTalk:define-macro (ListTalk:send receiver selector . arguments)
   (if (and (symbol? receiver)
           (eq? receiver 'ListTalk:super))
