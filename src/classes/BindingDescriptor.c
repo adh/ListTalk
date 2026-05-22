@@ -4,7 +4,7 @@
  */
 
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/ReflectedBinding.h>
+#include <ListTalk/classes/BindingDescriptor.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -14,31 +14,31 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct LT_ReflectedBinding_s {
+struct LT_BindingDescriptor_s {
     LT_Object base;
     LT_Value symbol;
     LT_Value value;
     LT_Value flags;
 };
 
-static LT_Slot_Descriptor ReflectedBinding_slots[] = {
-    {"symbol", offsetof(LT_ReflectedBinding, symbol), &LT_SlotType_ReadonlyObject},
-    {"value", offsetof(LT_ReflectedBinding, value), &LT_SlotType_ReadonlyObject},
-    {"flags", offsetof(LT_ReflectedBinding, flags), &LT_SlotType_ReadonlyObject},
+static LT_Slot_Descriptor BindingDescriptor_slots[] = {
+    {"symbol", offsetof(LT_BindingDescriptor, symbol), &LT_SlotType_ReadonlyObject},
+    {"value", offsetof(LT_BindingDescriptor, value), &LT_SlotType_ReadonlyObject},
+    {"flags", offsetof(LT_BindingDescriptor, flags), &LT_SlotType_ReadonlyObject},
     LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
-static void ReflectedBinding_debugPrintOn(LT_Value obj, FILE* stream){
-    LT_ReflectedBinding* binding = LT_ReflectedBinding_from_value(obj);
+static void BindingDescriptor_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_BindingDescriptor* binding = LT_BindingDescriptor_from_value(obj);
 
-    fputs("#<ReflectedBinding ", stream);
+    fputs("#<BindingDescriptor ", stream);
     LT_Value_debugPrintOn(binding->symbol, stream);
     fputc('>', stream);
 }
 
 LT_DEFINE_PRIMITIVE(
-    reflected_binding_method_symbol,
-    "ReflectedBinding>>symbol",
+    binding_descriptor_method_symbol,
+    "BindingDescriptor>>symbol",
     "(self)",
     "Return binding symbol."
 ){
@@ -48,12 +48,12 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    return LT_ReflectedBinding_symbol(LT_ReflectedBinding_from_value(self));
+    return LT_BindingDescriptor_symbol(LT_BindingDescriptor_from_value(self));
 }
 
 LT_DEFINE_PRIMITIVE(
-    reflected_binding_method_value,
-    "ReflectedBinding>>value",
+    binding_descriptor_method_value,
+    "BindingDescriptor>>value",
     "(self)",
     "Return binding value."
 ){
@@ -63,12 +63,12 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    return LT_ReflectedBinding_value(LT_ReflectedBinding_from_value(self));
+    return LT_BindingDescriptor_value(LT_BindingDescriptor_from_value(self));
 }
 
 LT_DEFINE_PRIMITIVE(
-    reflected_binding_method_flags,
-    "ReflectedBinding>>flags",
+    binding_descriptor_method_flags,
+    "BindingDescriptor>>flags",
     "(self)",
     "Return binding flags."
 ){
@@ -79,52 +79,52 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
     return LT_SmallInteger_new(
-        LT_ReflectedBinding_flags(LT_ReflectedBinding_from_value(self))
+        LT_BindingDescriptor_flags(LT_BindingDescriptor_from_value(self))
     );
 }
 
-static LT_Method_Descriptor ReflectedBinding_methods[] = {
-    {"symbol", &reflected_binding_method_symbol},
-    {"value", &reflected_binding_method_value},
-    {"flags", &reflected_binding_method_flags},
+static LT_Method_Descriptor BindingDescriptor_methods[] = {
+    {"symbol", &binding_descriptor_method_symbol},
+    {"value", &binding_descriptor_method_value},
+    {"flags", &binding_descriptor_method_flags},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
-LT_DEFINE_CLASS(LT_ReflectedBinding) {
+LT_DEFINE_CLASS(LT_BindingDescriptor) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
-    .name = "ReflectedBinding",
+    .name = "BindingDescriptor",
     .documentation = "Immutable description of an environment binding.",
-    .instance_size = sizeof(LT_ReflectedBinding),
+    .instance_size = sizeof(LT_BindingDescriptor),
     .class_flags = LT_CLASS_FLAG_FINAL | LT_CLASS_FLAG_IMMUTABLE,
-    .debugPrintOn = ReflectedBinding_debugPrintOn,
-    .slots = ReflectedBinding_slots,
-    .methods = ReflectedBinding_methods,
+    .debugPrintOn = BindingDescriptor_debugPrintOn,
+    .slots = BindingDescriptor_slots,
+    .methods = BindingDescriptor_methods,
 };
 
-LT_Value LT_ReflectedBinding_new(LT_Value symbol,
+LT_Value LT_BindingDescriptor_new(LT_Value symbol,
                                  LT_Value value,
                                  unsigned int flags){
-    LT_ReflectedBinding* binding;
+    LT_BindingDescriptor* binding;
 
     if (!LT_Symbol_p(symbol)){
         LT_type_error(symbol, &LT_Symbol_class);
     }
-    binding = LT_Class_ALLOC(LT_ReflectedBinding);
+    binding = LT_Class_ALLOC(LT_BindingDescriptor);
     binding->symbol = symbol;
     binding->value = value;
     binding->flags = LT_SmallInteger_new(flags);
     return (LT_Value)(uintptr_t)binding;
 }
 
-LT_Value LT_ReflectedBinding_symbol(LT_ReflectedBinding* binding){
+LT_Value LT_BindingDescriptor_symbol(LT_BindingDescriptor* binding){
     return binding->symbol;
 }
 
-LT_Value LT_ReflectedBinding_value(LT_ReflectedBinding* binding){
+LT_Value LT_BindingDescriptor_value(LT_BindingDescriptor* binding){
     return binding->value;
 }
 
-unsigned int LT_ReflectedBinding_flags(LT_ReflectedBinding* binding){
+unsigned int LT_BindingDescriptor_flags(LT_BindingDescriptor* binding){
     return (unsigned int)LT_SmallInteger_value(binding->flags);
 }

@@ -10,7 +10,7 @@
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/ReflectedMethod.h>
+#include <ListTalk/classes/MethodDescriptor.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -143,25 +143,25 @@ LT_DECLARE_PRIMITIVE(
     class_method_methods_do,
     "Class>>methodsDo:",
     "(self callable)",
-    "Call callable for each direct reflected method."
+    "Call callable for each direct method descriptor."
 );
 LT_DECLARE_PRIMITIVE(
     class_method_methods_as_list,
     "Class>>methodsAsList",
     "(self)",
-    "Return direct reflected methods as a list."
+    "Return direct method descriptors as a list."
 );
 LT_DECLARE_PRIMITIVE(
     class_method_all_methods_do,
     "Class>>allMethodsDo:",
     "(self callable)",
-    "Call callable for each most-specific reflected method."
+    "Call callable for each most-specific method descriptor."
 );
 LT_DECLARE_PRIMITIVE(
     class_method_all_methods_as_list,
     "Class>>allMethodsAsList",
     "(self)",
-    "Return most-specific direct and inherited reflected methods as a list."
+    "Return most-specific direct and inherited method descriptors as a list."
 );
 LT_DECLARE_PRIMITIVE(
     class_method_add_method_with_selector,
@@ -945,7 +945,7 @@ struct LT_Class_MethodReflectionBaton {
     LT_IdentitySet* seen;
 };
 
-static LT_Value class_reflected_method(LT_Class* klass, LT_Value selector){
+static LT_Value class_method_descriptor(LT_Class* klass, LT_Value selector){
     LT_Value callable;
 
     if (!LT_IdentityDictionary_at(
@@ -956,7 +956,7 @@ static LT_Value class_reflected_method(LT_Class* klass, LT_Value selector){
         return LT_NIL;
     }
 
-    return LT_ReflectedMethod_new(
+    return LT_MethodDescriptor_new(
         selector,
         callable,
         (LT_Value)(uintptr_t)klass
@@ -966,7 +966,7 @@ static LT_Value class_reflected_method(LT_Class* klass, LT_Value selector){
 static void class_direct_method_do(LT_Value selector, void* baton_value){
     struct LT_Class_MethodReflectionBaton* baton =
         (struct LT_Class_MethodReflectionBaton*)baton_value;
-    LT_Value method = class_reflected_method(baton->klass, selector);
+    LT_Value method = class_method_descriptor(baton->klass, selector);
 
     (void)LT_apply(baton->callable, LT_cons(method, LT_NIL), LT_NIL, LT_NIL, NULL);
 }
@@ -977,7 +977,7 @@ static void class_direct_method_append(LT_Value selector, void* baton_value){
 
     LT_ListBuilder_append(
         baton->builder,
-        class_reflected_method(baton->klass, selector)
+        class_method_descriptor(baton->klass, selector)
     );
 }
 
@@ -990,7 +990,7 @@ static void class_all_method_do(LT_Value selector, void* baton_value){
         return;
     }
     LT_Set_put((LT_Set*)baton->seen, selector);
-    method = class_reflected_method(baton->klass, selector);
+    method = class_method_descriptor(baton->klass, selector);
     (void)LT_apply(baton->callable, LT_cons(method, LT_NIL), LT_NIL, LT_NIL, NULL);
 }
 
@@ -1004,7 +1004,7 @@ static void class_all_method_append(LT_Value selector, void* baton_value){
     LT_Set_put((LT_Set*)baton->seen, selector);
     LT_ListBuilder_append(
         baton->builder,
-        class_reflected_method(baton->klass, selector)
+        class_method_descriptor(baton->klass, selector)
     );
 }
 

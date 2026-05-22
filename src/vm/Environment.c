@@ -7,7 +7,7 @@
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/InvocationContextKind.h>
-#include <ListTalk/classes/ReflectedBinding.h>
+#include <ListTalk/classes/BindingDescriptor.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
 
@@ -171,7 +171,7 @@ static void Environment_bindings_do(LT_Environment* environment, LT_Value callab
             struct LT_Environment_Binding* entry =
                 (struct LT_Environment_Binding*)table_entry->value;
             LT_Value symbol = (LT_Value)(uintptr_t)table_entry->key;
-            LT_Value binding = LT_ReflectedBinding_new(
+            LT_Value binding = LT_BindingDescriptor_new(
                 symbol,
                 entry->value,
                 entry->flags
@@ -197,7 +197,7 @@ static LT_Value Environment_bindings_as_list(LT_Environment* environment){
             LT_Value symbol = (LT_Value)(uintptr_t)table_entry->key;
             LT_ListBuilder_append(
                 builder,
-                LT_ReflectedBinding_new(symbol, entry->value, entry->flags)
+                LT_BindingDescriptor_new(symbol, entry->value, entry->flags)
             );
             table_entry = table_entry->next;
         }

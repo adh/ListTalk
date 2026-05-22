@@ -27,8 +27,8 @@
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Message.h>
-#include <ListTalk/classes/ReflectedBinding.h>
-#include <ListTalk/classes/ReflectedMethod.h>
+#include <ListTalk/classes/BindingDescriptor.h>
+#include <ListTalk/classes/MethodDescriptor.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/CompoundForm.h>
@@ -97,8 +97,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Pair", &LT_Pair_class},
     {"MutablePair", &LT_MutablePair_class},
     {"Message", &LT_Message_class},
-    {"ReflectedBinding", &LT_ReflectedBinding_class},
-    {"ReflectedMethod", &LT_ReflectedMethod_class},
+    {"BindingDescriptor", &LT_BindingDescriptor_class},
+    {"MethodDescriptor", &LT_MethodDescriptor_class},
     {"Vector", &LT_Vector_class},
     {"ByteVector", &LT_ByteVector_class},
     {"String", &LT_String_class},

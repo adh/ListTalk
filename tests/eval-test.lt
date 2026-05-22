@@ -248,26 +248,26 @@
 (let ((selectors '()))
   [Pair methodsDo: (lambda (method)
                      (set! selectors (cons [method selector] selectors))
-                     (check (eq? (type-of method) ReflectedMethod)
-                            "Class>>methodsDo: passes reflected method")
+                     (check (eq? (type-of method) MethodDescriptor)
+                            "Class>>methodsDo: passes method descriptor")
                      (check (function? [method callable])
-                            "ReflectedMethod>>callable returns method")
+                            "MethodDescriptor>>callable returns method")
                      (check (eq? [method implementing-class] Pair)
-                            "ReflectedMethod>>implementing-class returns direct class"))]
+                            "MethodDescriptor>>implementing-class returns direct class"))]
   (check (memq :car selectors) "Class>>methodsDo: visits direct method")
   (check (not (memq :length selectors))
          "Class>>methodsDo: excludes inherited method"))
 (check (memq :car (map (lambda (method) [method selector]) [Pair methodsAsList]))
-       "Class>>methodsAsList returns reflected direct methods")
+       "Class>>methodsAsList returns method descriptors")
 (let ((selectors '()))
   [Nil allMethodsDo: (lambda (method)
                        (set! selectors (cons [method selector] selectors))
                        (check (function? [method callable])
-                              "Class>>allMethodsDo: passes reflected method"))]
+                              "Class>>allMethodsDo: passes method descriptor"))]
   (check (memq :length selectors) "Class>>allMethodsDo: visits inherited method")
   (check (memq :class selectors) "Class>>allMethodsDo: visits Object method"))
 (check (memq :class (map (lambda (method) [method selector]) [Nil allMethodsAsList]))
-       "Class>>allMethodsAsList returns inherited reflected methods")
+       "Class>>allMethodsAsList returns inherited method descriptors")
 (define-class ReflectionOverride (Object) ())
 (define-method [ReflectionOverride asString] "reflection-override")
 (let ((as-string-methods '()))
@@ -287,18 +287,18 @@
                    (set! symbols (cons [binding symbol] symbols))
                    (if (eq? [binding symbol] 'reflection-local)
                        (begin
-                         (check (eq? (type-of binding) ReflectedBinding)
-                                "Environment>>bindingsDo: passes reflected binding")
+                         (check (eq? (type-of binding) BindingDescriptor)
+                                "Environment>>bindingsDo: passes binding descriptor")
                          (check (= [binding value] 88)
-                                "ReflectedBinding>>value returns value")
+                                "BindingDescriptor>>value returns value")
                          (check (= [binding flags] 0)
-                                "ReflectedBinding>>flags returns flags"))))]
+                                "BindingDescriptor>>flags returns flags"))))]
     (check (memq 'reflection-local symbols)
            "Environment>>bindingsDo: visits direct binding")
     (check (memq 'reflection-local
                  (map (lambda (binding) [binding symbol])
                       [environment bindingsAsList]))
-           "Environment>>bindingsAsList returns reflected bindings")))
+           "Environment>>bindingsAsList returns binding descriptors")))
 
 (check (class? Message) "Message is a class")
 (check (class? CompoundForm) "CompoundForm is a class")
