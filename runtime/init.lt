@@ -132,6 +132,12 @@
           (error "define-constructor expects [Class selector ...] signature"))
       (error "define-constructor expects [Class selector ...] signature")))
 
+(ListTalk:define-method [ListTalk:Macro documentation]
+  [.callable documentation])
+
+(ListTalk:define-method [ListTalk:Macro arguments]
+  [.callable arguments])
+
 (ListTalk:define-macro (ListTalk:send receiver selector . arguments)
   (if (and (symbol? receiver)
           (eq? receiver 'ListTalk:super))

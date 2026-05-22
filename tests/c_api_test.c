@@ -82,6 +82,17 @@ static LT_Value primitive_test_noop_impl(
     return LT_NIL;
 }
 
+static LT_Value special_form_test_noop_impl(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    (void)arguments;
+    (void)environment;
+    (void)tail_call_unwind_marker;
+    return LT_NIL;
+}
+
 LT_DEFINE_PRIMITIVE(
     primitive_test_object_class_name_method,
     "test-object-class-name-method",
@@ -1138,6 +1149,50 @@ static int test_primitive_documentation_returns_description_string(void){
             "primitive documentation text"
         ) == 0,
         "primitive documentation preserves description"
+    );
+}
+
+static int test_special_form_arguments_falls_back_to_string(void){
+    LT_Value special_form = LT_SpecialForm_new(
+        "bad-special-form-arguments",
+        "(not closed",
+        "special form with malformed argument metadata",
+        special_form_test_noop_impl,
+        NULL
+    );
+    LT_Value result = LT_SEND(special_form, "arguments");
+
+    if (expect(LT_String_p(result), "malformed special form arguments return string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "(not closed"
+        ) == 0,
+        "malformed special form arguments preserve original text"
+    );
+}
+
+static int test_special_form_documentation_returns_description_string(void){
+    LT_Value special_form = LT_SpecialForm_new(
+        "documented-special-form",
+        "(value)",
+        "special form documentation text",
+        special_form_test_noop_impl,
+        NULL
+    );
+    LT_Value result = LT_SEND(special_form, "documentation");
+
+    if (expect(LT_String_p(result), "special form documentation returns string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "special form documentation text"
+        ) == 0,
+        "special form documentation preserves description"
     );
 }
 
@@ -2910,6 +2965,8 @@ int main(void){
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
     RUN_TEST(test_primitive_arguments_falls_back_to_string);
     RUN_TEST(test_primitive_documentation_returns_description_string);
+    RUN_TEST(test_special_form_arguments_falls_back_to_string);
+    RUN_TEST(test_special_form_documentation_returns_description_string);
     RUN_TEST(test_symbol_uninterned_and_gensym_c_api);
     RUN_TEST(test_gensym_primitive);
     RUN_TEST(test_symbol_class_methods_for_uninterned_and_gensym);

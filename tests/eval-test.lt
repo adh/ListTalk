@@ -256,6 +256,17 @@
        "Closure>>arguments returns closure parameters")
 (check (null? [(lambda (x) x) documentation])
        "Closure>>documentation returns nil")
+(check (equal? [ListTalk-implementation:%lambda arguments]
+               '(name (arg ...) body ...))
+       "SpecialForm>>arguments parses special form argument metadata")
+(check (equal? [ListTalk-implementation:%lambda documentation]
+               "Create closure with lexical scope.")
+       "SpecialForm>>documentation returns special form description")
+(let ((test-macro (macro (lambda (x y) x))))
+  (check (equal? [test-macro arguments] '(x y))
+         "Macro>>arguments forwards to callable")
+  (check (null? [test-macro documentation])
+         "Macro>>documentation forwards to callable"))
 
 (define-class DNUReceiver (Object) ())
 (define-method [DNUReceiver doesNotUnderstand: message]

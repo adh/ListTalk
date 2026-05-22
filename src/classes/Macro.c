@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Macro.h>
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/vm/Class.h>
 
 #include <stddef.h>
@@ -26,7 +27,7 @@ static void Macro_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_CLASS(LT_Macro) {
-    .superclass = &LT_Object_class,
+    .superclass = &LT_Function_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Macro",
     .documentation = "Source transformation invoked during evaluation.",
