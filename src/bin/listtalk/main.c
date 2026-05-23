@@ -59,6 +59,37 @@ static int cstr_starts_with(const char* value, const char* prefix){
     return strncmp(value, prefix, prefix_length) == 0;
 }
 
+static int repl_completion_reader_delimiter_p(int ch){
+    return ch == '\0'
+        || isspace((unsigned char)ch)
+        || ch == '('
+        || ch == ')'
+        || ch == '['
+        || ch == ']'
+        || ch == '{'
+        || ch == '}'
+        || ch == '"'
+        || ch == '\''
+        || ch == '`'
+        || ch == ','
+        || ch == ';';
+}
+
+static int repl_completion_symbol_name_completable_p(char* name, int allow_colon){
+    char* cursor = name;
+
+    while (*cursor != '\0'){
+        if (repl_completion_reader_delimiter_p((unsigned char)*cursor)
+            || *cursor == '\\'
+            || *cursor == '|'
+            || (!allow_colon && *cursor == ':')){
+            return 0;
+        }
+        cursor++;
+    }
+    return 1;
+}
+
 static void repl_completion_matches_append_owned(char* value){
     size_t i;
     char** values;
@@ -99,9 +130,13 @@ static void repl_completion_matches_append_cstr(const char* value){
 
 static void repl_completion_add_symbol_name(char* prefix,
                                             LT_Value symbol,
-                                            const char* package_prefix){
+                                            const char* package_prefix,
+                                            int allow_colon){
     char* name = LT_Symbol_name(LT_Symbol_from_value(symbol));
 
+    if (!repl_completion_symbol_name_completable_p(name, allow_colon)){
+        return;
+    }
     if (!cstr_starts_with(name, prefix)){
         return;
     }
@@ -126,11 +161,17 @@ static void repl_completion_add_package_name(char* prefix, LT_Package* package){
 
 static void repl_completion_add_package_symbols(char* prefix,
                                                 LT_Package* package,
-                                                const char* package_prefix){
+                                                const char* package_prefix,
+                                                int allow_colon){
     LT_Value symbols = LT_Package_symbols_asList(package);
 
     while (LT_Pair_p(symbols)){
-        repl_completion_add_symbol_name(prefix, LT_car(symbols), package_prefix);
+        repl_completion_add_symbol_name(
+            prefix,
+            LT_car(symbols),
+            package_prefix,
+            allow_colon
+        );
         symbols = LT_cdr(symbols);
     }
     if (symbols != LT_NIL){
@@ -142,13 +183,14 @@ static void repl_completion_add_accessible_symbols(char* prefix){
     LT_Package* current_package = LT_get_current_package();
     LT_Value used_packages;
 
-    repl_completion_add_package_symbols(prefix, current_package, NULL);
+    repl_completion_add_package_symbols(prefix, current_package, NULL, 0);
     used_packages = LT_Package_used_packages(current_package);
     while (LT_Pair_p(used_packages)){
         repl_completion_add_package_symbols(
             prefix,
             (LT_Package*)LT_VALUE_POINTER_VALUE(LT_car(used_packages)),
-            NULL
+            NULL,
+            0
         );
         used_packages = LT_cdr(used_packages);
     }
@@ -173,7 +215,7 @@ static void repl_completion_add_packages(char* prefix){
 }
 
 static void repl_completion_add_keywords(char* text){
-    repl_completion_add_package_symbols(text + 1, LT_PACKAGE_KEYWORD, ":");
+    repl_completion_add_package_symbols(text + 1, LT_PACKAGE_KEYWORD, ":", 1);
 }
 
 static char* repl_completion_package_designator(char* text, char* colon){
@@ -201,7 +243,12 @@ static void repl_completion_add_qualified_symbols(char* text, char* colon){
     if (package != NULL){
         char* package_prefix = LT_sprintf("%s:", package_designator);
 
-        repl_completion_add_package_symbols(colon + 1, package, package_prefix);
+        repl_completion_add_package_symbols(
+            colon + 1,
+            package,
+            package_prefix,
+            0
+        );
     }
     free(package_designator);
 }
@@ -234,16 +281,7 @@ static char* repl_completion_generator(const char* text, int state){
 }
 
 static int repl_completion_token_char_p(int ch){
-    return ch != '\0'
-        && !isspace((unsigned char)ch)
-        && ch != '('
-        && ch != ')'
-        && ch != '['
-        && ch != ']'
-        && ch != '\''
-        && ch != '`'
-        && ch != '"'
-        && ch != ';';
+    return !repl_completion_reader_delimiter_p(ch);
 }
 
 static char** repl_attempted_completion(const char* text, int start, int end){
@@ -262,7 +300,7 @@ static char** repl_attempted_completion(const char* text, int start, int end){
 
 static void repl_install_completion(void){
     rl_attempted_completion_function = repl_attempted_completion;
-    rl_completer_word_break_characters = " \t\n()[]'`\";";
+    rl_completer_word_break_characters = " \t\n()[]{}'`\",;";
     rl_completion_append_character = '\0';
 }
 #endif
