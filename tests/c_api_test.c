@@ -244,6 +244,8 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static int primitive_test_for_each_count = 0;
+static LT_Value primitive_test_target_value = LT_INVALID;
+static int primitive_test_target_value_seen = 0;
 
 LT_DEFINE_PRIMITIVE(
     primitive_test_count_for_each,
@@ -261,6 +263,26 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, x);
     LT_ARG_END(cursor);
     primitive_test_for_each_count++;
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_note_target_value,
+    "test-note-target-value",
+    "(x)",
+    "Test helper primitive: note when argument is target value."
+){
+    LT_Value cursor = arguments;
+    LT_Value x;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, x);
+    LT_ARG_END(cursor);
+    if (x == primitive_test_target_value){
+        primitive_test_target_value_seen++;
+    }
     return LT_NIL;
 }
 
@@ -1035,6 +1057,73 @@ static int test_use_package_with_nickname(void){
     });
 
     return failed;
+}
+
+static int list_contains_identity(LT_Value list, LT_Value value){
+    LT_Value cursor = list;
+
+    while (LT_Pair_p(cursor)){
+        if (LT_car(cursor) == value){
+            return 1;
+        }
+        cursor = LT_cdr(cursor);
+    }
+    if (cursor != LT_NIL){
+        LT_error("list_contains_identity expects proper list");
+    }
+    return 0;
+}
+
+static int test_package_enumeration_c_api(void){
+    LT_Package* package = LT_Package_new("CApiPackageReflection");
+    LT_Value package_value = (LT_Value)(uintptr_t)package;
+    LT_Value alpha = LT_Package_intern_local_symbol(package, "alpha");
+    LT_Value beta = LT_Package_intern_local_symbol(package, "beta");
+    LT_Value symbols = LT_Package_symbols_asList(package);
+    LT_Value packages = LT_Package_packages_asList();
+
+    if (expect(
+        list_contains_identity(symbols, alpha),
+        "LT_Package_symbols_asList contains local symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        list_contains_identity(symbols, beta),
+        "LT_Package_symbols_asList contains second local symbol"
+    )){
+        return 1;
+    }
+    primitive_test_for_each_count = 0;
+    LT_Package_symbols_do(
+        package,
+        LT_Primitive_from_static(&primitive_test_count_for_each)
+    );
+    if (expect(
+        primitive_test_for_each_count == 2,
+        "LT_Package_symbols_do visits local symbols"
+    )){
+        return 1;
+    }
+    if (expect(
+        list_contains_identity(packages, package_value),
+        "LT_Package_packages_asList contains package"
+    )){
+        return 1;
+    }
+    primitive_test_target_value = package_value;
+    primitive_test_target_value_seen = 0;
+    LT_Package_packages_do(
+        LT_Primitive_from_static(&primitive_test_note_target_value)
+    );
+    if (expect(
+        primitive_test_target_value_seen == 1,
+        "LT_Package_packages_do visits package"
+    )){
+        return 1;
+    }
+    primitive_test_target_value = LT_INVALID;
+    return 0;
 }
 
 static int test_lambda_macro_expands_to_named_nil_closure(void){
@@ -2959,6 +3048,7 @@ int main(void){
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);
     RUN_TEST(test_use_package_with_nickname);
+    RUN_TEST(test_package_enumeration_c_api);
     RUN_TEST(test_lambda_macro_expands_to_named_nil_closure);
     RUN_TEST(test_define_function_shorthand_sets_closure_name);
     RUN_TEST(test_closure_debug_print_includes_name);

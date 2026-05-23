@@ -125,10 +125,15 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
-static void package_symbols_do(LT_Package* package, LT_Value callable){
-    LT_InlineHash* table = &package->symbol_table;
+void LT_Package_symbols_do(LT_Package* package, LT_Value callable){
+    LT_InlineHash* table;
     size_t i;
 
+    ensure_predefined_packages_initialized();
+    if (package == NULL){
+        LT_error("Package symbolsDo expects non-NULL package");
+    }
+    table = &package->symbol_table;
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -148,11 +153,16 @@ static void package_symbols_do(LT_Package* package, LT_Value callable){
     }
 }
 
-static LT_Value package_symbols_as_list(LT_Package* package){
-    LT_InlineHash* table = &package->symbol_table;
+LT_Value LT_Package_symbols_asList(LT_Package* package){
+    LT_InlineHash* table;
     LT_ListBuilder* builder = LT_ListBuilder_new();
     size_t i;
 
+    ensure_predefined_packages_initialized();
+    if (package == NULL){
+        LT_error("Package symbolsAsList expects non-NULL package");
+    }
+    table = &package->symbol_table;
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -167,7 +177,7 @@ static LT_Value package_symbols_as_list(LT_Package* package){
     return LT_ListBuilder_value(builder);
 }
 
-static void package_table_do(LT_Value callable){
+void LT_Package_packages_do(LT_Value callable){
     LT_InlineHash* table = get_package_table();
     size_t i;
 
@@ -188,7 +198,7 @@ static void package_table_do(LT_Value callable){
     }
 }
 
-static LT_Value package_table_as_list(void){
+LT_Value LT_Package_packages_asList(void){
     LT_InlineHash* table = get_package_table();
     LT_ListBuilder* builder = LT_ListBuilder_new();
     size_t i;
@@ -220,7 +230,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, callable);
     LT_ARG_END(cursor);
 
-    package_symbols_do(LT_Package_from_value(self), callable);
+    LT_Package_symbols_do(LT_Package_from_value(self), callable);
     return LT_NIL;
 }
 
@@ -236,7 +246,7 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    return package_symbols_as_list(LT_Package_from_value(self));
+    return LT_Package_symbols_asList(LT_Package_from_value(self));
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -258,7 +268,7 @@ LT_DEFINE_PRIMITIVE(
         LT_error("packagesDo: class method is only supported on Package");
     }
 
-    package_table_do(callable);
+    LT_Package_packages_do(callable);
     return LT_NIL;
 }
 
@@ -279,7 +289,7 @@ LT_DEFINE_PRIMITIVE(
         LT_error("packagesAsList class method is only supported on Package");
     }
 
-    return package_table_as_list();
+    return LT_Package_packages_asList();
 }
 
 static int normalize_comparison(int comparison){
