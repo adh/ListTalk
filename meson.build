@@ -28,9 +28,11 @@ add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 
 listtalk_deps = [bdwgc]
 listtalk_c_args = []
+repl_libraries_private = []
 libedit_dep = dependency('libedit', required : false)
 
 if libedit_dep.found()
+    repl_libraries_private = [libedit_dep]
     if cc.has_header('editline/readline.h', dependencies : libedit_dep)
         listtalk_deps += [libedit_dep]
         listtalk_c_args += ['-DLT_HAVE_LIBEDIT=1', '-DLT_HAVE_EDITLINE_READLINE_H=1']
@@ -152,6 +154,25 @@ pkg.generate(
         ]
 )
 
+repl_lib = library(
+        'ListTalkREPL',
+        'src/repl/REPL.c',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        c_args : listtalk_c_args,
+        install : true
+)
+
+pkg.generate(
+        repl_lib,
+        filebase : 'ListTalkREPL',
+        name : 'ListTalkREPL',
+        description : 'ListTalk REPL library',
+        subdirs : '.',
+        requires : ['ListTalkVM'],
+        libraries_private : repl_libraries_private
+)
+
 os_module = shared_module(
         'os',
         'src/modules/os.c',
@@ -177,9 +198,9 @@ gc_module = shared_module(
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
-        link_with: [vm_lib], 
+        link_with: [repl_lib, vm_lib],
         dependencies : listtalk_deps,
-        c_args : listtalk_c_args + [
+        c_args : [
                 '-DLT_NATIVE_MODULE_DIR="@0@"'.format(listtalk_native_module_runtime_dir),
                 '-DLT_SOURCE_MODULE_DIR="@0@"'.format(listtalk_source_module_runtime_dir)
         ],
