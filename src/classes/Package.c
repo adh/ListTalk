@@ -82,6 +82,33 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    package_class_method_find,
+    "Package class>>find:",
+    "(self name)",
+    "Return package with the provided name, or nil when no such package exists."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name_designator;
+    LT_Package* package;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, name_designator);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Package_class){
+        LT_error("find: class method is only supported on Package");
+    }
+
+    package = LT_Package_find(package_name_designator(name_designator));
+    if (package == NULL){
+        return LT_NIL;
+    }
+    return (LT_Value)(uintptr_t)package;
+}
+
+LT_DEFINE_PRIMITIVE(
     package_method_name,
     "Package>>name",
     "(self)",
@@ -379,6 +406,7 @@ static LT_Method_Descriptor Package_methods[] = {
 
 static LT_Method_Descriptor Package_class_methods[] = {
     {"named:", &package_class_method_named},
+    {"find:", &package_class_method_find},
     {"packagesDo:", &package_class_method_packages_do},
     {"packagesAsList", &package_class_method_packages_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
