@@ -3,6 +3,7 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
@@ -30,6 +31,9 @@ LT_Package LT_Package_LISTTALK_USER = {0};
 LT_Package LT_Package_KEYWORD = {0};
 static _Thread_local LT_Package* current_package = NULL;
 static int predefined_packages_initialized = 0;
+
+static LT_InlineHash* get_package_table(void);
+static void ensure_predefined_packages_initialized(void);
 
 static void Package_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Package* package = LT_Package_from_value(obj);
@@ -92,6 +96,163 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)LT_String_new_cstr(
         LT_Package_name(LT_Package_from_value(self))
     );
+}
+
+static void package_symbols_do(LT_Package* package, LT_Value callable){
+    LT_InlineHash* table = &package->symbol_table;
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_Value symbol =
+                ((LT_Value)(uintptr_t)entry->value) | LT_VALUE_POINTER_TAG_SYMBOL;
+
+            (void)LT_apply(
+                callable,
+                LT_cons(symbol, LT_NIL),
+                LT_NIL,
+                LT_NIL,
+                NULL
+            );
+            entry = entry->next;
+        }
+    }
+}
+
+static LT_Value package_symbols_as_list(LT_Package* package){
+    LT_InlineHash* table = &package->symbol_table;
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_ListBuilder_append(
+                builder,
+                ((LT_Value)(uintptr_t)entry->value) | LT_VALUE_POINTER_TAG_SYMBOL
+            );
+            entry = entry->next;
+        }
+    }
+    return LT_ListBuilder_value(builder);
+}
+
+static void package_table_do(LT_Value callable){
+    LT_InlineHash* table = get_package_table();
+    size_t i;
+
+    ensure_predefined_packages_initialized();
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            (void)LT_apply(
+                callable,
+                LT_cons((LT_Value)(uintptr_t)entry->value, LT_NIL),
+                LT_NIL,
+                LT_NIL,
+                NULL
+            );
+            entry = entry->next;
+        }
+    }
+}
+
+static LT_Value package_table_as_list(void){
+    LT_InlineHash* table = get_package_table();
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    size_t i;
+
+    ensure_predefined_packages_initialized();
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_ListBuilder_append(builder, (LT_Value)(uintptr_t)entry->value);
+            entry = entry->next;
+        }
+    }
+    return LT_ListBuilder_value(builder);
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_symbols_do,
+    "Package>>symbolsDo:",
+    "(self callable)",
+    "Call callable for each local interned symbol."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    package_symbols_do(LT_Package_from_value(self), callable);
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_symbols_as_list,
+    "Package>>symbolsAsList",
+    "(self)",
+    "Return local interned symbols as a list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return package_symbols_as_list(LT_Package_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_class_method_packages_do,
+    "Package class>>packagesDo:",
+    "(self callable)",
+    "Call callable for each package."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Package_class){
+        LT_error("packagesDo: class method is only supported on Package");
+    }
+
+    package_table_do(callable);
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_class_method_packages_as_list,
+    "Package class>>packagesAsList",
+    "(self)",
+    "Return packages as a list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    if (self != (LT_Value)(uintptr_t)&LT_Package_class){
+        LT_error("packagesAsList class method is only supported on Package");
+    }
+
+    return package_table_as_list();
 }
 
 static int normalize_comparison(int comparison){
@@ -206,6 +367,8 @@ LT_DEFINE_PRIMITIVE(
 
 static LT_Method_Descriptor Package_methods[] = {
     {"name", &package_method_name},
+    {"symbolsDo:", &package_method_symbols_do},
+    {"symbolsAsList", &package_method_symbols_as_list},
     {"compareWith:", &package_method_compare_with},
     {"<", &package_method_less_than},
     {">", &package_method_greater_than},
@@ -216,6 +379,8 @@ static LT_Method_Descriptor Package_methods[] = {
 
 static LT_Method_Descriptor Package_class_methods[] = {
     {"named:", &package_class_method_named},
+    {"packagesDo:", &package_class_method_packages_do},
+    {"packagesAsList", &package_class_method_packages_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
