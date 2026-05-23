@@ -30,6 +30,243 @@
 
 static LT_Value LT__repl_error_tag = LT_NIL;
 
+#ifdef LT_HAVE_LIBEDIT
+typedef struct {
+    char** values;
+    size_t count;
+    size_t capacity;
+    size_t index;
+} ReplCompletionMatches;
+
+static ReplCompletionMatches repl_completion_matches = {0};
+
+static void repl_completion_matches_clear(void){
+    size_t i;
+
+    for (i = 0; i < repl_completion_matches.count; i++){
+        free(repl_completion_matches.values[i]);
+    }
+    free(repl_completion_matches.values);
+    repl_completion_matches.values = NULL;
+    repl_completion_matches.count = 0;
+    repl_completion_matches.capacity = 0;
+    repl_completion_matches.index = 0;
+}
+
+static int cstr_starts_with(const char* value, const char* prefix){
+    size_t prefix_length = strlen(prefix);
+
+    return strncmp(value, prefix, prefix_length) == 0;
+}
+
+static void repl_completion_matches_append_owned(char* value){
+    size_t i;
+    char** values;
+
+    for (i = 0; i < repl_completion_matches.count; i++){
+        if (strcmp(repl_completion_matches.values[i], value) == 0){
+            free(value);
+            return;
+        }
+    }
+
+    if (repl_completion_matches.count == repl_completion_matches.capacity){
+        size_t capacity = repl_completion_matches.capacity == 0
+            ? 16
+            : repl_completion_matches.capacity * 2;
+        values = realloc(
+            repl_completion_matches.values,
+            sizeof(char*) * capacity
+        );
+        if (values == NULL){
+            LT_error("Could not allocate REPL completion matches");
+        }
+        repl_completion_matches.values = values;
+        repl_completion_matches.capacity = capacity;
+    }
+
+    repl_completion_matches.values[repl_completion_matches.count++] = value;
+}
+
+static void repl_completion_matches_append_cstr(const char* value){
+    char* copy = strdup(value);
+
+    if (copy == NULL){
+        LT_error("Could not allocate REPL completion match");
+    }
+    repl_completion_matches_append_owned(copy);
+}
+
+static void repl_completion_add_symbol_name(char* prefix,
+                                            LT_Value symbol,
+                                            const char* package_prefix){
+    char* name = LT_Symbol_name(LT_Symbol_from_value(symbol));
+
+    if (!cstr_starts_with(name, prefix)){
+        return;
+    }
+    if (package_prefix == NULL){
+        repl_completion_matches_append_cstr(name);
+    } else {
+        repl_completion_matches_append_cstr(LT_sprintf(
+            "%s%s",
+            package_prefix,
+            name
+        ));
+    }
+}
+
+static void repl_completion_add_package_name(char* prefix, LT_Package* package){
+    char* name = LT_Package_name(package);
+
+    if (cstr_starts_with(name, prefix)){
+        repl_completion_matches_append_cstr(LT_sprintf("%s:", name));
+    }
+}
+
+static void repl_completion_add_package_symbols(char* prefix,
+                                                LT_Package* package,
+                                                const char* package_prefix){
+    LT_Value symbols = LT_Package_symbols_asList(package);
+
+    while (LT_Pair_p(symbols)){
+        repl_completion_add_symbol_name(prefix, LT_car(symbols), package_prefix);
+        symbols = LT_cdr(symbols);
+    }
+    if (symbols != LT_NIL){
+        LT_error("Package symbolsAsList must return a proper list");
+    }
+}
+
+static void repl_completion_add_accessible_symbols(char* prefix){
+    LT_Package* current_package = LT_get_current_package();
+    LT_Value used_packages;
+
+    repl_completion_add_package_symbols(prefix, current_package, NULL);
+    used_packages = LT_Package_used_packages(current_package);
+    while (LT_Pair_p(used_packages)){
+        repl_completion_add_package_symbols(
+            prefix,
+            (LT_Package*)LT_VALUE_POINTER_VALUE(LT_car(used_packages)),
+            NULL
+        );
+        used_packages = LT_cdr(used_packages);
+    }
+    if (used_packages != LT_NIL){
+        LT_error("Package used-packages must be proper list");
+    }
+}
+
+static void repl_completion_add_packages(char* prefix){
+    LT_Value packages = LT_Package_packages_asList();
+
+    while (LT_Pair_p(packages)){
+        repl_completion_add_package_name(
+            prefix,
+            LT_Package_from_value(LT_car(packages))
+        );
+        packages = LT_cdr(packages);
+    }
+    if (packages != LT_NIL){
+        LT_error("Package packagesAsList must return a proper list");
+    }
+}
+
+static void repl_completion_add_keywords(char* text){
+    repl_completion_add_package_symbols(text + 1, LT_PACKAGE_KEYWORD, ":");
+}
+
+static char* repl_completion_package_designator(char* text, char* colon){
+    size_t length = (size_t)(colon - text);
+    char* designator = malloc(length + 1);
+
+    if (designator == NULL){
+        LT_error("Could not allocate REPL completion package designator");
+    }
+    memcpy(designator, text, length);
+    designator[length] = '\0';
+    return designator;
+}
+
+static void repl_completion_add_qualified_symbols(char* text, char* colon){
+    char* package_designator = repl_completion_package_designator(text, colon);
+    LT_Package* package = LT_Package_resolve_used_package(
+        LT_get_current_package(),
+        package_designator
+    );
+
+    if (package == NULL){
+        package = LT_Package_find(package_designator);
+    }
+    if (package != NULL){
+        char* package_prefix = LT_sprintf("%s:", package_designator);
+
+        repl_completion_add_package_symbols(colon + 1, package, package_prefix);
+    }
+    free(package_designator);
+}
+
+static void repl_completion_build_matches(char* text){
+    char* colon = strrchr(text, ':');
+
+    repl_completion_matches_clear();
+    if (text[0] == ':'){
+        repl_completion_add_keywords(text);
+    } else if (colon != NULL){
+        repl_completion_add_qualified_symbols(text, colon);
+    } else {
+        repl_completion_add_packages(text);
+        repl_completion_add_accessible_symbols(text);
+    }
+}
+
+static char* repl_completion_generator(const char* text, int state){
+    if (state == 0){
+        repl_completion_build_matches((char*)text);
+    }
+
+    if (repl_completion_matches.index >= repl_completion_matches.count){
+        return NULL;
+    }
+    return strdup(
+        repl_completion_matches.values[repl_completion_matches.index++]
+    );
+}
+
+static int repl_completion_token_char_p(int ch){
+    return ch != '\0'
+        && !isspace((unsigned char)ch)
+        && ch != '('
+        && ch != ')'
+        && ch != '['
+        && ch != ']'
+        && ch != '\''
+        && ch != '`'
+        && ch != '"'
+        && ch != ';';
+}
+
+static char** repl_attempted_completion(const char* text, int start, int end){
+    (void)text;
+    (void)end;
+
+    if (start > 0 && repl_completion_token_char_p(rl_line_buffer[start - 1])){
+        return NULL;
+    }
+    rl_attempted_completion_over = 1;
+    return rl_completion_matches(
+        rl_line_buffer + start,
+        repl_completion_generator
+    );
+}
+
+static void repl_install_completion(void){
+    rl_attempted_completion_function = repl_attempted_completion;
+    rl_completer_word_break_characters = " \t\n()[]'`\";";
+    rl_completion_append_character = '\0';
+}
+#endif
+
 static void print_condition(LT_Value condition){
     if (LT_Value_class(condition) == &LT_String_class){
         fprintf(
@@ -393,6 +630,9 @@ int main(int argc, char**argv){
 
     LT_INIT();
     LT_set_current_package(LT_PACKAGE_LISTTALK_USER);
+#ifdef LT_HAVE_LIBEDIT
+    repl_install_completion();
+#endif
     LT__repl_error_tag = LT_Symbol_new("repl-error");
     repl_handler = LT_Primitive_new(
         "repl-error-handler",
