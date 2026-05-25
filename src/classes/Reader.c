@@ -54,6 +54,7 @@ typedef struct LT_StringReaderStream_s {
 struct LT_Reader_s {
     LT_Object base;
     LT_Value source_file;
+    unsigned int flags;
     LT_Value line;
     LT_Value column;
     LT_Value nesting_depth;
@@ -68,6 +69,7 @@ static LT_Value read_object_from_first(
     LT_ReaderStream* stream,
     int first
 );
+static int reader_syntax_sugar_enabled(LT_Reader* reader);
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_bytevector_literal(LT_Reader* reader, LT_ReaderStream* stream);
@@ -955,16 +957,18 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
         return value;
     }
 
-    if (!token_result.has_symbol_quoting){
+    if (reader_syntax_sugar_enabled(reader) && !token_result.has_symbol_quoting){
         expanded = expand_self_slot_accessor(reader, source_location, token);
         if (expanded != 0){
             return expanded;
         }
     }
 
-    expanded = expand_dynamic_ref(reader, source_location, token_result);
-    if (expanded != 0){
-        return expanded;
+    if (reader_syntax_sugar_enabled(reader)){
+        expanded = expand_dynamic_ref(reader, source_location, token_result);
+        if (expanded != 0){
+            return expanded;
+        }
     }
 
     return parse_symbol_token_from_reader_token(token_result);
@@ -1948,8 +1952,11 @@ static LT_Value read_object_from_first(
     if (first == '('){
         return read_list(reader, stream);
     }
-    if (first == '['){
+    if (first == '[' && reader_syntax_sugar_enabled(reader)){
         return read_bracket_form(reader, stream);
+    }
+    if (first == '['){
+        reader_error(reader, "Unexpected '['");
     }
     if (first == ')'){
         reader_error(reader, "Unexpected ')'");
@@ -1971,6 +1978,10 @@ static LT_Value read_object_from_first(
     }
 
     return read_atom(reader, first, stream);
+}
+
+static int reader_syntax_sugar_enabled(LT_Reader* reader){
+    return (reader->flags & LT_READER_FLAG_DATA) == 0;
 }
 
 static LT_Slot_Descriptor Reader_slots[] = {
@@ -2019,14 +2030,24 @@ size_t LT_ReaderStream_stringOffset(LT_ReaderStream* stream){
 LT_Reader* LT_Reader_new(LT_Value source_file){
     LT_Reader* reader = LT_Class_ALLOC(LT_Reader);
     reader->source_file = source_file;
+    reader->flags = 0;
     reader_reset_position(reader);
     return reader;
+}
+
+unsigned int LT_Reader_flags(LT_Reader* reader){
+    return reader->flags;
+}
+
+void LT_Reader_setFlags(LT_Reader* reader, unsigned int flags){
+    reader->flags = flags;
 }
 
 LT_Reader* LT_Reader_clone(LT_Reader* reader){
     LT_Reader* clone = LT_Class_ALLOC(LT_Reader);
 
     clone->source_file = reader->source_file;
+    clone->flags = reader->flags;
     clone->line = reader->line;
     clone->column = reader->column;
     clone->nesting_depth = reader->nesting_depth;

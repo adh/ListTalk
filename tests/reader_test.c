@@ -74,6 +74,13 @@ static LT_Value read_one(const char* source){
     return LT_Reader_readObject(reader, stream);
 }
 
+static LT_Value read_one_data(const char* source){
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    LT_Reader_setFlags(reader, LT_READER_FLAG_DATA);
+    return LT_Reader_readObject(reader, stream);
+}
+
 static LT_Value read_one_with_source_file(const char* source, const char* source_file){
     LT_Reader* reader = LT_Reader_new(
         (LT_Value)(uintptr_t)LT_String_new_cstr((char*)source_file)
@@ -104,6 +111,20 @@ static LT_Value read_one_catch_error(const char* source){
     LT_Value caught = LT_NIL;
     LT_Reader* reader = LT_Reader_new(LT_NIL);
     LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+
+    LT_CATCH(LT__reader_error_tag, caught, {
+        LT_HANDLER_BIND(LT_Primitive_from_static(&reader_error_handler), {
+            (void)LT_Reader_readObject(reader, stream);
+        });
+    });
+    return caught;
+}
+
+static LT_Value read_one_data_catch_error(const char* source){
+    LT_Value caught = LT_NIL;
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    LT_Reader_setFlags(reader, LT_READER_FLAG_DATA);
 
     LT_CATCH(LT__reader_error_tag, caught, {
         LT_HANDLER_BIND(LT_Primitive_from_static(&reader_error_handler), {
@@ -1438,6 +1459,18 @@ static int test_bracket_binary_send_too_many_args_signals_error(void){
     );
 }
 
+static int test_data_reader_disables_bracket_send_syntax(void){
+    LT_Value value = read_one_data_catch_error("[obj foo]");
+
+    if (expect(LT_ReaderError_p(value), "data reader bracket form signals error")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Unexpected '['") == 0,
+        "data reader bracket form is not send syntax"
+    );
+}
+
 static int test_slot_accessor_syntax(void){
     LT_Value value = read_one(".slot");
     LT_Value tail;
@@ -1463,6 +1496,42 @@ static int test_slot_accessor_syntax(void){
         return 1;
     }
     return expect(LT_cdr(tail) == LT_NIL, "slot accessor arg list end");
+}
+
+static int test_data_reader_disables_slot_accessor_syntax(void){
+    LT_Value value = read_one_data(".slot");
+
+    if (expect(LT_Symbol_p(value), "data reader .slot is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), ".slot") == 0,
+        "data reader .slot keeps symbol name"
+    );
+}
+
+static int test_data_reader_disables_dynamic_variable_expansion(void){
+    LT_Value value = read_one_data("*dynamic*");
+
+    if (expect(LT_Symbol_p(value), "data reader dynamic variable is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "*dynamic*") == 0,
+        "data reader dynamic variable keeps symbol name"
+    );
+}
+
+static int test_reader_clone_copies_flags(void){
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_Reader* clone;
+
+    LT_Reader_setFlags(reader, LT_READER_FLAG_DATA);
+    clone = LT_Reader_clone(reader);
+    return expect(
+        LT_Reader_flags(clone) == LT_READER_FLAG_DATA,
+        "reader clone copies flags"
+    );
 }
 
 static int test_dot_prefixed_tokens_inside_list(void){
@@ -1902,7 +1971,11 @@ int main(void){
     failures += test_bracket_binary_send_syntax();
     failures += test_bracket_binary_send_multi_char_selector();
     failures += test_bracket_binary_send_too_many_args_signals_error();
+    failures += test_data_reader_disables_bracket_send_syntax();
     failures += test_slot_accessor_syntax();
+    failures += test_data_reader_disables_slot_accessor_syntax();
+    failures += test_data_reader_disables_dynamic_variable_expansion();
+    failures += test_reader_clone_copies_flags();
     failures += test_dot_prefixed_tokens_inside_list();
     failures += test_bare_dot_top_level_signals_error();
     failures += test_incomplete_input_signals_specific_syntax_error();

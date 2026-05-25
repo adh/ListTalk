@@ -21,6 +21,10 @@ typedef struct LT_ReaderStreamVTable_s {
     int (*ungetc)(int c, void* stream);
 } LT_ReaderStreamVTable;
 
+typedef enum LT_ReaderFlag_e {
+    LT_READER_FLAG_DATA = 1u << 0
+} LT_ReaderFlag;
+
 struct LT_ReaderStream_s {
     LT_ReaderStreamVTable* vtable;
 };
@@ -37,6 +41,8 @@ extern LT_ReaderStream* LT_ReaderStream_newForString(const char* str);
 extern size_t LT_ReaderStream_stringOffset(LT_ReaderStream* stream);
 
 extern LT_Reader* LT_Reader_new(LT_Value source_file);
+extern unsigned int LT_Reader_flags(LT_Reader* reader);
+extern void LT_Reader_setFlags(LT_Reader* reader, unsigned int flags);
 extern LT_Reader* LT_Reader_clone(LT_Reader* reader);
 extern LT_Value LT_Reader_readObject(
     LT_Reader* reader,
