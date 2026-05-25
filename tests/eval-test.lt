@@ -1299,6 +1299,7 @@
        (hard (string-append root "/hard.txt"))
        (soft (string-append root "/soft.txt"))
        (string-file (string-append root "/string.txt"))
+       (data-file (string-append root "/data.lt"))
        (bytevector-file (string-append root "/bytes.bin")))
   (ListTalk-OS:mkdir root)
   (check (ListTalk-OS:access root) "mkdir creates directory")
@@ -1351,6 +1352,14 @@
   ["alpha\nλ" writeToFile: string-file]
   (check (equal? [String fromFile: string-file] "alpha\nλ")
          "String class>>fromFile: reads file written by String>>writeToFile:")
+  ["FileData:alpha :key 17" writeToFile: data-file]
+  (let ((data (read-file-as-data data-file)))
+    (check (= (length data) 3) "read-file-as-data reads all forms")
+    (let ((package (slot-ref (car data) 'package)))
+      (check (equal? [package name] "FileData")
+             "read-file-as-data reads qualified symbol package"))
+    (check (keyword? (cadr data)) "read-file-as-data preserves keywords")
+    (check (= (caddr data) 17) "read-file-as-data reads numbers"))
   [(bytevector 0 65 255 10) writeToFile: bytevector-file]
   (check (equal? [ByteVector fromFile: bytevector-file]
                  (bytevector 0 65 255 10))
@@ -1391,6 +1400,23 @@
 
 (check (equal? (quote (+ 1 2)) '(+ 1 2)) "quote does not evaluate")
 (check (equal? '(+ 1 2) (quote (+ 1 2))) "quote reader syntax")
+(let ((data (read-string-as-data "DataReader:alpha :key 42 DataReader:*dynamic* DataReader:.slot")))
+  (check (= (length data) 5) "read-string-as-data reads all forms")
+  (let ((package (slot-ref (car data) 'package)))
+    (check (equal? [package name] "DataReader")
+           "read-string-as-data reads qualified symbol package"))
+  (check (equal? (symbol-name (car data)) "alpha")
+         "read-string-as-data reads qualified symbol name")
+  (check (keyword? (cadr data)) "read-string-as-data preserves keywords")
+  (check (= (caddr data) 42) "read-string-as-data reads numbers")
+  (check (equal? (symbol-name (cadddr data)) "*dynamic*")
+         "read-string-as-data does not expand dynamic variables")
+  (check (equal? (symbol-name (car (cddddr data))) ".slot")
+         "read-string-as-data does not expand slot accessors"))
+(check-raises "read-string-as-data rejects unqualified symbols"
+  (read-string-as-data "alpha"))
+(check-raises "read-string-as-data rejects bracket send syntax"
+  (read-string-as-data "[DataReader:alpha value]"))
 (check (equal? `(+ ,(+ 1 2) 4) '(+ 3 4)) "quasiquote with unquote")
 (check (equal? `(1 ,@(list 2 3) 4) '(1 2 3 4)) "quasiquote with unquote-splicing")
 

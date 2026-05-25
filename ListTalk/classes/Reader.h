@@ -48,6 +48,9 @@ extern LT_Value LT_Reader_readObject(
     LT_Reader* reader,
     LT_ReaderStream* stream
 );
+extern LT_Value LT_Reader_read_stream_as_data(
+    LT_ReaderStream* stream
+);
 
 
 

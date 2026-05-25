@@ -2088,3 +2088,26 @@ LT_Value LT_Reader_readObject(LT_Reader* reader, LT_ReaderStream* stream){
 
     return read_object_from_first(reader, stream, first);
 }
+
+LT_Value LT_Reader_read_stream_as_data(LT_ReaderStream* stream){
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value result = LT_NIL;
+
+    LT_WITH_PACKAGE(NULL, {
+        int first;
+
+        reader->flags = LT_READER_FLAG_DATA;
+        first = read_non_space_char(reader, stream);
+        while (first != EOF){
+            LT_ListBuilder_append(
+                builder,
+                read_object_from_first(reader, stream, first)
+            );
+            first = read_non_space_char(reader, stream);
+        }
+        result = LT_ListBuilder_value(builder);
+    });
+
+    return result;
+}

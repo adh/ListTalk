@@ -7,6 +7,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Printer.h>
+#include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Float.h>
@@ -28,6 +29,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 static int class_object_p(LT_Value value){
     return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Class));
@@ -655,6 +657,63 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_read_string_as_data,
+    "read-string-as-data",
+    "(source)",
+    "Read all s-expressions from source string as data."
+){
+    LT_Value cursor = arguments;
+    LT_Value source;
+    LT_ReaderStream* stream;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, source);
+    LT_ARG_END(cursor);
+    if (!LT_String_p(source)){
+        LT_type_error(source, &LT_String_class);
+    }
+
+    stream = LT_ReaderStream_newForString(
+        LT_String_value_cstr(LT_String_from_value(source))
+    );
+    return LT_Reader_read_stream_as_data(stream);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_read_file_as_data,
+    "read-file-as-data",
+    "(path)",
+    "Read all s-expressions from path as data."
+){
+    LT_Value cursor = arguments;
+    LT_Value path;
+    const char* path_cstr;
+    FILE* file;
+    LT_ReaderStream* stream;
+    LT_Value result;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, path);
+    LT_ARG_END(cursor);
+    if (!LT_String_p(path)){
+        LT_type_error(path, &LT_String_class);
+    }
+
+    path_cstr = LT_String_value_cstr(LT_String_from_value(path));
+    file = fopen(path_cstr, "r");
+    if (file == NULL){
+        LT_system_error("Could not open file for reading", errno);
+    }
+
+    stream = LT_ReaderStream_newForFile(file);
+    result = LT_Reader_read_stream_as_data(stream);
+    if (fclose(file) != 0){
+        LT_system_error("Could not close file", errno);
+    }
+    return result;
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_macroexpand,
     "macroexpand",
     "(form environment)",
@@ -864,6 +923,8 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_error);
     LT_base_env_bind_static_primitive(environment, &primitive_display);
     LT_base_env_bind_static_primitive(environment, &primitive_read);
+    LT_base_env_bind_static_primitive(environment, &primitive_read_string_as_data);
+    LT_base_env_bind_static_primitive(environment, &primitive_read_file_as_data);
     LT_base_env_bind_static_primitive(environment, &primitive_macroexpand);
     LT_base_env_bind_static_primitive(environment, &primitive_eval);
     LT_base_env_bind_static_primitive(environment, &primitive_apply);

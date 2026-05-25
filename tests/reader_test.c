@@ -134,6 +134,23 @@ static LT_Value read_one_data_catch_error(const char* source){
     return caught;
 }
 
+static LT_Value read_all_data(const char* source){
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    return LT_Reader_read_stream_as_data(stream);
+}
+
+static LT_Value read_all_data_catch_error(const char* source){
+    LT_Value caught = LT_NIL;
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+
+    LT_CATCH(LT__reader_error_tag, caught, {
+        LT_HANDLER_BIND(LT_Primitive_from_static(&reader_error_handler), {
+            (void)LT_Reader_read_stream_as_data(stream);
+        });
+    });
+    return caught;
+}
+
 static const char* condition_message_cstr(LT_Value condition){
     LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
     return LT_String_value_cstr(LT_String_from_value(message));
@@ -1206,6 +1223,88 @@ static int test_reader_accepts_keyword_without_current_package(void){
     );
 }
 
+static int test_reader_read_stream_as_data_returns_all_objects(void){
+    LT_Value value = read_all_data(
+        "reader-data-package:alpha :keyword 42 reader-data-package:*dynamic*"
+    );
+    LT_Value cursor = value;
+    LT_Value symbol;
+
+    if (expect(LT_Pair_p(cursor), "read stream as data returns first pair")){
+        return 1;
+    }
+    symbol = LT_car(cursor);
+    if (expect(LT_Symbol_p(symbol), "read stream as data first object symbol")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Package_name(LT_Symbol_package(LT_Symbol_from_value(symbol))),
+               "reader-data-package") == 0,
+        "read stream as data first object package"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(cursor))) == LT_PACKAGE_KEYWORD,
+        "read stream as data keeps keyword package"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(
+        LT_Value_is_fixnum(LT_car(cursor)) && LT_SmallInteger_value(LT_car(cursor)) == 42,
+        "read stream as data reads numeric object"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    symbol = LT_car(cursor);
+    if (expect(LT_Symbol_p(symbol), "read stream as data dynamic-looking symbol")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(symbol)), "*dynamic*") == 0,
+        "read stream as data does not expand dynamic-looking symbol"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(cursor) == LT_NIL, "read stream as data list terminates");
+}
+
+static int test_reader_read_stream_as_data_rejects_unqualified_symbol(void){
+    LT_Value value = read_all_data_catch_error("alpha");
+
+    if (expect(LT_ReaderError_p(value), "read stream as data rejects unqualified symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Unqualified symbol without current package") == 0,
+        "read stream as data unqualified symbol error message"
+    );
+}
+
+static int test_reader_read_stream_as_data_restores_state(void){
+    LT_Package* package = LT_Package_new("reader-data-restore");
+    LT_ReaderStream* stream = LT_ReaderStream_newForString("reader-data-restore:alpha");
+    int failed = 0;
+
+    LT_WITH_PACKAGE(package, {
+        (void)LT_Reader_read_stream_as_data(stream);
+        if (expect(
+            LT_get_current_package() == package,
+            "read stream as data restores current package"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
 static int test_symbol_print_omits_prefix_in_current_package(void){
     LT_Package* package = LT_Package_new("print-current");
     LT_Value symbol = LT_NIL;
@@ -2054,6 +2153,9 @@ int main(void){
     failures += test_reader_rejects_unqualified_symbol_without_current_package();
     failures += test_reader_accepts_fully_qualified_symbol_without_current_package();
     failures += test_reader_accepts_keyword_without_current_package();
+    failures += test_reader_read_stream_as_data_returns_all_objects();
+    failures += test_reader_read_stream_as_data_rejects_unqualified_symbol();
+    failures += test_reader_read_stream_as_data_restores_state();
     failures += test_symbol_print_omits_prefix_in_current_package();
     failures += test_symbol_print_keeps_prefix_without_current_package();
     failures += test_keyword_print_unchanged_without_current_package();
