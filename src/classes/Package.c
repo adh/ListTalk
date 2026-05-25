@@ -30,6 +30,7 @@ LT_Package LT_Package_LISTTALK_IMPLEMENTATION = {0};
 LT_Package LT_Package_LISTTALK_USER = {0};
 LT_Package LT_Package_KEYWORD = {0};
 static _Thread_local LT_Package* current_package = NULL;
+static _Thread_local int current_package_is_set = 0;
 static int predefined_packages_initialized = 0;
 
 static LT_InlineHash* get_package_table(void);
@@ -718,16 +719,15 @@ LT_Value LT_Package_intern_symbol(LT_Package* package, char* name){
 
 LT_Package* LT_get_current_package(void){
     ensure_predefined_packages_initialized();
-    if (current_package == NULL){
+    if (!current_package_is_set){
         current_package = LT_PACKAGE_LISTTALK;
+        current_package_is_set = 1;
     }
     return current_package;
 }
 
 void LT_set_current_package(LT_Package* package){
     ensure_predefined_packages_initialized();
-    if (package == NULL){
-        LT_error("Current package must not be NULL");
-    }
     current_package = package;
+    current_package_is_set = 1;
 }

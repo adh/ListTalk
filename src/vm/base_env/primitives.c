@@ -795,9 +795,11 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, package_designator);
     LT_ARG_END(cursor);
 
-    package = package_from_designator(package_designator, 0);
+    package = package_designator == LT_NIL
+        ? NULL
+        : package_from_designator(package_designator, 0);
     LT_set_current_package(package);
-    return (LT_Value)(uintptr_t)package;
+    return package == NULL ? LT_NIL : (LT_Value)(uintptr_t)package;
 }
 
 LT_DEFINE_PRIMITIVE(

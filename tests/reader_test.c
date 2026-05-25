@@ -1150,6 +1150,62 @@ static int test_reader_uses_thread_local_current_package(void){
     );
 }
 
+static int test_reader_rejects_unqualified_symbol_without_current_package(void){
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(NULL, {
+        value = read_one_catch_error("alpha");
+    });
+
+    if (expect(
+        LT_ReaderError_p(value),
+        "nil current package rejects unqualified symbol"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Unqualified symbol without current package") == 0,
+        "nil current package unqualified symbol error message"
+    );
+}
+
+static int test_reader_accepts_fully_qualified_symbol_without_current_package(void){
+    LT_Value value = LT_NIL;
+    LT_Symbol* symbol;
+
+    LT_WITH_PACKAGE(NULL, {
+        value = read_one("nil-current-reader:alpha");
+    });
+
+    if (expect(LT_Symbol_p(value), "nil current package reads qualified symbol")){
+        return 1;
+    }
+    symbol = LT_Symbol_from_value(value);
+    if (expect(strcmp(LT_Symbol_name(symbol), "alpha") == 0, "qualified symbol name")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Package_name(LT_Symbol_package(symbol)), "nil-current-reader") == 0,
+        "qualified symbol package without current package"
+    );
+}
+
+static int test_reader_accepts_keyword_without_current_package(void){
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(NULL, {
+        value = read_one(":alpha");
+    });
+
+    if (expect(LT_Symbol_p(value), "nil current package reads keyword")){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_value(value)) == LT_PACKAGE_KEYWORD,
+        "nil current package keyword package"
+    );
+}
+
 static int test_symbol_print_omits_prefix_in_current_package(void){
     LT_Package* package = LT_Package_new("print-current");
     LT_Value symbol = LT_NIL;
@@ -1161,6 +1217,41 @@ static int test_symbol_print_omits_prefix_in_current_package(void){
             symbol,
             "token",
             "symbol in current package prints without prefix"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_symbol_print_keeps_prefix_without_current_package(void){
+    LT_Package* package = LT_Package_new("print-nil-current");
+    LT_Value symbol = LT_Symbol_new_in(package, "token");
+    int failed = 0;
+
+    LT_WITH_PACKAGE(NULL, {
+        if (expect_symbol_print(
+            symbol,
+            "print-nil-current:token",
+            "symbol prints qualified without current package"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_keyword_print_unchanged_without_current_package(void){
+    LT_Value symbol = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "token");
+    int failed = 0;
+
+    LT_WITH_PACKAGE(NULL, {
+        if (expect_symbol_print(
+            symbol,
+            ":token",
+            "keyword print unaffected without current package"
         )){
             failed = 1;
         }
@@ -1960,7 +2051,12 @@ int main(void){
     failures += test_quote_syntax_in_user_package_uses_listtalk_quote();
     failures += test_symbol_package_interning();
     failures += test_reader_uses_thread_local_current_package();
+    failures += test_reader_rejects_unqualified_symbol_without_current_package();
+    failures += test_reader_accepts_fully_qualified_symbol_without_current_package();
+    failures += test_reader_accepts_keyword_without_current_package();
     failures += test_symbol_print_omits_prefix_in_current_package();
+    failures += test_symbol_print_keeps_prefix_without_current_package();
+    failures += test_keyword_print_unchanged_without_current_package();
     failures += test_symbol_print_omits_prefix_from_used_package_without_conflict();
     failures += test_symbol_print_keeps_prefix_for_used_package_conflict();
     failures += test_package_prefixed_symbol();

@@ -848,8 +848,12 @@ static int parse_complex_polar_token(const char* token, LT_Value* value){
     return 1;
 }
 
-static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_result){
+static LT_Value parse_symbol_token_from_reader_token(
+    LT_Reader* reader,
+    LT_ReadTokenResult token_result
+){
     char* token = token_result.token;
+    LT_Package* current_package;
 
     if (token[0] == '\0'){
         LT_error("Symbol token must not be empty");
@@ -862,8 +866,12 @@ static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_re
         return LT_Symbol_new_in(LT_PACKAGE_KEYWORD, token + 1);
     }
 
+    current_package = LT_get_current_package();
     if (!token_result.has_unescaped_colon){
-        return LT_Package_intern_symbol(LT_get_current_package(), token);
+        if (current_package == NULL){
+            reader_error(reader, "Unqualified symbol without current package");
+        }
+        return LT_Package_intern_symbol(current_package, token);
     }
 
     if (token[token_result.last_unescaped_colon + 1] == '\0'){
@@ -877,10 +885,9 @@ static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_re
 
         memcpy(package_name, token, package_len);
         package_name[package_len] = '\0';
-        package = LT_Package_resolve_used_package(
-            LT_get_current_package(),
-            package_name
-        );
+        package = current_package == NULL
+            ? NULL
+            : LT_Package_resolve_used_package(current_package, package_name);
         if (package == NULL){
             package = LT_Package_new(package_name);
         }
@@ -898,7 +905,19 @@ static LT_Value expand_self_slot_accessor(LT_Reader* reader, LT_Value source_loc
     }
 
     values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%self-slot");
-    values[1] = LT_Symbol_parse_token(token + 1);
+    {
+        LT_ReadTokenResult slot_token_result = {0};
+        char* slot_token = token + 1;
+        char* colon = strrchr(slot_token, ':');
+
+        slot_token_result.token = slot_token;
+        if (colon != NULL){
+            slot_token_result.last_unescaped_colon = (size_t)(colon - slot_token);
+            slot_token_result.has_unescaped_colon = 1;
+            slot_token_result.first_char_is_unescaped_colon = colon == slot_token;
+        }
+        values[1] = parse_symbol_token_from_reader_token(reader, slot_token_result);
+    }
     return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
@@ -928,7 +947,7 @@ static LT_Value expand_dynamic_ref(LT_Reader* reader,
     }
 
     values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK_IMPLEMENTATION, "%dynamic-ref");
-    values[1] = parse_symbol_token_from_reader_token(token_result);
+    values[1] = parse_symbol_token_from_reader_token(reader, token_result);
     return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
@@ -971,7 +990,7 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
         }
     }
 
-    return parse_symbol_token_from_reader_token(token_result);
+    return parse_symbol_token_from_reader_token(reader, token_result);
 }
 
 static void consume_dispatch_suffix_or_short(

@@ -485,6 +485,7 @@ LT_Value LT_Symbol_new(char *name){
 
 LT_Value LT_Symbol_parse_token(char* token){
     char* last_colon;
+    LT_Package* current_package;
 
     if (token == NULL){
         LT_error("Symbol token must not be NULL");
@@ -498,8 +499,12 @@ LT_Value LT_Symbol_parse_token(char* token){
     }
 
     last_colon = strrchr(token, ':');
+    current_package = LT_get_current_package();
     if (last_colon == NULL){
-        return LT_Package_intern_symbol(LT_get_current_package(), token);
+        if (current_package == NULL){
+            LT_error("Unqualified symbol without current package");
+        }
+        return LT_Package_intern_symbol(current_package, token);
     }
 
     if (last_colon[1] == '\0'){
@@ -513,10 +518,9 @@ LT_Value LT_Symbol_parse_token(char* token){
 
         memcpy(package_name, token, package_len);
         package_name[package_len] = '\0';
-        package = LT_Package_resolve_used_package(
-            LT_get_current_package(),
-            package_name
-        );
+        package = current_package == NULL
+            ? NULL
+            : LT_Package_resolve_used_package(current_package, package_name);
         if (package == NULL){
             package = LT_Package_new(package_name);
         }
