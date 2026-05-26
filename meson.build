@@ -174,6 +174,17 @@ gc_module = shared_module(
         install_dir : listtalk_native_module_dir
 )
 
+cmdopts_module = shared_module(
+        'cmdopts',
+        'src/modules/cmdopts.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -254,7 +265,7 @@ test(
                 '-L', meson.current_source_dir() / 'tests' / 'fixtures',
                 meson.current_source_dir() / 'tests' / 'eval-test.lt'
         ],
-        depends : [os_module, gc_module]
+        depends : [os_module, gc_module, cmdopts_module]
 )
 
 test(

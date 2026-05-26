@@ -4,6 +4,7 @@
 
 (load! :os)
 (load! :gc)
+(load! :cmdopts)
 
 ;;; Test framework
 
@@ -1839,6 +1840,29 @@
 (check (primitive? ListTalk-OS:exit) "load! loads native module primitive")
 (check (pair? (memq :os ListTalk:%modules)) "native module records provided module")
 (check (primitive? ListTalk-GC:collect!) "load! loads gc native module primitive")
+(check (class? ListTalk-cmdopts:Parser) "load! loads cmdopts Parser class")
+
+(let ((parser [ListTalk-cmdopts:Parser newWithFlags: '(:strict-order)])
+      (verbose 0)
+      (name #nil)
+      (arguments '()))
+  [parser addOption: #false
+          shortOption: #\v
+          longOption: "verbose"
+          do: (lambda (p value)
+                (check (eq? p parser) "cmdopts option callback receives parser")
+                (check (null? value) "cmdopts flag callback receives nil value")
+                (set! verbose (+ verbose 1)))]
+  [parser addOption: #true
+          shortOption: #\n
+          longOption: "name"
+          do: (lambda (p value) (set! name value))]
+  [parser addArgument: '(:multiple)
+          do: (lambda (p value) (set! arguments (cons value arguments)))]
+  [parser parseList: '("-vv" "--name=sample" "first" "second")]
+  (check (= verbose 2) "cmdopts parses clustered short flags")
+  (check (equal? name "sample") "cmdopts parses long option argument")
+  (check (equal? arguments '("second" "first")) "cmdopts parses positional arguments"))
 (check (pair? (memq :gc ListTalk:%modules)) "gc native module records provided module")
 
 ;;; catch / throw / unwind-protect / handler-bind
