@@ -110,6 +110,35 @@ static int is_listtalk_named_symbol(LT_Value value, const char* name){
     return strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0;
 }
 
+static int is_keyword_named_symbol(LT_Value value, const char* name){
+    if (!LT_Symbol_p(value)){
+        return 0;
+    }
+    if (LT_Symbol_package(LT_Symbol_from_value(value)) != LT_PACKAGE_KEYWORD){
+        return 0;
+    }
+    return strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0;
+}
+
+static void validate_keyword_parameter(LT_Value parameter){
+    LT_Value tail;
+
+    if (LT_Symbol_p(parameter)){
+        return;
+    }
+    if (!LT_Pair_p(parameter)){
+        LT_error("%lambda keyword parameter must be symbol or two element list");
+    }
+    if (!LT_Symbol_p(LT_car(parameter))){
+        LT_error("%lambda keyword parameter name must be symbol");
+    }
+
+    tail = LT_cdr(parameter);
+    if (!LT_Pair_p(tail) || LT_cdr(tail) != LT_NIL){
+        LT_error("%lambda keyword parameter default must be a two element list");
+    }
+}
+
 static LT_FoldQuasiquoteResult fold_quasiquote_template(
     LT_Value expression,
     LT_Environment* environment,
@@ -408,6 +437,17 @@ static LT_Value special_form_lambda(LT_Value arguments,
     while (LT_Pair_p(parameter_cursor)){
         LT_Value parameter;
         parameter = LT_car(parameter_cursor);
+        if (is_keyword_named_symbol(parameter, "key")){
+            parameter_cursor = LT_cdr(parameter_cursor);
+            while (parameter_cursor != LT_NIL){
+                if (!LT_Pair_p(parameter_cursor)){
+                    LT_error("%lambda keyword parameters must be a proper list");
+                }
+                validate_keyword_parameter(LT_car(parameter_cursor));
+                parameter_cursor = LT_cdr(parameter_cursor);
+            }
+            return LT_Closure_new(name, parameters, body, environment);
+        }
         if (!LT_Symbol_p(parameter)){
             LT_error("%lambda parameter must be symbol");
         }

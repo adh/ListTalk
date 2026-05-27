@@ -1426,6 +1426,22 @@
 (check (= ((lambda (x y) (+ x y)) 3 4) 7) "closure application")
 (check (equal? ((lambda (x . rest) rest) 1 2 3) '(2 3)) "dotted rest parameter")
 (check (equal? ((lambda args args) 4 5) '(4 5)) "symbol rest parameter")
+(check (= ((lambda (:key x) x) :x 42) 42) "keyword parameter")
+(check (= ((lambda (:key (x 7)) x)) 7) "keyword parameter default")
+(check (= ((lambda (base :key (x (+ base 3))) x) 4) 7)
+       "keyword parameter default sees application environment")
+(check (= ((lambda (:key x (y (+ x 1))) y) :x 5) 6)
+       "keyword parameter default sees earlier keyword binding")
+(check (= ((lambda (x :key y) (+ x y)) 3 :y 4) 7)
+       "positional and keyword parameters")
+(check-raises "keyword argument without value raises"
+  ((lambda (:key x) x) :x))
+(check-raises "unknown keyword argument raises"
+  ((lambda (:key x) x) :y 1))
+(check-raises "keyword argument name must be keyword"
+  ((lambda (:key x) x) 'x 1))
+(check-raises "malformed keyword parameter raises"
+  (lambda (:key (x 1 2)) x))
 
 ;;; Tail call optimization
 
