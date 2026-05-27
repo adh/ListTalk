@@ -65,6 +65,29 @@ static char* cmdopts_long_option_from_value(LT_Value value){
     return (char*)LT_String_value_cstr(LT_String_from_value(value));
 }
 
+static void cmdopts_option_names_from_value(LT_Value value,
+                                            char* short_option,
+                                            char** long_option){
+    *short_option = '\0';
+    *long_option = NULL;
+
+    if (LT_Character_p(value)){
+        *short_option = cmdopts_short_option_from_value(value);
+    } else if (LT_String_p(value)){
+        *long_option = cmdopts_long_option_from_value(value);
+    } else if (LT_Pair_p(value)){
+        LT_Value rest = LT_cdr(value);
+
+        if (!LT_Pair_p(rest) || LT_cdr(rest) != LT_NIL){
+            LT_error("Option list must have the form (short long)");
+        }
+        *short_option = cmdopts_short_option_from_value(LT_car(value));
+        *long_option = cmdopts_long_option_from_value(LT_car(rest));
+    } else {
+        LT_error("Option must be a character, string, or (character string) list");
+    }
+}
+
 static int cmdopts_keyword_p(LT_Value value, char* name){
     LT_Symbol* symbol;
 
@@ -237,6 +260,72 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    cmdopts_parser_method_add_simple_option,
+    "Parser>>addOption:do:",
+    "(self option callback)",
+    "Add a flag option designated by a character, string, or (character string) list."
+){
+    LT_Value cursor = arguments;
+    LT_CmdOpts_Parser* self;
+    LT_Value option_value;
+    LT_Value callback;
+    char short_option;
+    char* long_option;
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_CmdOpts_Parser*, LT_CmdOpts_Parser_from_value);
+    LT_OBJECT_ARG(cursor, option_value);
+    LT_OBJECT_ARG(cursor, callback);
+    LT_ARG_END(cursor);
+
+    cmdopts_option_names_from_value(option_value, &short_option, &long_option);
+    LT_CmdOpts_addOption(
+        self->parser,
+        0,
+        short_option,
+        long_option,
+        cmdopts_callback,
+        cmdopts_callback_baton(self, callback)
+    );
+    return (LT_Value)(uintptr_t)self;
+}
+
+LT_DEFINE_PRIMITIVE(
+    cmdopts_parser_method_add_option_with_argument,
+    "Parser>>addOption:withArgumentDo:",
+    "(self option callback)",
+    "Add an option with an argument designated by a character, string, or (character string) list."
+){
+    LT_Value cursor = arguments;
+    LT_CmdOpts_Parser* self;
+    LT_Value option_value;
+    LT_Value callback;
+    char short_option;
+    char* long_option;
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_CmdOpts_Parser*, LT_CmdOpts_Parser_from_value);
+    LT_OBJECT_ARG(cursor, option_value);
+    LT_OBJECT_ARG(cursor, callback);
+    LT_ARG_END(cursor);
+
+    cmdopts_option_names_from_value(option_value, &short_option, &long_option);
+    LT_CmdOpts_addOption(
+        self->parser,
+        1,
+        short_option,
+        long_option,
+        cmdopts_callback,
+        cmdopts_callback_baton(self, callback)
+    );
+    return (LT_Value)(uintptr_t)self;
+}
+
+LT_DEFINE_PRIMITIVE(
     cmdopts_parser_method_add_argument,
     "Parser>>addArgument:do:",
     "(self flags callback)",
@@ -267,6 +356,58 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    cmdopts_parser_method_add_required_argument,
+    "Parser>>addRequiredArgument:",
+    "(self callback)",
+    "Add a required positional argument with a callback receiving the parser and string value."
+){
+    LT_Value cursor = arguments;
+    LT_CmdOpts_Parser* self;
+    LT_Value callback;
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_CmdOpts_Parser*, LT_CmdOpts_Parser_from_value);
+    LT_OBJECT_ARG(cursor, callback);
+    LT_ARG_END(cursor);
+
+    LT_CmdOpts_addArgument(
+        self->parser,
+        LT_CMDOPTS_ARGUMENT_REQUIRED,
+        cmdopts_callback,
+        cmdopts_callback_baton(self, callback)
+    );
+    return (LT_Value)(uintptr_t)self;
+}
+
+LT_DEFINE_PRIMITIVE(
+    cmdopts_parser_method_add_multiple_arguments,
+    "Parser>>addMultipleArguments:",
+    "(self callback)",
+    "Add multiple positional arguments with a callback receiving the parser and string value."
+){
+    LT_Value cursor = arguments;
+    LT_CmdOpts_Parser* self;
+    LT_Value callback;
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_CmdOpts_Parser*, LT_CmdOpts_Parser_from_value);
+    LT_OBJECT_ARG(cursor, callback);
+    LT_ARG_END(cursor);
+
+    LT_CmdOpts_addArgument(
+        self->parser,
+        LT_CMDOPTS_ARGUMENT_MULTIPLE,
+        cmdopts_callback,
+        cmdopts_callback_baton(self, callback)
+    );
+    return (LT_Value)(uintptr_t)self;
+}
+
+LT_DEFINE_PRIMITIVE(
     cmdopts_parser_method_parse_list,
     "Parser>>parseList:",
     "(self arguments)",
@@ -289,7 +430,11 @@ LT_DEFINE_PRIMITIVE(
 
 static LT_Method_Descriptor CmdOpts_Parser_methods[] = {
     {"addOption:shortOption:longOption:do:", &cmdopts_parser_method_add_option},
+    {"addOption:do:", &cmdopts_parser_method_add_simple_option},
+    {"addOption:withArgumentDo:", &cmdopts_parser_method_add_option_with_argument},
     {"addArgument:do:", &cmdopts_parser_method_add_argument},
+    {"addRequiredArgument:", &cmdopts_parser_method_add_required_argument},
+    {"addMultipleArguments:", &cmdopts_parser_method_add_multiple_arguments},
     {"parseList:", &cmdopts_parser_method_parse_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };

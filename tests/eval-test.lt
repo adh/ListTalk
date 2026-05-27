@@ -1863,6 +1863,30 @@
   (check (= verbose 2) "cmdopts parses clustered short flags")
   (check (equal? name "sample") "cmdopts parses long option argument")
   (check (equal? arguments '("second" "first")) "cmdopts parses positional arguments"))
+
+(let ((parser [ListTalk-cmdopts:Parser new])
+      (verbose 0)
+      (dry-run #false)
+      (name #nil)
+      (required #nil)
+      (arguments '()))
+  [parser addOption: #\v
+          do: (lambda (p value)
+                (check (eq? p parser) "cmdopts shortcut option callback receives parser")
+                (check (null? value) "cmdopts shortcut flag callback receives nil value")
+                (set! verbose (+ verbose 1)))]
+  [parser addOption: "dry-run"
+          do: (lambda (p value) (set! dry-run #true))]
+  [parser addOption: '(#\n "name")
+          withArgumentDo: (lambda (p value) (set! name value))]
+  [parser addRequiredArgument: (lambda (p value) (set! required value))]
+  [parser addMultipleArguments: (lambda (p value) (set! arguments (cons value arguments)))]
+  [parser parseList: '("-v" "--dry-run" "--name" "sample" "first" "second" "third")]
+  (check (= verbose 1) "cmdopts addOption:do: accepts character options")
+  (check dry-run "cmdopts addOption:do: accepts string options")
+  (check (equal? name "sample") "cmdopts addOption:withArgumentDo: accepts short and long option list")
+  (check (equal? required "first") "cmdopts addRequiredArgument: adds required positional argument")
+  (check (equal? arguments '("third" "second")) "cmdopts addMultipleArguments: adds repeated positional arguments"))
 (check (pair? (memq :gc ListTalk:%modules)) "gc native module records provided module")
 
 ;;; catch / throw / unwind-protect / handler-bind
