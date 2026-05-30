@@ -900,6 +900,7 @@ static LT_Value expand_self_slot_accessor(LT_Reader* reader, LT_Value source_loc
 
     if (token[0] != '.'
         || token[1] == '\0'
+        || token[1] == '.'
         || isdigit((unsigned char)token[1])){
         return 0;
     }
