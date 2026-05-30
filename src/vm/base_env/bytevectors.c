@@ -95,7 +95,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_make_bytevector,
     "make-bytevector",
-    "(length [fill])",
+    "(length :optional fill)",
     "Create a bytevector with optional byte fill."
 ){
     LT_Value cursor = arguments;
@@ -117,7 +117,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_bytevector,
     "bytevector",
-    "(byte ...)",
+    "(:rest byte)",
     "Create bytevector from unsigned byte fixnums."
 ){
     LT_Value cursor = arguments;
@@ -153,7 +153,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_bytevector_append,
     "bytevector-append",
-    "(bytevector ...)",
+    "(:rest bytevector)",
     "Concatenate all bytevector arguments."
 ){
     LT_Value cursor = arguments;
@@ -174,7 +174,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_bytevector_copy,
     "bytevector-copy",
-    "(bytevector [from [to]])",
+    "(bytevector :optional from to)",
     "Return a bytevector slice using half-open byte indexes."
 ){
     LT_Value cursor = arguments;

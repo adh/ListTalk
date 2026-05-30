@@ -465,7 +465,7 @@ LT_DEFINE_CLASS(LT_OS_Stat) {
 LT_DEFINE_PRIMITIVE(
     primitive_os_exit,
     "exit",
-    "([status])",
+    "(:optional status)",
     "Terminate process with optional fixnum status code."
 ){
     LT_Value cursor = arguments;
@@ -537,7 +537,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_os_access,
     "access",
-    "(path [mode])",
+    "(path :optional mode)",
     "Return true when path is accessible with the requested POSIX mode."
 ){
     LT_Value cursor = arguments;
@@ -599,7 +599,7 @@ DEFINE_OS_PATH_PREDICATE(
 LT_DEFINE_PRIMITIVE(
     primitive_os_mkdir,
     "mkdir",
-    "(path [mode])",
+    "(path :optional mode)",
     "Create a directory and return its path."
 ){
     LT_Value cursor = arguments;
@@ -621,7 +621,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_os_mkdirs,
     "mkdirs",
-    "(path [mode])",
+    "(path :optional mode)",
     "Create a directory and missing parent directories, returning its path."
 ){
     LT_Value cursor = arguments;

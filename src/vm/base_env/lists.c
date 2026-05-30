@@ -140,7 +140,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_list,
     "list",
-    "(value ...)",
+    "(:rest value)",
     "Return a list containing all arguments."
 ){
     LT_Value cursor = arguments;
@@ -279,7 +279,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_append,
     "append",
-    "(list ...)",
+    "(:rest list)",
     "Concatenate lists, sharing the final argument tail."
 ){
     LT_Value cursor = arguments;
@@ -314,7 +314,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_map,
     "map",
-    "(callable list list ...)",
+    "(callable list :rest list)",
     "Return list of callable results for each element tuple, stopping at shortest list."
 ){
     LT_Value cursor = arguments;
@@ -334,7 +334,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_for_each,
     "for-each",
-    "(callable list list ...)",
+    "(callable list :rest list)",
     "Apply callable for each element tuple, stopping at shortest list."
 ){
     LT_Value cursor = arguments;
@@ -354,7 +354,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_any,
     "any",
-    "(callable list list ...)",
+    "(callable list :rest list)",
     "Return true when callable returns truthy for any element tuple."
 ){
     LT_Value cursor = arguments;
@@ -373,7 +373,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_every,
     "every",
-    "(callable list list ...)",
+    "(callable list :rest list)",
     "Return true when callable returns truthy for every element tuple."
 ){
     LT_Value cursor = arguments;
@@ -392,7 +392,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_fold_left,
     "fold-left",
-    "(callable initial list list ...)",
+    "(callable initial list :rest list)",
     "Fold callable from the left across element tuples, stopping at shortest list."
 ){
     LT_Value cursor = arguments;
@@ -413,7 +413,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_fold_right,
     "fold-right",
-    "(callable initial list list ...)",
+    "(callable initial list :rest list)",
     "Fold callable from the right across element tuples, stopping at shortest list."
 ){
     LT_Value cursor = arguments;
@@ -434,7 +434,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_reduce_left,
     "reduce-left",
-    "(callable list list ...)",
+    "(callable list :rest list)",
     "Reduce callable from the left across element tuples, stopping at shortest list."
 ){
     LT_Value cursor = arguments;
@@ -453,7 +453,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_reduce_right,
     "reduce-right",
-    "(callable list list ...)",
+    "(callable list :rest list)",
     "Reduce callable from the right across element tuples, stopping at shortest list."
 ){
     LT_Value cursor = arguments;

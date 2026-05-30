@@ -317,7 +317,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     symbol_class_method_gensym,
     "Symbol class>>gensym",
-    "(self [name])",
+    "(self :optional name)",
     "Return a fresh gensym or named uninterned symbol."
 ){
     LT_Value cursor = arguments;

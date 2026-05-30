@@ -91,7 +91,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_make_vector,
     "make-vector",
-    "(length [fill])",
+    "(length :optional fill)",
     "Create vector with optional fill value."
 ){
     LT_Value cursor = arguments;
@@ -116,7 +116,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_vector,
     "vector",
-    "(value ...)",
+    "(:rest value)",
     "Create vector from argument values."
 ){
     LT_Value cursor = arguments;

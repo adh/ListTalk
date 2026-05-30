@@ -388,7 +388,7 @@
 (check (null? [(lambda (x) x) documentation])
        "Closure>>documentation returns nil")
 (check (equal? [ListTalk-implementation:%lambda arguments]
-               '(name (arg ...) body ...))
+               '(name (:rest arg) :rest body))
        "SpecialForm>>arguments parses special form argument metadata")
 (check (equal? [ListTalk-implementation:%lambda documentation]
                "Create closure with lexical scope.")
