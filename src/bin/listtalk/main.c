@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Condition.h>
+#include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Reader.h>
@@ -756,9 +757,16 @@ int main(int argc, char**argv){
         return eval_repl(repl_handler, file_handler, base_environment);
     }
     command_action_ensure_standard_resolvers(&command_action);
+    command_line_list = LT_cons(
+        (LT_Value)(uintptr_t)LT_String_new_cstr(source_path),
+        command_line_list
+    );
 
     {
-        LT_Value command_line_symbol = LT_Symbol_new("*command-line*");
+        LT_Value command_line_symbol = LT_Symbol_new_in(
+            LT_PACKAGE_LISTTALK,
+            "command-line"
+        );
 
         LT_Environment_bind(
             base_environment,
