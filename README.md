@@ -31,7 +31,7 @@ Pass script arguments:
 ./build/listtalk path/to/file.lt arg1 arg2
 ```
 
-In script mode, `*command-line*` is bound to a list of strings containing
+In script mode, `ListTalk:command-line` is bound to a list of strings containing
 all command-line entries from `argv[1]` onward (script path included).
 
 ## Test

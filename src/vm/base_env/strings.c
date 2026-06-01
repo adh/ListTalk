@@ -117,7 +117,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_string_append,
     "string-append",
-    "(string ...)",
+    "(:rest string)",
     "Concatenate all string arguments."
 ){
     LT_Value cursor = arguments;
@@ -136,7 +136,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_format,
     "format",
-    "(format-string argument ...)",
+    "(format-string :rest argument)",
     "Return a formatted string using SRFI-28-style directives."
 ){
     LT_Value cursor = arguments;

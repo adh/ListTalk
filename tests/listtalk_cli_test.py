@@ -74,6 +74,11 @@ def main():
         ["-L", fixture_dir, "-r", "test-module-foo", "-E", "loaded-from-foo"],
         "42\n",
     )
+    failures += run_case(
+        exe,
+        [fixture_dir + "/command-line.lt", "arg1", "arg2"],
+        '("{0}/command-line.lt" "arg1" "arg2")\n'.format(fixture_dir),
+    )
     failures += run_failure_case(
         exe,
         ["--no-std-lib", "-r", "test-module-foo", "-L", fixture_dir],

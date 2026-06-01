@@ -79,7 +79,7 @@ static const char* package_nickname_from_designator(LT_Value designator){
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_numeric_equal,
     "=",
-    "(n n ...)",
+    "(n :rest n)",
     "Return true when all numeric arguments are equal.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -113,7 +113,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_eq_p,
     "eq?",
-    "(left right ...)",
+    "(left :rest right)",
     "Return true when all arguments are the same value identity.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -140,7 +140,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_eqv_p,
     "eqv?",
-    "(left right ...)",
+    "(left :rest right)",
     "Return true when all arguments are numerically equivalent or identical.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -167,7 +167,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_equal_p,
     "equal?",
-    "(left right ...)",
+    "(left :rest right)",
     "Return true when all arguments are structurally equal.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -209,7 +209,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE(
     primitive_gensym,
     "gensym",
-    "([name])",
+    "(:optional name)",
     "Return a fresh gensym or named uninterned symbol."
 ){
     LT_Value cursor = arguments;
@@ -454,7 +454,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_send,
     "send",
-    "(receiver selector argument ...)",
+    "(receiver selector :rest argument)",
     "Send selector to receiver with arguments."
 ){
     LT_Value cursor = arguments;
@@ -798,7 +798,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_define_package,
     "define-package",
-    "(package-designator [used-package-or-(used-package nickname)] ...)",
+    "(package-designator :rest (:either used-package (used-package nickname)))",
     "Define package and optionally add used packages."
 ){
     LT_Value cursor = arguments;
@@ -864,7 +864,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_use_package,
     "use-package",
-    "(used-package-designator [nickname-designator])",
+    "(used-package-designator :optional nickname-designator)",
     "Use package in current package, optionally by nickname only."
 ){
     LT_Value cursor = arguments;

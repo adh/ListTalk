@@ -1688,6 +1688,30 @@ static int test_slot_accessor_syntax(void){
     return expect(LT_cdr(tail) == LT_NIL, "slot accessor arg list end");
 }
 
+static int expect_symbol_named(LT_Value value, const char* name, const char* message){
+    if (expect(LT_Symbol_p(value), message)){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0,
+        message
+    );
+}
+
+static int test_dot_dot_symbols_do_not_expand_slot_accessor(void){
+    if (expect_symbol_named(read_one(".."), "..", "double-dot token is symbol")){
+        return 1;
+    }
+    if (expect_symbol_named(read_one("..."), "...", "all-dot token is symbol")){
+        return 1;
+    }
+    return expect_symbol_named(
+        read_one("..slot"),
+        "..slot",
+        "two-dot-prefixed token is symbol"
+    );
+}
+
 static int test_data_reader_disables_slot_accessor_syntax(void){
     LT_Value value = read_one_data(".slot");
 
@@ -2171,6 +2195,7 @@ int main(void){
     failures += test_bracket_binary_send_too_many_args_signals_error();
     failures += test_data_reader_disables_bracket_send_syntax();
     failures += test_slot_accessor_syntax();
+    failures += test_dot_dot_symbols_do_not_expand_slot_accessor();
     failures += test_data_reader_disables_slot_accessor_syntax();
     failures += test_data_reader_disables_dynamic_variable_expansion();
     failures += test_reader_clone_copies_flags();
