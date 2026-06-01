@@ -2280,6 +2280,8 @@ static int test_character_api_uses_unicode_codepoints(void){
 
 static int test_string_api_uses_unicode_codepoints(void){
     LT_String* string = LT_String_new_cstr("a\xce\xbb\xf0\x9f\x98\x80");
+    wchar_t* wchar_array;
+    size_t wchar_length;
 
     if (expect(LT_String_length(string) == 3, "string length counts codepoints")){
         return 1;
@@ -2293,10 +2295,27 @@ static int test_string_api_uses_unicode_codepoints(void){
     if (expect(LT_String_at(string, 1) == UINT32_C(0x03bb), "string at BMP codepoint")){
         return 1;
     }
-    return expect(
-        LT_String_at(string, 2) == UINT32_C(0x1f600),
-        "string at astral codepoint"
-    );
+    if (expect(
+            LT_String_at(string, 2) == UINT32_C(0x1f600),
+            "string at astral codepoint"
+        )){
+        return 1;
+    }
+
+    wchar_array = LT_String_to_wchar_array(string, &wchar_length);
+    if (expect(wchar_length == 3, "wchar array length counts codepoints")){
+        return 1;
+    }
+    if (expect(wchar_array[0] == L'a', "wchar array includes ASCII codepoint")){
+        return 1;
+    }
+    if (expect(wchar_array[1] == (wchar_t)UINT32_C(0x03bb), "wchar array includes BMP codepoint")){
+        return 1;
+    }
+    if (expect(wchar_array[2] == (wchar_t)UINT32_C(0x1f600), "wchar array includes astral codepoint")){
+        return 1;
+    }
+    return expect(wchar_array[3] == L'\0', "wchar array is null terminated");
 }
 
 static int test_string_utf8_helpers_replace_invalid_sequences(void){

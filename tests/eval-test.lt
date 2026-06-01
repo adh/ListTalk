@@ -612,6 +612,8 @@
 (check (equal? [#true asString] "#true") "Object>>asString uses debug printing")
 (check (equal? ["aλ" asString] "aλ") "String>>asString returns receiver")
 (check (equal? [#\λ asString] "λ") "Character>>asString returns UTF-8 string")
+(check (= [#\a width] 1) "Character>>width returns wcwidth")
+(check (= ["abc" width] 3) "String>>width returns wcswidth")
 (check (= [3 asFloat] 3.0) "RealNumber>>asFloat converts integers")
 (check (= [1/2 asFloat] 0.5) "RealNumber>>asFloat converts rationals")
 

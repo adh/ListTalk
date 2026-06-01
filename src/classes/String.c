@@ -3,6 +3,10 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#ifndef _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
+#endif
+
 #include "BigInteger_internal.h"
 
 #include <ListTalk/ListTalk.h>
@@ -31,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <wchar.h>
 
 struct LT_String_s {
     LT_Object base;
@@ -770,6 +775,27 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_width,
+    "String>>width",
+    "(self)",
+    "Return display width measured with wcswidth."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    wchar_t* characters;
+    size_t length;
+    int width;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    characters = LT_String_to_wchar_array(string, &length);
+    width = wcswidth(characters, length);
+    return LT_SmallInteger_new((int64_t)width);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_at,
     "String>>at:",
     "(self index)",
@@ -1353,6 +1379,7 @@ LT_DEFINE_PRIMITIVE(
 
 static LT_Method_Descriptor String_methods[] = {
     {"length", &string_method_length},
+    {"width", &string_method_width},
     {"at:", &string_method_at},
     {"append:", &string_method_append},
     {"replace:with:", &string_method_replace_with},
@@ -2057,4 +2084,23 @@ LT_String* LT_String_from_character_list(LT_Value characters){
         LT_StringBuilder_length(builder),
         codepoint_length
     );
+}
+
+wchar_t* LT_String_to_wchar_array(LT_String* string, size_t* length_out){
+    size_t length = LT_String_length(string);
+    wchar_t* characters = GC_MALLOC_ATOMIC(sizeof(wchar_t) * (length + 1));
+    const char* cursor = LT_String_value_cstr(string);
+    const char* end = cursor + LT_String_byte_length(string);
+    size_t index = 0;
+
+    while (cursor < end){
+        characters[index++] = (wchar_t)LT_String_utf8_codepoint_at(cursor);
+        cursor = LT_String_utf8_next(cursor);
+    }
+    characters[index] = L'\0';
+
+    if (length_out != NULL){
+        *length_out = index;
+    }
+    return characters;
 }

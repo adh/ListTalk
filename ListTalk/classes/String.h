@@ -12,6 +12,7 @@
 #include <ListTalk/macros/decl_macros.h>
 
 #include <stdint.h>
+#include <wchar.h>
 
 LT__BEGIN_DECLS
 
@@ -69,6 +70,7 @@ const char* LT_String_utf8_next(const char* cursor);
 uint32_t LT_String_at(LT_String* string, size_t index);
 LT_Value LT_String_to_character_list(LT_String* string);
 LT_String* LT_String_from_character_list(LT_Value characters);
+wchar_t* LT_String_to_wchar_array(LT_String* string, size_t* length_out);
 
 LT__END_DECLS
 
