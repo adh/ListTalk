@@ -32,6 +32,13 @@ static size_t list_length(LT_Value value){
     return length;
 }
 
+int LT_List_proper_p(LT_Value value){
+    while (LT_Pair_p(value)){
+        value = LT_cdr(value);
+    }
+    return value == LT_NIL;
+}
+
 static int sort_compare_values(LT_Value left,
                                LT_Value right,
                                ListSortComparator* comparator){

@@ -82,6 +82,23 @@ static LT_Value primitive_test_noop_impl(
     return LT_NIL;
 }
 
+LT_DEFINE_PRIMITIVE_RESTART(
+    primitive_test_restart,
+    "test-restart",
+    "(value)",
+    "Test helper restart."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return value;
+}
+
 static LT_Value special_form_test_noop_impl(
     LT_Value arguments,
     LT_Environment* environment,
@@ -846,6 +863,38 @@ static int test_list_constructor_helpers_c_api(void){
     );
 }
 
+static int test_list_proper_predicate_c_api(void){
+    LT_Value first = LT_SmallInteger_new(1);
+    LT_Value second = LT_SmallInteger_new(2);
+    LT_Value values[2] = {first, second};
+    LT_Value proper_pair_list = LT_listn(2, first, second);
+    LT_Value proper_immutable_list = LT_ImmutableList_new(2, values);
+    LT_Value improper_list = LT_cons(first, second);
+    int failed = 0;
+
+    failed += expect(
+        LT_List_proper_p(LT_NIL),
+        "LT_List_proper_p accepts nil"
+    );
+    failed += expect(
+        LT_List_proper_p(proper_pair_list),
+        "LT_List_proper_p accepts proper pair list"
+    );
+    failed += expect(
+        LT_List_proper_p(proper_immutable_list),
+        "LT_List_proper_p accepts proper immutable list"
+    );
+    failed += expect(
+        !LT_List_proper_p(improper_list),
+        "LT_List_proper_p rejects improper list"
+    );
+    failed += expect(
+        !LT_List_proper_p(first),
+        "LT_List_proper_p rejects non-list value"
+    );
+    return failed;
+}
+
 static int test_list_map_many_c_api(void){
     LT_Value lists[] = {
         LT_cons(
@@ -1239,6 +1288,107 @@ static int test_primitive_documentation_returns_description_string(void){
         ) == 0,
         "primitive documentation preserves description"
     );
+}
+
+static int test_restart_c_api_and_listtalk_accessors(void){
+    LT_Value name = LT_Symbol_new("use-value");
+    LT_Value description = (LT_Value)(uintptr_t)LT_String_new_cstr("Use value.");
+    LT_Value parameter = LT_Symbol_new("value");
+    LT_Value argument_list = LT_cons(parameter, LT_NIL);
+    LT_Value callable = LT_Primitive_from_static(&primitive_test_increment);
+    LT_Value restart = LT_Restart_new(
+        name,
+        description,
+        argument_list,
+        callable
+    );
+    LT_Restart* restart_object = LT_Restart_from_value(restart);
+    int failed = 0;
+
+    failed += expect(
+        LT_Restart_name(restart_object) == name,
+        "Restart C accessor returns name"
+    );
+    failed += expect(
+        LT_Restart_description(restart_object) == description,
+        "Restart C accessor returns description"
+    );
+    failed += expect(
+        LT_Restart_argument_list(restart_object) == argument_list,
+        "Restart C accessor returns argument-list"
+    );
+    failed += expect(
+        LT_Restart_callable(restart_object) == callable,
+        "Restart C accessor returns callable"
+    );
+    failed += expect(
+        LT_SEND(restart, "name") == name,
+        "Restart>>name returns name"
+    );
+    failed += expect(
+        LT_SEND(restart, "description") == description,
+        "Restart>>description returns description"
+    );
+    failed += expect(
+        LT_SEND(restart, "argument-list") == argument_list,
+        "Restart>>argument-list returns argument-list"
+    );
+    failed += expect(
+        LT_SEND(restart, "callable") == callable,
+        "Restart>>callable returns callable"
+    );
+    failed += expect(
+        (LT_Restart_class.class_flags & LT_CLASS_FLAG_IMMUTABLE) != 0,
+        "Restart class is immutable"
+    );
+    return failed;
+}
+
+static int test_static_primitive_restart_macro(void){
+    LT_Value restart = LT_Restart_from_static(&primitive_test_restart);
+    LT_Restart* restart_object = LT_Restart_from_value(restart);
+    LT_Value name = LT_Restart_name(restart_object);
+    LT_Value description = LT_Restart_description(restart_object);
+    LT_Value argument_list = LT_Restart_argument_list(restart_object);
+    LT_Value callable = LT_Restart_callable(restart_object);
+    LT_Value applied;
+    int failed = 0;
+
+    failed += expect(
+        LT_String_p(name)
+            && strcmp(LT_String_value_cstr(LT_String_from_value(name)),
+                      "test-restart") == 0,
+        "static Restart name comes from primitive metadata"
+    );
+    failed += expect(
+        LT_String_p(description)
+            && strcmp(LT_String_value_cstr(LT_String_from_value(description)),
+                      "Test helper restart.") == 0,
+        "static Restart description comes from primitive metadata"
+    );
+    failed += expect(
+        LT_Pair_p(argument_list)
+            && LT_Symbol_p(LT_car(argument_list))
+            && LT_cdr(argument_list) == LT_NIL,
+        "static Restart argument-list is parsed as proper list"
+    );
+    failed += expect(
+        LT_Primitive_p(callable),
+        "static Restart callable is primitive"
+    );
+
+    applied = LT_apply(
+        callable,
+        LT_cons(LT_SmallInteger_new(42), LT_NIL),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+    failed += expect(
+        LT_Value_is_fixnum(applied) && LT_SmallInteger_value(applied) == 42,
+        "static Restart callable invokes primitive implementation"
+    );
+    return failed;
 }
 
 static int test_special_form_arguments_falls_back_to_string(void){
@@ -3058,6 +3208,7 @@ int main(void){
     RUN_TEST(test_immutable_list_missing_trailer_values_are_nil);
     RUN_TEST(test_list_at_c_api);
     RUN_TEST(test_list_constructor_helpers_c_api);
+    RUN_TEST(test_list_proper_predicate_c_api);
     RUN_TEST(test_list_map_single_c_api);
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_list_for_each_c_api);
@@ -3074,6 +3225,8 @@ int main(void){
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
     RUN_TEST(test_primitive_arguments_falls_back_to_string);
     RUN_TEST(test_primitive_documentation_returns_description_string);
+    RUN_TEST(test_restart_c_api_and_listtalk_accessors);
+    RUN_TEST(test_static_primitive_restart_macro);
     RUN_TEST(test_special_form_arguments_falls_back_to_string);
     RUN_TEST(test_special_form_documentation_returns_description_string);
     RUN_TEST(test_symbol_uninterned_and_gensym_c_api);

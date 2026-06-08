@@ -45,6 +45,7 @@
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Condition.h>
+#include <ListTalk/classes/Restart.h>
 #include <ListTalk/classes/CompoundForm.h>
 #include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Closure.h>

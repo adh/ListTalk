@@ -106,6 +106,7 @@ vm_lib = library(
                 'src/classes/Vector.c',
                 'src/classes/ByteVector.c',
                 'src/classes/Condition.c',
+                'src/classes/Restart.c',
                 'src/classes/SourceLocation.c',
                 'src/classes/InvocationContextKind.c',
                 'src/classes/CompoundForm.c',

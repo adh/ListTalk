@@ -120,6 +120,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"SystemError", &LT_SystemError_class},
     {"ReaderError", &LT_ReaderError_class},
     {"IncompleteInputSyntaxError", &LT_IncompleteInputSyntaxError_class},
+    {"Restart", &LT_Restart_class},
     {"IdentityDictionary", &LT_IdentityDictionary_class},
     {"ImmutableDictionary", &LT_ImmutableDictionary_class},
     {"Dictionary", &LT_Dictionary_class},

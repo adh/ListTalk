@@ -167,10 +167,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
 
-    while (LT_Pair_p(value)){
-        value = LT_cdr(value);
-    }
-    return value == LT_NIL ? LT_TRUE : LT_FALSE;
+    return LT_List_proper_p(value) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE(
