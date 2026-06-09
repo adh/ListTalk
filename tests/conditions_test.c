@@ -305,8 +305,8 @@ static int test_handler_bind_scope_is_removed_on_non_local_exit(void){
 }
 
 static int test_restart_bind_pushes_active_restarts_inside_out(void){
-    LT_Value outer_restart = LT_Symbol_new("outer-restart");
-    LT_Value inner_restart = LT_Symbol_new("inner-restart");
+    LT_Value outer_restart = make_test_restart(LT_Symbol_new("outer-restart"));
+    LT_Value inner_restart = make_test_restart(LT_Symbol_new("inner-restart"));
     int failed = 0;
 
     LT_RESTART_BIND(outer_restart, {
