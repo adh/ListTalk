@@ -7,6 +7,7 @@
 #include <ListTalk/ListTalk.h>
 
 _Thread_local LT_ConditionHandlerFrame* LT__condition_handler_stack = NULL;
+_Thread_local LT_RestartFrame* LT__restart_stack = NULL;
 
 void LT_signal(LT_Value condition){
     LT_ConditionHandlerFrame* frame = LT__condition_handler_stack;

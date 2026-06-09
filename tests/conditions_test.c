@@ -275,6 +275,80 @@ static int test_handler_bind_scope_is_removed_on_non_local_exit(void){
     );
 }
 
+static int test_restart_bind_pushes_active_restarts_inside_out(void){
+    LT_Value outer_restart = LT_Symbol_new("outer-restart");
+    LT_Value inner_restart = LT_Symbol_new("inner-restart");
+    int failed = 0;
+
+    LT_RESTART_BIND(outer_restart, {
+        failed += expect(
+            LT__restart_stack != NULL,
+            "outer restart frame is active"
+        );
+        failed += expect(
+            LT__restart_stack->restart == outer_restart,
+            "outer restart is stack head"
+        );
+        failed += expect(
+            LT__restart_stack->previous == NULL,
+            "outer restart frame has no previous frame"
+        );
+
+        LT_RESTART_BIND(inner_restart, {
+            failed += expect(
+                LT__restart_stack != NULL,
+                "inner restart frame is active"
+            );
+            failed += expect(
+                LT__restart_stack->restart == inner_restart,
+                "inner restart is stack head"
+            );
+            failed += expect(
+                LT__restart_stack->previous != NULL
+                    && LT__restart_stack->previous->restart == outer_restart,
+                "restart stack keeps outer restart behind inner restart"
+            );
+        });
+
+        failed += expect(
+            LT__restart_stack != NULL
+                && LT__restart_stack->restart == outer_restart,
+            "inner restart frame is removed after dynamic extent"
+        );
+    });
+
+    failed += expect(
+        LT__restart_stack == NULL,
+        "restart stack is empty after outer dynamic extent"
+    );
+    return failed;
+}
+
+static int test_restart_bind_scope_is_removed_on_non_local_exit(void){
+    LT_Value restart = LT_Symbol_new("restart-for-unwind");
+    LT_Value tag = LT_Symbol_new("restart-unwind-test");
+    LT_Value caught = LT_NIL;
+    int failed = 0;
+
+    LT_CATCH(tag, caught, {
+        LT_RESTART_BIND(restart, {
+            failed += expect(
+                LT__restart_stack != NULL
+                    && LT__restart_stack->restart == restart,
+                "restart is active before non-local exit"
+            );
+            LT_throw(tag, LT_TRUE);
+        });
+    });
+
+    failed += expect(caught == LT_TRUE, "restart non-local exit was caught");
+    failed += expect(
+        LT__restart_stack == NULL,
+        "restart stack restored after non-local exit"
+    );
+    return failed;
+}
+
 static int test_lt_error_signals_condition_to_handlers(void){
     LT_Value caught = LT_NIL;
     LT_Value handler = LT_Primitive_new(
@@ -676,6 +750,8 @@ int main(void){
     failures += test_signal_runs_all_handlers_inside_out();
     failures += test_handler_bind_scope_is_removed_after_body();
     failures += test_handler_bind_scope_is_removed_on_non_local_exit();
+    failures += test_restart_bind_pushes_active_restarts_inside_out();
+    failures += test_restart_bind_scope_is_removed_on_non_local_exit();
     failures += test_lt_error_signals_condition_to_handlers();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
