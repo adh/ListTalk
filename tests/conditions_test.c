@@ -354,7 +354,7 @@ static int test_restart_bind_pushes_active_restarts_inside_out(void){
 }
 
 static int test_restart_bind_scope_is_removed_on_non_local_exit(void){
-    LT_Value restart = LT_Symbol_new("restart-for-unwind");
+    LT_Value restart = make_test_restart(LT_Symbol_new("restart-for-unwind"));
     LT_Value tag = LT_Symbol_new("restart-unwind-test");
     LT_Value caught = LT_NIL;
     int failed = 0;
