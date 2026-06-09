@@ -632,7 +632,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_invoke_restart,
     "invoke-restart",
-    "(name :rest argument)",
+    "(name :rest arguments)",
     "Invoke active restart with eq name."
 ){
     LT_Value cursor = arguments;
