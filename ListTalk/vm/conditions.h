@@ -26,6 +26,9 @@ extern _Thread_local LT_ConditionHandlerFrame* LT__condition_handler_stack;
 extern _Thread_local LT_RestartFrame* LT__restart_stack;
 
 void LT_signal(LT_Value condition);
+LT_Value LT_current_restarts(void);
+LT_Value LT_find_restart(LT_Value name);
+LT_Value LT_invoke_restart(LT_Value name, LT_Value arguments);
 
 #define LT_HANDLER_BIND(HANDLER_EXPR, BODY) \
     do { \

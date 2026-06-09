@@ -164,6 +164,35 @@ static LT_Value capture_backtrace_handler_impl(LT_Value arguments,
     LT_throw(g_backtrace_test_tag, condition);
 }
 
+static LT_Value restart_echo_impl(LT_Value arguments,
+                                  LT_Value invocation_context_kind,
+                                  LT_Value invocation_context_data,
+                                  LT_TailCallUnwindMarker* tail_call_unwind_marker){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return value;
+}
+
+static LT_Value make_test_restart(LT_Value name){
+    return LT_Restart_new(
+        name,
+        LT_NIL,
+        LT_cons(LT_Symbol_new("value"), LT_NIL),
+        LT_Primitive_new(
+            "restart-echo",
+            "(value)",
+            "return restart argument",
+            restart_echo_impl
+        )
+    );
+}
+
 static int test_signal_invokes_bound_handler_with_condition_value(void){
     LT_Value condition = LT_Symbol_new("condition-a");
     LT_Value inner_handler = LT_Primitive_new(
@@ -346,6 +375,90 @@ static int test_restart_bind_scope_is_removed_on_non_local_exit(void){
         LT__restart_stack == NULL,
         "restart stack restored after non-local exit"
     );
+    return failed;
+}
+
+static int test_current_restarts_returns_active_restarts_inside_out(void){
+    LT_Value outer_restart = make_test_restart(LT_Symbol_new("outer-restart"));
+    LT_Value inner_restart = make_test_restart(LT_Symbol_new("inner-restart"));
+    int failed = 0;
+
+    failed += expect(
+        LT_current_restarts() == LT_NIL,
+        "current restarts is empty outside restart-bind"
+    );
+
+    LT_RESTART_BIND(outer_restart, {
+        LT_RESTART_BIND(inner_restart, {
+            LT_Value restarts = LT_current_restarts();
+
+            failed += expect(
+                LT_Pair_p(restarts),
+                "current restarts returns a list"
+            );
+            failed += expect(
+                LT_car(restarts) == inner_restart,
+                "current restarts begins with innermost restart"
+            );
+            failed += expect(
+                LT_Pair_p(LT_cdr(restarts))
+                    && LT_car(LT_cdr(restarts)) == outer_restart,
+                "current restarts keeps outer restart second"
+            );
+            failed += expect(
+                LT_cdr(LT_cdr(restarts)) == LT_NIL,
+                "current restarts list is proper"
+            );
+        });
+    });
+
+    failed += expect(
+        LT_current_restarts() == LT_NIL,
+        "current restarts is empty after restart-bind"
+    );
+    return failed;
+}
+
+static int test_find_and_invoke_restart_use_eq_name_matching(void){
+    LT_Value name = LT_Symbol_new("use-value");
+    LT_Value outer_restart = make_test_restart(name);
+    LT_Value inner_restart = make_test_restart(name);
+    LT_Value invoked = LT_NIL;
+    int failed = 0;
+
+    failed += expect(
+        LT_find_restart(name) == LT_NIL,
+        "find restart returns nil when no restart is active"
+    );
+
+    LT_RESTART_BIND(outer_restart, {
+        failed += expect(
+            LT_find_restart(name) == outer_restart,
+            "find restart finds active restart by eq name"
+        );
+
+        LT_RESTART_BIND(inner_restart, {
+            failed += expect(
+                LT_find_restart(name) == inner_restart,
+                "find restart returns innermost matching restart"
+            );
+            invoked = LT_invoke_restart(
+                name,
+                LT_cons(LT_SmallInteger_new(77), LT_NIL)
+            );
+            failed += expect(
+                LT_Value_is_fixnum(invoked)
+                    && LT_SmallInteger_value(invoked) == 77,
+                "invoke restart applies matching restart callable"
+            );
+        });
+
+        failed += expect(
+            LT_find_restart(name) == outer_restart,
+            "find restart resumes outer match after inner scope"
+        );
+    });
+
     return failed;
 }
 
@@ -752,6 +865,8 @@ int main(void){
     failures += test_handler_bind_scope_is_removed_on_non_local_exit();
     failures += test_restart_bind_pushes_active_restarts_inside_out();
     failures += test_restart_bind_scope_is_removed_on_non_local_exit();
+    failures += test_current_restarts_returns_active_restarts_inside_out();
+    failures += test_find_and_invoke_restart_use_eq_name_matching();
     failures += test_lt_error_signals_condition_to_handlers();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
