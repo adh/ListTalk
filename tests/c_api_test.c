@@ -414,6 +414,36 @@ static int test_send_site_macros_c_api(void){
     );
 }
 
+static int test_apply_varargs_c_api(void){
+    LT_Value primitive = LT_Primitive_from_static(&primitive_test_add_argument_method);
+    LT_Value applyv_result = LT_applyv(
+        primitive,
+        LT_SmallInteger_new(7),
+        LT_SmallInteger_new(8),
+        LT_INVALID
+    );
+    LT_Value apply_macro_result;
+
+    if (expect(
+        LT_Value_is_fixnum(applyv_result)
+            && LT_SmallInteger_value(applyv_result) == 15,
+        "LT_applyv builds argument list from varargs"
+    )){
+        return 1;
+    }
+
+    apply_macro_result = LT_APPLY(
+        primitive,
+        LT_SmallInteger_new(20),
+        LT_SmallInteger_new(22)
+    );
+    return expect(
+        LT_Value_is_fixnum(apply_macro_result)
+            && LT_SmallInteger_value(apply_macro_result) == 42,
+        "LT_APPLY builds argument list from varargs"
+    );
+}
+
 static int test_send_primitive_uses_precedence_lookup_and_cache(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "class-name");
     LT_IdentityDictionary* pair_cache;
@@ -3193,6 +3223,7 @@ int main(void){
 
     RUN_TEST(test_send_primitive_uses_direct_method_dictionary);
     RUN_TEST(test_send_site_macros_c_api);
+    RUN_TEST(test_apply_varargs_c_api);
     RUN_TEST(test_value_asString_c_api_uses_debug_print);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);

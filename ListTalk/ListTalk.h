@@ -110,6 +110,8 @@ extern LT_Value LT_apply(
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 
+extern LT_Value LT_applyv(LT_Value callable, LT_Value first, ...);
+
 extern LT_Value LT_send(
     LT_Value receiver,
     LT_Value selector,
@@ -141,6 +143,9 @@ static inline void LT__SendSite_ensure_initialized(LT__SendSite* site, char* sel
 
 #define LT_SEND(receiver, selector_name, ...) \
     LT_SEND_ARGS((receiver), (selector_name), LT_list(__VA_ARGS__ __VA_OPT__(,) LT_INVALID))
+
+#define LT_APPLY(callable, ...) \
+    LT_applyv((callable), __VA_ARGS__ __VA_OPT__(,) LT_INVALID)
 
 extern LT_Value LT_super_send(
     LT_Value receiver,

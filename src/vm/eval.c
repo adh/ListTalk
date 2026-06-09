@@ -19,6 +19,7 @@
 
 #include <ctype.h>
 #include <setjmp.h>
+#include <stdarg.h>
 #include <string.h>
 
 struct LT_TailCallUnwindMarker_s {
@@ -562,6 +563,36 @@ LT_Value LT_apply(LT_Value callable,
     }
 
     return LT_NIL;
+}
+
+LT_Value LT_applyv(LT_Value callable, LT_Value first, ...){
+    LT_ListBuilder* builder;
+    va_list args;
+    LT_Value value;
+
+    if (first == LT_INVALID){
+        return LT_apply(callable, LT_NIL, LT_NIL, LT_NIL, NULL);
+    }
+
+    builder = LT_ListBuilder_new();
+    LT_ListBuilder_append(builder, first);
+    va_start(args, first);
+    while (1){
+        value = va_arg(args, LT_Value);
+        if (value == LT_INVALID){
+            break;
+        }
+        LT_ListBuilder_append(builder, value);
+    }
+    va_end(args);
+
+    return LT_apply(
+        callable,
+        LT_ListBuilder_value(builder),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
 }
 
 LT_Value LT_send(LT_Value receiver,

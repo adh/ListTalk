@@ -370,6 +370,10 @@
        "CompoundForm defines arguments protocol")
 (check (primitive? [Function lookupSelector: :documentation])
        "Function inherits documentation protocol")
+(check (primitive? [RealNumber >> :from:to:withStep:do:])
+       "RealNumber defines from:to:withStep:do:")
+(check (null? [Number lookupSelector: :from:to:withStep:do:])
+       "Number does not define from:to:withStep:do:")
 (check (function? [Macro lookupSelector: :arguments])
        "Macro inherits CompoundForm protocol")
 (check (primitive? [SpecialForm lookupSelector: :documentation])
@@ -591,6 +595,18 @@
 (check-near [4 sqrt] 2.0 1e-12 "Number>>sqrt")
 (check (= [4 min: 2] 2) "Number>>min:")
 (check (= [4 max: 2] 4) "Number>>max:")
+(let ((values '()))
+  [4 timesDo: (lambda (i) (set! values (cons i values)))]
+  (check (equal? values '(3 2 1 0)) "Integer>>timesDo: iterates zero-based indexes"))
+(let ((values '()))
+  [-2 timesDo: (lambda (i) (set! values (cons i values)))]
+  (check (null? values) "Integer>>timesDo: skips negative receivers"))
+(let ((values '()))
+  [0 from: 1 to: 5 withStep: 2 do: (lambda (i) (set! values (cons i values)))]
+  (check (equal? values '(3 1)) "RealNumber>>from:to:withStep:do: iterates upward half-open ranges"))
+(let ((values '()))
+  [0 from: 5 to: 1 withStep: -2 do: (lambda (i) (set! values (cons i values)))]
+  (check (equal? values '(3 5)) "RealNumber>>from:to:withStep:do: iterates downward half-open ranges"))
 (check [0 zero?] "Number>>zero?")
 (check [1 positive?] "Number>>positive?")
 (check [-1 negative?] "Number>>negative?")

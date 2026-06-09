@@ -3,6 +3,7 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/BigInteger.h>
 #include <ListTalk/classes/ByteVector.h>
@@ -349,7 +350,34 @@ LT_DEFINE_PRIMITIVE(
     return LT_Integer_subtract(unsigned_value, twos_complement_modulus(length));
 }
 
+LT_DEFINE_PRIMITIVE(
+    integer_method_times_do,
+    "Integer>>timesDo:",
+    "(self callable)",
+    "Call callable with each integer index from zero up to receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    LT_Value index;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    index = LT_SmallInteger_new(0);
+    while (LT_Integer_compare(index, self) < 0){
+        (void)LT_APPLY(callable, index);
+        index = LT_Integer_add(index, LT_SmallInteger_new(1));
+    }
+    return LT_NIL;
+}
+
 static LT_Method_Descriptor Integer_methods[] = {
+    {"timesDo:", &integer_method_times_do},
     {"toBytes", &integer_method_to_bytes},
     {"toBytes:", &integer_method_to_bytes_count},
     {"toTwosComplement", &integer_method_to_twos_complement},
