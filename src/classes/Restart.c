@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Function.h>
+#include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Reader.h>
@@ -133,11 +134,55 @@ LT_DEFINE_PRIMITIVE(
     return LT_Restart_callable(LT_Restart_from_value(self));
 }
 
+LT_DEFINE_PRIMITIVE(
+    restart_class_method_from_closure,
+    "Restart class>>fromClosure:",
+    "(self closure)",
+    "Return restart described by closure metadata."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value closure;
+    (void)self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, closure);
+    LT_ARG_END(cursor);
+    return LT_Restart_fromClosure(closure);
+}
+
+LT_DEFINE_PRIMITIVE(
+    restart_class_method_named_from_closure,
+    "Restart class>>named:fromClosure:",
+    "(self name closure)",
+    "Return named restart described by closure metadata."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name;
+    LT_Value closure;
+    (void)self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, name);
+    LT_OBJECT_ARG(cursor, closure);
+    LT_ARG_END(cursor);
+    return LT_Restart_named_fromClosure(name, closure);
+}
+
 static LT_Method_Descriptor Restart_methods[] = {
     {"name", &restart_method_name},
     {"description", &restart_method_description},
     {"argument-list", &restart_method_argument_list},
     {"callable", &restart_method_callable},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor Restart_class_methods[] = {
+    {"fromClosure:", &restart_class_method_from_closure},
+    {"named:fromClosure:", &restart_class_method_named_from_closure},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -151,6 +196,7 @@ LT_DEFINE_CLASS(LT_Restart) {
     .debugPrintOn = Restart_debugPrintOn,
     .slots = Restart_slots,
     .methods = Restart_methods,
+    .class_methods = Restart_class_methods,
 };
 
 LT_Value LT_Restart_new(LT_Value name,
@@ -178,6 +224,24 @@ LT_Value LT_Restart_new(LT_Value name,
     restart->argument_list = argument_list;
     restart->callable = callable;
     return (LT_Value)(uintptr_t)restart;
+}
+
+LT_Value LT_Restart_fromClosure(LT_Value closure){
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    return LT_Restart_named_fromClosure(
+        LT_Closure_name(closure_object),
+        closure
+    );
+}
+
+LT_Value LT_Restart_named_fromClosure(LT_Value name, LT_Value closure){
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    return LT_Restart_new(
+        name,
+        LT_Closure_documentation(closure_object),
+        LT_Closure_parameters(closure_object),
+        closure
+    );
 }
 
 LT_Value LT_Restart_from_static(LT_Restart* restart){

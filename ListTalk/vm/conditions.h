@@ -17,9 +17,18 @@ typedef struct LT_ConditionHandlerFrame_s {
     struct LT_ConditionHandlerFrame_s* previous;
 } LT_ConditionHandlerFrame;
 
+typedef struct LT_RestartFrame_s {
+    LT_Value restart;
+    struct LT_RestartFrame_s* previous;
+} LT_RestartFrame;
+
 extern _Thread_local LT_ConditionHandlerFrame* LT__condition_handler_stack;
+extern _Thread_local LT_RestartFrame* LT__restart_stack;
 
 void LT_signal(LT_Value condition);
+LT_Value LT_current_restarts(void);
+LT_Value LT_find_restart(LT_Value name);
+LT_Value LT_invoke_restart(LT_Value name, LT_Value arguments);
 
 #define LT_HANDLER_BIND(HANDLER_EXPR, BODY) \
     do { \
@@ -33,6 +42,21 @@ void LT_signal(LT_Value condition);
         }, \
         { \
             LT__condition_handler_stack = LT__condition_handler_frame.previous; \
+        }); \
+    } while (0)
+
+#define LT_RESTART_BIND(RESTART_EXPR, BODY) \
+    do { \
+        LT_RestartFrame LT__restart_frame; \
+        LT__restart_frame.restart = (RESTART_EXPR); \
+        LT__restart_frame.previous = LT__restart_stack; \
+        LT__restart_stack = &LT__restart_frame; \
+        LT_UNWIND_PROTECT( \
+        { \
+            BODY \
+        }, \
+        { \
+            LT__restart_stack = LT__restart_frame.previous; \
         }); \
     } while (0)
 

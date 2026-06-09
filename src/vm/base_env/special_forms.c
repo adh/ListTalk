@@ -959,6 +959,27 @@ static LT_Value special_form_handler_bind(
     return result;
 }
 
+static LT_Value special_form_restart_bind(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value restart_expression;
+    LT_Value body;
+    LT_Value restart;
+    LT_Value result = LT_NIL;
+
+    LT_OBJECT_ARG(cursor, restart_expression);
+    LT_ARG_REST(cursor, body);
+
+    restart = LT_eval(restart_expression, environment, NULL);
+    LT_RESTART_BIND(restart, {
+        result = LT_eval_sequence(body, environment, tail_call_unwind_marker);
+    });
+    return result;
+}
+
 static LT_Value special_form_get_current_environment(
     LT_Value arguments,
     LT_Environment* environment,
@@ -1175,6 +1196,14 @@ static LT_SpecialForm handler_bind_special_form = {
     .description = "Bind condition handler during dynamic extent of body."
 };
 
+static LT_SpecialForm restart_bind_special_form = {
+    .function = special_form_restart_bind,
+    .expand_function = expand_special_form_default,
+    .name = "%restart-bind",
+    .arguments = "(restart-expression :rest body)",
+    .description = "Bind restart during dynamic extent of body."
+};
+
 static LT_SpecialForm get_current_environment_special_form = {
     .function = special_form_get_current_environment,
     .expand_function = expand_special_form_default,
@@ -1268,6 +1297,11 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &catch_special_form);
     bind_static_special_form(environment, &unwind_protect_special_form);
     bind_static_special_form(environment, &handler_bind_special_form);
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &restart_bind_special_form
+    );
     bind_static_special_form(environment, &get_current_environment_special_form);
     bind_static_special_form_in(
         environment,
