@@ -12,6 +12,7 @@
 (%define ListTalk:define-macro
   (macro
     (%lambda 'define-macro (target . body)
+      "Define a macro from a signature or macro object."
       (if (pair? target)
           `(%define-constant
              ,(car target)
@@ -19,9 +20,11 @@
           `(%define-constant ,target (macro ,(car body)))))))
 
 (ListTalk:define-macro (ListTalk:lambda parameters . body)
+  "Construct an anonymous closure."
   `(%lambda '() ,parameters ,@body))
 
 (ListTalk:define-macro (ListTalk:let bindings-or-name . body)
+  "Evaluate body with lexical bindings, or create and call a named local function."
   (if (symbol? bindings-or-name)
       `(letrec ((,bindings-or-name
                  (ListTalk-implementation:%lambda ',bindings-or-name
@@ -32,12 +35,14 @@
       `(ListTalk-implementation:%let ,bindings-or-name ,@body)))
 
 (ListTalk:define-macro (ListTalk:let* bindings . body)
+  "Evaluate body with sequential lexical bindings."
   (if (null? bindings)
       `(ListTalk-implementation:%let () ,@body)
       `(ListTalk-implementation:%let (,(car bindings))
          (let* ,(cdr bindings) ,@body))))
 
 (ListTalk:define-macro (ListTalk:while condition . body)
+  "Evaluate body while condition is truthy, with break and continue in scope."
   (let ((break-tag (gensym 'while-break))
         (continue-tag (gensym 'while-continue))
         (continuing (gensym 'while-continuing)))
@@ -63,6 +68,7 @@
                    ,@body))))))))
 
 (ListTalk:define-macro (ListTalk:define target . body)
+  "Define a value, function, or dynamic variable."
   (if (pair? target)
       (if (eq? (car target) 'ListTalk-implementation:%dynamic-ref)
           `(%define ,(cadr target) [DynamicVariable new: ,(car body)])
@@ -70,9 +76,11 @@
       `(%define ,target ,(car body))))
 
 (ListTalk:define-macro (ListTalk:%self-slot slot-name)
+  "Expand method-local slot shorthand to a self slot reference."
   `(slot-ref ListTalk:self ',slot-name))
 
 (ListTalk:define-macro (ListTalk:set! target value)
+  "Set a lexical variable, self slot, or dynamic variable."
   (if (symbol? target)
       `(%set! ,target ,value)
       (if (pair? target)
@@ -84,12 +92,14 @@
           (error "set! unsupported target"))))
 
 (ListTalk:define-macro (ListTalk:define-class name superclasses slot-names)
+  "Define a class with superclasses and slot names."
   `(define ,name
      (make-class ',name
                  (list ,@superclasses)
                  ',slot-names)))
 
 (ListTalk:define-macro (ListTalk:define-method signature . body)
+  "Define a method on a class for a selector."
   (if (pair? signature)
       (if (eq? (car signature) 'ListTalk:send)
           `[,(cadr signature)
@@ -101,7 +111,9 @@
       (error "define-method expects [Class selector ...] signature")))
 
 (ListTalk:define-macro (ListTalk:define-constructor signature . body)
+  "Define a class-side constructor and matching instance initializer."
   (define (init-selector selector)
+    "Return initializer selector corresponding to constructor selector."
     (let ((name [selector name]))
       (if [selector nameStartsWith?: "new"]
           [Symbol keyword: (string-append "init" (substring name 3 [name length]))]
@@ -133,62 +145,75 @@
       (error "define-constructor expects [Class selector ...] signature")))
 
 (ListTalk:define-method [ListTalk:Macro documentation]
+  "Return documentation of the macro callable."
   [.callable documentation])
 
 (ListTalk:define-method [ListTalk:Macro arguments]
+  "Return argument list of the macro callable."
   [.callable arguments])
 
 (ListTalk:define-method [ListTalk:BindingDescriptor compareWith: other]
+  "Compare binding descriptors by symbol."
   (let ((symbol [ListTalk:self symbol])
         (other-symbol [other symbol]))
     [symbol compareWith: other-symbol]))
 
 (ListTalk:define-method [ListTalk:BindingDescriptor < other]
+  "Return true when receiver sorts before other by symbol."
   (let ((symbol [ListTalk:self symbol])
         (other-symbol [other symbol]))
     [symbol < other-symbol]))
 
 (ListTalk:define-method [ListTalk:BindingDescriptor > other]
+  "Return true when receiver sorts after other by symbol."
   (let ((symbol [ListTalk:self symbol])
         (other-symbol [other symbol]))
     [symbol > other-symbol]))
 
 (ListTalk:define-method [ListTalk:BindingDescriptor <= other]
+  "Return true when receiver sorts before or equal to other by symbol."
   (let ((symbol [ListTalk:self symbol])
         (other-symbol [other symbol]))
     [symbol <= other-symbol]))
 
 (ListTalk:define-method [ListTalk:BindingDescriptor >= other]
+  "Return true when receiver sorts after or equal to other by symbol."
   (let ((symbol [ListTalk:self symbol])
         (other-symbol [other symbol]))
     [symbol >= other-symbol]))
 
 (ListTalk:define-method [ListTalk:MethodDescriptor compareWith: other]
+  "Compare method descriptors by selector."
   (let ((selector [ListTalk:self selector])
         (other-selector [other selector]))
     [selector compareWith: other-selector]))
 
 (ListTalk:define-method [ListTalk:MethodDescriptor < other]
+  "Return true when receiver sorts before other by selector."
   (let ((selector [ListTalk:self selector])
         (other-selector [other selector]))
     [selector < other-selector]))
 
 (ListTalk:define-method [ListTalk:MethodDescriptor > other]
+  "Return true when receiver sorts after other by selector."
   (let ((selector [ListTalk:self selector])
         (other-selector [other selector]))
     [selector > other-selector]))
 
 (ListTalk:define-method [ListTalk:MethodDescriptor <= other]
+  "Return true when receiver sorts before or equal to other by selector."
   (let ((selector [ListTalk:self selector])
         (other-selector [other selector]))
     [selector <= other-selector]))
 
 (ListTalk:define-method [ListTalk:MethodDescriptor >= other]
+  "Return true when receiver sorts after or equal to other by selector."
   (let ((selector [ListTalk:self selector])
         (other-selector [other selector]))
     [selector >= other-selector]))
 
 (ListTalk:define-macro (ListTalk:send receiver selector . arguments)
+  "Send selector to receiver, handling super sends specially."
   (if (and (symbol? receiver)
           (eq? receiver 'ListTalk:super))
       `(ListTalk-implementation:%super-send
@@ -198,6 +223,7 @@
       `(ListTalk-implementation:%send ,receiver ,selector ,@arguments)))
 
 (ListTalk:define-macro (ListTalk:provide module)
+  "Record module as provided and return its name."
   `(if (memq ',module ListTalk:%modules)
        ',module
        (let ()
@@ -205,6 +231,7 @@
          ',module)))
 
 (ListTalk:define-macro (ListTalk:load! module . resolvers)
+  "Load module using optional resolver paths before configured resolvers."
   (if (null? resolvers)
       `(ListTalk-implementation:%load!
          (get-current-environment)
@@ -216,6 +243,7 @@
          (append ',resolvers ListTalk:module-resolvers))))
 
 (ListTalk:define-macro (ListTalk:require module . resolvers)
+  "Load module unless already provided."
   (if (null? resolvers)
       `(ListTalk-implementation:%require
          (get-current-environment)
@@ -228,8 +256,10 @@
 
 ; TODO: delalamoize this
 (ListTalk:define-macro (ListTalk:with-gensyms symbols . body)
+  "Evaluate body with symbols bound to fresh generated symbols."
   (let ()
     (define (expand remaining)
+      "Expand remaining symbol bindings into nested lambdas."
       (if (null? remaining)
           `((lambda () ,@body))
           `((lambda (,(car remaining))
@@ -238,10 +268,13 @@
     (expand symbols)))
 
 (ListTalk:define-macro (ListTalk:dynamic-let bindings . body)
+  "Temporarily bind dynamic variables during body."
   (define (dynamic-ref-form? form)
+    "Return true when form refers to a dynamic variable."
     (and (pair? form)
          (eq? (car form) 'ListTalk-implementation:%dynamic-ref)))
   (define (expand remaining old-bindings value-bindings set-forms restore-forms)
+    "Expand dynamic-let bindings into lexical temporaries and unwind cleanup."
     (if (null? remaining)
         `(let ,(append old-bindings value-bindings)
            (unwind-protect
@@ -265,10 +298,12 @@
   (expand bindings '() '() '() '()))
 
 (define-macro (ListTalk:when condition . body)
+  "Evaluate body when condition is truthy."
   `(if ,condition
        (begin ,@body)))
 
 (define-macro (ListTalk:unless condition . body)
+  "Evaluate body when condition is falsey."
   `(if ,condition
        #nil
        (begin ,@body)))
