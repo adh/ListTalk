@@ -602,6 +602,50 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_current_restarts,
+    "current-restarts",
+    "()",
+    "Return currently active restarts."
+){
+    LT_Value cursor = arguments;
+    (void)tail_call_unwind_marker;
+
+    LT_ARG_END(cursor);
+    return LT_current_restarts();
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_find_restart,
+    "find-restart",
+    "(name)",
+    "Return active restart with eq name or nil."
+){
+    LT_Value cursor = arguments;
+    LT_Value name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, name);
+    LT_ARG_END(cursor);
+    return LT_find_restart(name);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_invoke_restart,
+    "invoke-restart",
+    "(name :rest argument)",
+    "Invoke active restart with eq name."
+){
+    LT_Value cursor = arguments;
+    LT_Value name;
+    LT_Value restart_arguments;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, name);
+    LT_ARG_REST(cursor, restart_arguments);
+    return LT_invoke_restart(name, restart_arguments);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_display,
     "display",
     "(value)",
@@ -921,6 +965,9 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     );
     LT_base_env_bind_static_primitive(environment, &primitive_slot_set);
     LT_base_env_bind_static_primitive(environment, &primitive_error);
+    LT_base_env_bind_static_primitive(environment, &primitive_current_restarts);
+    LT_base_env_bind_static_primitive(environment, &primitive_find_restart);
+    LT_base_env_bind_static_primitive(environment, &primitive_invoke_restart);
     LT_base_env_bind_static_primitive(environment, &primitive_display);
     LT_base_env_bind_static_primitive(environment, &primitive_read);
     LT_base_env_bind_static_primitive(environment, &primitive_read_string_as_data);

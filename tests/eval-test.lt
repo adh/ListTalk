@@ -1946,6 +1946,13 @@
   (check (equal? (slot-ref c 'message) "boom")
          "handler-bind catches error condition with correct message"))
 
+(check (null? (current-restarts))
+       "current-restarts returns nil outside restart dynamic extent")
+(check (null? (find-restart :missing-restart))
+       "find-restart returns nil without matching active restart")
+(check-raises "invoke-restart raises without matching active restart"
+              (invoke-restart :missing-restart))
+
 ;;; Symbol package slot
 
 (check (not (null? (slot-ref 'eval-test-alpha 'package)))

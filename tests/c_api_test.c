@@ -1421,6 +1421,36 @@ static int test_static_primitive_restart_macro(void){
     return failed;
 }
 
+static int test_restart_listtalk_primitives_and_low_level_bind(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value name = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "use-value");
+    LT_Value restart = LT_Restart_new(
+        name,
+        LT_NIL,
+        LT_cons(LT_Symbol_new("value"), LT_NIL),
+        LT_Primitive_from_static(&primitive_test_restart_primitive)
+    );
+    LT_Value restart_symbol = LT_Symbol_new("test-restart-object");
+    LT_Value result;
+
+    LT_Environment_bind(env, restart_symbol, restart, LT_ENV_BINDING_FLAG_CONSTANT);
+    result = LT_eval(
+        read_one(
+            "(ListTalk-implementation:%restart-bind test-restart-object "
+            "  (and (eq? (car (current-restarts)) test-restart-object) "
+            "       (eq? (find-restart :use-value) test-restart-object) "
+            "       (= (invoke-restart :use-value 41) 41)))"
+        ),
+        env,
+        NULL
+    );
+
+    return expect(
+        result == LT_TRUE,
+        "%restart-bind exposes restart to current-restarts, find-restart, and invoke-restart"
+    );
+}
+
 static int test_special_form_arguments_falls_back_to_string(void){
     LT_Value special_form = LT_SpecialForm_new(
         "bad-special-form-arguments",
@@ -3258,6 +3288,7 @@ int main(void){
     RUN_TEST(test_primitive_documentation_returns_description_string);
     RUN_TEST(test_restart_c_api_and_listtalk_accessors);
     RUN_TEST(test_static_primitive_restart_macro);
+    RUN_TEST(test_restart_listtalk_primitives_and_low_level_bind);
     RUN_TEST(test_special_form_arguments_falls_back_to_string);
     RUN_TEST(test_special_form_documentation_returns_description_string);
     RUN_TEST(test_symbol_uninterned_and_gensym_c_api);
