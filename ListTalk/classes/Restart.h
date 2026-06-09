@@ -79,6 +79,8 @@ LT_Value LT_Restart_new(LT_Value name,
                         LT_Value description,
                         LT_Value argument_list,
                         LT_Value callable);
+LT_Value LT_Restart_fromClosure(LT_Value closure);
+LT_Value LT_Restart_named_fromClosure(LT_Value name, LT_Value closure);
 void LT_Restart_init_static(LT_Restart* restart, LT_Primitive* primitive);
 LT_Value LT_Restart_from_static(LT_Restart* restart);
 LT_Value LT_Restart_name(LT_Restart* restart);

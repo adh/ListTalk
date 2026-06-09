@@ -1278,6 +1278,60 @@ static int test_anonymous_closure_debug_print_includes_address(void){
     return result;
 }
 
+static int test_closure_documentation_from_docstring(void){
+    LT_Value closure = eval_one("(lambda (x) \"Return x.\" x)");
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    LT_Value documentation = LT_Closure_documentation(closure_object);
+    LT_Value body = LT_Closure_body(closure_object);
+    int failed = 0;
+
+    failed += expect(
+        LT_String_p(documentation)
+            && strcmp(
+                LT_String_value_cstr(LT_String_from_value(documentation)),
+                "Return x."
+            ) == 0,
+        "Closure docstring becomes documentation"
+    );
+    failed += expect(
+        LT_Pair_p(body)
+            && LT_Symbol_p(LT_car(body))
+            && LT_cdr(body) == LT_NIL,
+        "Closure docstring is stripped from body"
+    );
+    failed += expect(
+        LT_SEND(closure, "documentation") == documentation,
+        "Closure>>documentation returns documentation slot"
+    );
+    return failed;
+}
+
+static int test_closure_explicit_documentation_constructor(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value documentation =
+        (LT_Value)(uintptr_t)LT_String_new_cstr("Explicit closure documentation.");
+    LT_Value body = LT_cons(LT_SmallInteger_new(9), LT_NIL);
+    LT_Value closure = LT_Closure_new_with_documentation(
+        LT_NIL,
+        LT_NIL,
+        body,
+        env,
+        documentation
+    );
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    int failed = 0;
+
+    failed += expect(
+        LT_Closure_documentation(closure_object) == documentation,
+        "explicit Closure constructor stores documentation"
+    );
+    failed += expect(
+        LT_Closure_body(closure_object) == body,
+        "explicit Closure constructor preserves body"
+    );
+    return failed;
+}
+
 static int test_primitive_arguments_falls_back_to_string(void){
     LT_Value primitive = LT_Primitive_new(
         "bad-arguments",
@@ -1449,6 +1503,56 @@ static int test_restart_listtalk_primitives_and_low_level_bind(void){
         result == LT_TRUE,
         "%restart-bind exposes restart to current-restarts, find-restart, and invoke-restart"
     );
+}
+
+static int test_restart_class_methods_from_closure(void){
+    LT_Value closure = eval_one(
+        "(lambda (value) \"Use supplied value.\" value)"
+    );
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    LT_Value inferred = LT_SEND_ARGS(
+        (LT_Value)(uintptr_t)&LT_Restart_class,
+        "fromClosure:",
+        LT_cons(closure, LT_NIL)
+    );
+    LT_Value explicit_name = LT_Symbol_new("explicit-restart-name");
+    LT_Value named = LT_SEND_ARGS(
+        (LT_Value)(uintptr_t)&LT_Restart_class,
+        "named:fromClosure:",
+        LT_cons(explicit_name, LT_cons(closure, LT_NIL))
+    );
+    LT_Restart* inferred_restart = LT_Restart_from_value(inferred);
+    LT_Restart* named_restart = LT_Restart_from_value(named);
+    int failed = 0;
+
+    failed += expect(
+        LT_Restart_name(inferred_restart) == LT_Closure_name(closure_object),
+        "Restart fromClosure: uses closure name"
+    );
+    failed += expect(
+        LT_Restart_description(inferred_restart)
+            == LT_Closure_documentation(closure_object),
+        "Restart fromClosure: uses closure documentation"
+    );
+    failed += expect(
+        LT_Restart_argument_list(inferred_restart)
+            == LT_Closure_parameters(closure_object),
+        "Restart fromClosure: uses closure parameters"
+    );
+    failed += expect(
+        LT_Restart_callable(inferred_restart) == closure,
+        "Restart fromClosure: uses closure as callable"
+    );
+    failed += expect(
+        LT_Restart_name(named_restart) == explicit_name,
+        "Restart named:fromClosure: uses explicit name"
+    );
+    failed += expect(
+        LT_Restart_description(named_restart)
+            == LT_Closure_documentation(closure_object),
+        "Restart named:fromClosure: uses closure documentation"
+    );
+    return failed;
 }
 
 static int test_special_form_arguments_falls_back_to_string(void){
@@ -3284,11 +3388,14 @@ int main(void){
     RUN_TEST(test_define_function_shorthand_sets_closure_name);
     RUN_TEST(test_closure_debug_print_includes_name);
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
+    RUN_TEST(test_closure_documentation_from_docstring);
+    RUN_TEST(test_closure_explicit_documentation_constructor);
     RUN_TEST(test_primitive_arguments_falls_back_to_string);
     RUN_TEST(test_primitive_documentation_returns_description_string);
     RUN_TEST(test_restart_c_api_and_listtalk_accessors);
     RUN_TEST(test_static_primitive_restart_macro);
     RUN_TEST(test_restart_listtalk_primitives_and_low_level_bind);
+    RUN_TEST(test_restart_class_methods_from_closure);
     RUN_TEST(test_special_form_arguments_falls_back_to_string);
     RUN_TEST(test_special_form_documentation_returns_description_string);
     RUN_TEST(test_symbol_uninterned_and_gensym_c_api);
