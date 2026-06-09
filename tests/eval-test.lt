@@ -1952,6 +1952,39 @@
        "find-restart returns nil without matching active restart")
 (check-raises "invoke-restart raises without matching active restart"
               (invoke-restart :missing-restart))
+(let ((restart [Restart named: :stored
+                         fromClosure: (lambda (value)
+                                        "Return stored restart value."
+                                        value)]))
+  (check (= (restart-bind restart
+              (invoke-restart :stored 11))
+            11)
+         "restart-bind accepts restart variable"))
+(check (= (restart-bind ([Restart named: :computed
+                                  fromClosure: (lambda (value)
+                                                 "Return computed restart value."
+                                                 value)])
+            (invoke-restart :computed 12))
+          12)
+       "restart-bind accepts parenthesized restart expression")
+(check (= (restart-bind (:named-closure (lambda (value)
+                                          "Return named closure restart value."
+                                          value))
+            (invoke-restart :named-closure 13))
+          13)
+       "restart-bind accepts name and closure")
+(check (= (restart-bind ((:inline value)
+                         "Return inline restart value."
+                         value)
+            (invoke-restart :inline 14))
+          14)
+       "restart-bind accepts inline restart signature")
+(restart-bind ((:documented value)
+               "Documented inline restart."
+               value)
+  (check (equal? [(find-restart :documented) description]
+                 "Documented inline restart.")
+         "restart-bind inline restart preserves docstring"))
 
 ;;; Symbol package slot
 

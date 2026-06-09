@@ -297,6 +297,26 @@
               (error "dynamic-let binding must be pair")))))
   (expand bindings '() '() '() '()))
 
+(ListTalk:define-macro (ListTalk:restart-bind clause . body)
+  "Bind one restart during body."
+  `(ListTalk-implementation:%restart-bind
+     ,(cond
+        ((not (pair? clause))
+         clause)
+        ((null? (cdr clause))
+         (car clause))
+        ((pair? (car clause))
+         `[Restart fromClosure:
+           (ListTalk-implementation:%lambda
+             ',(caar clause)
+             ,(cdar clause)
+             ,@(cdr clause))])
+        ((null? (cddr clause))
+         `[Restart named: ',(car clause) fromClosure: ,(cadr clause)])
+        (#true
+         (error "restart-bind clause expects restart expression, name and closure, or restart signature")))
+     ,@body))
+
 (define-macro (ListTalk:when condition . body)
   "Evaluate body when condition is truthy."
   `(if ,condition
