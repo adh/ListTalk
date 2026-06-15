@@ -45,10 +45,33 @@ LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
     "Advance the iterator."
 )
 
+LT_DEFINE_PRIMITIVE(
+    iterator_method_as_list,
+    "Iterator>>asList",
+    "(self)",
+    "Consume iterator and return remaining values as a list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ListBuilder* builder;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    builder = LT_ListBuilder_new();
+    while (LT_Value_truthy_p(LT_Iterator_hasThis(self))){
+        LT_ListBuilder_append(builder, LT_Iterator_this(self));
+        (void)LT_Iterator_next(self);
+    }
+    return LT_ListBuilder_value(builder);
+}
+
 static LT_Method_Descriptor Iterator_methods[] = {
     {"this", &iterator_method_this},
     {"hasThis?", &iterator_method_has_this},
     {"next", &iterator_method_next},
+    {"asList", &iterator_method_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
