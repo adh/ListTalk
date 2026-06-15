@@ -6,7 +6,7 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
-#include <ListTalk/classes/ListIterator.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>

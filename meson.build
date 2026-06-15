@@ -101,8 +101,6 @@ vm_lib = library(
                 'src/classes/BigInteger.c',
                 'src/classes/Fraction.c',
                 'src/classes/Iterator.c',
-                'src/classes/EmptyIterator.c',
-                'src/classes/ListIterator.c',
                 'src/classes/Float.c',
                 'src/classes/List.c',
                 'src/classes/String.c',

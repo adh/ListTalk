@@ -4,7 +4,7 @@
  */
 
 #include <ListTalk/classes/Nil.h>
-#include <ListTalk/classes/EmptyIterator.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>

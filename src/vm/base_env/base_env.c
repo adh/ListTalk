@@ -24,9 +24,7 @@
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Iterator.h>
-#include <ListTalk/classes/EmptyIterator.h>
 #include <ListTalk/classes/List.h>
-#include <ListTalk/classes/ListIterator.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Message.h>
