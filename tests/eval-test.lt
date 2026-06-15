@@ -1191,6 +1191,26 @@
 (check (= (cadr '(1 2 3)) 2) "cadr")
 (check (= (caddr '(1 2 3 4)) 3) "caddr")
 (check (= (cadddr '(1 2 3 4 5)) 4) "cadddr")
+(let ((iterator ['(1 2 3) asIterator]))
+  (check (eq? [iterator class] ListIterator) "List>>asIterator returns ListIterator")
+  (check [iterator hasThis?] "ListIterator starts on first element")
+  (check (= [iterator this] 1) "ListIterator this returns first element")
+  [iterator next]
+  (check [iterator hasThis?] "ListIterator has second element")
+  (check (= [iterator this] 2) "ListIterator this returns second element")
+  [iterator next]
+  (check [iterator hasThis?] "ListIterator has third element")
+  (check (= [iterator this] 3) "ListIterator this returns third element")
+  (check (eq? [iterator next] iterator) "ListIterator next returns receiver")
+  (check (not [iterator hasThis?]) "ListIterator is past end"))
+(let ((iterator ['() asIterator]))
+  (check (not [iterator hasThis?]) "Empty ListIterator has no current element")
+  (check (eq? [iterator next] iterator) "Empty ListIterator next returns receiver")
+  (check-raises "Unpositioned ListIterator this raises" [iterator this]))
+(check-raises "ListIterator raises on improper tail"
+  (let ((iterator ['(1 . 2) asIterator]))
+    [iterator next]
+    [iterator hasThis?]))
 
 ;;; Strings
 

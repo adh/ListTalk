@@ -6,6 +6,7 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
+#include <ListTalk/classes/ListIterator.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
@@ -836,6 +837,21 @@ LT_DEFINE_PRIMITIVE(
     return self;
 }
 
+LT_DEFINE_PRIMITIVE(
+    list_method_as_iterator,
+    "List>>asIterator",
+    "(self)",
+    "Return an iterator over receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_ListIterator_new(self);
+}
+
 static LT_Method_Descriptor List_methods[] = {
     {"length", &list_method_length},
     {"at:", &list_method_at},
@@ -848,6 +864,7 @@ static LT_Method_Descriptor List_methods[] = {
     {"sort", &list_method_sort},
     {"sortUsing:", &list_method_sort_using},
     {"asList", &list_method_as_list},
+    {"asIterator", &list_method_as_iterator},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

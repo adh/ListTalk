@@ -23,7 +23,9 @@
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/List.h>
+#include <ListTalk/classes/ListIterator.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Message.h>
@@ -92,7 +94,9 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"SmallInteger", &LT_SmallInteger_class},
     {"SmallFraction", &LT_SmallFraction_class},
     {"Float", &LT_Float_class},
+    {"Iterator", &LT_Iterator_class},
     {"List", &LT_List_class},
+    {"ListIterator", &LT_ListIterator_class},
     {"ImmutableList", &LT_ImmutableList_class},
     {"Pair", &LT_Pair_class},
     {"MutablePair", &LT_MutablePair_class},

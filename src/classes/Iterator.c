@@ -15,20 +15,20 @@ LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
 )
 
 LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
-    iterator_method_has_next,
-    "Iterator>>hasNext?",
-    "Return true when the iterator can advance to another value."
+    iterator_method_has_this,
+    "Iterator>>hasThis?",
+    "Return true when the iterator has a current value."
 )
 
 LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
     iterator_method_next,
     "Iterator>>next",
-    "Advance the iterator and return the next value."
+    "Advance the iterator."
 )
 
 static LT_Method_Descriptor Iterator_methods[] = {
     {"this", &iterator_method_this},
-    {"hasNext?", &iterator_method_has_next},
+    {"hasThis?", &iterator_method_has_this},
     {"next", &iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
