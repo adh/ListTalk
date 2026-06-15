@@ -15,6 +15,7 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Iterator);
 LT_DECLARE_CLASS(LT_EmptyIterator);
 LT_DECLARE_CLASS(LT_ListIterator);
+LT_DECLARE_CLASS(LT_MapIterator);
 
 LT_Value LT_Iterator_this(LT_Value iterator);
 LT_Value LT_Iterator_hasThis(LT_Value iterator);
@@ -22,6 +23,7 @@ LT_Value LT_Iterator_next(LT_Value iterator);
 
 LT_EmptyIterator* LT_EmptyIterator_instance(void);
 LT_ListIterator* LT_ListIterator_new(LT_Value list);
+LT_MapIterator* LT_MapIterator_new(LT_Value iterator, LT_Value callable);
 
 LT__END_DECLS
 

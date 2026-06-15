@@ -23,6 +23,12 @@ struct LT_ListIterator_s {
     LT_Value rest;
 };
 
+struct LT_MapIterator_s {
+    LT_Object base;
+    LT_Value iterator;
+    LT_Value callable;
+};
+
 static LT_EmptyIterator empty_iterator_instance = {
     .base = {.klass = &LT_EmptyIterator_class},
 };
@@ -263,6 +269,115 @@ LT_DEFINE_CLASS(LT_ListIterator) {
     .methods = ListIterator_methods,
 };
 
+static void MapIterator_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_MapIterator* iterator = LT_MapIterator_from_value(obj);
+
+    fputs("#<MapIterator iterator=", stream);
+    LT_Value_debugPrintOn(iterator->iterator, stream);
+    fputs(" callable=", stream);
+    LT_Value_debugPrintOn(iterator->callable, stream);
+    fputc('>', stream);
+}
+
+LT_DEFINE_PRIMITIVE(
+    map_iterator_class_method_map_with,
+    "MapIterator class>>map:with:",
+    "(self iterator callable)",
+    "Return a lazy iterator mapping callable over iterator."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value iterator;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, iterator);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_MapIterator_class){
+        LT_error("map:with: class method is only supported on MapIterator");
+    }
+    return (LT_Value)(uintptr_t)LT_MapIterator_new(iterator, callable);
+}
+
+LT_DEFINE_PRIMITIVE(
+    map_iterator_method_this,
+    "MapIterator>>this",
+    "(self)",
+    "Return callable applied to wrapped iterator current value."
+){
+    LT_Value cursor = arguments;
+    LT_MapIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_MapIterator*, LT_MapIterator_from_value);
+    LT_ARG_END(cursor);
+    return LT_apply(
+        iterator->callable,
+        LT_cons(LT_Iterator_this(iterator->iterator), LT_NIL),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    map_iterator_method_has_this,
+    "MapIterator>>hasThis?",
+    "(self)",
+    "Return true when the wrapped iterator has a current value."
+){
+    LT_Value cursor = arguments;
+    LT_MapIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_MapIterator*, LT_MapIterator_from_value);
+    LT_ARG_END(cursor);
+    return LT_Iterator_hasThis(iterator->iterator);
+}
+
+LT_DEFINE_PRIMITIVE(
+    map_iterator_method_next,
+    "MapIterator>>next",
+    "(self)",
+    "Advance the wrapped iterator and return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_MapIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    iterator = LT_MapIterator_from_value(self);
+    (void)LT_Iterator_next(iterator->iterator);
+    return self;
+}
+
+static LT_Method_Descriptor MapIterator_methods[] = {
+    {"this", &map_iterator_method_this},
+    {"hasThis?", &map_iterator_method_has_this},
+    {"next", &map_iterator_method_next},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor MapIterator_class_methods[] = {
+    {"map:with:", &map_iterator_class_method_map_with},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_MapIterator) {
+    .superclass = &LT_Iterator_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "MapIterator",
+    .documentation = "Lazy iterator mapping a callable over another iterator.",
+    .instance_size = sizeof(LT_MapIterator),
+    .debugPrintOn = MapIterator_debugPrintOn,
+    .methods = MapIterator_methods,
+    .class_methods = MapIterator_class_methods,
+};
+
 LT_Value LT_Iterator_this(LT_Value iterator){
     return LT_SEND(iterator, "this");
 }
@@ -291,4 +406,12 @@ LT_ListIterator* LT_ListIterator_new(LT_Value list){
     iterator->rest = list;
     list_iterator_advance(iterator);
     return iterator;
+}
+
+LT_MapIterator* LT_MapIterator_new(LT_Value iterator, LT_Value callable){
+    LT_MapIterator* map_iterator = LT_Class_ALLOC(LT_MapIterator);
+
+    map_iterator->iterator = iterator;
+    map_iterator->callable = callable;
+    return map_iterator;
 }
