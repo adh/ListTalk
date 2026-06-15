@@ -33,6 +33,7 @@
 #include <ListTalk/classes/BigInteger.h>
 #include <ListTalk/classes/Fraction.h>
 #include <ListTalk/classes/Iterator.h>
+#include <ListTalk/classes/EmptyIterator.h>
 #include <ListTalk/classes/ListIterator.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>

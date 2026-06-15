@@ -1204,9 +1204,11 @@
   (check (eq? [iterator next] iterator) "ListIterator next returns receiver")
   (check (not [iterator hasThis?]) "ListIterator is past end"))
 (let ((iterator ['() asIterator]))
-  (check (not [iterator hasThis?]) "Empty ListIterator has no current element")
-  (check (eq? [iterator next] iterator) "Empty ListIterator next returns receiver")
-  (check-raises "Unpositioned ListIterator this raises" [iterator this]))
+  (check (eq? [iterator class] EmptyIterator) "Nil>>asIterator returns EmptyIterator")
+  (check (eq? iterator ['() asIterator]) "Nil>>asIterator returns singleton")
+  (check (not [iterator hasThis?]) "EmptyIterator has no current element")
+  (check (eq? [iterator next] iterator) "EmptyIterator next returns receiver")
+  (check-raises "EmptyIterator this raises" [iterator this]))
 (check-raises "ListIterator raises on improper tail"
   (let ((iterator ['(1 . 2) asIterator]))
     [iterator next]

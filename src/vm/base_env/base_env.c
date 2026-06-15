@@ -24,6 +24,7 @@
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Iterator.h>
+#include <ListTalk/classes/EmptyIterator.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ListIterator.h>
 #include <ListTalk/classes/ImmutableList.h>
@@ -95,6 +96,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"SmallFraction", &LT_SmallFraction_class},
     {"Float", &LT_Float_class},
     {"Iterator", &LT_Iterator_class},
+    {"EmptyIterator", &LT_EmptyIterator_class},
     {"List", &LT_List_class},
     {"ListIterator", &LT_ListIterator_class},
     {"ImmutableList", &LT_ImmutableList_class},
