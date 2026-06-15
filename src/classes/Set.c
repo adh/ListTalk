@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/IdentitySet.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/WeakIdentitySet.h>
@@ -30,6 +31,14 @@ struct LT_IdentitySet_s {
 struct LT_WeakIdentitySet_s {
     LT_Object base;
     LT_InlineHash table;
+};
+
+struct LT_SetIterator_s {
+    LT_Object base;
+    LT_Set* set;
+    size_t bucket_index;
+    LT_InlineHash_Entry* entry;
+    LT_Value current;
 };
 
 static LT_Set* set_from_value(LT_Value obj){
@@ -101,6 +110,68 @@ static void WeakIdentitySet_debugPrintOn(LT_Value obj, FILE* stream){
         (void*)set,
         LT_InlineHash_count(&set->table)
     );
+}
+
+static void SetIterator_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_SetIterator* iterator = LT_SetIterator_from_value(obj);
+
+    fprintf(
+        stream,
+        "#<SetIterator %p bucket=%zu>",
+        (void*)iterator,
+        iterator->bucket_index
+    );
+}
+
+static int set_iterator_set_current(LT_SetIterator* iterator){
+    LT_Value value;
+
+    if (iterator->entry == NULL
+        || !set_entry_value(iterator->set, iterator->entry, &value)){
+        iterator->current = LT_INVALID;
+        return 0;
+    }
+
+    iterator->current = value;
+    return 1;
+}
+
+static void set_iterator_find_current(LT_SetIterator* iterator){
+    LT_InlineHash* table = &iterator->set->table;
+
+    while (1){
+        while (iterator->entry == NULL && iterator->bucket_index <= table->mask){
+            iterator->entry = table->vector[iterator->bucket_index];
+            iterator->bucket_index++;
+        }
+
+        if (iterator->entry == NULL){
+            iterator->current = LT_INVALID;
+            return;
+        }
+        if (set_iterator_set_current(iterator)){
+            return;
+        }
+        iterator->entry = iterator->entry->next;
+    }
+}
+
+static void set_iterator_advance(LT_SetIterator* iterator){
+    if (iterator->entry != NULL){
+        iterator->entry = iterator->entry->next;
+    }
+    set_iterator_find_current(iterator);
+}
+
+static LT_SetIterator* set_iterator_new(LT_Set* set){
+    LT_SetIterator* iterator = LT_Class_ALLOC(LT_SetIterator);
+
+    iterator->set = set;
+    iterator->bucket_index = 0;
+    iterator->entry = NULL;
+    iterator->current = LT_INVALID;
+    set_iterator_find_current(iterator);
+    return iterator;
 }
 
 static void set_grow_table(LT_Set* set){
@@ -590,6 +661,24 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    set_method_as_iterator,
+    "Set>>asIterator",
+    "(self)",
+    "Return an iterator over set elements."
+){
+    LT_Value cursor = arguments;
+    LT_Set* set;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, set, LT_Set*, set_from_value);
+    LT_ARG_END(cursor);
+    if (LT_Set_size(set) == 0){
+        return (LT_Value)(uintptr_t)LT_EmptyIterator_instance();
+    }
+    return (LT_Value)(uintptr_t)set_iterator_new(set);
+}
+
+LT_DEFINE_PRIMITIVE(
     set_method_any,
     "Set>>any:",
     "(self callable)",
@@ -659,15 +748,74 @@ LT_DEFINE_PRIMITIVE(
     return LT_Set_reduce(set_from_value(self), callable);
 }
 
+LT_DEFINE_PRIMITIVE(
+    set_iterator_method_this,
+    "SetIterator>>this",
+    "(self)",
+    "Return the current set element."
+){
+    LT_Value cursor = arguments;
+    LT_SetIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_SetIterator*, LT_SetIterator_from_value);
+    LT_ARG_END(cursor);
+    if (iterator->current == LT_INVALID){
+        LT_error("SetIterator is not positioned");
+    }
+    return iterator->current;
+}
+
+LT_DEFINE_PRIMITIVE(
+    set_iterator_method_has_this,
+    "SetIterator>>hasThis?",
+    "(self)",
+    "Return true when the iterator has a current set element."
+){
+    LT_Value cursor = arguments;
+    LT_SetIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_SetIterator*, LT_SetIterator_from_value);
+    LT_ARG_END(cursor);
+    return iterator->current == LT_INVALID ? LT_FALSE : LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    set_iterator_method_next,
+    "SetIterator>>next",
+    "(self)",
+    "Advance the iterator and return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_SetIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    iterator = LT_SetIterator_from_value(self);
+    set_iterator_advance(iterator);
+    return self;
+}
+
 static LT_Method_Descriptor Set_methods[] = {
     {"put:", &set_method_put},
     {"contains?:", &set_method_contains},
     {"asList", &set_method_as_list},
+    {"asIterator", &set_method_as_iterator},
     {"forEach:", &set_method_for_each},
     {"any:", &set_method_any},
     {"every:", &set_method_every},
     {"inject:into:", &set_method_inject_into},
     {"reduce:", &set_method_reduce},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor SetIterator_methods[] = {
+    {"this", &set_iterator_method_this},
+    {"hasThis?", &set_iterator_method_has_this},
+    {"next", &set_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -718,4 +866,14 @@ LT_DEFINE_CLASS(LT_WeakIdentitySet) {
     .instance_size = sizeof(LT_WeakIdentitySet),
     .debugPrintOn = WeakIdentitySet_debugPrintOn,
     .class_methods = WeakIdentitySet_class_methods,
+};
+
+LT_DEFINE_CLASS(LT_SetIterator) {
+    .superclass = &LT_Iterator_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "SetIterator",
+    .documentation = "Iterator over set elements.",
+    .instance_size = sizeof(LT_SetIterator),
+    .debugPrintOn = SetIterator_debugPrintOn,
+    .methods = SetIterator_methods,
 };

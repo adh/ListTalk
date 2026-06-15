@@ -15,6 +15,7 @@
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_ByteVector);
+LT_DECLARE_CLASS(LT_ByteVectorIterator);
 
 LT_ByteVector* LT_ByteVector_new(const uint8_t* bytes, size_t length);
 LT_ByteVector* LT_ByteVector_new_filled(size_t length, uint8_t fill);

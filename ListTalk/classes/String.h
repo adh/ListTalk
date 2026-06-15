@@ -17,6 +17,7 @@
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_String);
+LT_DECLARE_CLASS(LT_StringIterator);
 
 typedef void (*LT_String_SubstringCallback)(LT_String* substring, void* baton);
 

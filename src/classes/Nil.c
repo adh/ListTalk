@@ -4,7 +4,10 @@
  */
 
 #include <ListTalk/classes/Nil.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/List.h>
+#include <ListTalk/classes/Primitive.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
 
 static size_t Nil_hash(LT_Value obj){
@@ -22,6 +25,27 @@ static void Nil_debugPrintOn(LT_Value obj, FILE* stream){
     fputs("()", stream);
 }
 
+LT_DEFINE_PRIMITIVE(
+    nil_method_as_iterator,
+    "Nil>>asIterator",
+    "(self)",
+    "Return the empty iterator singleton."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    (void)self;
+    return (LT_Value)(uintptr_t)LT_EmptyIterator_instance();
+}
+
+static LT_Method_Descriptor Nil_methods[] = {
+    {"asIterator", &nil_method_as_iterator},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Nil) {
     .superclass = &LT_List_class,
     .metaclass_superclass = &LT_Class_class,
@@ -32,4 +56,5 @@ LT_DEFINE_CLASS(LT_Nil) {
     .hash = Nil_hash,
     .equal_p = Nil_equal_p,
     .debugPrintOn = Nil_debugPrintOn,
+    .methods = Nil_methods,
 };

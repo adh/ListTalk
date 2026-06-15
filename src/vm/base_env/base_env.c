@@ -23,6 +23,7 @@
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
@@ -92,7 +93,11 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"SmallInteger", &LT_SmallInteger_class},
     {"SmallFraction", &LT_SmallFraction_class},
     {"Float", &LT_Float_class},
+    {"Iterator", &LT_Iterator_class},
+    {"EmptyIterator", &LT_EmptyIterator_class},
+    {"MapIterator", &LT_MapIterator_class},
     {"List", &LT_List_class},
+    {"ListIterator", &LT_ListIterator_class},
     {"ImmutableList", &LT_ImmutableList_class},
     {"Pair", &LT_Pair_class},
     {"MutablePair", &LT_MutablePair_class},
@@ -100,8 +105,11 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"BindingDescriptor", &LT_BindingDescriptor_class},
     {"MethodDescriptor", &LT_MethodDescriptor_class},
     {"Vector", &LT_Vector_class},
+    {"VectorIterator", &LT_VectorIterator_class},
     {"ByteVector", &LT_ByteVector_class},
+    {"ByteVectorIterator", &LT_ByteVectorIterator_class},
     {"String", &LT_String_class},
+    {"StringIterator", &LT_StringIterator_class},
     {"Symbol", &LT_Symbol_class},
     {"Package", &LT_Package_class},
     {"CompoundForm", &LT_CompoundForm_class},
@@ -124,11 +132,14 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"IdentityDictionary", &LT_IdentityDictionary_class},
     {"ImmutableDictionary", &LT_ImmutableDictionary_class},
     {"Dictionary", &LT_Dictionary_class},
+    {"DictionaryIterator", &LT_DictionaryIterator_class},
     {"Set", &LT_Set_class},
+    {"SetIterator", &LT_SetIterator_class},
     {"IdentitySet", &LT_IdentitySet_class},
     {"WeakIdentitySet", &LT_WeakIdentitySet_class},
     {"WeakKeyIdentityDictionary", &LT_WeakKeyIdentityDictionary_class},
     {"WeakValueIdentityDictionary", &LT_WeakValueIdentityDictionary_class},
+    {"IdentityDictionaryIterator", &LT_IdentityDictionaryIterator_class},
     {"WeakReference", &LT_WeakReference_class},
     {"DynamicVariable", &LT_DynamicVariable_class},
     {"Stream", &LT_Stream_class},

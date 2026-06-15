@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
@@ -21,6 +22,12 @@ struct LT_Vector_s {
     LT_Object base;
     size_t length;
     LT_Value items[];
+};
+
+struct LT_VectorIterator_s {
+    LT_Object base;
+    LT_Vector* vector;
+    size_t index;
 };
 
 static int sort_compare_values(LT_Value left,
@@ -152,6 +159,69 @@ static void Vector_debugPrintOn(LT_Value obj, FILE* stream){
     fputc(')', stream);
 }
 
+static void VectorIterator_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_VectorIterator* iterator = LT_VectorIterator_from_value(obj);
+
+    fprintf(stream, "#<VectorIterator %p index=%zu>", (void*)iterator, iterator->index);
+}
+
+static LT_Value VectorIterator_current(LT_VectorIterator* iterator){
+    if (iterator->index >= LT_Vector_length(iterator->vector)){
+        LT_error("VectorIterator is not positioned");
+    }
+    return LT_Vector_at(iterator->vector, iterator->index);
+}
+
+LT_DEFINE_PRIMITIVE(
+    vector_iterator_method_this,
+    "VectorIterator>>this",
+    "(self)",
+    "Return the current value of the iterator."
+){
+    LT_Value cursor = arguments;
+    LT_VectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_VectorIterator*, LT_VectorIterator_from_value);
+    LT_ARG_END(cursor);
+    return VectorIterator_current(iterator);
+}
+
+LT_DEFINE_PRIMITIVE(
+    vector_iterator_method_has_this,
+    "VectorIterator>>hasThis?",
+    "(self)",
+    "Return true when the iterator has a current value."
+){
+    LT_Value cursor = arguments;
+    LT_VectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_VectorIterator*, LT_VectorIterator_from_value);
+    LT_ARG_END(cursor);
+    return iterator->index < LT_Vector_length(iterator->vector) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    vector_iterator_method_next,
+    "VectorIterator>>next",
+    "(self)",
+    "Advance the iterator and return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_VectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    iterator = LT_VectorIterator_from_value(self);
+    if (iterator->index < LT_Vector_length(iterator->vector)){
+        iterator->index++;
+    }
+    return self;
+}
+
 LT_DEFINE_PRIMITIVE(
     vector_method_length,
     "Vector>>length",
@@ -276,6 +346,36 @@ LT_DEFINE_PRIMITIVE(
     return LT_ListBuilder_value(builder);
 }
 
+LT_DEFINE_PRIMITIVE(
+    vector_method_as_iterator,
+    "Vector>>asIterator",
+    "(self)",
+    "Return an iterator over vector elements."
+){
+    LT_Value cursor = arguments;
+    LT_Vector* vector;
+    LT_VectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, vector, LT_Vector*, LT_Vector_from_value);
+    LT_ARG_END(cursor);
+    if (LT_Vector_length(vector) == 0){
+        return (LT_Value)(uintptr_t)LT_EmptyIterator_instance();
+    }
+
+    iterator = LT_Class_ALLOC(LT_VectorIterator);
+    iterator->vector = vector;
+    iterator->index = 0;
+    return (LT_Value)(uintptr_t)iterator;
+}
+
+static LT_Method_Descriptor VectorIterator_methods[] = {
+    {"this", &vector_iterator_method_this},
+    {"hasThis?", &vector_iterator_method_has_this},
+    {"next", &vector_iterator_method_next},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 static LT_Method_Descriptor Vector_methods[] = {
     {"length", &vector_method_length},
     {"at:", &vector_method_at},
@@ -283,7 +383,18 @@ static LT_Method_Descriptor Vector_methods[] = {
     {"sort", &vector_method_sort},
     {"sortUsing:", &vector_method_sort_using},
     {"asList", &vector_method_as_list},
+    {"asIterator", &vector_method_as_iterator},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_VectorIterator) {
+    .superclass = &LT_Iterator_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "VectorIterator",
+    .documentation = "Iterator over vector elements.",
+    .instance_size = sizeof(LT_VectorIterator),
+    .debugPrintOn = VectorIterator_debugPrintOn,
+    .methods = VectorIterator_methods,
 };
 
 LT_DEFINE_CLASS(LT_Vector) {
