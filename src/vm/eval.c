@@ -12,6 +12,7 @@
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
@@ -689,11 +690,20 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
     LT_Value value;
 
     if (!LT_Environment_lookup(environment, symbol, &value, NULL)){
+        LT_String* printed_symbol;
+
         if (LT_Symbol_package(LT_Symbol_from_value(symbol))
             == LT_PACKAGE_KEYWORD){
             return symbol;
         }
-        LT_error("Unbound symbol");
+        printed_symbol = LT_Value_asString(symbol);
+        LT_error(
+            LT_sprintf(
+                "Unbound symbol: %s",
+                LT_String_value_cstr(printed_symbol)
+            ),
+            "symbol", symbol
+        );
     }
     return value;
 }

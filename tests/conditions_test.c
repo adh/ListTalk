@@ -500,6 +500,68 @@ static int test_lt_error_signals_condition_to_handlers(void){
     );
 }
 
+static int test_unbound_symbol_error_identifies_symbol(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-unbound-symbol-handler",
+        "(condition)",
+        "captures unbound symbol condition",
+        catch_error_handler_impl
+    );
+    LT_Value message;
+    LT_Value args;
+    LT_Value symbol;
+
+    g_error_test_tag = LT_Symbol_new("unbound-symbol-test-tag");
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_eval(
+                read_one_with_source_file("missing-name", "fixtures/unbound.lt"),
+                env,
+                NULL
+            );
+        });
+    });
+
+    if (expect(
+        LT_Value_class(caught) == &LT_Error_class,
+        "unbound symbol evaluation emits Error condition"
+    )){
+        return 1;
+    }
+
+    message = LT_Object_slot_ref(caught, LT_Symbol_new("message"));
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(message)),
+            "Unbound symbol: missing-name"
+        ) == 0,
+        "unbound symbol message includes symbol name"
+    )){
+        return 1;
+    }
+
+    args = LT_Object_slot_ref(caught, LT_Symbol_new("args"));
+    if (expect(LT_Pair_p(args), "unbound symbol error stores argument plist")){
+        return 1;
+    }
+    if (expect(
+        LT_car(args) == LT_Symbol_new("symbol"),
+        "unbound symbol error stores symbol key"
+    )){
+        return 1;
+    }
+    symbol = LT_car(LT_cdr(args));
+    if (expect(LT_Symbol_p(symbol), "unbound symbol error stores symbol value")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(symbol)), "missing-name") == 0,
+        "unbound symbol error symbol value has missing name"
+    );
+}
+
 static int test_backtrace_prints_source_locations_and_expansion_chain(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value caught = LT_NIL;
@@ -868,6 +930,7 @@ int main(void){
     failures += test_current_restarts_returns_active_restarts_inside_out();
     failures += test_find_and_invoke_restart_use_eq_name_matching();
     failures += test_lt_error_signals_condition_to_handlers();
+    failures += test_unbound_symbol_error_identifies_symbol();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
     failures += test_subclass_responsibility_error_builder();
