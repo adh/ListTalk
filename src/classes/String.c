@@ -12,6 +12,7 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Number.h>
@@ -42,6 +43,12 @@ struct LT_String_s {
     size_t length;
     size_t byte_length;
     char str[];
+};
+
+struct LT_StringIterator_s {
+    LT_Object base;
+    LT_String* string;
+    const char* cursor;
 };
 
 static void StringBuilder_append_codepoint(LT_StringBuilder* builder,
@@ -86,6 +93,76 @@ static size_t String_byte_offset_for_codepoint_index(LT_String* string,
     }
 
     return (size_t)(cursor - string->str);
+}
+
+static void StringIterator_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_StringIterator* iterator = LT_StringIterator_from_value(obj);
+
+    fprintf(
+        stream,
+        "#<StringIterator %p offset=%zu>",
+        (void*)iterator,
+        (size_t)(iterator->cursor - iterator->string->str)
+    );
+}
+
+static int StringIterator_has_this(LT_StringIterator* iterator){
+    const char* end = iterator->string->str + iterator->string->byte_length;
+
+    return iterator->cursor < end;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_iterator_method_this,
+    "StringIterator>>this",
+    "(self)",
+    "Return the current character."
+){
+    LT_Value cursor = arguments;
+    LT_StringIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_StringIterator*, LT_StringIterator_from_value);
+    LT_ARG_END(cursor);
+    if (!StringIterator_has_this(iterator)){
+        LT_error("StringIterator is not positioned");
+    }
+    return LT_Character_new(LT_String_utf8_codepoint_at(iterator->cursor));
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_iterator_method_has_this,
+    "StringIterator>>hasThis?",
+    "(self)",
+    "Return true when the iterator has a current character."
+){
+    LT_Value cursor = arguments;
+    LT_StringIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_StringIterator*, LT_StringIterator_from_value);
+    LT_ARG_END(cursor);
+    return StringIterator_has_this(iterator) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_iterator_method_next,
+    "StringIterator>>next",
+    "(self)",
+    "Advance the iterator and return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_StringIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    iterator = LT_StringIterator_from_value(self);
+    if (StringIterator_has_this(iterator)){
+        iterator->cursor = LT_String_utf8_next(iterator->cursor);
+    }
+    return self;
 }
 
 static const char* String_find_bytes(const char* haystack,
@@ -1344,6 +1421,29 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_as_iterator,
+    "String>>asIterator",
+    "(self)",
+    "Return an iterator over string characters."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    LT_StringIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    if (LT_String_length(string) == 0){
+        return (LT_Value)(uintptr_t)LT_EmptyIterator_instance();
+    }
+
+    iterator = LT_Class_ALLOC(LT_StringIterator);
+    iterator->string = string;
+    iterator->cursor = string->str;
+    return (LT_Value)(uintptr_t)iterator;
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_substring_from_to,
     "String>>substringFrom:to:",
     "(self from to)",
@@ -1377,6 +1477,13 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
+static LT_Method_Descriptor StringIterator_methods[] = {
+    {"this", &string_iterator_method_this},
+    {"hasThis?", &string_iterator_method_has_this},
+    {"next", &string_iterator_method_next},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 static LT_Method_Descriptor String_methods[] = {
     {"length", &string_method_length},
     {"width", &string_method_width},
@@ -1404,11 +1511,22 @@ static LT_Method_Descriptor String_methods[] = {
     {"asByteVector", &string_method_as_bytevector},
     {"asString", &string_method_as_string},
     {"asList", &string_method_as_list},
+    {"asIterator", &string_method_as_iterator},
     {"writeToFile:", &string_method_write_to_file},
     {"splitLines", &string_method_split_lines},
     {"from:to:", &string_method_substring_from_to},
     {"substringFrom:to:", &string_method_substring_from_to},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_StringIterator) {
+    .superclass = &LT_Iterator_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "StringIterator",
+    .documentation = "Iterator over string characters.",
+    .instance_size = sizeof(LT_StringIterator),
+    .debugPrintOn = StringIterator_debugPrintOn,
+    .methods = StringIterator_methods,
 };
 
 static LT_Method_Descriptor String_class_methods[] = {

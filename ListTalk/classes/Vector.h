@@ -14,6 +14,7 @@
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_Vector);
+LT_DECLARE_CLASS(LT_VectorIterator);
 
 LT_Vector* LT_Vector_new(size_t length);
 LT_Vector* LT_Vector_sort(LT_Vector* vector);

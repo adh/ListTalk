@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/String.h>
@@ -24,6 +25,12 @@ struct LT_ByteVector_s {
     LT_Object base;
     size_t length;
     uint8_t bytes[];
+};
+
+struct LT_ByteVectorIterator_s {
+    LT_Object base;
+    LT_ByteVector* bytevector;
+    size_t index;
 };
 
 static int comparison_sign(int comparison){
@@ -197,6 +204,83 @@ static void ByteVector_debugPrintOn(LT_Value obj, FILE* stream){
         }
     }
     fputc('"', stream);
+}
+
+static void ByteVectorIterator_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_ByteVectorIterator* iterator = LT_ByteVectorIterator_from_value(obj);
+
+    fprintf(stream, "#<ByteVectorIterator %p index=%zu>", (void*)iterator, iterator->index);
+}
+
+static LT_Value ByteVectorIterator_current(LT_ByteVectorIterator* iterator){
+    if (iterator->index >= LT_ByteVector_length(iterator->bytevector)){
+        LT_error("ByteVectorIterator is not positioned");
+    }
+    return LT_SmallInteger_new(
+        (int64_t)LT_ByteVector_at(iterator->bytevector, iterator->index)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_iterator_method_this,
+    "ByteVectorIterator>>this",
+    "(self)",
+    "Return the current byte as an unsigned fixnum."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(
+        cursor,
+        iterator,
+        LT_ByteVectorIterator*,
+        LT_ByteVectorIterator_from_value
+    );
+    LT_ARG_END(cursor);
+    return ByteVectorIterator_current(iterator);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_iterator_method_has_this,
+    "ByteVectorIterator>>hasThis?",
+    "(self)",
+    "Return true when the iterator has a current byte."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(
+        cursor,
+        iterator,
+        LT_ByteVectorIterator*,
+        LT_ByteVectorIterator_from_value
+    );
+    LT_ARG_END(cursor);
+    return iterator->index < LT_ByteVector_length(iterator->bytevector)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_iterator_method_next,
+    "ByteVectorIterator>>next",
+    "(self)",
+    "Advance the iterator and return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ByteVectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    iterator = LT_ByteVectorIterator_from_value(self);
+    if (iterator->index < LT_ByteVector_length(iterator->bytevector)){
+        iterator->index++;
+    }
+    return self;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -524,6 +608,36 @@ LT_DEFINE_PRIMITIVE(
     return LT_ListBuilder_value(builder);
 }
 
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_iterator,
+    "ByteVector>>asIterator",
+    "(self)",
+    "Return an iterator over bytevector bytes."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    LT_ByteVectorIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    if (LT_ByteVector_length(bytevector) == 0){
+        return (LT_Value)(uintptr_t)LT_EmptyIterator_instance();
+    }
+
+    iterator = LT_Class_ALLOC(LT_ByteVectorIterator);
+    iterator->bytevector = bytevector;
+    iterator->index = 0;
+    return (LT_Value)(uintptr_t)iterator;
+}
+
+static LT_Method_Descriptor ByteVectorIterator_methods[] = {
+    {"this", &bytevector_iterator_method_this},
+    {"hasThis?", &bytevector_iterator_method_has_this},
+    {"next", &bytevector_iterator_method_next},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 static LT_Method_Descriptor ByteVector_methods[] = {
     {"length", &bytevector_method_length},
     {"at:", &bytevector_method_at},
@@ -537,9 +651,20 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {">=", &bytevector_method_greater_than_or_equal},
     {"asString", &bytevector_method_as_string},
     {"asList", &bytevector_method_as_list},
+    {"asIterator", &bytevector_method_as_iterator},
     {"writeToFile:", &bytevector_method_write_to_file},
     {"splitLines", &bytevector_method_split_lines},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_ByteVectorIterator) {
+    .superclass = &LT_Iterator_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "ByteVectorIterator",
+    .documentation = "Iterator over bytevector bytes.",
+    .instance_size = sizeof(LT_ByteVectorIterator),
+    .debugPrintOn = ByteVectorIterator_debugPrintOn,
+    .methods = ByteVectorIterator_methods,
 };
 
 static LT_Method_Descriptor ByteVector_class_methods[] = {

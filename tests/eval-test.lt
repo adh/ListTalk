@@ -461,6 +461,18 @@
                 (= sum 5)))
          "Dictionary>>forEach: applies callable to key/value pairs"))
 
+(let ((dictionary [Dictionary newFromAList: '(("a" . 1))]))
+  (let ((iterator [dictionary asIterator]))
+    (check (eq? [iterator class] DictionaryIterator)
+           "Dictionary>>asIterator returns DictionaryIterator")
+    (check [iterator hasThis?] "DictionaryIterator starts on an association")
+    (check (equal? [iterator this] '("a" . 1))
+           "DictionaryIterator>>this returns association")
+    [iterator next]
+    (check (not [iterator hasThis?]) "DictionaryIterator advances past end")))
+(check (eq? [[[Dictionary new] asIterator] class] EmptyIterator)
+       "Empty Dictionary>>asIterator returns EmptyIterator")
+
 (let ((dictionary [ImmutableDictionary newFromAList:
                    '(("a" . 1) ("b" . 2) ("a" . 3))]))
   (check (= [dictionary size] 2)
@@ -473,6 +485,10 @@
          "ImmutableDictionary>>asAList returns associations")
   (check (= [[dictionary map: (lambda (key value) value)] reduce: +] 5)
          "ImmutableDictionary>>map: maps key/value pairs"))
+
+(let ((dictionary [ImmutableDictionary newFromAList: '(("a" . 3))]))
+  (check (equal? [[dictionary asIterator] this] '("a" . 3))
+         "ImmutableDictionary>>asIterator uses dictionary associations"))
 
 (let ((key (list 1)))
   (let ((dictionary [IdentityDictionary newFromAList:
@@ -495,6 +511,21 @@
                                        (set! count (+ count 1)))])
                   (= count 2)))
            "IdentityDictionary>>forEach: applies callable to key/value pairs")))
+
+(let ((key (list 1)))
+  (let ((dictionary [IdentityDictionary newFromAList: (list (cons key 42))]))
+    (let ((iterator [dictionary asIterator]))
+      (check (eq? [iterator class] IdentityDictionaryIterator)
+             "IdentityDictionary>>asIterator returns IdentityDictionaryIterator")
+      (check (eq? (car [iterator this]) key)
+             "IdentityDictionaryIterator>>this preserves key identity")
+      (check (= (cdr [iterator this]) 42)
+             "IdentityDictionaryIterator>>this returns value")
+      [iterator next]
+      (check (not [iterator hasThis?])
+             "IdentityDictionaryIterator advances past end"))))
+(check (eq? [[[IdentityDictionary new] asIterator] class] EmptyIterator)
+       "Empty IdentityDictionary>>asIterator returns EmptyIterator")
 
 (let ((dictionary [WeakKeyIdentityDictionary new])
       (key (cons 1 2)))
@@ -1023,6 +1054,14 @@
   (check [s contains?: 1] "Set>>contains?: finds inserted item")
   (check (not [s contains?: 3]) "Set>>contains?: rejects absent item")
   (check (= [[s asList] reduce: +] 3) "Set>>asList returns unique elements"))
+(let ((s [Set fromList: '(5)]))
+  (let ((iterator [s asIterator]))
+    (check (eq? [iterator class] SetIterator) "Set>>asIterator returns SetIterator")
+    (check (= [iterator this] 5) "SetIterator>>this returns current element")
+    [iterator next]
+    (check (not [iterator hasThis?]) "SetIterator advances past end")))
+(check (eq? [[[Set new] asIterator] class] EmptyIterator)
+       "Empty Set>>asIterator returns EmptyIterator")
 (let ((s [Set fromList: '(1 2 1 3)]))
   (check (and [s contains?: 1] [s contains?: 2] [s contains?: 3])
          "Set class>>fromList: inserts list elements")
@@ -1214,6 +1253,23 @@
     [iterator next]
     [iterator hasThis?]))
 
+(define (iterator->list iterator)
+  (let loop ((values '()))
+    (if [iterator hasThis?]
+        (let ((value [iterator this]))
+          [iterator next]
+          (loop (cons value values)))
+        (reverse values))))
+
+(check (equal? (iterator->list [#(1 2 3) asIterator]) '(1 2 3))
+       "Vector>>asIterator iterates elements")
+(check (eq? [[(make-vector 0) asIterator] class] EmptyIterator)
+       "Empty Vector>>asIterator returns EmptyIterator")
+(check (equal? (iterator->list [(bytevector 1 2 3) asIterator]) '(1 2 3))
+       "ByteVector>>asIterator iterates bytes")
+(check (eq? [[(bytevector) asIterator] class] EmptyIterator)
+       "Empty ByteVector>>asIterator returns EmptyIterator")
+
 ;;; Strings
 
 (check (string? "abc") "string? true for string")
@@ -1233,6 +1289,10 @@
                                           (string-ref "ABC" 1)
                                           (string-ref "ABC" 2)))
        "string->list round-trip")
+(check (equal? (iterator->list ["ABC" asIterator]) (string->list "ABC"))
+       "String>>asIterator iterates characters")
+(check (eq? [["" asIterator] class] EmptyIterator)
+       "Empty String>>asIterator returns EmptyIterator")
 (check (equal? (string->list "aλ😀") (list #\a #\λ #\U+1f600))
        "string->list uses unicode codepoints")
 (check (equal? (list->string (string->list "hello")) "hello") "list->string round-trip")

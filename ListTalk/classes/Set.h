@@ -16,6 +16,7 @@
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_Set);
+LT_DECLARE_CLASS(LT_SetIterator);
 
 LT_Set* LT_Set_new(void);
 LT_Set* LT_Set_fromList(LT_Value list);
