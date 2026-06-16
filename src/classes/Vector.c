@@ -204,7 +204,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     vector_iterator_method_next,
-    "VectorIterator>>next",
+    "VectorIterator>>next!",
     "(self)",
     "Advance the iterator and return receiver."
 ){
@@ -372,7 +372,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor VectorIterator_methods[] = {
     {"this", &vector_iterator_method_this},
     {"hasThis?", &vector_iterator_method_has_this},
-    {"next", &vector_iterator_method_next},
+    {"next!", &vector_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

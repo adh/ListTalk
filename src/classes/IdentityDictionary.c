@@ -554,7 +554,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     identity_dictionary_iterator_method_next,
-    "IdentityDictionaryIterator>>next",
+    "IdentityDictionaryIterator>>next!",
     "(self)",
     "Advance the iterator and return receiver."
 ){
@@ -586,7 +586,7 @@ static LT_Method_Descriptor IdentityDictionary_methods[] = {
 static LT_Method_Descriptor IdentityDictionaryIterator_methods[] = {
     {"this", &identity_dictionary_iterator_method_this},
     {"hasThis?", &identity_dictionary_iterator_method_has_this},
-    {"next", &identity_dictionary_iterator_method_next},
+    {"next!", &identity_dictionary_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

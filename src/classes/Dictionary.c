@@ -631,7 +631,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     dictionary_iterator_method_next,
-    "DictionaryIterator>>next",
+    "DictionaryIterator>>next!",
     "(self)",
     "Advance the iterator and return receiver."
 ){
@@ -667,7 +667,7 @@ static LT_Method_Descriptor ImmutableDictionary_methods[] = {
 static LT_Method_Descriptor DictionaryIterator_methods[] = {
     {"this", &dictionary_iterator_method_this},
     {"hasThis?", &dictionary_iterator_method_has_this},
-    {"next", &dictionary_iterator_method_next},
+    {"next!", &dictionary_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

@@ -783,7 +783,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     set_iterator_method_next,
-    "SetIterator>>next",
+    "SetIterator>>next!",
     "(self)",
     "Advance the iterator and return receiver."
 ){
@@ -815,7 +815,7 @@ static LT_Method_Descriptor Set_methods[] = {
 static LT_Method_Descriptor SetIterator_methods[] = {
     {"this", &set_iterator_method_this},
     {"hasThis?", &set_iterator_method_has_this},
-    {"next", &set_iterator_method_next},
+    {"next!", &set_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
