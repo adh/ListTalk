@@ -265,7 +265,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     bytevector_iterator_method_next,
-    "ByteVectorIterator>>next",
+    "ByteVectorIterator>>next!",
     "(self)",
     "Advance the iterator and return receiver."
 ){
@@ -634,7 +634,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor ByteVectorIterator_methods[] = {
     {"this", &bytevector_iterator_method_this},
     {"hasThis?", &bytevector_iterator_method_has_this},
-    {"next", &bytevector_iterator_method_next},
+    {"next!", &bytevector_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

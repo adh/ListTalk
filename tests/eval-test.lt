@@ -468,7 +468,7 @@
     (check [iterator hasThis?] "DictionaryIterator starts on an association")
     (check (equal? [iterator this] '("a" . 1))
            "DictionaryIterator>>this returns association")
-    [iterator next]
+    [iterator next!]
     (check (not [iterator hasThis?]) "DictionaryIterator advances past end")))
 (check (eq? [[[Dictionary new] asIterator] class] EmptyIterator)
        "Empty Dictionary>>asIterator returns EmptyIterator")
@@ -521,7 +521,7 @@
              "IdentityDictionaryIterator>>this preserves key identity")
       (check (= (cdr [iterator this]) 42)
              "IdentityDictionaryIterator>>this returns value")
-      [iterator next]
+      [iterator next!]
       (check (not [iterator hasThis?])
              "IdentityDictionaryIterator advances past end"))))
 (check (eq? [[[IdentityDictionary new] asIterator] class] EmptyIterator)
@@ -1058,7 +1058,7 @@
   (let ((iterator [s asIterator]))
     (check (eq? [iterator class] SetIterator) "Set>>asIterator returns SetIterator")
     (check (= [iterator this] 5) "SetIterator>>this returns current element")
-    [iterator next]
+    [iterator next!]
     (check (not [iterator hasThis?]) "SetIterator advances past end")))
 (check (eq? [[[Set new] asIterator] class] EmptyIterator)
        "Empty Set>>asIterator returns EmptyIterator")
@@ -1234,30 +1234,30 @@
   (check (eq? [iterator class] ListIterator) "List>>asIterator returns ListIterator")
   (check [iterator hasThis?] "ListIterator starts on first element")
   (check (= [iterator this] 1) "ListIterator this returns first element")
-  [iterator next]
+  [iterator next!]
   (check [iterator hasThis?] "ListIterator has second element")
   (check (= [iterator this] 2) "ListIterator this returns second element")
-  [iterator next]
+  [iterator next!]
   (check [iterator hasThis?] "ListIterator has third element")
   (check (= [iterator this] 3) "ListIterator this returns third element")
-  (check (eq? [iterator next] iterator) "ListIterator next returns receiver")
+  (check (eq? [iterator next!] iterator) "ListIterator next! returns receiver")
   (check (not [iterator hasThis?]) "ListIterator is past end"))
 (let ((iterator ['() asIterator]))
   (check (eq? [iterator class] EmptyIterator) "Nil>>asIterator returns EmptyIterator")
   (check (eq? iterator ['() asIterator]) "Nil>>asIterator returns singleton")
   (check (not [iterator hasThis?]) "EmptyIterator has no current element")
-  (check (eq? [iterator next] iterator) "EmptyIterator next returns receiver")
+  (check (eq? [iterator next!] iterator) "EmptyIterator next! returns receiver")
   (check-raises "EmptyIterator this raises" [iterator this]))
 (check-raises "ListIterator raises on improper tail"
   (let ((iterator ['(1 . 2) asIterator]))
-    [iterator next]
+    [iterator next!]
     [iterator hasThis?]))
 
 (define (iterator->list iterator)
   (let loop ((values '()))
     (if [iterator hasThis?]
         (let ((value [iterator this]))
-          [iterator next]
+          [iterator next!]
           (loop (cons value values)))
         (reverse values))))
 

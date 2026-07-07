@@ -147,7 +147,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     string_iterator_method_next,
-    "StringIterator>>next",
+    "StringIterator>>next!",
     "(self)",
     "Advance the iterator and return receiver."
 ){
@@ -1480,7 +1480,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor StringIterator_methods[] = {
     {"this", &string_iterator_method_this},
     {"hasThis?", &string_iterator_method_has_this},
-    {"next", &string_iterator_method_next},
+    {"next!", &string_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

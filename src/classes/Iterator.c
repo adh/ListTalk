@@ -47,7 +47,7 @@ LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
 
 LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
     iterator_method_next,
-    "Iterator>>next",
+    "Iterator>>next!",
     "Advance the iterator."
 )
 
@@ -76,7 +76,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor Iterator_methods[] = {
     {"this", &iterator_method_this},
     {"hasThis?", &iterator_method_has_this},
-    {"next", &iterator_method_next},
+    {"next!", &iterator_method_next},
     {"asList", &iterator_method_as_list},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
@@ -130,7 +130,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     empty_iterator_method_next,
-    "EmptyIterator>>next",
+    "EmptyIterator>>next!",
     "(self)",
     "Return receiver."
 ){
@@ -146,7 +146,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor EmptyIterator_methods[] = {
     {"this", &empty_iterator_method_this},
     {"hasThis?", &empty_iterator_method_has_this},
-    {"next", &empty_iterator_method_next},
+    {"next!", &empty_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -235,7 +235,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     list_iterator_method_next,
-    "ListIterator>>next",
+    "ListIterator>>next!",
     "(self)",
     "Advance the iterator and return receiver."
 ){
@@ -255,7 +255,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor ListIterator_methods[] = {
     {"this", &list_iterator_method_this},
     {"hasThis?", &list_iterator_method_has_this},
-    {"next", &list_iterator_method_next},
+    {"next!", &list_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -339,7 +339,7 @@ LT_DEFINE_PRIMITIVE(
 
 LT_DEFINE_PRIMITIVE(
     map_iterator_method_next,
-    "MapIterator>>next",
+    "MapIterator>>next!",
     "(self)",
     "Advance the wrapped iterator and return receiver."
 ){
@@ -358,7 +358,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor MapIterator_methods[] = {
     {"this", &map_iterator_method_this},
     {"hasThis?", &map_iterator_method_has_this},
-    {"next", &map_iterator_method_next},
+    {"next!", &map_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -387,7 +387,7 @@ LT_Value LT_Iterator_hasThis(LT_Value iterator){
 }
 
 LT_Value LT_Iterator_next(LT_Value iterator){
-    return LT_SEND(iterator, "next");
+    return LT_SEND(iterator, "next!");
 }
 
 LT_EmptyIterator* LT_EmptyIterator_instance(void){
