@@ -106,6 +106,7 @@ vm_lib = library(
                 'src/classes/String.c',
                 'src/classes/Vector.c',
                 'src/classes/ByteVector.c',
+                'src/classes/UUID.c',
                 'src/classes/Condition.c',
                 'src/classes/Restart.c',
                 'src/classes/SourceLocation.c',
@@ -248,6 +249,13 @@ cmdopts_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+uuid_test_exe = executable(
+        'uuid_test',
+        'tests/uuid_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -305,6 +313,11 @@ test(
 test(
         'cmdopts_test',
         cmdopts_test_exe
+)
+
+test(
+        'uuid_test',
+        uuid_test_exe
 )
 
 install_subdir(
