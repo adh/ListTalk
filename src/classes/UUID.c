@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/random.h>
 
 struct LT_UUID_s {
     LT_Object base;
@@ -66,35 +67,8 @@ static int UUID_parse_cstr(const char* text, uint8_t bytes[LT_UUID_BYTE_LENGTH])
 }
 
 static void UUID_read_random_bytes(uint8_t bytes[LT_UUID_BYTE_LENGTH]){
-    size_t offset = 0;
-    int fd = open("/dev/urandom", O_RDONLY);
-
-    if (fd < 0){
-        LT_system_error("Could not open /dev/urandom", errno);
-    }
-
-    while (offset < LT_UUID_BYTE_LENGTH){
-        ssize_t bytes_read = read(
-            fd,
-            bytes + offset,
-            LT_UUID_BYTE_LENGTH - offset
-        );
-
-        if (bytes_read < 0){
-            int saved_errno = errno;
-
-            close(fd);
-            LT_system_error("Could not read /dev/urandom", saved_errno);
-        }
-        if (bytes_read == 0){
-            close(fd);
-            LT_error("Could not read enough random data");
-        }
-        offset += (size_t)bytes_read;
-    }
-
-    if (close(fd) != 0){
-        LT_system_error("Could not close /dev/urandom", errno);
+    if (getentropy(bytes, LT_UUID_BYTE_LENGTH) != 0){
+        LT_system_error("Could not get random bytes", errno);
     }
 }
 
