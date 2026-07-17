@@ -96,7 +96,18 @@ void LT_RWLock_read_lock_slow(LT_RWLock* lock)
             }
         }
 
-        atomic_fetch_or_explicit(lock, LT_RWLOCK_WAITERS, memory_order_relaxed);
+        if ((state & LT_RWLOCK_WAITERS) == 0){
+            uintptr_t expected = state;
+            if (!atomic_compare_exchange_weak_explicit(
+                    lock,
+                    &expected,
+                    state | LT_RWLOCK_WAITERS,
+                    memory_order_relaxed,
+                    memory_order_relaxed
+                )){
+                continue;
+            }
+        }
 
         while (atomic_load_explicit(lock, memory_order_relaxed) &
                (LT_RWLOCK_WRITER | LT_RWLOCK_WAITERS)){
