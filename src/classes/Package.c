@@ -216,7 +216,7 @@ LT_Value LT_Package_symbols_asList(LT_Package* package){
         LT_error("Package symbolsAsList expects non-NULL package");
     }
     table = &package->symbol_table;
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -228,7 +228,7 @@ LT_Value LT_Package_symbols_asList(LT_Package* package){
             entry = entry->next;
         }
     }
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
     return LT_ListBuilder_value(builder);
 }
 
@@ -253,7 +253,7 @@ LT_Value LT_Package_packages_asList(void){
     size_t i;
 
     ensure_predefined_packages_initialized();
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -262,7 +262,7 @@ LT_Value LT_Package_packages_asList(void){
             entry = entry->next;
         }
     }
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
     return LT_ListBuilder_value(builder);
 }
 
@@ -615,10 +615,10 @@ LT_Package* LT_Package_new(char* name){
     package_table = get_package_table();
     hash = LT_fnv_hash(name);
 
-    LT_Mutex_lock(&package_table->lock);
+    LT_MutexWord_lock(&package_table->lock);
     package = package_string_table_at_locked(package_table, name, hash);
     if (package != NULL){
-        LT_Mutex_unlock(&package_table->lock);
+        LT_MutexWord_unlock(&package_table->lock);
         return package;
     }
 
@@ -630,7 +630,7 @@ LT_Package* LT_Package_new(char* name){
         hash,
         package
     );
-    LT_Mutex_unlock(&package_table->lock);
+    LT_MutexWord_unlock(&package_table->lock);
     LT_Package_use_package(package, LT_PACKAGE_LISTTALK, NULL);
 
     return package;
@@ -714,10 +714,10 @@ LT_Value LT_Package_intern_local_symbol(LT_Package* package, char* name){
     table = &package->symbol_table;
     hash = LT_fnv_hash(name);
 
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     symbol = (LT_Symbol*)package_string_table_at_locked(table, name, hash);
     if (symbol != NULL){
-        LT_Mutex_unlock(&table->lock);
+        LT_MutexWord_unlock(&table->lock);
         return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
     }
 
@@ -728,7 +728,7 @@ LT_Value LT_Package_intern_local_symbol(LT_Package* package, char* name){
         hash,
         LT_VALUE_POINTER_VALUE(value)
     );
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
     return value;
 }
 

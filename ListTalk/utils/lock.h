@@ -12,8 +12,8 @@
 
 LT__BEGIN_DECLS
 
-typedef _Atomic(uintptr_t) LT_Mutex;
-typedef _Atomic(uintptr_t) LT_RWLock;
+typedef _Atomic(uintptr_t) LT_MutexWord;
+typedef _Atomic(uintptr_t) LT_RWLockWord;
 
 #define LT_MUTEX_INITIALIZER ATOMIC_VAR_INIT(0)
 #define LT_RWLOCK_INITIALIZER ATOMIC_VAR_INIT(0)
@@ -30,19 +30,19 @@ enum {
     LT_RWLOCK_READER = 4,
 };
 
-void LT_Mutex_lock_slow(LT_Mutex* mutex);
-void LT_Mutex_unlock_slow(LT_Mutex* mutex);
+void LT_MutexWord_lock_slow(LT_MutexWord* mutex);
+void LT_MutexWord_unlock_slow(LT_MutexWord* mutex);
 
-void LT_RWLock_read_lock_slow(LT_RWLock* lock);
-void LT_RWLock_write_lock_slow(LT_RWLock* lock);
-void LT_RWLock_unlock_slow(LT_RWLock* lock);
+void LT_RWLockWord_read_lock_slow(LT_RWLockWord* lock);
+void LT_RWLockWord_write_lock_slow(LT_RWLockWord* lock);
+void LT_RWLockWord_unlock_slow(LT_RWLockWord* lock);
 
-static inline void LT_Mutex_init(LT_Mutex* mutex)
+static inline void LT_MutexWord_init(LT_MutexWord* mutex)
 {
     atomic_init(mutex, LT_MUTEX_UNLOCKED);
 }
 
-static inline int LT_Mutex_try_lock(LT_Mutex* mutex)
+static inline int LT_MutexWord_try_lock(LT_MutexWord* mutex)
 {
     uintptr_t expected = LT_MUTEX_UNLOCKED;
     return atomic_compare_exchange_strong_explicit(
@@ -54,15 +54,15 @@ static inline int LT_Mutex_try_lock(LT_Mutex* mutex)
     );
 }
 
-static inline void LT_Mutex_lock(LT_Mutex* mutex)
+static inline void LT_MutexWord_lock(LT_MutexWord* mutex)
 {
-    if (LT_Mutex_try_lock(mutex)){
+    if (LT_MutexWord_try_lock(mutex)){
         return;
     }
-    LT_Mutex_lock_slow(mutex);
+    LT_MutexWord_lock_slow(mutex);
 }
 
-static inline void LT_Mutex_unlock(LT_Mutex* mutex)
+static inline void LT_MutexWord_unlock(LT_MutexWord* mutex)
 {
     uintptr_t old_state = atomic_exchange_explicit(
         mutex,
@@ -70,16 +70,16 @@ static inline void LT_Mutex_unlock(LT_Mutex* mutex)
         memory_order_release
     );
     if (old_state == LT_MUTEX_LOCKED_CONTENDED){
-        LT_Mutex_unlock_slow(mutex);
+        LT_MutexWord_unlock_slow(mutex);
     }
 }
 
-static inline void LT_RWLock_init(LT_RWLock* lock)
+static inline void LT_RWLockWord_init(LT_RWLockWord* lock)
 {
     atomic_init(lock, 0);
 }
 
-static inline int LT_RWLock_try_read_lock(LT_RWLock* lock)
+static inline int LT_RWLockWord_try_read_lock(LT_RWLockWord* lock)
 {
     uintptr_t state = atomic_load_explicit(lock, memory_order_relaxed);
 
@@ -98,15 +98,15 @@ static inline int LT_RWLock_try_read_lock(LT_RWLock* lock)
     return 0;
 }
 
-static inline void LT_RWLock_read_lock(LT_RWLock* lock)
+static inline void LT_RWLockWord_read_lock(LT_RWLockWord* lock)
 {
-    if (LT_RWLock_try_read_lock(lock)){
+    if (LT_RWLockWord_try_read_lock(lock)){
         return;
     }
-    LT_RWLock_read_lock_slow(lock);
+    LT_RWLockWord_read_lock_slow(lock);
 }
 
-static inline int LT_RWLock_try_write_lock(LT_RWLock* lock)
+static inline int LT_RWLockWord_try_write_lock(LT_RWLockWord* lock)
 {
     uintptr_t expected = 0;
     return atomic_compare_exchange_strong_explicit(
@@ -118,15 +118,15 @@ static inline int LT_RWLock_try_write_lock(LT_RWLock* lock)
     );
 }
 
-static inline void LT_RWLock_write_lock(LT_RWLock* lock)
+static inline void LT_RWLockWord_write_lock(LT_RWLockWord* lock)
 {
-    if (LT_RWLock_try_write_lock(lock)){
+    if (LT_RWLockWord_try_write_lock(lock)){
         return;
     }
-    LT_RWLock_write_lock_slow(lock);
+    LT_RWLockWord_write_lock_slow(lock);
 }
 
-static inline void LT_RWLock_read_unlock(LT_RWLock* lock)
+static inline void LT_RWLockWord_read_unlock(LT_RWLockWord* lock)
 {
     uintptr_t old_state = atomic_fetch_sub_explicit(
         lock,
@@ -134,11 +134,11 @@ static inline void LT_RWLock_read_unlock(LT_RWLock* lock)
         memory_order_release
     );
     if (old_state == (LT_RWLOCK_READER | LT_RWLOCK_WAITERS)){
-        LT_RWLock_unlock_slow(lock);
+        LT_RWLockWord_unlock_slow(lock);
     }
 }
 
-static inline void LT_RWLock_write_unlock(LT_RWLock* lock)
+static inline void LT_RWLockWord_write_unlock(LT_RWLockWord* lock)
 {
     uintptr_t old_state = atomic_exchange_explicit(
         lock,
@@ -146,7 +146,7 @@ static inline void LT_RWLock_write_unlock(LT_RWLock* lock)
         memory_order_release
     );
     if (old_state & LT_RWLOCK_WAITERS){
-        LT_RWLock_unlock_slow(lock);
+        LT_RWLockWord_unlock_slow(lock);
     }
 }
 

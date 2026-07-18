@@ -407,7 +407,7 @@ static LT_Value Environment_bindings_as_list(LT_Environment* environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     size_t i;
 
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* table_entry = table->vector[i];
 
@@ -422,7 +422,7 @@ static LT_Value Environment_bindings_as_list(LT_Environment* environment){
             table_entry = table_entry->next;
         }
     }
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
 
     return LT_ListBuilder_value(builder);
 }

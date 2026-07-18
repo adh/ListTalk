@@ -160,7 +160,7 @@ static LT_Dictionary* dictionary_new_with_class(LT_Class* klass){
 static void dictionary_iterator_find_current(LT_DictionaryIterator* iterator){
     LT_InlineHash* table = &iterator->dictionary->table;
 
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     while (iterator->entry == NULL && iterator->bucket_index <= table->mask){
         iterator->entry = table->vector[iterator->bucket_index];
         iterator->bucket_index++;
@@ -168,7 +168,7 @@ static void dictionary_iterator_find_current(LT_DictionaryIterator* iterator){
 
     if (iterator->entry == NULL){
         iterator->current = LT_INVALID;
-        LT_Mutex_unlock(&table->lock);
+        LT_MutexWord_unlock(&table->lock);
         return;
     }
 
@@ -176,17 +176,17 @@ static void dictionary_iterator_find_current(LT_DictionaryIterator* iterator){
         (LT_Value)(uintptr_t)iterator->entry->key,
         (LT_Value)(uintptr_t)iterator->entry->value
     );
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
 }
 
 static void dictionary_iterator_advance(LT_DictionaryIterator* iterator){
     LT_InlineHash* table = &iterator->dictionary->table;
 
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     if (iterator->entry != NULL){
         iterator->entry = iterator->entry->next;
     }
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
     dictionary_iterator_find_current(iterator);
 }
 
@@ -266,7 +266,7 @@ LT_Value LT_Dictionary_asAList(LT_Dictionary* dictionary){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     size_t i;
 
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -281,7 +281,7 @@ LT_Value LT_Dictionary_asAList(LT_Dictionary* dictionary){
             entry = entry->next;
         }
     }
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
 
     return LT_ListBuilder_value(builder);
 }
@@ -323,11 +323,11 @@ void LT_Dictionary_atPut(
     size_t hash = LT_Value_hash(key);
     LT_InlineHash_Entry* entry;
 
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     entry = dictionary_find_entry(dictionary, key, hash, NULL, NULL);
     if (entry != NULL){
         entry->value = (void*)(uintptr_t)value;
-        LT_Mutex_unlock(&table->lock);
+        LT_MutexWord_unlock(&table->lock);
         return;
     }
 
@@ -342,7 +342,7 @@ void LT_Dictionary_atPut(
     entry->next = table->vector[hash & table->mask];
     table->vector[hash & table->mask] = entry;
     table->count++;
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
 }
 
 int LT_Dictionary_at(
@@ -353,17 +353,17 @@ int LT_Dictionary_at(
     size_t hash = LT_Value_hash(key);
     LT_InlineHash_Entry* entry;
 
-    LT_Mutex_lock(&dictionary->table.lock);
+    LT_MutexWord_lock(&dictionary->table.lock);
     entry = dictionary_find_entry(dictionary, key, hash, NULL, NULL);
     if (entry == NULL){
-        LT_Mutex_unlock(&dictionary->table.lock);
+        LT_MutexWord_unlock(&dictionary->table.lock);
         return 0;
     }
 
     if (value_out != NULL){
         *value_out = (LT_Value)(uintptr_t)entry->value;
     }
-    LT_Mutex_unlock(&dictionary->table.lock);
+    LT_MutexWord_unlock(&dictionary->table.lock);
     return 1;
 }
 
@@ -753,10 +753,10 @@ int LT_Dictionary_remove(
     size_t index = 0;
     LT_InlineHash_Entry* entry;
 
-    LT_Mutex_lock(&table->lock);
+    LT_MutexWord_lock(&table->lock);
     entry = dictionary_find_entry(dictionary, key, hash, &previous, &index);
     if (entry == NULL){
-        LT_Mutex_unlock(&table->lock);
+        LT_MutexWord_unlock(&table->lock);
         return 0;
     }
 
@@ -770,6 +770,6 @@ int LT_Dictionary_remove(
     if (value_out != NULL){
         *value_out = (LT_Value)(uintptr_t)entry->value;
     }
-    LT_Mutex_unlock(&table->lock);
+    LT_MutexWord_unlock(&table->lock);
     return 1;
 }

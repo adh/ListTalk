@@ -134,7 +134,9 @@ vm_lib = library(
                 'src/classes/DynamicVariable.c',
                 'src/classes/Stream.c',
                 'src/classes/Instant.c',
-                'src/classes/DateTime.c'
+                'src/classes/DateTime.c',
+                'src/classes/Mutex.c',
+                'src/classes/Thread.c'
         ], 
         install : true, dependencies : [bdwgc, libm])
 

@@ -40,7 +40,7 @@ static LT_LockWaitQueue* LT_lock_wait_queue_for(const void* address)
     return &LT_lock_wait_queues[hash & (LT_LOCK_WAIT_QUEUE_COUNT - 1)];
 }
 
-void LT_Mutex_lock_slow(LT_Mutex* mutex)
+void LT_MutexWord_lock_slow(LT_MutexWord* mutex)
 {
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(mutex);
 
@@ -65,7 +65,7 @@ void LT_Mutex_lock_slow(LT_Mutex* mutex)
     }
 }
 
-void LT_Mutex_unlock_slow(LT_Mutex* mutex)
+void LT_MutexWord_unlock_slow(LT_MutexWord* mutex)
 {
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(mutex);
 
@@ -74,7 +74,7 @@ void LT_Mutex_unlock_slow(LT_Mutex* mutex)
     pthread_mutex_unlock(&queue->mutex);
 }
 
-void LT_RWLock_read_lock_slow(LT_RWLock* lock)
+void LT_RWLockWord_read_lock_slow(LT_RWLockWord* lock)
 {
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(lock);
 
@@ -116,7 +116,7 @@ void LT_RWLock_read_lock_slow(LT_RWLock* lock)
     }
 }
 
-void LT_RWLock_write_lock_slow(LT_RWLock* lock)
+void LT_RWLockWord_write_lock_slow(LT_RWLockWord* lock)
 {
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(lock);
 
@@ -149,7 +149,7 @@ void LT_RWLock_write_lock_slow(LT_RWLock* lock)
     }
 }
 
-void LT_RWLock_unlock_slow(LT_RWLock* lock)
+void LT_RWLockWord_unlock_slow(LT_RWLockWord* lock)
 {
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(lock);
 

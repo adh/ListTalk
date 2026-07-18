@@ -53,7 +53,7 @@ typedef struct LT_InlineHash LT_InlineHash;
 typedef struct LT_InlineHash_Entry LT_InlineHash_Entry;
 
 struct LT_InlineHash {
-    LT_Mutex lock;
+    LT_MutexWord lock;
     LT_InlineHash_Entry** vector;
     size_t mask;
     size_t count;
