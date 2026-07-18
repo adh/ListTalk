@@ -21,6 +21,7 @@ extern uint32_t LT_pointer_hash(void* pointer);
 
 extern char* LT_strdup(char*);
 extern char* LT_sprintf(const char* fmt, ...);
+extern char* LT_strerror(int errnum);
 void LT_write_file_bytes_atomically(
     const char* path,
     const void* bytes,

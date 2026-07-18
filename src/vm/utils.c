@@ -68,6 +68,15 @@ extern char* LT_sprintf(const char* fmt, ...){
     return buf;
 }
 
+extern char* LT_strerror(int errnum){
+    char buffer[1024];
+
+    if (strerror_r(errnum, buffer, sizeof(buffer)) == 0){
+        return LT_strdup(buffer);
+    }
+    return LT_sprintf("Unknown error %d", errnum);
+}
+
 void LT_write_file_bytes_atomically(const char* path,
                                     const void* bytes,
                                     size_t length){

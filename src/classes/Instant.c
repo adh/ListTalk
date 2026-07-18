@@ -14,6 +14,8 @@
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 
+#include <errno.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <time.h>
@@ -45,6 +47,57 @@ static LT_Value seconds_to_microseconds(LT_Value seconds){
 
 static LT_Value microseconds_to_seconds(LT_Value microseconds){
     return LT_Number_divide2(microseconds, microseconds_per_second());
+}
+
+static LT_Value current_microseconds(void){
+    struct timespec now;
+    int64_t microseconds;
+
+    if (clock_gettime(CLOCK_REALTIME, &now) != 0){
+        LT_error("Unable to read current time");
+    }
+    microseconds = ((int64_t)now.tv_sec * INT64_C(1000000))
+        + ((int64_t)now.tv_nsec / INT64_C(1000));
+    return LT_SmallInteger_new(microseconds);
+}
+
+void LT_sleep_seconds(LT_Value seconds){
+    double remaining;
+
+    require_real_number(seconds);
+    remaining = LT_Number_to_double(seconds);
+    if (!(remaining > 0.0)){
+        return;
+    }
+    if (!isfinite(remaining)){
+        LT_error("sleep expects finite seconds");
+    }
+
+    while (remaining > 0.0){
+        struct timespec request;
+        struct timespec unslept;
+        double chunk = remaining > 2147483647.0
+            ? 2147483647.0
+            : remaining;
+        double whole_seconds;
+        double fractional_seconds = modf(chunk, &whole_seconds);
+
+        request.tv_sec = (time_t)whole_seconds;
+        request.tv_nsec = (long)(fractional_seconds * 1000000000.0);
+        if (request.tv_nsec >= 1000000000L){
+            request.tv_sec++;
+            request.tv_nsec -= 1000000000L;
+        }
+
+        while (nanosleep(&request, &unslept) != 0){
+            if (errno != EINTR){
+                LT_error("Unable to sleep");
+            }
+            request = unslept;
+        }
+
+        remaining -= chunk;
+    }
 }
 
 static LT_Slot_Descriptor Instant_slots[] = {
@@ -129,8 +182,6 @@ LT_DEFINE_PRIMITIVE(
 ){
     LT_Value cursor = arguments;
     LT_Value self;
-    struct timespec now;
-    int64_t microseconds;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
@@ -138,12 +189,7 @@ LT_DEFINE_PRIMITIVE(
     if (self != (LT_Value)(uintptr_t)&LT_Instant_class){
         LT_error("now class method is only supported on Instant");
     }
-    if (clock_gettime(CLOCK_REALTIME, &now) != 0){
-        LT_error("Unable to read current time");
-    }
-    microseconds = ((int64_t)now.tv_sec * INT64_C(1000000))
-        + ((int64_t)now.tv_nsec / INT64_C(1000));
-    return LT_Instant_new(LT_SmallInteger_new(microseconds));
+    return LT_Instant_new(current_microseconds());
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -320,6 +366,27 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return LT_NIL;
 }
 
+LT_DEFINE_PRIMITIVE(
+    instant_method_sleep_until,
+    "Instant>>sleepUntil",
+    "(self)",
+    "Sleep until receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value seconds;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    seconds = microseconds_to_seconds(LT_Number_subtract2(
+        LT_Instant_microseconds(self),
+        current_microseconds()
+    ));
+    LT_sleep_seconds(seconds);
+    return self;
+}
+
 static LT_Method_Descriptor Instant_methods[] = {
     {"asMicroseconds", &instant_method_as_microseconds},
     {"asSeconds", &instant_method_as_seconds},
@@ -329,6 +396,7 @@ static LT_Method_Descriptor Instant_methods[] = {
     {"durationUntil:", &instant_method_duration_until},
     {"+", &instant_method_add},
     {"-", &instant_method_subtract},
+    {"sleepUntil", &instant_method_sleep_until},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -519,6 +587,22 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     );
 }
 
+LT_DEFINE_PRIMITIVE(
+    duration_method_sleep,
+    "Duration>>sleep",
+    "(self)",
+    "Sleep for receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    LT_sleep_seconds(microseconds_to_seconds(LT_Duration_microseconds(self)));
+    return self;
+}
+
 static LT_Method_Descriptor Duration_methods[] = {
     {"asMicroseconds", &duration_method_as_microseconds},
     {"asSeconds", &duration_method_as_seconds},
@@ -526,6 +610,7 @@ static LT_Method_Descriptor Duration_methods[] = {
     {"substractDuration:", &duration_method_substract_duration},
     {"+", &duration_method_add},
     {"-", &duration_method_subtract},
+    {"sleep", &duration_method_sleep},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

@@ -6,6 +6,7 @@
 #include <ListTalk/cmdopts.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
+#include <ListTalk/utils/lock.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 
@@ -27,7 +28,6 @@ struct LT_CmdOptsOption {
 
 struct LT_CmdOptsArgument {
     int flags;
-    size_t count;
     LT_CmdOptsCallback callback;
     void* baton;
     LT_CmdOptsArgument* next;
@@ -35,11 +35,11 @@ struct LT_CmdOptsArgument {
 
 struct LT_CmdOpts {
     int flags;
+    LT_MutexWord lock;
     LT_CmdOptsOption* options;
     LT_CmdOptsOption* last_option;
     LT_CmdOptsArgument* arguments;
     LT_CmdOptsArgument* last_argument;
-    LT_CmdOptsArgument* current_argument;
 };
 
 typedef struct {
@@ -81,6 +81,21 @@ typedef struct {
     int* place;
 } FlagBaton;
 
+typedef struct CmdOptsArgumentCount CmdOptsArgumentCount;
+
+struct CmdOptsArgumentCount {
+    LT_CmdOptsArgument* argument;
+    size_t count;
+    CmdOptsArgumentCount* next;
+};
+
+typedef struct {
+    int flags;
+    LT_CmdOptsArgument* current_argument;
+    LT_CmdOptsArgument* last_argument;
+    CmdOptsArgumentCount* counts;
+} CmdOptsParseState;
+
 static char* next_arg(ParserSource* source){
     if (source->has_pending){
         source->has_pending = 0;
@@ -96,28 +111,36 @@ static void push_arg(ParserSource* source, char* value){
 }
 
 static LT_CmdOptsOption* find_short_option(LT_CmdOpts* parser, char name){
-    LT_CmdOptsOption* option = parser->options;
+    LT_CmdOptsOption* option;
 
+    LT_MutexWord_lock(&parser->lock);
+    option = parser->options;
     while (option != NULL){
         if (option->short_option == name){
+            LT_MutexWord_unlock(&parser->lock);
             return option;
         }
         option = option->next;
     }
+    LT_MutexWord_unlock(&parser->lock);
 
     return NULL;
 }
 
 static LT_CmdOptsOption* find_long_option(LT_CmdOpts* parser, char* name){
-    LT_CmdOptsOption* option = parser->options;
+    LT_CmdOptsOption* option;
 
+    LT_MutexWord_lock(&parser->lock);
+    option = parser->options;
     while (option != NULL){
         if (option->long_option != NULL
             && strcmp(option->long_option, name) == 0){
+            LT_MutexWord_unlock(&parser->lock);
             return option;
         }
         option = option->next;
     }
+    LT_MutexWord_unlock(&parser->lock);
 
     return NULL;
 }
@@ -138,28 +161,73 @@ static void call_argument(LT_CmdOpts* parser,
     }
 }
 
-static LT_CmdOptsArgument* next_argument(LT_CmdOpts* parser){
-    return parser->current_argument;
+static LT_CmdOptsArgument* next_argument(CmdOptsParseState* state){
+    return state->current_argument;
 }
 
-static void parse_argument(LT_CmdOpts* parser, char* value){
-    LT_CmdOptsArgument* argument = next_argument(parser);
+static size_t argument_count(CmdOptsParseState* state,
+                             LT_CmdOptsArgument* argument){
+    CmdOptsArgumentCount* count = state->counts;
+
+    while (count != NULL){
+        if (count->argument == argument){
+            return count->count;
+        }
+        count = count->next;
+    }
+    return 0;
+}
+
+static void increment_argument_count(CmdOptsParseState* state,
+                                     LT_CmdOptsArgument* argument){
+    CmdOptsArgumentCount* count = state->counts;
+
+    while (count != NULL){
+        if (count->argument == argument){
+            count->count++;
+            return;
+        }
+        count = count->next;
+    }
+
+    count = GC_NEW(CmdOptsArgumentCount);
+    count->argument = argument;
+    count->count = 1;
+    count->next = state->counts;
+    state->counts = count;
+}
+
+static LT_CmdOptsArgument* argument_next_locked(LT_CmdOpts* parser,
+                                                LT_CmdOptsArgument* argument){
+    LT_CmdOptsArgument* next;
+
+    LT_MutexWord_lock(&parser->lock);
+    next = argument->next;
+    LT_MutexWord_unlock(&parser->lock);
+    return next;
+}
+
+static void parse_argument(LT_CmdOpts* parser,
+                           CmdOptsParseState* state,
+                           char* value){
+    LT_CmdOptsArgument* argument = next_argument(state);
 
     if (argument == NULL){
         LT_error("Unexpected command line argument");
     }
 
     call_argument(parser, argument, value);
-    argument->count++;
+    increment_argument_count(state, argument);
 
     if ((argument->flags & LT_CMDOPTS_ARGUMENT_MULTIPLE) == 0){
-        parser->current_argument = argument->next;
+        state->current_argument = argument_next_locked(parser, argument);
     } else {
-        parser->current_argument = argument;
+        state->current_argument = argument;
     }
 }
 
 static void parse_long_option(LT_CmdOpts* parser,
+                              CmdOptsParseState* state,
                               ParserSource* source,
                               char* value){
     char* name = value + 2;
@@ -197,6 +265,7 @@ static void parse_long_option(LT_CmdOpts* parser,
 }
 
 static void parse_short_options(LT_CmdOpts* parser,
+                                CmdOptsParseState* state,
                                 ParserSource* source,
                                 char* value){
     char* cursor = value + 1;
@@ -227,32 +296,33 @@ static void parse_short_options(LT_CmdOpts* parser,
     }
 }
 
-static void check_required_arguments(LT_CmdOpts* parser){
-    LT_CmdOptsArgument* argument = parser->arguments;
+static void check_required_arguments(LT_CmdOpts* parser,
+                                     CmdOptsParseState* state){
+    LT_CmdOptsArgument* argument;
 
+    LT_MutexWord_lock(&parser->lock);
+    argument = parser->arguments;
     while (argument != NULL){
         if ((argument->flags & LT_CMDOPTS_ARGUMENT_REQUIRED) != 0
-            && argument->count == 0){
+            && argument_count(state, argument) == 0){
+            LT_MutexWord_unlock(&parser->lock);
             LT_error("Missing command line argument");
+        }
+        if (argument == state->last_argument){
+            break;
         }
         argument = argument->next;
     }
+    LT_MutexWord_unlock(&parser->lock);
 }
 
-static void reset_arguments(LT_CmdOpts* parser){
-    LT_CmdOptsArgument* argument = parser->arguments;
-
-    while (argument != NULL){
-        argument->count = 0;
-        argument = argument->next;
-    }
-}
-
-static void parse_rest_as_arguments(LT_CmdOpts* parser, ParserSource* source){
+static void parse_rest_as_arguments(LT_CmdOpts* parser,
+                                    CmdOptsParseState* state,
+                                    ParserSource* source){
     char* value;
 
     while ((value = next_arg(source)) != NULL){
-        parse_argument(parser, value);
+        parse_argument(parser, state, value);
     }
 }
 
@@ -260,6 +330,7 @@ LT_CmdOpts* LT_CmdOpts_new(int flags){
     LT_CmdOpts* parser = GC_NEW(LT_CmdOpts);
 
     parser->flags = flags;
+    parser->lock = (LT_MutexWord)LT_MUTEX_INITIALIZER;
     return parser;
 }
 
@@ -277,12 +348,14 @@ void LT_CmdOpts_addOption(LT_CmdOpts* parser,
     option->callback = callback;
     option->baton = baton;
 
+    LT_MutexWord_lock(&parser->lock);
     if (parser->last_option == NULL){
         parser->options = option;
     } else {
         parser->last_option->next = option;
     }
     parser->last_option = option;
+    LT_MutexWord_unlock(&parser->lock);
 }
 
 void LT_CmdOpts_addArgument(LT_CmdOpts* parser,
@@ -295,49 +368,55 @@ void LT_CmdOpts_addArgument(LT_CmdOpts* parser,
     argument->callback = callback;
     argument->baton = baton;
 
+    LT_MutexWord_lock(&parser->lock);
     if (parser->last_argument == NULL){
         parser->arguments = argument;
     } else {
         parser->last_argument->next = argument;
     }
     parser->last_argument = argument;
+    LT_MutexWord_unlock(&parser->lock);
 }
 
 void LT_CmdOpts_parse(LT_CmdOpts* parser,
                       LT_CmdOptsSource source,
                       void* baton){
+    CmdOptsParseState state = {0};
     ParserSource parser_source = {
         .source = source,
         .baton = baton,
     };
     char* value;
 
-    reset_arguments(parser);
-    parser->current_argument = parser->arguments;
+    LT_MutexWord_lock(&parser->lock);
+    state.flags = parser->flags;
+    state.current_argument = parser->arguments;
+    state.last_argument = parser->last_argument;
+    LT_MutexWord_unlock(&parser->lock);
 
     while ((value = next_arg(&parser_source)) != NULL){
         if (strcmp(value, "--") == 0){
-            parse_rest_as_arguments(parser, &parser_source);
+            parse_rest_as_arguments(parser, &state, &parser_source);
             break;
         }
 
         if (value[0] == '-' && value[1] != '\0'){
             if (value[1] == '-'){
-                parse_long_option(parser, &parser_source, value);
+                parse_long_option(parser, &state, &parser_source, value);
             } else {
-                parse_short_options(parser, &parser_source, value);
+                parse_short_options(parser, &state, &parser_source, value);
             }
         } else {
-            if ((parser->flags & LT_CMDOPTS_STRICT_ORDER) != 0){
+            if ((state.flags & LT_CMDOPTS_STRICT_ORDER) != 0){
                 push_arg(&parser_source, value);
-                parse_rest_as_arguments(parser, &parser_source);
+                parse_rest_as_arguments(parser, &state, &parser_source);
                 break;
             }
-            parse_argument(parser, value);
+            parse_argument(parser, &state, value);
         }
     }
 
-    check_required_arguments(parser);
+    check_required_arguments(parser, &state);
 }
 
 static char* argv_source(void* baton){

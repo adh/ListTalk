@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/classes/Condition.h>
+#include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/stack_trace.h>
@@ -43,7 +44,7 @@ void _Noreturn LT_system_error(const char* message, int errnum){
         stderr,
         "Unrecoverable system error: %s: %s\n",
         message,
-        strerror(errnum)
+        LT_strerror(errnum)
     );
     LT_print_backtrace(stderr);
 #ifdef __APPLE__
