@@ -7,6 +7,7 @@
 #define H__ListTalk__utils__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/utils/lock.h>
 #include <ListTalk/utils/utf8.h>
 #include <ListTalk/vm/value.h>
 
@@ -52,6 +53,7 @@ typedef struct LT_InlineHash LT_InlineHash;
 typedef struct LT_InlineHash_Entry LT_InlineHash_Entry;
 
 struct LT_InlineHash {
+    LT_Mutex lock;
     LT_InlineHash_Entry** vector;
     size_t mask;
     size_t count;
