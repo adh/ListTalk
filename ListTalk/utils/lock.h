@@ -8,6 +8,7 @@
 
 #include <ListTalk/macros/env_macros.h>
 
+#include <limits.h>
 #include <stdatomic.h>
 
 LT__BEGIN_DECLS
@@ -24,11 +25,10 @@ enum {
     LT_MUTEX_LOCKED_CONTENDED = 2,
 };
 
-enum {
-    LT_RWLOCK_WRITER = 1,
-    LT_RWLOCK_WAITERS = 2,
-    LT_RWLOCK_READER = 4,
-};
+#define LT_RWLOCK_WRITER ((uintptr_t) 1)
+#define LT_RWLOCK_READER ((uintptr_t) 2)
+#define LT_RWLOCK_WAITERS ((uintptr_t) 1 << (sizeof(uintptr_t) * CHAR_BIT / 2))
+#define LT_RWLOCK_ACTIVE_MASK (LT_RWLOCK_WAITERS - 1)
 
 void LT_MutexWord_lock_slow(LT_MutexWord* mutex);
 void LT_MutexWord_unlock_slow(LT_MutexWord* mutex);
@@ -83,7 +83,7 @@ static inline int LT_RWLockWord_try_read_lock(LT_RWLockWord* lock)
 {
     uintptr_t state = atomic_load_explicit(lock, memory_order_relaxed);
 
-    while ((state & (LT_RWLOCK_WRITER | LT_RWLOCK_WAITERS)) == 0){
+    while ((state & LT_RWLOCK_WRITER) == 0 && state < LT_RWLOCK_WAITERS){
         if (atomic_compare_exchange_weak_explicit(
                 lock,
                 &state,
@@ -133,19 +133,25 @@ static inline void LT_RWLockWord_read_unlock(LT_RWLockWord* lock)
         LT_RWLOCK_READER,
         memory_order_release
     );
-    if (old_state == (LT_RWLOCK_READER | LT_RWLOCK_WAITERS)){
+    uintptr_t new_state = old_state - LT_RWLOCK_READER;
+
+    if ((new_state & LT_RWLOCK_ACTIVE_MASK) == 0 &&
+        new_state >= LT_RWLOCK_WAITERS){
         LT_RWLockWord_unlock_slow(lock);
     }
 }
 
 static inline void LT_RWLockWord_write_unlock(LT_RWLockWord* lock)
 {
-    uintptr_t old_state = atomic_exchange_explicit(
+    uintptr_t old_state = atomic_fetch_and_explicit(
         lock,
-        0,
+        ~LT_RWLOCK_WRITER,
         memory_order_release
     );
-    if (old_state & LT_RWLOCK_WAITERS){
+    uintptr_t new_state = old_state & ~LT_RWLOCK_WRITER;
+
+    if ((new_state & LT_RWLOCK_ACTIVE_MASK) == 0 &&
+        new_state >= LT_RWLOCK_WAITERS){
         LT_RWLockWord_unlock_slow(lock);
     }
 }

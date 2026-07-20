@@ -58,10 +58,7 @@ void LT_MutexWord_lock_slow(LT_MutexWord* mutex)
             return;
         }
 
-        while (atomic_load_explicit(mutex, memory_order_relaxed) !=
-               LT_MUTEX_UNLOCKED){
-            pthread_cond_wait(&queue->cond, &queue->mutex);
-        }
+        pthread_cond_wait(&queue->cond, &queue->mutex);
     }
 }
 
@@ -79,15 +76,16 @@ void LT_RWLockWord_read_lock_slow(LT_RWLockWord* lock)
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(lock);
 
     pthread_mutex_lock(&queue->mutex);
+    atomic_fetch_add_explicit(lock, LT_RWLOCK_WAITERS, memory_order_relaxed);
 
     for (;;){
         uintptr_t state = atomic_load_explicit(lock, memory_order_relaxed);
 
-        while ((state & (LT_RWLOCK_WRITER | LT_RWLOCK_WAITERS)) == 0){
+        while ((state & LT_RWLOCK_WRITER) == 0){
             if (atomic_compare_exchange_weak_explicit(
                     lock,
                     &state,
-                    state + LT_RWLOCK_READER,
+                    (state - LT_RWLOCK_WAITERS) + LT_RWLOCK_READER,
                     memory_order_acquire,
                     memory_order_relaxed
                 )){
@@ -96,23 +94,7 @@ void LT_RWLockWord_read_lock_slow(LT_RWLockWord* lock)
             }
         }
 
-        if ((state & LT_RWLOCK_WAITERS) == 0){
-            uintptr_t expected = state;
-            if (!atomic_compare_exchange_weak_explicit(
-                    lock,
-                    &expected,
-                    state | LT_RWLOCK_WAITERS,
-                    memory_order_relaxed,
-                    memory_order_relaxed
-                )){
-                continue;
-            }
-        }
-
-        while (atomic_load_explicit(lock, memory_order_relaxed) &
-               (LT_RWLOCK_WRITER | LT_RWLOCK_WAITERS)){
-            pthread_cond_wait(&queue->cond, &queue->mutex);
-        }
+        pthread_cond_wait(&queue->cond, &queue->mutex);
     }
 }
 
@@ -121,12 +103,14 @@ void LT_RWLockWord_write_lock_slow(LT_RWLockWord* lock)
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(lock);
 
     pthread_mutex_lock(&queue->mutex);
+    atomic_fetch_add_explicit(lock, LT_RWLOCK_WAITERS, memory_order_relaxed);
 
     for (;;){
         uintptr_t state = atomic_load_explicit(lock, memory_order_relaxed);
 
-        while ((state & ~((uintptr_t) LT_RWLOCK_WAITERS)) == 0){
-            uintptr_t desired = LT_RWLOCK_WRITER | (state & LT_RWLOCK_WAITERS);
+        while ((state & LT_RWLOCK_ACTIVE_MASK) == 0){
+            uintptr_t desired = (state - LT_RWLOCK_WAITERS) |
+                LT_RWLOCK_WRITER;
 
             if (atomic_compare_exchange_weak_explicit(
                     lock,
@@ -140,12 +124,7 @@ void LT_RWLockWord_write_lock_slow(LT_RWLockWord* lock)
             }
         }
 
-        atomic_fetch_or_explicit(lock, LT_RWLOCK_WAITERS, memory_order_relaxed);
-
-        while (atomic_load_explicit(lock, memory_order_relaxed) &
-               ~((uintptr_t) LT_RWLOCK_WAITERS)){
-            pthread_cond_wait(&queue->cond, &queue->mutex);
-        }
+        pthread_cond_wait(&queue->cond, &queue->mutex);
     }
 }
 
@@ -154,11 +133,6 @@ void LT_RWLockWord_unlock_slow(LT_RWLockWord* lock)
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(lock);
 
     pthread_mutex_lock(&queue->mutex);
-    atomic_fetch_and_explicit(
-        lock,
-        ~((uintptr_t) LT_RWLOCK_WAITERS),
-        memory_order_relaxed
-    );
     pthread_cond_broadcast(&queue->cond);
     pthread_mutex_unlock(&queue->mutex);
 }
