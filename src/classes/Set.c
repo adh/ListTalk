@@ -139,6 +139,7 @@ static int set_iterator_set_current(LT_SetIterator* iterator){
 static void set_iterator_find_current(LT_SetIterator* iterator){
     LT_InlineHash* table = &iterator->set->table;
 
+    LT_MutexWord_lock(&table->lock);
     while (1){
         while (iterator->entry == NULL && iterator->bucket_index <= table->mask){
             iterator->entry = table->vector[iterator->bucket_index];
@@ -147,9 +148,11 @@ static void set_iterator_find_current(LT_SetIterator* iterator){
 
         if (iterator->entry == NULL){
             iterator->current = LT_INVALID;
+            LT_MutexWord_unlock(&table->lock);
             return;
         }
         if (set_iterator_set_current(iterator)){
+            LT_MutexWord_unlock(&table->lock);
             return;
         }
         iterator->entry = iterator->entry->next;
@@ -157,9 +160,13 @@ static void set_iterator_find_current(LT_SetIterator* iterator){
 }
 
 static void set_iterator_advance(LT_SetIterator* iterator){
+    LT_InlineHash* table = &iterator->set->table;
+
+    LT_MutexWord_lock(&table->lock);
     if (iterator->entry != NULL){
         iterator->entry = iterator->entry->next;
     }
+    LT_MutexWord_unlock(&table->lock);
     set_iterator_find_current(iterator);
 }
 
@@ -307,9 +314,12 @@ size_t LT_Set_size(LT_Set* set){
 int LT_Set_put(LT_Set* set, LT_Value value){
     LT_InlineHash* table = &set->table;
     size_t hash = set_value_hash(set, value);
-    LT_InlineHash_Entry* entry = set_find_entry(set, value, hash);
+    LT_InlineHash_Entry* entry;
 
+    LT_MutexWord_lock(&table->lock);
+    entry = set_find_entry(set, value, hash);
     if (entry != NULL){
+        LT_MutexWord_unlock(&table->lock);
         return 0;
     }
 
@@ -331,11 +341,18 @@ int LT_Set_put(LT_Set* set, LT_Value value){
     entry->next = table->vector[hash & table->mask];
     table->vector[hash & table->mask] = entry;
     table->count++;
+    LT_MutexWord_unlock(&table->lock);
     return 1;
 }
 
 int LT_Set_contains(LT_Set* set, LT_Value value){
-    return set_find_entry(set, value, set_value_hash(set, value)) != NULL;
+    LT_InlineHash* table = &set->table;
+    int contains;
+
+    LT_MutexWord_lock(&table->lock);
+    contains = set_find_entry(set, value, set_value_hash(set, value)) != NULL;
+    LT_MutexWord_unlock(&table->lock);
+    return contains;
 }
 
 LT_Value LT_Set_asList(LT_Set* set){
@@ -343,6 +360,7 @@ LT_Value LT_Set_asList(LT_Set* set){
     LT_Value list = LT_NIL;
     size_t i;
 
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -355,109 +373,67 @@ LT_Value LT_Set_asList(LT_Set* set){
             entry = entry->next;
         }
     }
+    LT_MutexWord_unlock(&table->lock);
     return list;
 }
 
 void LT_Set_for_each(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
-    size_t i;
+    LT_Value values = LT_Set_asList(set);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)){
-                (void)set_apply1(callable, value);
-            }
-            entry = entry->next;
-        }
+    while (values != LT_NIL){
+        (void)set_apply1(callable, LT_car(values));
+        values = LT_cdr(values);
     }
 }
 
 LT_Value LT_Set_any(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
-    size_t i;
+    LT_Value values = LT_Set_asList(set);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)
-                && LT_Value_truthy_p(set_apply1(callable, value))){
-                return LT_TRUE;
-            }
-            entry = entry->next;
+    while (values != LT_NIL){
+        if (LT_Value_truthy_p(set_apply1(callable, LT_car(values)))){
+            return LT_TRUE;
         }
+        values = LT_cdr(values);
     }
     return LT_FALSE;
 }
 
 LT_Value LT_Set_every(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
-    size_t i;
+    LT_Value values = LT_Set_asList(set);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)
-                && !LT_Value_truthy_p(set_apply1(callable, value))){
-                return LT_FALSE;
-            }
-            entry = entry->next;
+    while (values != LT_NIL){
+        if (!LT_Value_truthy_p(set_apply1(callable, LT_car(values)))){
+            return LT_FALSE;
         }
+        values = LT_cdr(values);
     }
     return LT_TRUE;
 }
 
 LT_Value LT_Set_inject_into(LT_Set* set, LT_Value initial, LT_Value callable){
-    LT_InlineHash* table = &set->table;
+    LT_Value values = LT_Set_asList(set);
     LT_Value accumulator = initial;
-    size_t i;
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)){
-                accumulator = set_apply2(callable, accumulator, value);
-            }
-            entry = entry->next;
-        }
+    while (values != LT_NIL){
+        accumulator = set_apply2(callable, accumulator, LT_car(values));
+        values = LT_cdr(values);
     }
     return accumulator;
 }
 
 LT_Value LT_Set_reduce(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
+    LT_Value values = LT_Set_asList(set);
     LT_Value accumulator = LT_NIL;
     int has_accumulator = 0;
-    size_t i;
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)){
-                if (!has_accumulator){
-                    accumulator = value;
-                    has_accumulator = 1;
-                } else {
-                    accumulator = set_apply2(callable, accumulator, value);
-                }
-            }
-            entry = entry->next;
+    while (values != LT_NIL){
+        if (!has_accumulator){
+            accumulator = LT_car(values);
+            has_accumulator = 1;
+        } else {
+            accumulator = set_apply2(callable, accumulator, LT_car(values));
         }
+        values = LT_cdr(values);
     }
 
     if (!has_accumulator){

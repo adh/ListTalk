@@ -391,26 +391,14 @@ static void environment_binding_do(LT_Value binding, LT_Value callable){
     (void)LT_apply(callable, LT_cons(binding, LT_NIL), LT_NIL, LT_NIL, NULL);
 }
 
+static LT_Value Environment_bindings_as_list(LT_Environment* environment);
+
 static void Environment_bindings_do(LT_Environment* environment, LT_Value callable){
-    LT_InlineHash* table = &environment->bindings;
-    size_t i;
+    LT_Value bindings = Environment_bindings_as_list(environment);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* table_entry = table->vector[i];
-
-        while (table_entry != NULL){
-            struct LT_Environment_Binding* entry =
-                (struct LT_Environment_Binding*)table_entry->value;
-            LT_Value symbol = (LT_Value)(uintptr_t)table_entry->key;
-            LT_Value binding = LT_BindingDescriptor_new(
-                symbol,
-                entry->value,
-                entry->flags
-            );
-
-            environment_binding_do(binding, callable);
-            table_entry = table_entry->next;
-        }
+    while (bindings != LT_NIL){
+        environment_binding_do(LT_car(bindings), callable);
+        bindings = LT_cdr(bindings);
     }
 }
 
@@ -419,6 +407,7 @@ static LT_Value Environment_bindings_as_list(LT_Environment* environment){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     size_t i;
 
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* table_entry = table->vector[i];
 
@@ -433,6 +422,7 @@ static LT_Value Environment_bindings_as_list(LT_Environment* environment){
             table_entry = table_entry->next;
         }
     }
+    LT_MutexWord_unlock(&table->lock);
 
     return LT_ListBuilder_value(builder);
 }

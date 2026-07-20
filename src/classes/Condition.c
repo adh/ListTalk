@@ -188,7 +188,7 @@ LT_Value LT_Condition_vnew(LT_Class* klass, const char* message, va_list args){
 }
 
 LT_Value LT_SystemError_new(const char* message, int errnum, LT_Value args){
-    char* full_message = LT_sprintf("%s: %s", message, strerror(errnum));
+    char* full_message = LT_sprintf("%s: %s", message, LT_strerror(errnum));
     LT_Value value = LT_Condition_new(&LT_SystemError_class, full_message, args);
     LT_SystemError* condition = (LT_SystemError*)LT_VALUE_POINTER_VALUE(value);
 

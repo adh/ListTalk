@@ -25,6 +25,8 @@
 
 LT_DECLARE_CLASS(LT_OS_Stat);
 
+static LT_MutexWord os_environment_lock = LT_MUTEX_INITIALIZER;
+
 struct LT_OS_Stat_s {
     LT_Object base;
     LT_Value path;
@@ -495,15 +497,20 @@ LT_DEFINE_PRIMITIVE(
     LT_Value cursor = arguments;
     LT_String* name;
     const char* value;
+    LT_Value result;
 
     OS_STRING_ARG(cursor, name);
     LT_ARG_END(cursor);
 
+    LT_MutexWord_lock(&os_environment_lock);
     value = getenv(LT_String_value_cstr(name));
     if (value == NULL){
+        LT_MutexWord_unlock(&os_environment_lock);
         return LT_NIL;
     }
-    return (LT_Value)(uintptr_t)LT_String_new_cstr((char*)value);
+    result = (LT_Value)(uintptr_t)LT_String_new_cstr((char*)value);
+    LT_MutexWord_unlock(&os_environment_lock);
+    return result;
 }
 
 LT_DEFINE_PRIMITIVE(

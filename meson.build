@@ -83,6 +83,7 @@ vm_lib = library(
                 'src/vm/stack_trace.c',
                 'src/vm/conditions.c',
                 'src/vm/throw_catch.c',
+                'src/utils/lock.c',
                 'src/utils/utf8.c',
                 'src/classes/Object.c',
                 'src/classes/Boolean.c',
@@ -133,7 +134,9 @@ vm_lib = library(
                 'src/classes/DynamicVariable.c',
                 'src/classes/Stream.c',
                 'src/classes/Instant.c',
-                'src/classes/DateTime.c'
+                'src/classes/DateTime.c',
+                'src/classes/Mutex.c',
+                'src/classes/Thread.c'
         ], 
         install : true, dependencies : [bdwgc, libm])
 
@@ -256,6 +259,13 @@ uuid_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+lock_test_exe = executable(
+        'lock_test',
+        'tests/lock_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -318,6 +328,11 @@ test(
 test(
         'uuid_test',
         uuid_test_exe
+)
+
+test(
+        'lock_test',
+        lock_test_exe
 )
 
 install_subdir(

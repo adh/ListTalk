@@ -31,10 +31,75 @@ LT_Package LT_Package_LISTTALK_USER = {0};
 LT_Package LT_Package_KEYWORD = {0};
 static _Thread_local LT_Package* current_package = NULL;
 static _Thread_local int current_package_is_set = 0;
-static int predefined_packages_initialized = 0;
+static LT_InlineHash package_table;
+static pthread_once_t package_table_once = PTHREAD_ONCE_INIT;
+static pthread_once_t predefined_packages_once = PTHREAD_ONCE_INIT;
 
 static LT_InlineHash* get_package_table(void);
 static void ensure_predefined_packages_initialized(void);
+
+static void* package_string_table_at_locked(
+    LT_InlineHash* table,
+    char* name,
+    size_t hash
+){
+    LT_InlineHash_Entry* entry = table->vector[hash & table->mask];
+
+    while (entry != NULL){
+        if (entry->hash == hash && strcmp(entry->key, name) == 0){
+            return entry->value;
+        }
+        entry = entry->next;
+    }
+    return NULL;
+}
+
+static void package_string_table_grow_locked(LT_InlineHash* table){
+    LT_InlineHash_Entry** grown_vector;
+    size_t grown_size;
+    size_t i;
+
+    grown_size = (table->mask + 1) << 1;
+    grown_vector = GC_MALLOC(sizeof(LT_InlineHash_Entry*) * grown_size);
+    memset(grown_vector, 0, sizeof(LT_InlineHash_Entry*) * grown_size);
+
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_InlineHash_Entry* next = entry->next;
+            size_t index = entry->hash & (grown_size - 1);
+
+            entry->next = grown_vector[index];
+            grown_vector[index] = entry;
+            entry = next;
+        }
+    }
+
+    table->vector = grown_vector;
+    table->mask = grown_size - 1;
+}
+
+static void package_string_table_at_put_locked(
+    LT_InlineHash* table,
+    char* name,
+    size_t hash,
+    void* value
+){
+    LT_InlineHash_Entry* entry;
+
+    if (table->count > table->mask){
+        package_string_table_grow_locked(table);
+    }
+
+    entry = GC_NEW(LT_InlineHash_Entry);
+    entry->hash = hash;
+    entry->key = LT_strdup(name);
+    entry->value = value;
+    entry->next = table->vector[hash & table->mask];
+    table->vector[hash & table->mask] = entry;
+    table->count++;
+}
 
 static void Package_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Package* package = LT_Package_from_value(obj);
@@ -127,30 +192,17 @@ LT_DEFINE_PRIMITIVE(
 }
 
 void LT_Package_symbols_do(LT_Package* package, LT_Value callable){
-    LT_InlineHash* table;
-    size_t i;
+    LT_Value symbols = LT_Package_symbols_asList(package);
 
-    ensure_predefined_packages_initialized();
-    if (package == NULL){
-        LT_error("Package symbolsDo expects non-NULL package");
-    }
-    table = &package->symbol_table;
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value symbol =
-                ((LT_Value)(uintptr_t)entry->value) | LT_VALUE_POINTER_TAG_SYMBOL;
-
-            (void)LT_apply(
-                callable,
-                LT_cons(symbol, LT_NIL),
-                LT_NIL,
-                LT_NIL,
-                NULL
-            );
-            entry = entry->next;
-        }
+    while (symbols != LT_NIL){
+        (void)LT_apply(
+            callable,
+            LT_cons(LT_car(symbols), LT_NIL),
+            LT_NIL,
+            LT_NIL,
+            NULL
+        );
+        symbols = LT_cdr(symbols);
     }
 }
 
@@ -164,6 +216,7 @@ LT_Value LT_Package_symbols_asList(LT_Package* package){
         LT_error("Package symbolsAsList expects non-NULL package");
     }
     table = &package->symbol_table;
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -175,27 +228,22 @@ LT_Value LT_Package_symbols_asList(LT_Package* package){
             entry = entry->next;
         }
     }
+    LT_MutexWord_unlock(&table->lock);
     return LT_ListBuilder_value(builder);
 }
 
 void LT_Package_packages_do(LT_Value callable){
-    LT_InlineHash* table = get_package_table();
-    size_t i;
+    LT_Value packages = LT_Package_packages_asList();
 
-    ensure_predefined_packages_initialized();
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            (void)LT_apply(
-                callable,
-                LT_cons((LT_Value)(uintptr_t)entry->value, LT_NIL),
-                LT_NIL,
-                LT_NIL,
-                NULL
-            );
-            entry = entry->next;
-        }
+    while (packages != LT_NIL){
+        (void)LT_apply(
+            callable,
+            LT_cons(LT_car(packages), LT_NIL),
+            LT_NIL,
+            LT_NIL,
+            NULL
+        );
+        packages = LT_cdr(packages);
     }
 }
 
@@ -205,6 +253,7 @@ LT_Value LT_Package_packages_asList(void){
     size_t i;
 
     ensure_predefined_packages_initialized();
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -213,6 +262,7 @@ LT_Value LT_Package_packages_asList(void){
             entry = entry->next;
         }
     }
+    LT_MutexWord_unlock(&table->lock);
     return LT_ListBuilder_value(builder);
 }
 
@@ -434,15 +484,14 @@ LT_DEFINE_CLASS(LT_Package) {
     .class_methods = Package_class_methods,
 };
 
+static void package_table_init_once(void){
+    LT_InlineHash_init(&package_table);
+}
+
 static LT_InlineHash* get_package_table(void){
-    static LT_InlineHash* package_table = NULL;
+    pthread_once(&package_table_once, package_table_init_once);
 
-    if (package_table == NULL){
-        package_table = GC_NEW(LT_InlineHash);
-        LT_InlineHash_init(package_table);
-    }
-
-    return package_table;
+    return &package_table;
 }
 
 int LT_Package_uses_package(LT_Package* package, LT_Package* used_package){
@@ -469,13 +518,40 @@ static void package_init(LT_Package* package, char* name){
     LT_InlineHash_init(&package->used_package_nicknames);
 }
 
-static void ensure_predefined_packages_initialized(void){
-    LT_InlineHash* package_table = get_package_table();
+static void package_use_package_initialized(
+    LT_Package* package,
+    LT_Package* used_package,
+    char* nickname
+){
+    LT_Package* nickname_package;
 
-    if (predefined_packages_initialized){
+    if (nickname == NULL && !LT_Package_uses_package(package, used_package)){
+        package->used_packages = LT_cons(
+            (LT_Value)(uintptr_t)used_package,
+            package->used_packages
+        );
+    }
+
+    if (nickname == NULL){
         return;
     }
-    predefined_packages_initialized = 1;
+    if (nickname[0] == '\0'){
+        LT_error("use-package nickname must not be empty");
+    }
+
+    nickname_package = LT_StringHash_at(&package->used_package_nicknames, nickname);
+    if (nickname_package != NULL && nickname_package != used_package){
+        LT_error("use-package nickname already bound to different package");
+    }
+    LT_StringHash_at_put(
+        &package->used_package_nicknames,
+        nickname,
+        used_package
+    );
+}
+
+static void predefined_packages_init_once(void){
+    LT_InlineHash* package_table = get_package_table();
 
     package_init(&LT_Package_LISTTALK, "ListTalk");
     LT_StringHash_at_put(
@@ -505,16 +581,20 @@ static void ensure_predefined_packages_initialized(void){
         &LT_Package_KEYWORD
     );
 
-    LT_Package_use_package(
+    package_use_package_initialized(
         &LT_Package_LISTTALK,
         &LT_Package_LISTTALK_IMPLEMENTATION,
         NULL
     );
-    LT_Package_use_package(
+    package_use_package_initialized(
         &LT_Package_LISTTALK_USER,
         &LT_Package_LISTTALK,
         NULL
     );
+}
+
+static void ensure_predefined_packages_initialized(void){
+    pthread_once(&predefined_packages_once, predefined_packages_init_once);
 }
 
 static void LT___init_predefined_packages(void){
@@ -525,6 +605,7 @@ LT_REGISTER_INITIALIZER(LT___init_predefined_packages)
 LT_Package* LT_Package_new(char* name){
     LT_InlineHash* package_table;
     LT_Package* package;
+    size_t hash;
 
     if (name == NULL){
         LT_error("Package name must not be NULL");
@@ -532,14 +613,24 @@ LT_Package* LT_Package_new(char* name){
 
     ensure_predefined_packages_initialized();
     package_table = get_package_table();
-    package = LT_StringHash_at(package_table, name);
+    hash = LT_fnv_hash(name);
+
+    LT_MutexWord_lock(&package_table->lock);
+    package = package_string_table_at_locked(package_table, name, hash);
     if (package != NULL){
+        LT_MutexWord_unlock(&package_table->lock);
         return package;
     }
 
     package = LT_Class_ALLOC(LT_Package);
     package_init(package, name);
-    LT_StringHash_at_put(package_table, package->name, package);
+    package_string_table_at_put_locked(
+        package_table,
+        package->name,
+        hash,
+        package
+    );
+    LT_MutexWord_unlock(&package_table->lock);
     LT_Package_use_package(package, LT_PACKAGE_LISTTALK, NULL);
 
     return package;
@@ -570,36 +661,11 @@ LT_Value LT_Package_used_packages(LT_Package* package){
 void LT_Package_use_package(LT_Package* package,
                             LT_Package* used_package,
                             char* nickname){
-    LT_Package* nickname_package;
-
     ensure_predefined_packages_initialized();
     if (package == NULL || used_package == NULL){
         LT_error("use-package expects non-NULL package arguments");
     }
-
-    if (nickname == NULL && !LT_Package_uses_package(package, used_package)){
-        package->used_packages = LT_cons(
-            (LT_Value)(uintptr_t)used_package,
-            package->used_packages
-        );
-    }
-
-    if (nickname == NULL){
-        return;
-    }
-    if (nickname[0] == '\0'){
-        LT_error("use-package nickname must not be empty");
-    }
-
-    nickname_package = LT_StringHash_at(&package->used_package_nicknames, nickname);
-    if (nickname_package != NULL && nickname_package != used_package){
-        LT_error("use-package nickname already bound to different package");
-    }
-    LT_StringHash_at_put(
-        &package->used_package_nicknames,
-        nickname,
-        used_package
-    );
+    package_use_package_initialized(package, used_package, nickname);
 }
 
 LT_Package* LT_Package_resolve_used_package(LT_Package* package, char* name){
@@ -632,8 +698,10 @@ LT_Package* LT_Package_resolve_used_package(LT_Package* package, char* name){
 }
 
 LT_Value LT_Package_intern_local_symbol(LT_Package* package, char* name){
+    LT_InlineHash* table;
     LT_Symbol* symbol;
     LT_Value value;
+    size_t hash;
 
     ensure_predefined_packages_initialized();
     if (package == NULL){
@@ -643,17 +711,24 @@ LT_Value LT_Package_intern_local_symbol(LT_Package* package, char* name){
         LT_error("Symbol name must not be NULL");
     }
 
-    symbol = LT_StringHash_at(&package->symbol_table, name);
+    table = &package->symbol_table;
+    hash = LT_fnv_hash(name);
+
+    LT_MutexWord_lock(&table->lock);
+    symbol = (LT_Symbol*)package_string_table_at_locked(table, name, hash);
     if (symbol != NULL){
+        LT_MutexWord_unlock(&table->lock);
         return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
     }
 
     value = LT__Symbol_new_uninterned(package, name);
-    LT_StringHash_at_put(
-        &package->symbol_table,
+    package_string_table_at_put_locked(
+        table,
         LT_Symbol_name(LT_Symbol_from_value(value)),
+        hash,
         LT_VALUE_POINTER_VALUE(value)
     );
+    LT_MutexWord_unlock(&table->lock);
     return value;
 }
 

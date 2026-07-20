@@ -172,6 +172,7 @@ static void identity_dictionary_iterator_find_current(
 ){
     LT_InlineHash* table = &iterator->dictionary->table;
 
+    LT_MutexWord_lock(&table->lock);
     while (1){
         while (iterator->table_entry == NULL
                && iterator->bucket_index <= table->mask){
@@ -181,9 +182,11 @@ static void identity_dictionary_iterator_find_current(
 
         if (iterator->table_entry == NULL){
             iterator->current = LT_INVALID;
+            LT_MutexWord_unlock(&table->lock);
             return;
         }
         if (identity_dictionary_iterator_set_current(iterator)){
+            LT_MutexWord_unlock(&table->lock);
             return;
         }
         iterator->table_entry = iterator->table_entry->next;
@@ -193,9 +196,13 @@ static void identity_dictionary_iterator_find_current(
 static void identity_dictionary_iterator_advance(
     LT_IdentityDictionaryIterator* iterator
 ){
+    LT_InlineHash* table = &iterator->dictionary->table;
+
+    LT_MutexWord_lock(&table->lock);
     if (iterator->table_entry != NULL){
         iterator->table_entry = iterator->table_entry->next;
     }
+    LT_MutexWord_unlock(&table->lock);
     identity_dictionary_iterator_find_current(iterator);
 }
 
@@ -844,6 +851,7 @@ LT_Value LT_IdentityDictionary_asAList(LT_IdentityDictionary* dictionary){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     size_t i;
 
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* table_entry = table->vector[i];
 
@@ -860,57 +868,36 @@ LT_Value LT_IdentityDictionary_asAList(LT_IdentityDictionary* dictionary){
             table_entry = table_entry->next;
         }
     }
+    LT_MutexWord_unlock(&table->lock);
 
     return LT_ListBuilder_value(builder);
 }
 
 void LT_IdentityDictionary_for_each(LT_IdentityDictionary* dictionary,
                                     LT_Value callable){
-    LT_InlineHash* table = &dictionary->table;
-    size_t i;
+    LT_Value entries = LT_IdentityDictionary_asAList(dictionary);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* table_entry = table->vector[i];
+    while (entries != LT_NIL){
+        LT_Value entry = LT_car(entries);
 
-        while (table_entry != NULL){
-            struct LT_IdentityDictionary_Entry* entry =
-                (struct LT_IdentityDictionary_Entry*)table_entry->value;
-            LT_Value key;
-            LT_Value value;
-
-            if (dictionary_entry_key(dictionary, table_entry, &key)
-                && dictionary_entry_value(dictionary, entry, &value)){
-                (void)identity_dictionary_apply2(callable, key, value);
-            }
-            table_entry = table_entry->next;
-        }
+        (void)identity_dictionary_apply2(callable, LT_car(entry), LT_cdr(entry));
+        entries = LT_cdr(entries);
     }
 }
 
 LT_Value LT_IdentityDictionary_map(LT_IdentityDictionary* dictionary,
                                    LT_Value callable){
-    LT_InlineHash* table = &dictionary->table;
+    LT_Value entries = LT_IdentityDictionary_asAList(dictionary);
     LT_ListBuilder* builder = LT_ListBuilder_new();
-    size_t i;
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* table_entry = table->vector[i];
+    while (entries != LT_NIL){
+        LT_Value entry = LT_car(entries);
 
-        while (table_entry != NULL){
-            struct LT_IdentityDictionary_Entry* entry =
-                (struct LT_IdentityDictionary_Entry*)table_entry->value;
-            LT_Value key;
-            LT_Value value;
-
-            if (dictionary_entry_key(dictionary, table_entry, &key)
-                && dictionary_entry_value(dictionary, entry, &value)){
-                LT_ListBuilder_append(
-                    builder,
-                    identity_dictionary_apply2(callable, key, value)
-                );
-            }
-            table_entry = table_entry->next;
-        }
+        LT_ListBuilder_append(
+            builder,
+            identity_dictionary_apply2(callable, LT_car(entry), LT_cdr(entry))
+        );
+        entries = LT_cdr(entries);
     }
 
     return LT_ListBuilder_value(builder);
@@ -926,10 +913,12 @@ void LT_IdentityDictionary_atPut(
     LT_InlineHash_Entry* table_entry;
     struct LT_IdentityDictionary_Entry* entry;
 
+    LT_MutexWord_lock(&table->lock);
     table_entry = dictionary_find_entry(dictionary, key, hash, NULL, NULL);
     if (table_entry != NULL){
         entry = (struct LT_IdentityDictionary_Entry*)table_entry->value;
         dictionary_entry_set_value(dictionary, entry, value);
+        LT_MutexWord_unlock(&table->lock);
         return;
     }
 
@@ -946,6 +935,7 @@ void LT_IdentityDictionary_atPut(
     table_entry->next = table->vector[hash & table->mask];
     table->vector[hash & table->mask] = table_entry;
     table->count++;
+    LT_MutexWord_unlock(&table->lock);
 }
 
 int LT_IdentityDictionary_at(
@@ -958,19 +948,23 @@ int LT_IdentityDictionary_at(
     struct LT_IdentityDictionary_Entry* entry;
     LT_Value value;
 
+    LT_MutexWord_lock(&dictionary->table.lock);
     table_entry = dictionary_find_entry(dictionary, key, hash, NULL, NULL);
     if (table_entry == NULL){
+        LT_MutexWord_unlock(&dictionary->table.lock);
         return 0;
     }
 
     entry = (struct LT_IdentityDictionary_Entry*)table_entry->value;
     if (!dictionary_entry_value(dictionary, entry, &value)){
+        LT_MutexWord_unlock(&dictionary->table.lock);
         return 0;
     }
 
     if (value_out != NULL){
         *value_out = value;
     }
+    LT_MutexWord_unlock(&dictionary->table.lock);
     return 1;
 }
 
@@ -986,6 +980,7 @@ int LT_IdentityDictionary_remove(
     LT_InlineHash_Entry* table_entry;
     struct LT_IdentityDictionary_Entry* entry;
 
+    LT_MutexWord_lock(&table->lock);
     table_entry = dictionary_find_entry(
         dictionary,
         key,
@@ -994,6 +989,7 @@ int LT_IdentityDictionary_remove(
         &index
     );
     if (table_entry == NULL){
+        LT_MutexWord_unlock(&table->lock);
         return 0;
     }
 
@@ -1009,6 +1005,7 @@ int LT_IdentityDictionary_remove(
         && !dictionary_entry_value(dictionary, entry, value_out)){
         *value_out = LT_NIL;
     }
+    LT_MutexWord_unlock(&table->lock);
     return 1;
 }
 
@@ -1018,8 +1015,11 @@ void LT_IdentityDictionary_keys_do(
     void* baton
 ){
     LT_InlineHash* table = &dictionary->table;
+    LT_Value keys = LT_NIL;
+    LT_Value cursor;
     size_t i;
 
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* table_entry = table->vector[i];
 
@@ -1028,9 +1028,16 @@ void LT_IdentityDictionary_keys_do(
 
             if (dictionary_entry_key(dictionary, table_entry, &key)
                 && dictionary_entry_alive(dictionary, table_entry)){
-                callback(key, baton);
+                keys = LT_cons(key, keys);
             }
             table_entry = table_entry->next;
         }
+    }
+    LT_MutexWord_unlock(&table->lock);
+
+    cursor = keys;
+    while (cursor != LT_NIL){
+        callback(LT_car(cursor), baton);
+        cursor = LT_cdr(cursor);
     }
 }

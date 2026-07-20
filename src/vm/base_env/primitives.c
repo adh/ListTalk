@@ -15,6 +15,7 @@
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/Duration.h>
 #include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
@@ -228,6 +229,22 @@ LT_DEFINE_PRIMITIVE(
         }
     }
     return LT_Symbol_gensym(name);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_sleep,
+    "sleep",
+    "(seconds)",
+    "Sleep for seconds."
+){
+    LT_Value cursor = arguments;
+    LT_Value seconds;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, seconds);
+    LT_ARG_END(cursor);
+    LT_sleep_seconds(seconds);
+    return seconds;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -939,6 +956,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_equal_p);
     LT_base_env_bind_static_primitive(environment, &primitive_not);
     LT_base_env_bind_static_primitive(environment, &primitive_gensym);
+    LT_base_env_bind_static_primitive(environment, &primitive_sleep);
     LT_base_env_bind_static_primitive(environment, &primitive_null_p);
     LT_base_env_bind_static_primitive(environment, &primitive_boolean_p);
     LT_base_env_bind_static_primitive(environment, &primitive_number_p);

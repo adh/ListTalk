@@ -68,6 +68,15 @@ extern char* LT_sprintf(const char* fmt, ...){
     return buf;
 }
 
+extern char* LT_strerror(int errnum){
+    char buffer[1024];
+
+    if (strerror_r(errnum, buffer, sizeof(buffer)) == 0){
+        return LT_strdup(buffer);
+    }
+    return LT_sprintf("Unknown error %d", errnum);
+}
+
 void LT_write_file_bytes_atomically(const char* path,
                                     const void* bytes,
                                     size_t length){
@@ -244,6 +253,7 @@ size_t LT_ListBuilder_length(LT_ListBuilder* builder){
 
 
 void LT_InlineHash_init(LT_InlineHash* h){
+    LT_MutexWord_init(&h->lock);
     h->mask = 0x7;
     h->count = 0;
     h->vector = GC_MALLOC(sizeof(LT_InlineHash_Entry*)*8);
@@ -252,7 +262,12 @@ void LT_InlineHash_init(LT_InlineHash* h){
 }
 
 size_t LT_InlineHash_count(LT_InlineHash* h){
-    return h->count;
+    size_t count;
+
+    LT_MutexWord_lock(&h->lock);
+    count = h->count;
+    LT_MutexWord_unlock(&h->lock);
+    return count;
 }
 
 static LT_InlineHash_Entry* get_hash_entry(LT_InlineHash* h, 
@@ -359,6 +374,7 @@ void LT_StringHash_at_put(LT_InlineHash* h, char* key, void* value){
     size_t hash;
 
     hash = LT_fnv_hash(key);
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry(h, key, hash);
 
     if (e){
@@ -366,25 +382,32 @@ void LT_StringHash_at_put(LT_InlineHash* h, char* key, void* value){
     } else {
         add_hash_entry_string(h, key, hash, value);
     }
+    LT_MutexWord_unlock(&h->lock);
 }
 
 void* LT_StringHash_at(LT_InlineHash* h, char* key){
     LT_InlineHash_Entry* e;
+    void* value = NULL;
 
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry(h, key, LT_fnv_hash(key));
 
     if (e){
-        return e->value;
-    } else {
-        return NULL;
+        value = e->value;
     }
+    LT_MutexWord_unlock(&h->lock);
+    return value;
 }
 
 int LT_StringHash_remove(LT_InlineHash* h, char* key, void** value_out){
     size_t hash = LT_fnv_hash(key);
-    size_t index = hash & h->mask;
-    LT_InlineHash_Entry* current = h->vector[index];
+    size_t index;
+    LT_InlineHash_Entry* current;
     LT_InlineHash_Entry* previous = NULL;
+
+    LT_MutexWord_lock(&h->lock);
+    index = hash & h->mask;
+    current = h->vector[index];
 
     while (current != NULL){
         if (current->hash == hash && strcmp(current->key, key) == 0){
@@ -398,12 +421,14 @@ int LT_StringHash_remove(LT_InlineHash* h, char* key, void** value_out){
             if (value_out != NULL){
                 *value_out = current->value;
             }
+            LT_MutexWord_unlock(&h->lock);
             return 1;
         }
         previous = current;
         current = current->next;
     }
 
+    LT_MutexWord_unlock(&h->lock);
     return 0;
 }
 
@@ -412,6 +437,7 @@ void LT_PointerHash_at_put(LT_InlineHash* h, void* key, void* value){
     size_t hash;
 
     hash = LT_pointer_hash(key);
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry_pointer(h, key, hash);
 
     if (e){
@@ -419,25 +445,32 @@ void LT_PointerHash_at_put(LT_InlineHash* h, void* key, void* value){
     } else {
         add_hash_entry_pointer(h, key, hash, value);
     }
+    LT_MutexWord_unlock(&h->lock);
 }
 
 void* LT_PointerHash_at(LT_InlineHash* h, void* key){
     LT_InlineHash_Entry* e;
+    void* value = NULL;
 
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry_pointer(h, key, LT_pointer_hash(key));
 
     if (e){
-        return e->value;
-    } else {
-        return NULL;
+        value = e->value;
     }
+    LT_MutexWord_unlock(&h->lock);
+    return value;
 }
 
 int LT_PointerHash_remove(LT_InlineHash* h, void* key, void** value_out){
     size_t hash = LT_pointer_hash(key);
-    size_t index = hash & h->mask;
-    LT_InlineHash_Entry* current = h->vector[index];
+    size_t index;
+    LT_InlineHash_Entry* current;
     LT_InlineHash_Entry* previous = NULL;
+
+    LT_MutexWord_lock(&h->lock);
+    index = hash & h->mask;
+    current = h->vector[index];
 
     while (current != NULL){
         if (current->hash == hash && current->key == key){
@@ -451,12 +484,14 @@ int LT_PointerHash_remove(LT_InlineHash* h, void* key, void** value_out){
             if (value_out != NULL){
                 *value_out = current->value;
             }
+            LT_MutexWord_unlock(&h->lock);
             return 1;
         }
         previous = current;
         current = current->next;
     }
 
+    LT_MutexWord_unlock(&h->lock);
     return 0;
 }
 

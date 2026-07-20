@@ -7,6 +7,7 @@
 #define H__ListTalk__utils__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/utils/lock.h>
 #include <ListTalk/utils/utf8.h>
 #include <ListTalk/vm/value.h>
 
@@ -20,6 +21,7 @@ extern uint32_t LT_pointer_hash(void* pointer);
 
 extern char* LT_strdup(char*);
 extern char* LT_sprintf(const char* fmt, ...);
+extern char* LT_strerror(int errnum);
 void LT_write_file_bytes_atomically(
     const char* path,
     const void* bytes,
@@ -52,6 +54,7 @@ typedef struct LT_InlineHash LT_InlineHash;
 typedef struct LT_InlineHash_Entry LT_InlineHash_Entry;
 
 struct LT_InlineHash {
+    LT_MutexWord lock;
     LT_InlineHash_Entry** vector;
     size_t mask;
     size_t count;
