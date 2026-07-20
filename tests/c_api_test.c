@@ -3392,7 +3392,11 @@ static int test_thread_join_returns_result_to_concurrent_joiners(void){
     int failed = 0;
 
     blocking_thread_callable_state = &state;
-    thread = LT_Thread_new(callable);
+    thread = LT_Thread_new(callable, "c-api-thread");
+    failed += expect(
+        strcmp(LT_Thread_name(thread), "c-api-thread") == 0,
+        "LT_Thread_new stores thread name"
+    );
 
     pthread_mutex_lock(&state.mutex);
     while (!state.started){

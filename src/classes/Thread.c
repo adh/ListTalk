@@ -3,10 +3,18 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#ifdef __linux__
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#endif
+
 #include <ListTalk/classes/Thread.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/String.h>
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/utils.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/thread_state.h>
@@ -22,6 +30,7 @@ struct LT_Thread_s {
     LT_ThreadState* thread_state;
     LT_Value callable;
     LT_Value result;
+    char* name;
     bool finished : 1;
     bool joined : 1;
     bool joining : 1;
@@ -31,7 +40,12 @@ struct LT_Thread_s {
 
 static void Thread_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Thread* thread = LT_Thread_from_value(obj);
-    fprintf(stream, "#<Thread %p>", (void*)thread);
+
+    if (thread->name != NULL){
+        fprintf(stream, "#<Thread %s %p>", thread->name, (void*)thread);
+    } else {
+        fprintf(stream, "#<Thread %p>", (void*)thread);
+    }
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -51,7 +65,32 @@ LT_DEFINE_PRIMITIVE(
     if (self != (LT_Value)(uintptr_t)&LT_Thread_class){
         LT_error("new: class method is only supported on Thread");
     }
-    return (LT_Value)(uintptr_t)LT_Thread_new(callable);
+    return (LT_Value)(uintptr_t)LT_Thread_new(callable, NULL);
+}
+
+LT_DEFINE_PRIMITIVE(
+    thread_class_method_new_named,
+    "Thread class>>new:named:",
+    "(self callable name)",
+    "Start callable in a new named thread and return the thread."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    LT_String* name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_GENERIC_ARG(cursor, name, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Thread_class){
+        LT_error("new:named: class method is only supported on Thread");
+    }
+    return (LT_Value)(uintptr_t)LT_Thread_new(
+        callable,
+        (char*)LT_String_value_cstr(name)
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -160,6 +199,27 @@ LT_DEFINE_PRIMITIVE(
     return LT_Thread_result(LT_Thread_from_value(self));
 }   
 
+LT_DEFINE_PRIMITIVE(
+    thread_method_name,
+    "Thread>>name",
+    "(self)",
+    "Return thread name, or nil when it has none."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    char* name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    name = LT_Thread_name(LT_Thread_from_value(self));
+    if (name == NULL){
+        return LT_NIL;
+    }
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(name);
+}
+
 static LT_Method_Descriptor Thread_methods[] = {
     {"join", &thread_method_join},
     {"makeDetached", &thread_method_make_detached},
@@ -168,11 +228,13 @@ static LT_Method_Descriptor Thread_methods[] = {
     {"finished?", &thread_method_finished_p},
     {"joined?", &thread_method_joined_p},
     {"result", &thread_method_result},
+    {"name", &thread_method_name},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor Thread_class_methods[] = {
     {"new:", &thread_class_method_new},
+    {"new:named:", &thread_class_method_new_named},
     {"current", &thread_class_method_current},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
@@ -188,6 +250,18 @@ LT_DEFINE_CLASS(LT_Thread) {
     .class_methods = Thread_class_methods,
 };
 
+static void set_current_native_thread_name(char* name){
+    if (name == NULL || name[0] == '\0'){
+        return;
+    }
+
+#ifdef __APPLE__
+    (void)pthread_setname_np(name);
+#elif defined(__linux__)
+    (void)pthread_setname_np(pthread_self(), name);
+#endif
+}
+
 static void* thread_main(void* opaque){
     LT_Thread* thread = opaque;
     LT_ThreadState* state = LT_thread_state();
@@ -198,6 +272,7 @@ static void* thread_main(void* opaque){
     LT_MutexWord_unlock(&thread->state_lock);
 
     state->current_thread = thread;
+    set_current_native_thread_name(thread->name);
     result = LT_apply(thread->callable, LT_NIL, LT_NIL, LT_NIL, NULL);
 
     LT_MutexWord_lock(&thread->state_lock);
@@ -209,7 +284,7 @@ static void* thread_main(void* opaque){
     return NULL;
 }
 
-LT_Thread* LT_Thread_new(LT_Value callable){
+LT_Thread* LT_Thread_new(LT_Value callable, char* name){
     LT_Thread* thread = LT_Class_ALLOC(LT_Thread);
     int errnum;
 
@@ -218,6 +293,7 @@ LT_Thread* LT_Thread_new(LT_Value callable){
     thread->thread_state = NULL;
     thread->callable = callable;
     thread->result = LT_NIL;
+    thread->name = name != NULL ? LT_strdup(name) : NULL;
     thread->finished = 0;
     thread->joined = 0;
     thread->joining = 0;
@@ -244,6 +320,7 @@ LT_Thread* LT_Thread_current(void){
         state->current_thread->thread_state = state;
         state->current_thread->callable = LT_NIL;
         state->current_thread->result = LT_NIL;
+        state->current_thread->name = NULL;
         state->current_thread->finished = 1;
         state->current_thread->joined = 1;
         state->current_thread->joining = 0;
@@ -253,6 +330,9 @@ LT_Thread* LT_Thread_current(void){
     return state->current_thread;
 }
     
+char* LT_Thread_name(LT_Thread* thread){
+    return thread->name;
+}
 
 LT_Value LT_Thread_join(LT_Thread* thread){
     LT_Value result;
