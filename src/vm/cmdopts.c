@@ -330,7 +330,7 @@ LT_CmdOpts* LT_CmdOpts_new(int flags){
     LT_CmdOpts* parser = GC_NEW(LT_CmdOpts);
 
     parser->flags = flags;
-    parser->lock = (LT_MutexWord)LT_MUTEX_INITIALIZER;
+    LT_MutexWord_init(&parser->lock);
     return parser;
 }
 
