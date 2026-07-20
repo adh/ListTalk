@@ -13,8 +13,6 @@
 
 #include <stdio.h>
 
-_Thread_local LT_StackFrame* LT__stack_trace_stack = NULL;
-
 #define LT_STACK_TRACE_MAX_EXPANSION_DEPTH 256
 
 static void stack_trace_print_indent(FILE* stream, unsigned int depth){

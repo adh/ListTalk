@@ -10,6 +10,7 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/thread_state.h>
 #include <ListTalk/macros/arg_macros.h>
 
 #include <ListTalk/utils.h>
@@ -29,8 +30,6 @@ LT_Package LT_Package_LISTTALK = {0};
 LT_Package LT_Package_LISTTALK_IMPLEMENTATION = {0};
 LT_Package LT_Package_LISTTALK_USER = {0};
 LT_Package LT_Package_KEYWORD = {0};
-static _Thread_local LT_Package* current_package = NULL;
-static _Thread_local int current_package_is_set = 0;
 static LT_InlineHash package_table;
 static pthread_once_t package_table_once = PTHREAD_ONCE_INIT;
 static pthread_once_t predefined_packages_once = PTHREAD_ONCE_INIT;
@@ -793,16 +792,20 @@ LT_Value LT_Package_intern_symbol(LT_Package* package, char* name){
 }
 
 LT_Package* LT_get_current_package(void){
+    LT_ThreadState* state = LT_thread_state();
+
     ensure_predefined_packages_initialized();
-    if (!current_package_is_set){
-        current_package = LT_PACKAGE_LISTTALK;
-        current_package_is_set = 1;
+    if (!state->current_package_is_set){
+        state->current_package = LT_PACKAGE_LISTTALK;
+        state->current_package_is_set = 1;
     }
-    return current_package;
+    return state->current_package;
 }
 
 void LT_set_current_package(LT_Package* package){
+    LT_ThreadState* state = LT_thread_state();
+
     ensure_predefined_packages_initialized();
-    current_package = package;
-    current_package_is_set = 1;
+    state->current_package = package;
+    state->current_package_is_set = 1;
 }

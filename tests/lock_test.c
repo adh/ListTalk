@@ -14,6 +14,7 @@ enum {
 
 typedef struct MutexThreadArgs MutexThreadArgs;
 typedef struct RWLockThreadArgs RWLockThreadArgs;
+typedef struct CondThreadArgs CondThreadArgs;
 
 struct MutexThreadArgs {
     LT_MutexWord* mutex;
@@ -23,6 +24,15 @@ struct MutexThreadArgs {
 struct RWLockThreadArgs {
     LT_RWLockWord* lock;
     int* value;
+};
+
+struct CondThreadArgs {
+    LT_MutexWord* mutex;
+    LT_CondWord* cond;
+    LT_CondWord* ready_cond;
+    int* value;
+    int* waiting_count;
+    int* woken_count;
 };
 
 static int fail(const char* message)
@@ -60,6 +70,39 @@ static void* rwlock_thread_main(void* opaque)
         }
         LT_RWLockWord_read_unlock(args->lock);
     }
+
+    return NULL;
+}
+
+static void* cond_signal_thread_main(void* opaque)
+{
+    CondThreadArgs* args = opaque;
+
+    LT_MutexWord_lock(args->mutex);
+    while (*args->value == 0){
+        *args->waiting_count = 1;
+        LT_CondWord_signal(args->ready_cond);
+        LT_CondWord_wait(args->cond, args->mutex);
+    }
+    *args->woken_count = 1;
+    LT_MutexWord_unlock(args->mutex);
+
+    return NULL;
+}
+
+static void* cond_broadcast_thread_main(void* opaque)
+{
+    CondThreadArgs* args = opaque;
+
+    LT_MutexWord_lock(args->mutex);
+    ++*args->waiting_count;
+    LT_CondWord_signal(args->ready_cond);
+
+    while (*args->value == 0){
+        LT_CondWord_wait(args->cond, args->mutex);
+    }
+    ++*args->woken_count;
+    LT_MutexWord_unlock(args->mutex);
 
     return NULL;
 }
@@ -169,6 +212,97 @@ static int test_rwlock_try_lock(void)
     return 0;
 }
 
+static int test_cond_signal(void)
+{
+    LT_MutexWord mutex = LT_MUTEX_INITIALIZER;
+    LT_CondWord cond = LT_COND_INITIALIZER;
+    LT_CondWord ready_cond = LT_COND_INITIALIZER;
+    pthread_t thread;
+    CondThreadArgs args;
+    int value = 0;
+    int waiting_count = 0;
+    int woken_count = 0;
+
+    args.mutex = &mutex;
+    args.cond = &cond;
+    args.ready_cond = &ready_cond;
+    args.value = &value;
+    args.waiting_count = &waiting_count;
+    args.woken_count = &woken_count;
+
+    if (pthread_create(&thread, NULL, cond_signal_thread_main, &args) != 0){
+        return fail("pthread_create failed");
+    }
+
+    LT_MutexWord_lock(&mutex);
+    while (waiting_count == 0){
+        LT_CondWord_wait(&ready_cond, &mutex);
+    }
+    value = 1;
+    LT_CondWord_signal(&cond);
+    LT_MutexWord_unlock(&mutex);
+
+    if (pthread_join(thread, NULL) != 0){
+        return fail("pthread_join failed");
+    }
+
+    if (woken_count != 1){
+        return fail("cond signal failed to wake waiter");
+    }
+
+    return 0;
+}
+
+static int test_cond_broadcast(void)
+{
+    LT_MutexWord mutex = LT_MUTEX_INITIALIZER;
+    LT_CondWord cond = LT_COND_INITIALIZER;
+    LT_CondWord ready_cond = LT_COND_INITIALIZER;
+    pthread_t threads[THREAD_COUNT];
+    CondThreadArgs args;
+    int value = 0;
+    int waiting_count = 0;
+    int woken_count = 0;
+
+    args.mutex = &mutex;
+    args.cond = &cond;
+    args.ready_cond = &ready_cond;
+    args.value = &value;
+    args.waiting_count = &waiting_count;
+    args.woken_count = &woken_count;
+
+    for (int i = 0; i < THREAD_COUNT; ++i){
+        if (pthread_create(
+                &threads[i],
+                NULL,
+                cond_broadcast_thread_main,
+                &args
+            ) != 0){
+            return fail("pthread_create failed");
+        }
+    }
+
+    LT_MutexWord_lock(&mutex);
+    while (waiting_count != THREAD_COUNT){
+        LT_CondWord_wait(&ready_cond, &mutex);
+    }
+    value = 1;
+    LT_CondWord_broadcast(&cond);
+    LT_MutexWord_unlock(&mutex);
+
+    for (int i = 0; i < THREAD_COUNT; ++i){
+        if (pthread_join(threads[i], NULL) != 0){
+            return fail("pthread_join failed");
+        }
+    }
+
+    if (woken_count != THREAD_COUNT){
+        return fail("cond broadcast failed to wake waiters");
+    }
+
+    return 0;
+}
+
 int main(void)
 {
     if (test_mutex_try_lock() != 0){
@@ -181,6 +315,12 @@ int main(void)
         return 1;
     }
     if (test_rwlock_contention() != 0){
+        return 1;
+    }
+    if (test_cond_signal() != 0){
+        return 1;
+    }
+    if (test_cond_broadcast() != 0){
         return 1;
     }
 

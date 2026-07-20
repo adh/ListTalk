@@ -10,8 +10,6 @@
 #include <setjmp.h>
 #include <stdlib.h>
 
-_Thread_local LT_ThrowCatchFrame* LT__throw_catch_stack = NULL;
-
 _Noreturn void LT_throw(LT_Value tag, LT_Value value){
     LT_ThrowCatchFrame* frame = LT__throw_catch_stack;
     int has_matching_tag = 0;
