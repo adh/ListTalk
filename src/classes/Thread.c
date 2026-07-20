@@ -11,6 +11,7 @@
 #include <ListTalk/vm/error.h>
 
 #include <errno.h>
+#include <assert.h>
 
 struct LT_Thread_s {
     LT_Object base;
@@ -18,10 +19,11 @@ struct LT_Thread_s {
     LT_MutexWord state_lock;
     LT_Value callable;
     LT_Value result;
-    int finished;
-    int joined;
-    int detached;
-    int managed;
+    bool finished : 1;
+    bool joined : 1;
+    bool joining : 1;
+    bool detached : 1;
+    bool managed : 1;
 };
 
 static void Thread_debugPrintOn(LT_Value obj, FILE* stream){
@@ -252,21 +254,27 @@ LT_Value LT_Thread_join(LT_Thread* thread){
         LT_error("Cannot join unmanaged thread");
     }
     if (thread->joined){
-        result = thread->result;
         LT_MutexWord_unlock(&thread->state_lock);
-        return result;
+        LT_error("Cannot join thread that has already been joined");
     }
+    if (thread->joining){
+        LT_MutexWord_unlock(&thread->state_lock);
+        LT_error("Cannot join thread that is already being joined");
+    }
+    thread->joining = 1;
+    LT_MutexWord_unlock(&thread->state_lock);
 
     errnum = pthread_join(thread->pthread, NULL);
     if (errnum != 0){
-        LT_MutexWord_unlock(&thread->state_lock);
         LT_system_error("Could not join thread", errnum);
     }
 
+    LT_MutexWord_lock(&thread->state_lock);
     assert(thread->finished);
     thread->joined = 1;
+    thread->joining = 0;
     result = thread->result;
-    
+
     LT_MutexWord_unlock(&thread->state_lock);
     return result;
 }
