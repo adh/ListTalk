@@ -94,6 +94,7 @@ int LT_PointerHash_remove(
  * setup and native class initialization. So the VM is guaranteed to not be
  * in some weird state. */
 void LT_register_constructor(void (*ctor)(void));
+void LT_run_registered_constructors(void);
 
 #define LT_REGISTER_CONSTRUCTOR(ctor) \
     void __attribute__((constructor)) LT___register_constructor_##ctor(void){ \

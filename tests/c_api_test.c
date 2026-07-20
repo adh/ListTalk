@@ -17,6 +17,7 @@
 #include <string.h>
 #include <math.h>
 #include <pthread.h>
+#include <time.h>
 #include <unistd.h>
 
 static int fail(const char* message){
@@ -3299,6 +3300,53 @@ struct dynamic_variable_thread_test_args {
     int failed;
 };
 
+struct blocking_thread_callable_state {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    int started;
+    int release;
+};
+
+struct thread_join_test_args {
+    LT_Thread* thread;
+    LT_Value result;
+    int failed;
+};
+
+static struct blocking_thread_callable_state* blocking_thread_callable_state;
+
+static LT_Value primitive_blocking_thread_callable_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    struct blocking_thread_callable_state* state =
+        blocking_thread_callable_state;
+    (void)arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    pthread_mutex_lock(&state->mutex);
+    state->started = 1;
+    pthread_cond_broadcast(&state->cond);
+    while (!state->release){
+        pthread_cond_wait(&state->cond, &state->mutex);
+    }
+    pthread_mutex_unlock(&state->mutex);
+
+    return LT_SmallInteger_new(1234);
+}
+
+static LT_Primitive primitive_blocking_thread_callable = {
+    .function = primitive_blocking_thread_callable_impl,
+    .flags = 0,
+    .name = "blocking-thread-callable",
+    .arguments = "()",
+    .description = "Test helper that blocks until released."
+};
+
 static void* dynamic_variable_thread_test_main(void* data){
     struct dynamic_variable_thread_test_args* args =
         (struct dynamic_variable_thread_test_args*)data;
@@ -3309,6 +3357,80 @@ static void* dynamic_variable_thread_test_main(void* data){
         "DynamicVariable uses thread-local values"
     );
     return NULL;
+}
+
+static void* thread_join_test_main(void* data){
+    struct thread_join_test_args* args =
+        (struct thread_join_test_args*)data;
+
+    args->result = LT_Thread_join(args->thread);
+    args->failed = expect(
+        LT_Value_is_fixnum(args->result)
+            && LT_SmallInteger_value(args->result) == 1234,
+        "concurrent LT_Thread_join returns thread result"
+    );
+    return NULL;
+}
+
+static int test_thread_join_returns_result_to_concurrent_joiners(void){
+    struct blocking_thread_callable_state state = {
+        .mutex = PTHREAD_MUTEX_INITIALIZER,
+        .cond = PTHREAD_COND_INITIALIZER,
+        .started = 0,
+        .release = 0,
+    };
+    LT_Value callable =
+        LT_Primitive_from_static(&primitive_blocking_thread_callable);
+    LT_Thread* thread;
+    pthread_t join_threads[2];
+    struct thread_join_test_args args[2];
+    struct timespec joiner_delay = {
+        .tv_sec = 0,
+        .tv_nsec = 10000000,
+    };
+    LT_Value joined_again;
+    int failed = 0;
+
+    blocking_thread_callable_state = &state;
+    thread = LT_Thread_new(callable);
+
+    pthread_mutex_lock(&state.mutex);
+    while (!state.started){
+        pthread_cond_wait(&state.cond, &state.mutex);
+    }
+    pthread_mutex_unlock(&state.mutex);
+
+    for (int i = 0; i < 2; ++i){
+        args[i].thread = thread;
+        args[i].result = LT_NIL;
+        args[i].failed = 0;
+        if (pthread_create(&join_threads[i], NULL, thread_join_test_main, &args[i]) != 0){
+            return fail("pthread_create failed");
+        }
+    }
+
+    nanosleep(&joiner_delay, NULL);
+    pthread_mutex_lock(&state.mutex);
+    state.release = 1;
+    pthread_cond_broadcast(&state.cond);
+    pthread_mutex_unlock(&state.mutex);
+
+    for (int i = 0; i < 2; ++i){
+        if (pthread_join(join_threads[i], NULL) != 0){
+            return fail("pthread_join failed");
+        }
+        failed += args[i].failed;
+    }
+
+    joined_again = LT_Thread_join(thread);
+    failed += expect(
+        LT_Value_is_fixnum(joined_again)
+            && LT_SmallInteger_value(joined_again) == 1234,
+        "LT_Thread_join returns result after previous join"
+    );
+
+    blocking_thread_callable_state = NULL;
+    return failed;
 }
 
 static int test_dynamic_variable_c_api_uses_thread_local_values(void){
@@ -3434,6 +3556,7 @@ int main(void){
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);
+    RUN_TEST(test_thread_join_returns_result_to_concurrent_joiners);
     RUN_TEST(test_dynamic_variable_c_api_uses_thread_local_values);
 
 #undef RUN_TEST

@@ -495,7 +495,44 @@ int LT_PointerHash_remove(LT_InlineHash* h, void* key, void** value_out){
     return 0;
 }
 
+enum {
+    LT_REGISTERED_CONSTRUCTOR_CAPACITY = 256,
+};
+
+static void (*LT_registered_constructors[LT_REGISTERED_CONSTRUCTOR_CAPACITY])(void);
+static size_t LT_registered_constructor_count = 0;
+static size_t LT_registered_constructor_run_count = 0;
+static int LT_registered_constructors_running = 0;
+static int LT_registered_constructors_ran = 0;
+
 void LT_register_constructor(void (*ctor)(void)){
-    /* TODO: handle VM initialization internal states */
-    ctor();
+    if (LT_registered_constructors_ran &&
+        !LT_registered_constructors_running){
+        ctor();
+        return;
+    }
+
+    if (LT_registered_constructor_count >=
+        LT_REGISTERED_CONSTRUCTOR_CAPACITY){
+        fputs("Too many ListTalk native constructors\n", stderr);
+        abort();
+    }
+
+    LT_registered_constructors[LT_registered_constructor_count++] = ctor;
+}
+
+void LT_run_registered_constructors(void){
+    if (LT_registered_constructors_ran){
+        return;
+    }
+
+    LT_registered_constructors_running = 1;
+    while (LT_registered_constructor_run_count <
+           LT_registered_constructor_count){
+        void (*ctor)(void) =
+            LT_registered_constructors[LT_registered_constructor_run_count++];
+        ctor();
+    }
+    LT_registered_constructors_running = 0;
+    LT_registered_constructors_ran = 1;
 }
