@@ -256,16 +256,17 @@ LT_Value LT_Thread_join(LT_Thread* thread){
         LT_MutexWord_unlock(&thread->state_lock);
         return result;
     }
-    thread->joined = 1;
-    LT_MutexWord_unlock(&thread->state_lock);
 
     errnum = pthread_join(thread->pthread, NULL);
     if (errnum != 0){
+        LT_MutexWord_unlock(&thread->state_lock);
         LT_system_error("Could not join thread", errnum);
     }
 
-    LT_MutexWord_lock(&thread->state_lock);
+    assert(thread->finished);
+    thread->joined = 1;
     result = thread->result;
+    
     LT_MutexWord_unlock(&thread->state_lock);
     return result;
 }
