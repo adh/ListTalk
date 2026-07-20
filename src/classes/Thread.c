@@ -234,6 +234,7 @@ LT_Thread* LT_Thread_current(void){
         current_thread->result = LT_NIL;
         current_thread->finished = 1;
         current_thread->joined = 1;
+        current_thread->joining = 0;
         current_thread->detached = 0;
         current_thread->managed = 0;
     }
