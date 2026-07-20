@@ -212,6 +212,7 @@ LT_Thread* LT_Thread_new(LT_Value callable){
     thread->result = LT_NIL;
     thread->finished = 0;
     thread->joined = 0;
+    thread->joining = 0;
     thread->detached = 0;
     thread->managed = 1;
 
@@ -233,6 +234,7 @@ LT_Thread* LT_Thread_current(void){
         current_thread->result = LT_NIL;
         current_thread->finished = 1;
         current_thread->joined = 1;
+        current_thread->joining = 0;
         current_thread->detached = 0;
         current_thread->managed = 0;
     }
