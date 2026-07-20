@@ -11,9 +11,8 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/thread_state.h>
 #include <ListTalk/utils.h>
-
-static _Thread_local LT_Value primitive_reader_error_tag = LT_NIL;
 
 static LT_Value primitive_reader_error_handler_impl(
     LT_Value arguments,
@@ -30,7 +29,7 @@ static LT_Value primitive_reader_error_handler_impl(
     LT_OBJECT_ARG(cursor, condition);
     LT_ARG_END(cursor);
     (void)condition;
-    LT_throw(primitive_reader_error_tag, LT_TRUE);
+    LT_throw(LT_thread_state()->primitive_reader_error_tag, LT_TRUE);
 }
 
 static LT_Primitive primitive_reader_error_handler = {
@@ -71,8 +70,9 @@ static LT_Value primitive_parse_arguments_or_string(char* arguments_text){
 
     reader = LT_Reader_new(LT_NIL);
     stream = LT_ReaderStream_newForString(arguments_text);
-    primitive_reader_error_tag = LT_Symbol_new("primitive-reader-error");
-    LT_CATCH(primitive_reader_error_tag, caught, {
+    LT_thread_state()->primitive_reader_error_tag =
+        LT_Symbol_new("primitive-reader-error");
+    LT_CATCH(LT_thread_state()->primitive_reader_error_tag, caught, {
         LT_HANDLER_BIND(LT_Primitive_from_static(&primitive_reader_error_handler), {
             parsed = LT_Reader_readObject(reader, stream);
         });

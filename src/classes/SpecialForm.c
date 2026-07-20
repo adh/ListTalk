@@ -12,9 +12,8 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/thread_state.h>
 #include <ListTalk/utils.h>
-
-static _Thread_local LT_Value special_form_reader_error_tag = LT_NIL;
 
 static LT_Value special_form_reader_error_handler_impl(
     LT_Value arguments,
@@ -31,7 +30,7 @@ static LT_Value special_form_reader_error_handler_impl(
     LT_OBJECT_ARG(cursor, condition);
     LT_ARG_END(cursor);
     (void)condition;
-    LT_throw(special_form_reader_error_tag, LT_TRUE);
+    LT_throw(LT_thread_state()->special_form_reader_error_tag, LT_TRUE);
 }
 
 static LT_Primitive special_form_reader_error_handler = {
@@ -72,8 +71,9 @@ static LT_Value special_form_parse_arguments_or_string(char* arguments_text){
 
     reader = LT_Reader_new(LT_NIL);
     stream = LT_ReaderStream_newForString(arguments_text);
-    special_form_reader_error_tag = LT_Symbol_new("special-form-reader-error");
-    LT_CATCH(special_form_reader_error_tag, caught, {
+    LT_thread_state()->special_form_reader_error_tag =
+        LT_Symbol_new("special-form-reader-error");
+    LT_CATCH(LT_thread_state()->special_form_reader_error_tag, caught, {
         LT_HANDLER_BIND(LT_Primitive_from_static(&special_form_reader_error_handler), {
             parsed = LT_Reader_readObject(reader, stream);
         });

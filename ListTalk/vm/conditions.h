@@ -8,6 +8,7 @@
 
 #include <ListTalk/macros/env_macros.h>
 #include <ListTalk/vm/value.h>
+#include <ListTalk/vm/thread_state.h>
 #include <ListTalk/vm/throw_catch.h>
 
 LT__BEGIN_DECLS
@@ -22,8 +23,8 @@ typedef struct LT_RestartFrame_s {
     struct LT_RestartFrame_s* previous;
 } LT_RestartFrame;
 
-extern _Thread_local LT_ConditionHandlerFrame* LT__condition_handler_stack;
-extern _Thread_local LT_RestartFrame* LT__restart_stack;
+#define LT__condition_handler_stack (LT_thread_state()->condition_handler_stack)
+#define LT__restart_stack (LT_thread_state()->restart_stack)
 
 void LT_signal(LT_Value condition);
 LT_Value LT_current_restarts(void);

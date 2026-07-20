@@ -9,6 +9,7 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/thread_state.h>
 
 #include <errno.h>
 #include <assert.h>
@@ -18,7 +19,7 @@ struct LT_Thread_s {
     pthread_t pthread;
     LT_MutexWord state_lock;
     LT_CondWord state_cond;
-    LT_Thread* active_next;
+    LT_ThreadState* thread_state;
     LT_Value callable;
     LT_Value result;
     bool finished : 1;
@@ -187,50 +188,23 @@ LT_DEFINE_CLASS(LT_Thread) {
     .class_methods = Thread_class_methods,
 };
 
-static LT_MutexWord active_threads_lock = LT_MUTEX_INITIALIZER;
-static LT_Thread* active_threads = NULL;
-_Thread_local LT_Thread* current_thread = NULL;
-
-static void active_threads_add(LT_Thread* thread){
-    LT_MutexWord_lock(&active_threads_lock);
-    thread->active_next = active_threads;
-    active_threads = thread;
-    LT_MutexWord_unlock(&active_threads_lock);
-}
-
-static void active_threads_remove(LT_Thread* thread){
-    LT_Thread** cursor;
-
-    LT_MutexWord_lock(&active_threads_lock);
-    cursor = &active_threads;
-    while (*cursor != NULL){
-        if (*cursor == thread){
-            *cursor = thread->active_next;
-            thread->active_next = NULL;
-            break;
-        }
-        cursor = &(*cursor)->active_next;
-    }
-    LT_MutexWord_unlock(&active_threads_lock);
-}
-
 static void* thread_main(void* opaque){
     LT_Thread* thread = opaque;
+    LT_ThreadState* state = LT_thread_state();
     LT_Value result;
-    int detached;
 
-    current_thread = thread;
+    LT_MutexWord_lock(&thread->state_lock);
+    thread->thread_state = state;
+    LT_MutexWord_unlock(&thread->state_lock);
+
+    state->current_thread = thread;
     result = LT_apply(thread->callable, LT_NIL, LT_NIL, LT_NIL, NULL);
 
     LT_MutexWord_lock(&thread->state_lock);
     thread->result = result;
     thread->finished = 1;
-    detached = thread->detached;
+    thread->thread_state = NULL;
     LT_MutexWord_unlock(&thread->state_lock);
-
-    if (detached){
-        active_threads_remove(thread);
-    }
 
     return NULL;
 }
@@ -241,7 +215,7 @@ LT_Thread* LT_Thread_new(LT_Value callable){
 
     LT_MutexWord_init(&thread->state_lock);
     LT_CondWord_init(&thread->state_cond);
-    thread->active_next = NULL;
+    thread->thread_state = NULL;
     thread->callable = callable;
     thread->result = LT_NIL;
     thread->finished = 0;
@@ -250,10 +224,8 @@ LT_Thread* LT_Thread_new(LT_Value callable){
     thread->detached = 0;
     thread->managed = 1;
 
-    active_threads_add(thread);
     errnum = pthread_create(&thread->pthread, NULL, thread_main, thread);
     if (errnum != 0){
-        active_threads_remove(thread);
         LT_system_error("Could not create thread", errnum);
     }
 
@@ -262,21 +234,23 @@ LT_Thread* LT_Thread_new(LT_Value callable){
 
 
 LT_Thread* LT_Thread_current(void){
-    if (current_thread == NULL){
-        current_thread = LT_Class_ALLOC(LT_Thread);
-        current_thread->pthread = pthread_self();
-        LT_MutexWord_init(&current_thread->state_lock);
-        LT_CondWord_init(&current_thread->state_cond);
-        current_thread->active_next = NULL;
-        current_thread->callable = LT_NIL;
-        current_thread->result = LT_NIL;
-        current_thread->finished = 1;
-        current_thread->joined = 1;
-        current_thread->joining = 0;
-        current_thread->detached = 0;
-        current_thread->managed = 0;
+    LT_ThreadState* state = LT_thread_state();
+
+    if (state->current_thread == NULL){
+        state->current_thread = LT_Class_ALLOC(LT_Thread);
+        state->current_thread->pthread = pthread_self();
+        LT_MutexWord_init(&state->current_thread->state_lock);
+        LT_CondWord_init(&state->current_thread->state_cond);
+        state->current_thread->thread_state = state;
+        state->current_thread->callable = LT_NIL;
+        state->current_thread->result = LT_NIL;
+        state->current_thread->finished = 1;
+        state->current_thread->joined = 1;
+        state->current_thread->joining = 0;
+        state->current_thread->detached = 0;
+        state->current_thread->managed = 0;
     }
-    return current_thread;
+    return state->current_thread;
 }
     
 
@@ -321,13 +295,11 @@ LT_Value LT_Thread_join(LT_Thread* thread){
     LT_CondWord_broadcast(&thread->state_cond);
 
     LT_MutexWord_unlock(&thread->state_lock);
-    active_threads_remove(thread);
     return result;
 }
 
 void LT_Thread_makeDetached(LT_Thread* thread){
     int errnum;
-    int finished;
 
     LT_MutexWord_lock(&thread->state_lock);
     if (thread->joined){
@@ -347,15 +319,11 @@ void LT_Thread_makeDetached(LT_Thread* thread){
         return;
     }
     thread->detached = 1;
-    finished = thread->finished;
     LT_MutexWord_unlock(&thread->state_lock);
 
     errnum = pthread_detach(thread->pthread);
     if (errnum != 0){
         LT_system_error("Could not detach thread", errnum);
-    }
-    if (finished){
-        active_threads_remove(thread);
     }
 }
 

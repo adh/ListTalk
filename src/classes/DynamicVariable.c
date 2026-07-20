@@ -9,6 +9,7 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/thread_state.h>
 
 #include <inttypes.h>
 #include <stddef.h>
@@ -18,13 +19,13 @@ struct LT_DynamicVariable_s {
     LT_Value default_value;
 };
 
-static _Thread_local LT_WeakKeyIdentityDictionary* thread_dynamic_values = NULL;
-
 static LT_IdentityDictionary* dynamic_value_dictionary(void){
-    if (thread_dynamic_values == NULL){
-        thread_dynamic_values = LT_WeakKeyIdentityDictionary_new();
+    LT_ThreadState* state = LT_thread_state();
+
+    if (state->dynamic_values == NULL){
+        state->dynamic_values = LT_WeakKeyIdentityDictionary_new();
     }
-    return (LT_IdentityDictionary*)thread_dynamic_values;
+    return (LT_IdentityDictionary*)state->dynamic_values;
 }
 
 static void DynamicVariable_debugPrintOn(LT_Value obj, FILE* stream){
@@ -124,13 +125,14 @@ LT_DynamicVariable* LT_DynamicVariable_new(LT_Value default_value){
 }
 
 LT_Value LT_DynamicVariable_value(LT_DynamicVariable* variable){
+    LT_ThreadState* state = LT_thread_state();
     LT_Value value;
 
-    if (thread_dynamic_values == NULL){
+    if (state->dynamic_values == NULL){
         return variable->default_value;
     }
     if (!LT_IdentityDictionary_at(
-        (LT_IdentityDictionary*)thread_dynamic_values,
+        (LT_IdentityDictionary*)state->dynamic_values,
         (LT_Value)(uintptr_t)variable,
         &value
     )){
