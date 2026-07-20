@@ -28,8 +28,6 @@ struct LT_ThreadState_s {
     LT_WeakKeyIdentityDictionary* dynamic_values;
     LT_Package* current_package;
     LT_Thread* current_thread;
-    LT_Value primitive_reader_error_tag;
-    LT_Value special_form_reader_error_tag;
     int current_package_is_set;
 };
 

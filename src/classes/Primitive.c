@@ -5,40 +5,11 @@
 
 #include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
-#include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/Class.h>
-#include <ListTalk/vm/thread_state.h>
+#include <ListTalk/vm/metadata.h>
 #include <ListTalk/utils.h>
-
-static LT_Value primitive_reader_error_handler_impl(
-    LT_Value arguments,
-    LT_Value invocation_context_kind,
-    LT_Value invocation_context_data,
-    LT_TailCallUnwindMarker* tail_call_unwind_marker
-){
-    LT_Value cursor = arguments;
-    LT_Value condition;
-    (void)invocation_context_kind;
-    (void)invocation_context_data;
-    (void)tail_call_unwind_marker;
-
-    LT_OBJECT_ARG(cursor, condition);
-    LT_ARG_END(cursor);
-    (void)condition;
-    LT_throw(LT_thread_state()->primitive_reader_error_tag, LT_TRUE);
-}
-
-static LT_Primitive primitive_reader_error_handler = {
-    .function = primitive_reader_error_handler_impl,
-    .flags = 0,
-    .name = "primitive-reader-error-handler",
-    .arguments = "(condition)",
-    .description = "Catch reader errors while parsing primitive metadata."
-};
 
 static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
     LT_Primitive* primitive = LT_Primitive_from_value(obj);
@@ -56,32 +27,6 @@ static LT_Value primitive_string_or_nil(char* string){
         return LT_NIL;
     }
     return (LT_Value)(uintptr_t)LT_String_new_cstr(string);
-}
-
-static LT_Value primitive_parse_arguments_or_string(char* arguments_text){
-    LT_Value caught = LT_NIL;
-    LT_Value parsed = LT_NIL;
-    LT_Reader* reader;
-    LT_ReaderStream* stream;
-
-    if (arguments_text == NULL){
-        return LT_NIL;
-    }
-
-    reader = LT_Reader_new(LT_NIL);
-    stream = LT_ReaderStream_newForString(arguments_text);
-    LT_thread_state()->primitive_reader_error_tag =
-        LT_Symbol_new("primitive-reader-error");
-    LT_CATCH(LT_thread_state()->primitive_reader_error_tag, caught, {
-        LT_HANDLER_BIND(LT_Primitive_from_static(&primitive_reader_error_handler), {
-            parsed = LT_Reader_readObject(reader, stream);
-        });
-    });
-
-    if (caught != LT_NIL){
-        return (LT_Value)(uintptr_t)LT_String_new_cstr(arguments_text);
-    }
-    return parsed;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -113,7 +58,7 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    return primitive_parse_arguments_or_string(
+    return LT_parse_lambda_list_metadata(
         LT_Primitive_arguments(LT_Primitive_from_value(self))
     );
 }

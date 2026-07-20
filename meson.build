@@ -80,6 +80,7 @@ vm_lib = library(
                 'src/vm/cmdopts.c',
                 'src/vm/init.c',
                 'src/vm/thread_state.c',
+                'src/vm/metadata.c',
                 'src/vm/error.c',
                 'src/vm/stack_trace.c',
                 'src/vm/conditions.c',

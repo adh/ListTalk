@@ -35,8 +35,6 @@ LT_ThreadState* LT_thread_state_slow(void)
     if (state == NULL){
         state = GC_MALLOC_UNCOLLECTABLE(sizeof(LT_ThreadState));
         memset(state, 0, sizeof(LT_ThreadState));
-        state->primitive_reader_error_tag = LT_NIL;
-        state->special_form_reader_error_tag = LT_NIL;
         pthread_setspecific(LT_thread_state_key, state);
     }
 
