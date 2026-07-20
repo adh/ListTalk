@@ -15,9 +15,11 @@ LT__BEGIN_DECLS
 
 typedef _Atomic(uintptr_t) LT_MutexWord;
 typedef _Atomic(uintptr_t) LT_RWLockWord;
+typedef _Atomic(uintptr_t) LT_CondWord;
 
 #define LT_MUTEX_INITIALIZER ATOMIC_VAR_INIT(0)
 #define LT_RWLOCK_INITIALIZER ATOMIC_VAR_INIT(0)
+#define LT_COND_INITIALIZER ATOMIC_VAR_INIT(0)
 
 enum {
     LT_MUTEX_UNLOCKED = 0,
@@ -36,6 +38,10 @@ void LT_MutexWord_unlock_slow(LT_MutexWord* mutex);
 void LT_RWLockWord_read_lock_slow(LT_RWLockWord* lock);
 void LT_RWLockWord_write_lock_slow(LT_RWLockWord* lock);
 void LT_RWLockWord_unlock_slow(LT_RWLockWord* lock);
+
+void LT_CondWord_wait(LT_CondWord* cond, LT_MutexWord* mutex);
+void LT_CondWord_signal(LT_CondWord* cond);
+void LT_CondWord_broadcast(LT_CondWord* cond);
 
 static inline void LT_MutexWord_init(LT_MutexWord* mutex)
 {
@@ -77,6 +83,11 @@ static inline void LT_MutexWord_unlock(LT_MutexWord* mutex)
 static inline void LT_RWLockWord_init(LT_RWLockWord* lock)
 {
     atomic_init(lock, 0);
+}
+
+static inline void LT_CondWord_init(LT_CondWord* cond)
+{
+    atomic_init(cond, 0);
 }
 
 static inline int LT_RWLockWord_try_read_lock(LT_RWLockWord* lock)

@@ -17,6 +17,7 @@ struct LT_LockWaitQueue {
 };
 
 static LT_LockWaitQueue LT_lock_wait_queues[LT_LOCK_WAIT_QUEUE_COUNT];
+static LT_LockWaitQueue LT_cond_wait_queues[LT_LOCK_WAIT_QUEUE_COUNT];
 static pthread_once_t LT_lock_wait_queues_once = PTHREAD_ONCE_INIT;
 
 static void LT_lock_wait_queues_init(void)
@@ -24,10 +25,12 @@ static void LT_lock_wait_queues_init(void)
     for (size_t i = 0; i < LT_LOCK_WAIT_QUEUE_COUNT; ++i){
         pthread_mutex_init(&LT_lock_wait_queues[i].mutex, NULL);
         pthread_cond_init(&LT_lock_wait_queues[i].cond, NULL);
+        pthread_mutex_init(&LT_cond_wait_queues[i].mutex, NULL);
+        pthread_cond_init(&LT_cond_wait_queues[i].cond, NULL);
     }
 }
 
-static LT_LockWaitQueue* LT_lock_wait_queue_for(const void* address)
+static size_t LT_lock_wait_queue_index(const void* address)
 {
     uintptr_t hash = (uintptr_t) address;
 
@@ -37,7 +40,17 @@ static LT_LockWaitQueue* LT_lock_wait_queue_for(const void* address)
     hash *= (uintptr_t) 0xff51afd7ed558ccdULL;
     hash ^= hash >> 33;
 
-    return &LT_lock_wait_queues[hash & (LT_LOCK_WAIT_QUEUE_COUNT - 1)];
+    return hash & (LT_LOCK_WAIT_QUEUE_COUNT - 1);
+}
+
+static LT_LockWaitQueue* LT_lock_wait_queue_for(const void* address)
+{
+    return &LT_lock_wait_queues[LT_lock_wait_queue_index(address)];
+}
+
+static LT_LockWaitQueue* LT_cond_wait_queue_for(const void* address)
+{
+    return &LT_cond_wait_queues[LT_lock_wait_queue_index(address)];
 }
 
 void LT_MutexWord_lock_slow(LT_MutexWord* mutex)
@@ -133,6 +146,43 @@ void LT_RWLockWord_unlock_slow(LT_RWLockWord* lock)
     LT_LockWaitQueue* queue = LT_lock_wait_queue_for(lock);
 
     pthread_mutex_lock(&queue->mutex);
+    pthread_cond_broadcast(&queue->cond);
+    pthread_mutex_unlock(&queue->mutex);
+}
+
+void LT_CondWord_wait(LT_CondWord* cond, LT_MutexWord* mutex)
+{
+    LT_LockWaitQueue* queue = LT_cond_wait_queue_for(cond);
+
+    pthread_mutex_lock(&queue->mutex);
+    uintptr_t sequence = atomic_load_explicit(cond, memory_order_acquire);
+
+    LT_MutexWord_unlock(mutex);
+
+    while (atomic_load_explicit(cond, memory_order_acquire) == sequence){
+        pthread_cond_wait(&queue->cond, &queue->mutex);
+    }
+
+    pthread_mutex_unlock(&queue->mutex);
+    LT_MutexWord_lock(mutex);
+}
+
+void LT_CondWord_signal(LT_CondWord* cond)
+{
+    LT_LockWaitQueue* queue = LT_cond_wait_queue_for(cond);
+
+    pthread_mutex_lock(&queue->mutex);
+    atomic_fetch_add_explicit(cond, 1, memory_order_release);
+    pthread_cond_signal(&queue->cond);
+    pthread_mutex_unlock(&queue->mutex);
+}
+
+void LT_CondWord_broadcast(LT_CondWord* cond)
+{
+    LT_LockWaitQueue* queue = LT_cond_wait_queue_for(cond);
+
+    pthread_mutex_lock(&queue->mutex);
+    atomic_fetch_add_explicit(cond, 1, memory_order_release);
     pthread_cond_broadcast(&queue->cond);
     pthread_mutex_unlock(&queue->mutex);
 }
