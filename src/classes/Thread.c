@@ -8,6 +8,14 @@
 #define _GNU_SOURCE
 #endif
 #endif
+#ifdef __APPLE__
+#ifndef _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
+#endif
+#endif
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+#include <pthread_np.h>
+#endif
 
 #include <ListTalk/classes/Thread.h>
 #include <ListTalk/classes/Primitive.h>
@@ -257,8 +265,10 @@ static void set_current_native_thread_name(char* name){
 
 #ifdef __APPLE__
     (void)pthread_setname_np(name);
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__NETBSD__)
     (void)pthread_setname_np(pthread_self(), name);
+#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+    (void)pthread_set_name_np(pthread_self(), name);
 #endif
 }
 
