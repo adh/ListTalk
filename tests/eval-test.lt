@@ -233,6 +233,56 @@
        "ConditionVariable class>>new: stores name")
 (check (eq? [[Mutex new: :eval-mutex-symbol] name] :eval-mutex-symbol)
        "synchronization names can be arbitrary objects")
+(let ((mutex [Mutex new])
+      (ran #false))
+  (check (= (with-mutex mutex
+              (set! ran #true)
+              42)
+            42)
+         "with-mutex returns body value")
+  (check ran "with-mutex evaluates body")
+  (check [mutex tryLock] "with-mutex releases mutex after normal return")
+  [mutex unlock]
+  (check (= (catch :with-mutex-exit
+              (with-mutex mutex
+                (throw :with-mutex-exit 7)))
+            7)
+         "with-mutex propagates non-local exit value")
+  (check [mutex tryLock] "with-mutex releases mutex on non-local exit")
+  [mutex unlock])
+(let ((rwlock [ReadWriteLock new])
+      (ran-read #false)
+      (ran-write #false))
+  (check (= (with-read-lock rwlock
+              (set! ran-read #true)
+              (if [rwlock tryWriteLock] 0 13))
+            13)
+         "with-read-lock holds lock and returns body value")
+  (check ran-read "with-read-lock evaluates body")
+  (check [rwlock tryWriteLock] "with-read-lock releases lock after normal return")
+  [rwlock writeUnlock]
+  (check (= (catch :with-read-lock-exit
+              (with-read-lock rwlock
+                (throw :with-read-lock-exit 17)))
+            17)
+         "with-read-lock propagates non-local exit value")
+  (check [rwlock tryWriteLock] "with-read-lock releases lock on non-local exit")
+  [rwlock writeUnlock]
+  (check (= (with-write-lock rwlock
+              (set! ran-write #true)
+              (if [rwlock tryReadLock] 0 19))
+            19)
+         "with-write-lock holds lock and returns body value")
+  (check ran-write "with-write-lock evaluates body")
+  (check [rwlock tryReadLock] "with-write-lock releases lock after normal return")
+  [rwlock readUnlock]
+  (check (= (catch :with-write-lock-exit
+              (with-write-lock rwlock
+                (throw :with-write-lock-exit 23)))
+            23)
+         "with-write-lock propagates non-local exit value")
+  (check [rwlock tryReadLock] "with-write-lock releases lock on non-local exit")
+  [rwlock readUnlock])
 (define-mutex eval-defined-mutex)
 (check (equal? [eval-defined-mutex name] 'eval-defined-mutex)
        "define-mutex names the mutex after the binding")

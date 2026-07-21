@@ -330,15 +330,15 @@
 
 (define-macro (ListTalk:with-mutex mutex . body)
   "Evaluate body with mutex locked, unlocking on exit."
-  `[mutex do: (ListTalk-implementation:%lambda '() ,@body)])
+  `[,mutex do: (ListTalk-implementation:%lambda '() () ,@body)])
 
 (define-macro (ListTalk:with-read-lock rwlock . body)
   "Evaluate body with read lock held, unlocking on exit."
-  `[rwlock readDo: (ListTalk-implementation:%lambda '() ,@body)])
+  `[,rwlock readDo: (ListTalk-implementation:%lambda '() () ,@body)])
 
 (define-macro (ListTalk:with-write-lock rwlock . body)
   "Evaluate body with write lock held, unlocking on exit."
-  `[rwlock writeDo: (ListTalk-implementation:%lambda '() ,@body)])
+  `[,rwlock writeDo: (ListTalk-implementation:%lambda '() () ,@body)])
 
 (define-macro (ListTalk:define-mutex name)
   "Define a mutex with the given name."
