@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 static const char hex_alphabet[] = "0123456789abcdef";
+static const char hex_upper_alphabet[] = "0123456789ABCDEF";
 
 static int ascii_whitespace_p(unsigned char ch){
     return ch == ' '
@@ -33,7 +34,11 @@ static int hex_decode_char(unsigned char ch){
     return -1;
 }
 
-char* LT_hex_encode(const uint8_t* bytes, size_t length, size_t* length_out){
+char* LT_hex_encode(const uint8_t* bytes,
+                    size_t length,
+                    int uppercase,
+                    size_t* length_out){
+    const char* alphabet = uppercase ? hex_upper_alphabet : hex_alphabet;
     size_t encoded_length;
     char* encoded;
     size_t i;
@@ -45,8 +50,8 @@ char* LT_hex_encode(const uint8_t* bytes, size_t length, size_t* length_out){
     encoded_length = length * 2;
     encoded = GC_MALLOC_ATOMIC(encoded_length + 1);
     for (i = 0; i < length; i++){
-        encoded[i * 2] = hex_alphabet[bytes[i] >> 4];
-        encoded[i * 2 + 1] = hex_alphabet[bytes[i] & 0x0f];
+        encoded[i * 2] = alphabet[bytes[i] >> 4];
+        encoded[i * 2 + 1] = alphabet[bytes[i] & 0x0f];
     }
     encoded[encoded_length] = '\0';
     *length_out = encoded_length;

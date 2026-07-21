@@ -715,6 +715,31 @@ LT_DEFINE_PRIMITIVE(
     encoded = LT_hex_encode(
         LT_ByteVector_bytes(bytevector),
         LT_ByteVector_length(bytevector),
+        0,
+        &encoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_base16,
+    "ByteVector>>asBase16",
+    "(self)",
+    "Return an uppercase hexadecimal string encoding the receiver bytes."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    char* encoded;
+    size_t encoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+
+    encoded = LT_hex_encode(
+        LT_ByteVector_bytes(bytevector),
+        LT_ByteVector_length(bytevector),
+        1,
         &encoded_length
     );
     return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
@@ -792,6 +817,7 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"asBase64URI", &bytevector_method_as_base64_uri},
     {"asBase64URIWithPadding:", &bytevector_method_as_base64_uri_with_padding},
     {"hex", &bytevector_method_hex},
+    {"asBase16", &bytevector_method_as_base16},
     {"asList", &bytevector_method_as_list},
     {"asIterator", &bytevector_method_as_iterator},
     {"writeToFile:", &bytevector_method_write_to_file},

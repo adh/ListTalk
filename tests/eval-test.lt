@@ -1103,6 +1103,8 @@
        "ByteVector>>asString converts to String")
 (check (equal? [(bytevector 0 1 10 16 255) hex] "00010a10ff")
        "ByteVector>>hex encodes lowercase hexadecimal")
+(check (equal? [(bytevector 0 1 10 16 255) asBase16] "00010A10FF")
+       "ByteVector>>asBase16 encodes uppercase hexadecimal")
 (check (equal? ["" asHexByteVector] (bytevector))
        "String>>asHexByteVector decodes empty input")
 (check (equal? ["00010A10ff" asHexByteVector] (bytevector 0 1 10 16 255))

@@ -13,7 +13,10 @@
 
 LT__BEGIN_DECLS
 
-char* LT_hex_encode(const uint8_t* bytes, size_t length, size_t* length_out);
+char* LT_hex_encode(const uint8_t* bytes,
+                    size_t length,
+                    int uppercase,
+                    size_t* length_out);
 uint8_t* LT_hex_decode(const char* string, size_t length, size_t* length_out);
 
 LT__END_DECLS
