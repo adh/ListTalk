@@ -1664,6 +1664,7 @@
 ;;; Lambda
 
 (check (= ((lambda (x y) (+ x y)) 3 4) 7) "closure application")
+(check (= ((λ (x y) (+ x y)) 3 4) 7) "lambda unicode alias")
 (check (= ({x y (+ x y)} 3 4) 7) "closure syntax with symbol parameter prefix")
 (check (= ({(+ 19 23)}) 42) "closure syntax without parameters")
 (check (= ({x x} 42) 42) "closure syntax uses final all-symbol argument as body")
@@ -1803,6 +1804,14 @@
 (check (closure? add2) "lambda returns closure")
 
 ;;; define function/macro constant bindings
+
+(define-constant runtime-constant 42)
+(check (= runtime-constant 42) "define-constant binds value")
+
+(let ((c (raises? (lambda () (set! runtime-constant 43)))))
+  (check (and c (equal? (slot-ref c 'message)
+                        "Special form set! expected existing mutable binding"))
+         "define-constant creates constant binding"))
 
 (define (const-fn x) x)
 (let ((c (raises? (lambda () (set! const-fn (lambda (x) x))))))

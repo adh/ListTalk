@@ -9,6 +9,14 @@
 (ListTalk:in-package :ListTalk-implementation)
 (ListTalk:use-package :ListTalk)
 
+(%define ListTalk:define-constant
+  (macro
+    (%lambda 'define-constant (target . body)
+      "Define a constant value or function."
+      (if (pair? target)
+          `(%define-constant ,(car target) (%lambda ',(car target) ,(cdr target) ,@body))
+          `(%define-constant ,target ,(car body))))))
+
 (%define ListTalk:define-macro
   (macro
     (%lambda 'define-macro (target . body)
@@ -22,6 +30,8 @@
 (ListTalk:define-macro (ListTalk:lambda parameters . body)
   "Construct an anonymous closure."
   `(%lambda '() ,parameters ,@body))
+
+(ListTalk:define-constant ListTalk:λ ListTalk:lambda)
 
 (ListTalk:define-macro (ListTalk:let bindings-or-name . body)
   "Evaluate body with lexical bindings, or create and call a named local function."
