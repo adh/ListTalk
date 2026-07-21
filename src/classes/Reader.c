@@ -71,6 +71,7 @@ static LT_Value read_object_from_first(
 );
 static int reader_syntax_sugar_enabled(LT_Reader* reader);
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_closure_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_bytevector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_bytevector_string_literal(
@@ -1787,6 +1788,37 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
     }
 }
 
+static LT_Value read_closure_form(LT_Reader* reader, LT_ReaderStream* stream){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value source_location = reader_source_location(reader);
+    int ch;
+
+    LT_ListBuilder_append(
+        builder,
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK_IMPLEMENTATION, "%closure")
+    );
+
+    ch = read_non_space_char(reader, stream);
+    while (ch != '}'){
+        LT_Value item;
+
+        if (ch == EOF){
+            reader_incomplete_input(reader, "Unterminated closure form");
+        }
+
+        item = read_object_from_first(reader, stream, ch);
+        LT_ListBuilder_append(builder, item);
+        ch = read_non_space_char(reader, stream);
+    }
+
+    return reader_immutable_list_from_builder(
+        reader,
+        source_location,
+        builder,
+        LT_NIL
+    );
+}
+
 static char* read_token_string(LT_Reader* reader, int first, LT_ReaderStream* stream){
     return read_token(reader, first, stream).token;
 }
@@ -1972,6 +2004,9 @@ static LT_Value read_object_from_first(
     if (first == '('){
         return read_list(reader, stream);
     }
+    if (first == '{'){
+        return read_closure_form(reader, stream);
+    }
     if (first == '[' && reader_syntax_sugar_enabled(reader)){
         return read_bracket_form(reader, stream);
     }
@@ -1983,6 +2018,9 @@ static LT_Value read_object_from_first(
     }
     if (first == ']'){
         reader_error(reader, "Unexpected ']'");
+    }
+    if (first == '}'){
+        reader_error(reader, "Unexpected '}'");
     }
     if (first == '\''){
         return read_quote_syntax(reader, stream);
