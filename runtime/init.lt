@@ -83,7 +83,7 @@
             (expand (cdr remaining) (cons (car remaining) reversed-parameters))
             `(%lambda '() ,(reverse reversed-parameters) ,@remaining))
         (if (null? reversed-parameters)
-            `(%lambda '() ())
+            `(%lambda '() () #nil)
             `(%lambda '()
                       ,(reverse (cdr reversed-parameters))
                       ,(car reversed-parameters)))))
