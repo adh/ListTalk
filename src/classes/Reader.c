@@ -2004,8 +2004,11 @@ static LT_Value read_object_from_first(
     if (first == '('){
         return read_list(reader, stream);
     }
-    if (first == '{'){
+    if (first == '{' && reader_syntax_sugar_enabled(reader)){
         return read_closure_form(reader, stream);
+    }
+    if (first == '{'){
+        reader_error(reader, "Unexpected '{'");
     }
     if (first == '[' && reader_syntax_sugar_enabled(reader)){
         return read_bracket_form(reader, stream);
