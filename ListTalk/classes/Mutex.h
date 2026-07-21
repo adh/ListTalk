@@ -15,9 +15,12 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_Mutex);
 
 LT_Mutex* LT_Mutex_new(void);
+LT_Mutex* LT_Mutex_new_named(LT_Value name);
 void LT_Mutex_lock(LT_Mutex* mutex);
 int LT_Mutex_tryLock(LT_Mutex* mutex);
 void LT_Mutex_unlock(LT_Mutex* mutex);
+LT_MutexWord* LT_Mutex_lock_word(LT_Mutex* mutex);
+LT_Value LT_Mutex_name(LT_Mutex* mutex);
 
 LT__END_DECLS
 

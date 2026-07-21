@@ -15,12 +15,13 @@ LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_Thread);
 
-LT_Thread* LT_Thread_new(LT_Value callable);
+LT_Thread* LT_Thread_new(LT_Value callable, char* name);
 LT_Thread* LT_Thread_current(void);
 
 LT_Value LT_Thread_join(LT_Thread* thread);
 void LT_Thread_makeDetached(LT_Thread* thread);
 
+char* LT_Thread_name(LT_Thread* thread);
 bool LT_Thread_finished_p(LT_Thread* thread);
 bool LT_Thread_joined_p(LT_Thread* thread);
 bool LT_Thread_detached_p(LT_Thread* thread);

@@ -70,6 +70,9 @@
 #include <ListTalk/classes/DateTime.h>
 #include <ListTalk/classes/UTCDateTime.h>
 #include <ListTalk/classes/Mutex.h>
+#include <ListTalk/classes/ReadWriteLock.h>
+#include <ListTalk/classes/ConditionVariable.h>
+#include <ListTalk/classes/MessageQueue.h>
 #include <ListTalk/classes/Thread.h>
 
 LT__BEGIN_DECLS
