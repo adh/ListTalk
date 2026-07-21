@@ -75,6 +75,20 @@
           `(%define-constant ,(car target) (%lambda ',(car target) ,(cdr target) ,@body)))
       `(%define ,target ,(car body))))
 
+(ListTalk:define-macro (%closure . forms)
+  "Construct an anonymous closure from curly-brace reader syntax."
+  (define (expand remaining reversed-parameters)
+    (if (pair? remaining)
+        (if (symbol? (car remaining))
+            (expand (cdr remaining) (cons (car remaining) reversed-parameters))
+            `(%lambda '() ,(reverse reversed-parameters) ,@remaining))
+        (if (null? reversed-parameters)
+            `(%lambda '() () #nil)
+            `(%lambda '()
+                      ,(reverse (cdr reversed-parameters))
+                      ,(car reversed-parameters)))))
+  (expand forms '()))
+
 (ListTalk:define-macro (ListTalk:%self-slot slot-name)
   "Expand method-local slot shorthand to a self slot reference."
   `(slot-ref ListTalk:self ',slot-name))

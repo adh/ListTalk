@@ -1125,6 +1125,119 @@ static int test_quote_syntax_in_user_package_uses_listtalk_quote(void){
     );
 }
 
+static int test_closure_syntax_empty(void){
+    LT_Value value = read_one("{}");
+
+    if (expect(LT_ImmutableList_p(value), "empty closure syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "%closure"
+            ) == 0,
+        "empty closure syntax head symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(value)))
+            == LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "empty closure syntax targets implementation package"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(value) == LT_NIL, "empty closure syntax has no body");
+}
+
+static int test_closure_syntax_values(void){
+    LT_Value value = read_one("{alpha 42 \"body\"}");
+    LT_Value cursor;
+
+    if (expect(LT_ImmutableList_p(value), "closure syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "%closure"
+            ) == 0,
+        "closure syntax head symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(value)))
+            == LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "closure syntax targets implementation package"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(value);
+    if (expect(LT_ImmutableList_p(cursor), "closure syntax first body cons")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(cursor))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(cursor))),
+                "alpha"
+            ) == 0,
+        "closure syntax first body value"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(LT_ImmutableList_p(cursor), "closure syntax second body cons")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(cursor))
+            && LT_SmallInteger_value(LT_car(cursor)) == 42,
+        "closure syntax second body value"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(LT_ImmutableList_p(cursor), "closure syntax third body cons")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_class(LT_car(cursor)) == &LT_String_class
+            && strcmp(
+                LT_String_value_cstr(LT_String_from_value(LT_car(cursor))),
+                "body"
+            ) == 0,
+        "closure syntax third body value"
+    )){
+        return 1;
+    }
+
+    return expect(LT_cdr(cursor) == LT_NIL, "closure syntax body list end");
+}
+
+static int test_closure_syntax_in_user_package_uses_implementation_closure(void){
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_USER, {
+        value = read_one("{}");
+    });
+
+    if (expect(LT_ImmutableList_p(value), "closure syntax in user package returns list")){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(value)))
+            == LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "closure syntax in user package targets implementation package"
+    );
+}
+
 static int test_symbol_package_interning(void){
     LT_Value default_symbol = LT_Symbol_new("alpha");
     LT_Value listtalk_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "alpha");
@@ -2172,6 +2285,9 @@ int main(void){
     failures += test_unquote_syntax();
     failures += test_unquote_splicing_syntax();
     failures += test_quote_syntax_in_user_package_uses_listtalk_quote();
+    failures += test_closure_syntax_empty();
+    failures += test_closure_syntax_values();
+    failures += test_closure_syntax_in_user_package_uses_implementation_closure();
     failures += test_symbol_package_interning();
     failures += test_reader_uses_thread_local_current_package();
     failures += test_reader_rejects_unqualified_symbol_without_current_package();
