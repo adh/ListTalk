@@ -160,3 +160,7 @@ int LT_Mutex_tryLock(LT_Mutex* mutex){
 void LT_Mutex_unlock(LT_Mutex* mutex){
     LT_MutexWord_unlock(&mutex->lock);
 }
+
+LT_MutexWord* LT_Mutex_lock_word(LT_Mutex* mutex){
+    return &mutex->lock;
+}

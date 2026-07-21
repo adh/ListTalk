@@ -18,6 +18,7 @@ LT_Mutex* LT_Mutex_new(void);
 void LT_Mutex_lock(LT_Mutex* mutex);
 int LT_Mutex_tryLock(LT_Mutex* mutex);
 void LT_Mutex_unlock(LT_Mutex* mutex);
+LT_MutexWord* LT_Mutex_lock_word(LT_Mutex* mutex);
 
 LT__END_DECLS
 

@@ -60,6 +60,8 @@
 #include <ListTalk/classes/UTCDateTime.h>
 #include <ListTalk/classes/UUID.h>
 #include <ListTalk/classes/Mutex.h>
+#include <ListTalk/classes/ReadWriteLock.h>
+#include <ListTalk/classes/ConditionVariable.h>
 #include <ListTalk/classes/Thread.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
@@ -153,6 +155,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"UTCDateTime", &LT_UTCDateTime_class},
     {"UUID", &LT_UUID_class},
     {"Mutex", &LT_Mutex_class},
+    {"ReadWriteLock", &LT_ReadWriteLock_class},
+    {"ConditionVariable", &LT_ConditionVariable_class},
     {"Thread", &LT_Thread_class},
 };
 
