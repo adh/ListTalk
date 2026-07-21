@@ -12,6 +12,7 @@
 #include <ListTalk/classes/List.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/utils/base64.h>
+#include <ListTalk/utils/hex.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -697,6 +698,29 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    bytevector_method_hex,
+    "ByteVector>>hex",
+    "(self)",
+    "Return a lowercase hexadecimal string encoding the receiver bytes."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    char* encoded;
+    size_t encoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+
+    encoded = LT_hex_encode(
+        LT_ByteVector_bytes(bytevector),
+        LT_ByteVector_length(bytevector),
+        &encoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
     bytevector_method_as_list,
     "ByteVector>>asList",
     "(self)",
@@ -767,6 +791,7 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"asBase64WithPadding:", &bytevector_method_as_base64_with_padding},
     {"asBase64URI", &bytevector_method_as_base64_uri},
     {"asBase64URIWithPadding:", &bytevector_method_as_base64_uri_with_padding},
+    {"hex", &bytevector_method_hex},
     {"asList", &bytevector_method_as_list},
     {"asIterator", &bytevector_method_as_iterator},
     {"writeToFile:", &bytevector_method_write_to_file},

@@ -1101,6 +1101,21 @@
        "String>>asByteVector converts to ByteVector")
 (check (equal? [(string->bytevector "aλ") asString] "aλ")
        "ByteVector>>asString converts to String")
+(check (equal? [(bytevector 0 1 10 16 255) hex] "00010a10ff")
+       "ByteVector>>hex encodes lowercase hexadecimal")
+(check (equal? ["" asHexByteVector] (bytevector))
+       "String>>asHexByteVector decodes empty input")
+(check (equal? ["00010A10ff" asHexByteVector] (bytevector 0 1 10 16 255))
+       "String>>asHexByteVector decodes mixed-case hexadecimal")
+(check (equal? ["00 01\n0a\t10\r\nff" asHexByteVector]
+               (bytevector 0 1 10 16 255))
+       "String>>asHexByteVector skips ASCII whitespace")
+(check-error-message "Invalid hex"
+                     "String>>asHexByteVector rejects odd digit count"
+  ["abc" asHexByteVector])
+(check-error-message "Invalid hex"
+                     "String>>asHexByteVector rejects non-hex digits"
+  ["xx" asHexByteVector])
 (check (equal? [(string->bytevector "hello") asBase64] "aGVsbG8=")
        "ByteVector>>asBase64 encodes bytes")
 (check (equal? [(string->bytevector "hello") asBase64WithPadding: #false] "aGVsbG8")

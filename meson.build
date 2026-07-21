@@ -86,6 +86,7 @@ vm_lib = library(
                 'src/vm/conditions.c',
                 'src/vm/throw_catch.c',
                 'src/utils/base64.c',
+                'src/utils/hex.c',
                 'src/utils/lock.c',
                 'src/utils/utf8.c',
                 'src/classes/Object.c',

@@ -29,6 +29,7 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/utils/base64.h>
+#include <ListTalk/utils/hex.h>
 #include <ListTalk/utils/utf8.h>
 
 #include <ctype.h>
@@ -1500,6 +1501,29 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_as_hex_bytevector,
+    "String>>asHexByteVector",
+    "(self)",
+    "Return a bytevector decoded from this hexadecimal string."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    uint8_t* decoded;
+    size_t decoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    decoded = LT_hex_decode(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        &decoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(decoded, decoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_as_string,
     "String>>asString",
     "(self)",
@@ -1626,6 +1650,7 @@ static LT_Method_Descriptor String_methods[] = {
     {"decodeBase64IgnoringPadding:", &string_method_decode_base64_ignoring_padding},
     {"decodeBase64URI", &string_method_decode_base64_uri},
     {"decodeBase64URIIgnoringPadding:", &string_method_decode_base64_uri_ignoring_padding},
+    {"asHexByteVector", &string_method_as_hex_bytevector},
     {"asString", &string_method_as_string},
     {"asList", &string_method_as_list},
     {"asIterator", &string_method_as_iterator},

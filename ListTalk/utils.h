@@ -8,6 +8,7 @@
 
 #include <ListTalk/macros/env_macros.h>
 #include <ListTalk/utils/base64.h>
+#include <ListTalk/utils/hex.h>
 #include <ListTalk/utils/lock.h>
 #include <ListTalk/utils/utf8.h>
 #include <ListTalk/vm/value.h>
