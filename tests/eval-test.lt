@@ -1664,6 +1664,10 @@
 ;;; Lambda
 
 (check (= ((lambda (x y) (+ x y)) 3 4) 7) "closure application")
+(check (= ({x y (+ x y)} 3 4) 7) "closure syntax with symbol parameter prefix")
+(check (= ({(+ 19 23)}) 42) "closure syntax without parameters")
+(check (= ({x x} 42) 42) "closure syntax uses final all-symbol argument as body")
+(check (= ({x y x} 11 22) 11) "closure syntax all-symbol arguments keep prefix parameters")
 (check (equal? ((lambda (x . rest) rest) 1 2 3) '(2 3)) "dotted rest parameter")
 (check (equal? ((lambda args args) 4 5) '(4 5)) "symbol rest parameter")
 (check (= ((lambda (:key x) x) :x 42) 42) "keyword parameter")
