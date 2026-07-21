@@ -140,6 +140,7 @@ vm_lib = library(
                 'src/classes/Mutex.c',
                 'src/classes/ReadWriteLock.c',
                 'src/classes/ConditionVariable.c',
+                'src/classes/MessageQueue.c',
                 'src/classes/Thread.c'
         ], 
         install : true, dependencies : [bdwgc, libm])
@@ -277,6 +278,13 @@ synchronization_classes_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+message_queue_test_exe = executable(
+        'message_queue_test',
+        'tests/message_queue_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -349,6 +357,11 @@ test(
 test(
         'synchronization_classes_test',
         synchronization_classes_test_exe
+)
+
+test(
+        'message_queue_test',
+        message_queue_test_exe
 )
 
 install_subdir(
