@@ -4,10 +4,12 @@
  */
 
 #include <ListTalk/classes/Mutex.h>
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/throw_catch.h>
 
 struct LT_Mutex_s {
     LT_Object base;
@@ -84,10 +86,43 @@ LT_DEFINE_PRIMITIVE(
     return self;
 }
 
+LT_DEFINE_PRIMITIVE(
+    mutex_method_do,
+    "Mutex>>do:",
+    "(self callable)",
+    "Lock mutex, call callable, unlock mutex, and return callable result."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    LT_Mutex_lock(LT_Mutex_from_value(self));
+    LT_Value result;
+    LT_UNWIND_PROTECT(
+        {
+            result = LT_apply(
+                callable,
+                LT_NIL,
+                LT_NIL,
+                LT_NIL,
+                NULL
+            );
+        }, {
+            LT_Mutex_unlock(LT_Mutex_from_value(self));
+        }
+    );
+    return result;
+}
+
 static LT_Method_Descriptor Mutex_methods[] = {
     {"lock", &mutex_method_lock},
     {"tryLock", &mutex_method_try_lock},
     {"unlock", &mutex_method_unlock},
+    {"do:", &mutex_method_do},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
