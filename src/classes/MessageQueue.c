@@ -22,6 +22,7 @@ struct LT_MessageQueue_s {
     size_t head;
     size_t tail;
     size_t count;
+    LT_Value name;
     LT_Value items[];
 };
 
@@ -36,13 +37,25 @@ static size_t next_index(LT_MessageQueue* queue, size_t index){
 static void MessageQueue_debugPrintOn(LT_Value obj, FILE* stream){
     LT_MessageQueue* queue = LT_MessageQueue_from_value(obj);
 
-    fprintf(
-        stream,
-        "#<MessageQueue %p size=%zu capacity=%zu>",
-        (void*)queue,
-        LT_MessageQueue_size(queue),
-        queue->capacity
-    );
+    if (queue->name != LT_NIL){
+        fputs("#<MessageQueue ", stream);
+        LT_Value_debugPrintOn(queue->name, stream);
+        fprintf(
+            stream,
+            " %p size=%zu capacity=%zu>",
+            (void*)queue,
+            LT_MessageQueue_size(queue),
+            queue->capacity
+        );
+    } else {
+        fprintf(
+            stream,
+            "#<MessageQueue %p size=%zu capacity=%zu>",
+            (void*)queue,
+            LT_MessageQueue_size(queue),
+            queue->capacity
+        );
+    }
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -66,6 +79,34 @@ LT_DEFINE_PRIMITIVE(
         LT_error("MessageQueue capacity must be positive");
     }
     return (LT_Value)(uintptr_t)LT_MessageQueue_new((size_t)capacity);
+}
+
+LT_DEFINE_PRIMITIVE(
+    message_queue_class_method_new_named,
+    "MessageQueue class>>new:named:",
+    "(self capacity name)",
+    "Return a new named message queue with fixed capacity."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    int64_t capacity;
+    LT_Value name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_FIXNUM_ARG(cursor, capacity);
+    LT_OBJECT_ARG(cursor, name);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_MessageQueue_class){
+        LT_error("new:named: class method is only supported on MessageQueue");
+    }
+    if (capacity <= 0){
+        LT_error("MessageQueue capacity must be positive");
+    }
+    return (LT_Value)(uintptr_t)LT_MessageQueue_new_named(
+        (size_t)capacity,
+        name
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -207,6 +248,22 @@ LT_DEFINE_PRIMITIVE(
     return value;
 }
 
+LT_DEFINE_PRIMITIVE(
+    message_queue_method_name,
+    "MessageQueue>>name",
+    "(self)",
+    "Return message queue name, or nil when it has none."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    return LT_MessageQueue_name(LT_MessageQueue_from_value(self));
+}
+
 static LT_Method_Descriptor MessageQueue_methods[] = {
     {"capacity", &message_queue_method_capacity},
     {"size", &message_queue_method_size},
@@ -216,11 +273,13 @@ static LT_Method_Descriptor MessageQueue_methods[] = {
     {"tryPut:", &message_queue_method_try_put},
     {"get", &message_queue_method_get},
     {"tryGet", &message_queue_method_try_get},
+    {"name", &message_queue_method_name},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor MessageQueue_class_methods[] = {
     {"new:", &message_queue_class_method_new},
+    {"new:named:", &message_queue_class_method_new_named},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -237,6 +296,10 @@ LT_DEFINE_CLASS(LT_MessageQueue) {
 };
 
 LT_MessageQueue* LT_MessageQueue_new(size_t capacity){
+    return LT_MessageQueue_new_named(capacity, LT_NIL);
+}
+
+LT_MessageQueue* LT_MessageQueue_new_named(size_t capacity, LT_Value name){
     LT_MessageQueue* queue;
     size_t i;
 
@@ -258,6 +321,7 @@ LT_MessageQueue* LT_MessageQueue_new(size_t capacity){
     queue->head = 0;
     queue->tail = 0;
     queue->count = 0;
+    queue->name = name;
     for (i = 0; i < capacity; i++){
         queue->items[i] = LT_NIL;
     }
@@ -362,4 +426,8 @@ int LT_MessageQueue_tryGet(LT_MessageQueue* queue, LT_Value* value_out){
         *value_out = value;
     }
     return 1;
+}
+
+LT_Value LT_MessageQueue_name(LT_MessageQueue* queue){
+    return queue->name;
 }

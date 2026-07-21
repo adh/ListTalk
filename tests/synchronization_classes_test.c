@@ -44,6 +44,8 @@ static void* cond_thread_main(void* opaque)
 static int test_read_write_lock(void)
 {
     LT_ReadWriteLock* lock = LT_ReadWriteLock_new();
+    LT_Value name = LT_Symbol_new("rw-test");
+    LT_ReadWriteLock* named_lock = LT_ReadWriteLock_new_named(name);
 
     if (!LT_ReadWriteLock_tryReadLock(lock)){
         return fail("tryReadLock failed on unlocked lock");
@@ -61,6 +63,29 @@ static int test_read_write_lock(void)
     }
     LT_ReadWriteLock_writeUnlock(lock);
 
+    if (LT_ReadWriteLock_name(lock) != LT_NIL){
+        return fail("unnamed read-write lock has name");
+    }
+    if (LT_ReadWriteLock_name(named_lock) != name){
+        return fail("named read-write lock has wrong name");
+    }
+
+    return 0;
+}
+
+static int test_mutex_name(void)
+{
+    LT_Mutex* mutex = LT_Mutex_new();
+    LT_Value name = LT_Symbol_new("mutex-test");
+    LT_Mutex* named_mutex = LT_Mutex_new_named(name);
+
+    if (LT_Mutex_name(mutex) != LT_NIL){
+        return fail("unnamed mutex has name");
+    }
+    if (LT_Mutex_name(named_mutex) != name){
+        return fail("named mutex has wrong name");
+    }
+
     return 0;
 }
 
@@ -69,6 +94,9 @@ static int test_condition_variable(void)
     LT_Mutex* mutex = LT_Mutex_new();
     LT_ConditionVariable* cond = LT_ConditionVariable_new();
     LT_ConditionVariable* ready_cond = LT_ConditionVariable_new();
+    LT_Value name = LT_Symbol_new("cond-test");
+    LT_ConditionVariable* named_cond =
+        LT_ConditionVariable_new_named(name);
     pthread_t thread;
     CondThreadArgs args;
     int value = 0;
@@ -101,6 +129,12 @@ static int test_condition_variable(void)
     if (woken_count != 1){
         return fail("condition variable failed to wake waiter");
     }
+    if (LT_ConditionVariable_name(cond) != LT_NIL){
+        return fail("unnamed condition variable has name");
+    }
+    if (LT_ConditionVariable_name(named_cond) != name){
+        return fail("named condition variable has wrong name");
+    }
 
     return 0;
 }
@@ -109,6 +143,9 @@ int main(void)
 {
     LT_INIT();
 
+    if (test_mutex_name() != 0){
+        return 1;
+    }
     if (test_read_write_lock() != 0){
         return 1;
     }

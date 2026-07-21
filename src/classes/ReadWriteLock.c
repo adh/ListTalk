@@ -14,11 +14,18 @@
 struct LT_ReadWriteLock_s {
     LT_Object base;
     LT_RWLockWord lock;
+    LT_Value name;
 };
 
 static void ReadWriteLock_debugPrintOn(LT_Value obj, FILE* stream){
     LT_ReadWriteLock* lock = LT_ReadWriteLock_from_value(obj);
-    fprintf(stream, "#<ReadWriteLock %p>", (void*)lock);
+    if (lock->name != LT_NIL){
+        fputs("#<ReadWriteLock ", stream);
+        LT_Value_debugPrintOn(lock->name, stream);
+        fprintf(stream, " %p>", (void*)lock);
+    } else {
+        fprintf(stream, "#<ReadWriteLock %p>", (void*)lock);
+    }
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -37,6 +44,26 @@ LT_DEFINE_PRIMITIVE(
         LT_error("new class method is only supported on ReadWriteLock");
     }
     return (LT_Value)(uintptr_t)LT_ReadWriteLock_new();
+}
+
+LT_DEFINE_PRIMITIVE(
+    read_write_lock_class_method_new_named,
+    "ReadWriteLock class>>new:",
+    "(self name)",
+    "Return a new named read-write lock."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, name);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_ReadWriteLock_class){
+        LT_error("new: class method is only supported on ReadWriteLock");
+    }
+    return (LT_Value)(uintptr_t)LT_ReadWriteLock_new_named(name);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -195,6 +222,22 @@ LT_DEFINE_PRIMITIVE(
     return result;
 }
 
+LT_DEFINE_PRIMITIVE(
+    read_write_lock_method_name,
+    "ReadWriteLock>>name",
+    "(self)",
+    "Return read-write lock name, or nil when it has none."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    return LT_ReadWriteLock_name(LT_ReadWriteLock_from_value(self));
+}
+
 static LT_Method_Descriptor ReadWriteLock_methods[] = {
     {"readLock", &read_write_lock_method_read_lock},
     {"tryReadLock", &read_write_lock_method_try_read_lock},
@@ -204,11 +247,13 @@ static LT_Method_Descriptor ReadWriteLock_methods[] = {
     {"writeUnlock", &read_write_lock_method_write_unlock},
     {"readDo:", &read_write_lock_method_read_do},
     {"writeDo:", &read_write_lock_method_write_do},
+    {"name", &read_write_lock_method_name},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor ReadWriteLock_class_methods[] = {
     {"new", &read_write_lock_class_method_new},
+    {"new:", &read_write_lock_class_method_new_named},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -224,9 +269,14 @@ LT_DEFINE_CLASS(LT_ReadWriteLock) {
 };
 
 LT_ReadWriteLock* LT_ReadWriteLock_new(void){
+    return LT_ReadWriteLock_new_named(LT_NIL);
+}
+
+LT_ReadWriteLock* LT_ReadWriteLock_new_named(LT_Value name){
     LT_ReadWriteLock* lock = LT_Class_ALLOC(LT_ReadWriteLock);
 
     LT_RWLockWord_init(&lock->lock);
+    lock->name = name;
     return lock;
 }
 
@@ -252,4 +302,8 @@ int LT_ReadWriteLock_tryWriteLock(LT_ReadWriteLock* lock){
 
 void LT_ReadWriteLock_writeUnlock(LT_ReadWriteLock* lock){
     LT_RWLockWord_write_unlock(&lock->lock);
+}
+
+LT_Value LT_ReadWriteLock_name(LT_ReadWriteLock* lock){
+    return lock->name;
 }

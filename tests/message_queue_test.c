@@ -39,6 +39,8 @@ static void* consumer_thread_main(void* opaque)
 static int test_try_put_get(void)
 {
     LT_MessageQueue* queue = LT_MessageQueue_new(2);
+    LT_Value name = LT_SmallInteger_new(101);
+    LT_MessageQueue* named_queue = LT_MessageQueue_new_named(1, name);
     LT_Value value;
 
     if (LT_MessageQueue_capacity(queue) != 2){
@@ -69,6 +71,12 @@ static int test_try_put_get(void)
     }
     if (LT_MessageQueue_tryGet(queue, &value)){
         return fail("tryGet succeeded on empty queue");
+    }
+    if (LT_MessageQueue_name(queue) != LT_NIL){
+        return fail("unnamed queue has name");
+    }
+    if (LT_MessageQueue_name(named_queue) != name){
+        return fail("named queue has wrong name");
     }
 
     return 0;

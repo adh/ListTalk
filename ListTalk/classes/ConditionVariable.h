@@ -16,9 +16,11 @@ LT__BEGIN_DECLS
 LT_DECLARE_CLASS(LT_ConditionVariable);
 
 LT_ConditionVariable* LT_ConditionVariable_new(void);
+LT_ConditionVariable* LT_ConditionVariable_new_named(LT_Value name);
 void LT_ConditionVariable_wait(LT_ConditionVariable* cond, LT_Mutex* mutex);
 void LT_ConditionVariable_signal(LT_ConditionVariable* cond);
 void LT_ConditionVariable_broadcast(LT_ConditionVariable* cond);
+LT_Value LT_ConditionVariable_name(LT_ConditionVariable* cond);
 
 LT__END_DECLS
 
