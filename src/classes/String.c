@@ -11,6 +11,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/Dictionary.h>
@@ -27,6 +28,7 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/utils/base64.h>
 #include <ListTalk/utils/utf8.h>
 
 #include <ctype.h>
@@ -75,6 +77,13 @@ static LT_String* String_new_normalized(const char* buf,
     }
     str->str[byte_length] = '\0';
     return str;
+}
+
+static int boolean_from_value(LT_Value value, const char* message){
+    if (!LT_Value_is_boolean(value)){
+        LT_error(message);
+    }
+    return LT_Value_boolean_value(value);
 }
 
 static size_t String_byte_offset_for_codepoint_index(LT_String* string,
@@ -1387,6 +1396,110 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_decode_base64,
+    "String>>decodeBase64",
+    "(self)",
+    "Return a bytevector decoded from this base64 string."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    uint8_t* decoded;
+    size_t decoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    decoded = LT_base64_decode(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        0,
+        1,
+        &decoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(decoded, decoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_decode_base64_ignoring_padding,
+    "String>>decodeBase64IgnoringPadding:",
+    "(self ignore_padding)",
+    "Return a bytevector decoded from this base64 string, optionally accepting omitted padding."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    LT_Value ignore_padding;
+    uint8_t* decoded;
+    size_t decoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, ignore_padding);
+    LT_ARG_END(cursor);
+
+    decoded = LT_base64_decode(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        0,
+        !boolean_from_value(ignore_padding, "Expected boolean padding option"),
+        &decoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(decoded, decoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_decode_base64_uri,
+    "String>>decodeBase64URI",
+    "(self)",
+    "Return a bytevector decoded from this URI-safe base64 string."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    uint8_t* decoded;
+    size_t decoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    decoded = LT_base64_decode(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        1,
+        1,
+        &decoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(decoded, decoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_decode_base64_uri_ignoring_padding,
+    "String>>decodeBase64URIIgnoringPadding:",
+    "(self ignore_padding)",
+    "Return a bytevector decoded from this URI-safe base64 string, optionally accepting omitted padding."
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    LT_Value ignore_padding;
+    uint8_t* decoded;
+    size_t decoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, ignore_padding);
+    LT_ARG_END(cursor);
+
+    decoded = LT_base64_decode(
+        LT_String_value_cstr(string),
+        LT_String_byte_length(string),
+        1,
+        !boolean_from_value(ignore_padding, "Expected boolean padding option"),
+        &decoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(decoded, decoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_as_string,
     "String>>asString",
     "(self)",
@@ -1509,6 +1622,10 @@ static LT_Method_Descriptor String_methods[] = {
     {"find:", &string_method_find},
     {"findAll:", &string_method_find_all},
     {"asByteVector", &string_method_as_bytevector},
+    {"decodeBase64", &string_method_decode_base64},
+    {"decodeBase64IgnoringPadding:", &string_method_decode_base64_ignoring_padding},
+    {"decodeBase64URI", &string_method_decode_base64_uri},
+    {"decodeBase64URIIgnoringPadding:", &string_method_decode_base64_uri_ignoring_padding},
     {"asString", &string_method_as_string},
     {"asList", &string_method_as_list},
     {"asIterator", &string_method_as_iterator},

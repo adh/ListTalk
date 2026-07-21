@@ -1101,6 +1101,43 @@
        "String>>asByteVector converts to ByteVector")
 (check (equal? [(string->bytevector "aλ") asString] "aλ")
        "ByteVector>>asString converts to String")
+(check (equal? [(string->bytevector "hello") asBase64] "aGVsbG8=")
+       "ByteVector>>asBase64 encodes bytes")
+(check (equal? [(string->bytevector "hello") asBase64WithPadding: #false] "aGVsbG8")
+       "ByteVector>>asBase64WithPadding: omits padding")
+(check (equal? [(bytevector 251 255) asBase64URI] "-_8=")
+       "ByteVector>>asBase64URI encodes URI-safe bytes")
+(check (equal? [(bytevector 251 255) asBase64URIWithPadding: #false] "-_8")
+       "ByteVector>>asBase64URIWithPadding: omits padding")
+(check (equal? ["" decodeBase64] (bytevector))
+       "String>>decodeBase64 decodes empty input")
+(check (equal? ["aGVsbG8=" decodeBase64] (string->bytevector "hello"))
+       "String>>decodeBase64 decodes padded input")
+(check (equal? [" aG\nVs\r\nbG8=\t" decodeBase64] (string->bytevector "hello"))
+       "String>>decodeBase64 skips ASCII whitespace")
+(check (equal? ["aGVsbG8" decodeBase64IgnoringPadding: #true]
+               (string->bytevector "hello"))
+       "String>>decodeBase64IgnoringPadding: decodes unpadded input")
+(check (equal? ["-_8=" decodeBase64URI] (bytevector 251 255))
+       "String>>decodeBase64URI decodes URI-safe input")
+(check (equal? ["-\n_8=" decodeBase64URI] (bytevector 251 255))
+       "String>>decodeBase64URI skips ASCII whitespace")
+(check (equal? ["-_8" decodeBase64URIIgnoringPadding: #true] (bytevector 251 255))
+       "String>>decodeBase64URIIgnoringPadding: decodes unpadded URI-safe input")
+(check (equal? ["AAECA/8=" decodeBase64] (bytevector 0 1 2 3 255))
+       "String>>decodeBase64 decodes arbitrary bytes")
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64 rejects malformed input"
+  ["abc" decodeBase64])
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64 rejects URI-safe alphabet"
+  ["-_8=" decodeBase64])
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64URI rejects standard alphabet"
+  ["+/8=" decodeBase64URI])
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64 rejects non-canonical padding bits"
+  ["AB==" decodeBase64])
 (check (equal? ["aλ" asList] '(#\a #\λ)) "String>>asList converts characters")
 
 ;;; make-class and make-instance

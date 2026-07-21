@@ -8,8 +8,10 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/utils/base64.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -35,6 +37,13 @@ struct LT_ByteVectorIterator_s {
 
 static int comparison_sign(int comparison){
     return comparison < 0 ? -1 : (comparison > 0 ? 1 : 0);
+}
+
+static int boolean_from_value(LT_Value value, const char* message){
+    if (!LT_Value_is_boolean(value)){
+        LT_error(message);
+    }
+    return LT_Value_boolean_value(value);
 }
 
 static size_t ByteVector_hash(LT_Value value){
@@ -584,6 +593,110 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_base64,
+    "ByteVector>>asBase64",
+    "(self)",
+    "Return a base64 string encoding the receiver bytes."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    char* encoded;
+    size_t encoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+
+    encoded = LT_base64_encode(
+        LT_ByteVector_bytes(bytevector),
+        LT_ByteVector_length(bytevector),
+        0,
+        1,
+        &encoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_base64_with_padding,
+    "ByteVector>>asBase64WithPadding:",
+    "(self include_padding)",
+    "Return a base64 string, optionally omitting padding."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    LT_Value include_padding;
+    char* encoded;
+    size_t encoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_OBJECT_ARG(cursor, include_padding);
+    LT_ARG_END(cursor);
+
+    encoded = LT_base64_encode(
+        LT_ByteVector_bytes(bytevector),
+        LT_ByteVector_length(bytevector),
+        0,
+        boolean_from_value(include_padding, "Expected boolean padding option"),
+        &encoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_base64_uri,
+    "ByteVector>>asBase64URI",
+    "(self)",
+    "Return a URI-safe base64 string encoding the receiver bytes."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    char* encoded;
+    size_t encoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+
+    encoded = LT_base64_encode(
+        LT_ByteVector_bytes(bytevector),
+        LT_ByteVector_length(bytevector),
+        1,
+        1,
+        &encoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_base64_uri_with_padding,
+    "ByteVector>>asBase64URIWithPadding:",
+    "(self include_padding)",
+    "Return a URI-safe base64 string, optionally omitting padding."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    LT_Value include_padding;
+    char* encoded;
+    size_t encoded_length;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_OBJECT_ARG(cursor, include_padding);
+    LT_ARG_END(cursor);
+
+    encoded = LT_base64_encode(
+        LT_ByteVector_bytes(bytevector),
+        LT_ByteVector_length(bytevector),
+        1,
+        boolean_from_value(include_padding, "Expected boolean padding option"),
+        &encoded_length
+    );
+    return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
+}
+
+LT_DEFINE_PRIMITIVE(
     bytevector_method_as_list,
     "ByteVector>>asList",
     "(self)",
@@ -650,6 +763,10 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"<=", &bytevector_method_less_than_or_equal},
     {">=", &bytevector_method_greater_than_or_equal},
     {"asString", &bytevector_method_as_string},
+    {"asBase64", &bytevector_method_as_base64},
+    {"asBase64WithPadding:", &bytevector_method_as_base64_with_padding},
+    {"asBase64URI", &bytevector_method_as_base64_uri},
+    {"asBase64URIWithPadding:", &bytevector_method_as_base64_uri_with_padding},
     {"asList", &bytevector_method_as_list},
     {"asIterator", &bytevector_method_as_iterator},
     {"writeToFile:", &bytevector_method_write_to_file},
