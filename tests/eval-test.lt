@@ -467,6 +467,10 @@
        "CompoundForm defines arguments protocol")
 (check (primitive? [Function lookupSelector: :documentation])
        "Function inherits documentation protocol")
+(check (closure? [Function lookupSelector: :value])
+       "Function defines value protocol")
+(check (closure? [Boolean lookupSelector: :ifTrue:])
+       "Boolean defines ifTrue: protocol")
 (check (primitive? [RealNumber >> :from:to:withStep:do:])
        "RealNumber defines from:to:withStep:do:")
 (check (null? [Number lookupSelector: :from:to:withStep:do:])
@@ -488,6 +492,16 @@
        "Closure>>arguments returns closure parameters")
 (check (null? [(lambda (x) x) documentation])
        "Closure>>documentation returns nil")
+(check (= [(lambda () 42) value] 42)
+       "Function>>value calls with no arguments")
+(check (= [(lambda (x) (+ x 1)) value: 41] 42)
+       "Function>>value: calls with one argument")
+(check (= [(lambda (x y) (+ x y)) value: 19 value: 23] 42)
+       "Function>>value:value: calls with two arguments")
+(check (= [(lambda (x y z) (+ x y z)) value: 10 value: 12 value: 20] 42)
+       "Function>>value:value:value: calls with three arguments")
+(check (= [(lambda (x y) (+ x y)) valueWithArguments: '(19 23)] 42)
+       "Function>>valueWithArguments: applies argument list")
 (check (equal? [ListTalk-implementation:%lambda arguments]
                '(name (:rest arg) :rest body))
        "SpecialForm>>arguments parses special form argument metadata")
@@ -2034,6 +2048,81 @@
     (set! body-runs (+ body-runs 1)))
   (check (= n 5) "while condition can use continue")
   (check (= body-runs 2) "while continue in condition skips body"))
+
+;;; closure control-flow methods
+
+(check (= [#true ifTrue: (lambda () 42)] 42)
+       "Boolean>>ifTrue: evaluates true branch")
+(check (null? [#false ifTrue: (lambda () 42)])
+       "Boolean>>ifTrue: skips false receiver")
+(check (= [#false ifFalse: (lambda () 42)] 42)
+       "Boolean>>ifFalse: evaluates false branch")
+(check (null? [#true ifFalse: (lambda () 42)])
+       "Boolean>>ifFalse: skips true receiver")
+(check (= [#true ifTrue: (lambda () 1) ifFalse: (lambda () 2)] 1)
+       "Boolean>>ifTrue:ifFalse: evaluates true branch")
+(check (= [#false ifTrue: (lambda () 1) ifFalse: (lambda () 2)] 2)
+       "Boolean>>ifTrue:ifFalse: evaluates false branch")
+(check (= [#true ifFalse: (lambda () 1) ifTrue: (lambda () 2)] 2)
+       "Boolean>>ifFalse:ifTrue: evaluates true branch")
+(check (= [#false ifFalse: (lambda () 1) ifTrue: (lambda () 2)] 1)
+       "Boolean>>ifFalse:ifTrue: evaluates false branch")
+
+(let ((calls 0))
+  (check (not [#false and: (lambda () (set! calls (+ calls 1)) #true)])
+         "Boolean>>and: returns false receiver")
+  (check (= calls 0) "Boolean>>and: skips block when false")
+  (check [#true and: (lambda () (set! calls (+ calls 1)) :truthy)]
+         "Boolean>>and: evaluates block when true")
+  (check (= calls 1) "Boolean>>and: evaluates block once"))
+
+(let ((calls 0))
+  (check [#true or: (lambda () (set! calls (+ calls 1)) #false)]
+         "Boolean>>or: returns true receiver")
+  (check (= calls 0) "Boolean>>or: skips block when true")
+  (check [#false or: (lambda () (set! calls (+ calls 1)) :truthy)]
+         "Boolean>>or: evaluates block when false")
+  (check (= calls 1) "Boolean>>or: evaluates block once"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda ()
+     (if (< n 5)
+         (begin
+           (set! sum (+ sum n))
+           (set! n (+ n 1))
+           #true)
+         #false))
+   whileTrue]
+  (check (= sum 10) "Function>>whileTrue repeats receiver while truthy"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda () (< n 5))
+   whileTrue: (lambda ()
+                (set! sum (+ sum n))
+                (set! n (+ n 1)))]
+  (check (= sum 10) "Function>>whileTrue: evaluates body while receiver is truthy"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda ()
+     (if (< n 5)
+         (begin
+           (set! sum (+ sum n))
+           (set! n (+ n 1))
+           #false)
+         #true))
+   whileFalse]
+  (check (= sum 10) "Function>>whileFalse repeats receiver while falsey"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda () (>= n 5))
+   whileFalse: (lambda ()
+                 (set! sum (+ sum n))
+                 (set! n (+ n 1)))]
+  (check (= sum 10) "Function>>whileFalse: evaluates body while receiver is falsey"))
 
 ;;; fold-expression and macroexpand
 

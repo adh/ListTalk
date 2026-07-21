@@ -152,6 +152,86 @@
   "Return argument list of the macro callable."
   [.callable arguments])
 
+(ListTalk:define-method [ListTalk:Function value]
+  "Call the function with no arguments."
+  (ListTalk:self))
+
+(ListTalk:define-method [ListTalk:Function value: first]
+  "Call the function with one argument."
+  (ListTalk:self first))
+
+(ListTalk:define-method [ListTalk:Function value: first value: second]
+  "Call the function with two arguments."
+  (ListTalk:self first second))
+
+(ListTalk:define-method [ListTalk:Function value: first value: second value: third]
+  "Call the function with three arguments."
+  (ListTalk:self first second third))
+
+(ListTalk:define-method [ListTalk:Function valueWithArguments: arguments]
+  "Call the function with an argument list."
+  (apply ListTalk:self arguments))
+
+(ListTalk:define-method [ListTalk:Function whileTrue]
+  "Call the receiver while it returns a truthy value."
+  (while [ListTalk:self value]
+    #nil)
+  #nil)
+
+(ListTalk:define-method [ListTalk:Function whileTrue: body]
+  "Call body while the receiver returns a truthy value."
+  (while [ListTalk:self value]
+    [body value])
+  #nil)
+
+(ListTalk:define-method [ListTalk:Function whileFalse]
+  "Call the receiver while it returns a falsey value."
+  (while (not [ListTalk:self value])
+    #nil)
+  #nil)
+
+(ListTalk:define-method [ListTalk:Function whileFalse: body]
+  "Call body while the receiver returns a falsey value."
+  (while (not [ListTalk:self value])
+    [body value])
+  #nil)
+
+(ListTalk:define-method [ListTalk:Boolean ifTrue: trueBlock]
+  "Call trueBlock when the receiver is truthy."
+  (if ListTalk:self
+      [trueBlock value]
+      #nil))
+
+(ListTalk:define-method [ListTalk:Boolean ifFalse: falseBlock]
+  "Call falseBlock when the receiver is falsey."
+  (if ListTalk:self
+      #nil
+      [falseBlock value]))
+
+(ListTalk:define-method [ListTalk:Boolean ifTrue: trueBlock ifFalse: falseBlock]
+  "Call trueBlock when truthy, otherwise call falseBlock."
+  (if ListTalk:self
+      [trueBlock value]
+      [falseBlock value]))
+
+(ListTalk:define-method [ListTalk:Boolean ifFalse: falseBlock ifTrue: trueBlock]
+  "Call falseBlock when falsey, otherwise call trueBlock."
+  (if ListTalk:self
+      [trueBlock value]
+      [falseBlock value]))
+
+(ListTalk:define-method [ListTalk:Boolean and: block]
+  "Return the receiver, or call block when the receiver is truthy."
+  (if ListTalk:self
+      [block value]
+      ListTalk:self))
+
+(ListTalk:define-method [ListTalk:Boolean or: block]
+  "Return the receiver, or call block when the receiver is falsey."
+  (if ListTalk:self
+      ListTalk:self
+      [block value]))
+
 (ListTalk:define-method [ListTalk:BindingDescriptor compareWith: other]
   "Compare binding descriptors by symbol."
   (let ((symbol [ListTalk:self symbol])
