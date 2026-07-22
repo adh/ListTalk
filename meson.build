@@ -112,6 +112,7 @@ vm_lib = library(
                 'src/classes/Vector.c',
                 'src/classes/ByteVector.c',
                 'src/classes/RandomNumberGenerator.c',
+                'src/classes/XoshiroRNG.c',
                 'src/classes/UUID.c',
                 'src/classes/Condition.c',
                 'src/classes/Restart.c',

@@ -46,6 +46,7 @@
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/RandomNumberGenerator.h>
+#include <ListTalk/classes/XoshiroRNG.h>
 #include <ListTalk/classes/UUID.h>
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Restart.h>

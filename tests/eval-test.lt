@@ -2455,6 +2455,42 @@
                      "RandomNumberGenerator>>bytes: is subclass responsibility"
   [[RandomNumberGenerator >> :bytes:] value: [TestRandomNumberGenerator newWithState: 0] value: 4])
 
+;;; XoshiroRNG
+
+(check (class? XoshiroRNG) "XoshiroRNG class is bound")
+(let ((rng [XoshiroRNG seed: 0]))
+  (check (eq? (type-of rng) XoshiroRNG)
+         "XoshiroRNG class>>seed: returns XoshiroRNG")
+  (check (equal? [rng bytes: 16]
+                 (bytevector 153 236 95 54 203 117 242 180
+                             191 110 31 120 73 86 69 42))
+         "XoshiroRNG>>bytes: returns deterministic xoshiro256** stream"))
+(let ((rng [XoshiroRNG seed: 0]))
+  (check (= [rng integerBelow: 10] 0)
+         "XoshiroRNG inherits RandomNumberGenerator>>integerBelow:"))
+(let ((rng [XoshiroRNG seed: 0]))
+  (let ((value [rng float]))
+    (check (and (eq? (type-of value) Float) (>= value 0.0) (< value 1.0))
+           "XoshiroRNG inherits RandomNumberGenerator>>float")))
+(let ((rng [XoshiroRNG seed: 0]))
+  (check (= [rng integerFrom: -5 to: 5] -3)
+         "XoshiroRNG inherits RandomNumberGenerator>>integerFrom:to:"))
+(let ((rng [XoshiroRNG fromByteVector:
+             (bytevector 0 0 0 0 0 0 0 1
+                         0 0 0 0 0 0 0 2
+                         0 0 0 0 0 0 0 3
+                         0 0 0 0 0 0 0 4)]))
+  (check (eq? (type-of rng) XoshiroRNG)
+         "XoshiroRNG class>>fromByteVector: returns XoshiroRNG"))
+(check (eq? (type-of [XoshiroRNG random]) XoshiroRNG)
+       "XoshiroRNG class>>random returns XoshiroRNG")
+(check-error-message "XoshiroRNG state must be 32 bytes"
+                     "XoshiroRNG class>>fromByteVector: rejects wrong state length"
+  [XoshiroRNG fromByteVector: (bytevector 1 2 3)])
+(check-error-message "XoshiroRNG state must not be all zero"
+                     "XoshiroRNG class>>fromByteVector: rejects all-zero state"
+  [XoshiroRNG fromByteVector: (make-bytevector 32)])
+
 ;;; Report results
 
 (if (> test-failures 0)
