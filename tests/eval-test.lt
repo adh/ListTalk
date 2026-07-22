@@ -1095,6 +1095,9 @@
        "ByteVector>>compareWith: returns 1 for greater")
 (check (equal? [(bytevector 65 200 66) asList] '(65 200 66))
        "ByteVector>>asList converts bytes")
+(let ((bytes [ByteVector random: 300]))
+  (check (eq? (type-of bytes) ByteVector) "ByteVector class>>random: returns ByteVector")
+  (check (= [bytes length] 300) "ByteVector class>>random: returns requested length"))
 (check (equal? [(bytevector 97 13 10 13 98 10) splitLines]
                (list (bytevector 97) (bytevector 98)))
        "ByteVector>>splitLines strips line terminators and surrounding CR bytes")

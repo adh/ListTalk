@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/random.h>
 #include <unistd.h>
 
 struct LT_ByteVector_s {
@@ -313,6 +314,46 @@ LT_DEFINE_PRIMITIVE(
 
     bytes = read_file_bytes(LT_String_value_cstr(filename), &length);
     return (LT_Value)(uintptr_t)LT_ByteVector_new(bytes, length);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_class_method_random,
+    "ByteVector class>>random:",
+    "(self length)",
+    "Return a bytevector with cryptographically strong random bytes."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    int64_t length_value;
+    size_t length;
+    LT_ByteVector* bytevector;
+    size_t offset = 0;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_FIXNUM_ARG(cursor, length_value);
+    LT_ARG_END(cursor);
+    (void)self;
+
+    length = LT_Number_nonnegative_size_from_int64(
+        length_value,
+        "Negative length",
+        "Length out of supported range"
+    );
+    bytevector = LT_ByteVector_new_filled(length, 0);
+
+    while (offset < length){
+        size_t chunk = length - offset;
+
+        if (chunk > 256){
+            chunk = 256;
+        }
+        if (getentropy(bytevector->bytes + offset, chunk) != 0){
+            LT_system_error("Could not get entropy", errno);
+        }
+        offset += chunk;
+    }
+    return (LT_Value)(uintptr_t)bytevector;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -837,6 +878,7 @@ LT_DEFINE_CLASS(LT_ByteVectorIterator) {
 
 static LT_Method_Descriptor ByteVector_class_methods[] = {
     {"fromFile:", &bytevector_class_method_from_file},
+    {"random:", &bytevector_class_method_random},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
