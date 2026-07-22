@@ -2418,6 +2418,43 @@
 (check (class? RationalNumber) "RationalNumber class is bound")
 (check (class? RealNumber) "RealNumber class is bound")
 
+;;; RandomNumberGenerator
+
+(check (class? RandomNumberGenerator) "RandomNumberGenerator class is bound")
+(check-error-message "Class is not allocatable"
+                     "RandomNumberGenerator is abstract"
+  [RandomNumberGenerator alloc])
+
+(define-class TestRandomNumberGenerator (RandomNumberGenerator) (state))
+(define-constructor [TestRandomNumberGenerator newWithState: state]
+  (set! .state state))
+(define-method [TestRandomNumberGenerator bytes: length]
+  (let ((result (make-bytevector length)))
+    (let loop ((index 0))
+      (if (< index length)
+          (begin
+            [result at: index put: .state]
+            (set! .state
+                  (if (= .state 255)
+                      0
+                      (+ .state 1)))
+            (loop (+ index 1)))))
+    result))
+
+(let ((rng [TestRandomNumberGenerator newWithState: 0]))
+  (check (= [rng integerBelow: 10] 3)
+         "RandomNumberGenerator>>integerBelow: returns bounded integer"))
+(let ((rng [TestRandomNumberGenerator newWithState: 0]))
+  (let ((value [rng float]))
+    (check (and (eq? (type-of value) Float) (>= value 0.0) (< value 1.0))
+           "RandomNumberGenerator>>float returns float in range")))
+(let ((rng [TestRandomNumberGenerator newWithState: 0]))
+  (check (= [rng integerFrom: -5 to: 5] 3)
+         "RandomNumberGenerator>>integerFrom:to: returns inclusive ranged integer"))
+(check-error-message "Subclass responsibility"
+                     "RandomNumberGenerator>>bytes: is subclass responsibility"
+  [[RandomNumberGenerator >> :bytes:] value: [TestRandomNumberGenerator newWithState: 0] value: 4])
+
 ;;; Report results
 
 (if (> test-failures 0)
