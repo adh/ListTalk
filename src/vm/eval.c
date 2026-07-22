@@ -67,7 +67,10 @@ static LT_Value keyword_for_parameter(LT_Value parameter){
     );
 }
 
-static LT_Value keyword_parameter_name(LT_Value parameter){
+static LT_Value defaultable_parameter_name(LT_Value parameter,
+                                           const char* type_error_message,
+                                           const char* name_error_message,
+                                           const char* default_error_message){
     if (LT_Symbol_p(parameter)){
         return parameter;
     }
@@ -76,22 +79,48 @@ static LT_Value keyword_parameter_name(LT_Value parameter){
         LT_Value tail = LT_cdr(parameter);
 
         if (!LT_Symbol_p(name)){
-            LT_error("Closure keyword parameter name must be symbol");
+            LT_error(name_error_message);
         }
         if (!LT_Pair_p(tail) || LT_cdr(tail) != LT_NIL){
-            LT_error("Closure keyword parameter default must be a two element list");
+            LT_error(default_error_message);
         }
         return name;
     }
-    LT_error("Closure keyword parameter must be symbol or two element list");
+    LT_error(type_error_message);
     return LT_NIL;
 }
 
-static LT_Value keyword_parameter_default_expression(LT_Value parameter){
+static LT_Value defaultable_parameter_default_expression(LT_Value parameter){
     if (LT_Symbol_p(parameter)){
         return LT_NIL;
     }
     return LT_car(LT_cdr(parameter));
+}
+
+static LT_Value keyword_parameter_name(LT_Value parameter){
+    return defaultable_parameter_name(
+        parameter,
+        "Closure keyword parameter must be symbol or two element list",
+        "Closure keyword parameter name must be symbol",
+        "Closure keyword parameter default must be a two element list"
+    );
+}
+
+static LT_Value keyword_parameter_default_expression(LT_Value parameter){
+    return defaultable_parameter_default_expression(parameter);
+}
+
+static LT_Value optional_parameter_name(LT_Value parameter){
+    return defaultable_parameter_name(
+        parameter,
+        "Closure optional parameter must be symbol or two element list",
+        "Closure optional parameter name must be symbol",
+        "Closure optional parameter default must be a two element list"
+    );
+}
+
+static LT_Value optional_parameter_default_expression(LT_Value parameter){
+    return defaultable_parameter_default_expression(parameter);
 }
 
 static int keyword_argument_lookup(LT_Value arguments,
@@ -351,6 +380,7 @@ static void bind_closure_parameters(LT_Value parameters,
                                     LT_Environment* target_environment){
     LT_Value parameter_cursor = parameters;
     LT_Value argument_cursor = arguments;
+    int optional_parameters = 0;
 
     if (LT_Symbol_p(parameter_cursor)){
         LT_Environment_bind(
@@ -366,6 +396,15 @@ static void bind_closure_parameters(LT_Value parameters,
         LT_Value parameter;
 
         parameter = LT_car(parameter_cursor);
+        if (keyword_marker_p(parameter, "optional")){
+            if (optional_parameters){
+                LT_error("Closure lambda list has duplicate :optional marker");
+            }
+            optional_parameters = 1;
+            parameter_cursor = LT_cdr(parameter_cursor);
+            continue;
+        }
+
         if (keyword_marker_p(parameter, "key")){
             LT_Value keyword_parameters = LT_cdr(parameter_cursor);
             LT_Value keyword_parameter_cursor = keyword_parameters;
@@ -409,23 +448,86 @@ static void bind_closure_parameters(LT_Value parameters,
             return;
         }
 
-        if (!LT_Pair_p(argument_cursor)){
-            LT_error("Closure arity mismatch");
+        if (keyword_marker_p(parameter, "rest")){
+            LT_Value tail = LT_cdr(parameter_cursor);
+            LT_Value rest_parameter;
+
+            if (!LT_Pair_p(tail)){
+                LT_error("Closure :rest marker must be followed by a symbol");
+            }
+            rest_parameter = LT_car(tail);
+            if (!LT_Symbol_p(rest_parameter)){
+                LT_error("Closure :rest parameter must be symbol");
+            }
+
+            tail = LT_cdr(tail);
+            while (tail != LT_NIL){
+                LT_Value trailing_parameter;
+
+                if (!LT_Pair_p(tail)){
+                    LT_error("Closure parameter list must be proper after :rest");
+                }
+                trailing_parameter = LT_car(tail);
+                if (keyword_marker_p(trailing_parameter, "key")){
+                    LT_error("Closure lambda list cannot combine :rest and :key");
+                }
+                LT_error("Closure :rest parameter must be last");
+            }
+
+            LT_Environment_bind(
+                target_environment,
+                rest_parameter,
+                argument_cursor,
+                0
+            );
+            return;
         }
 
-        if (!LT_Symbol_p(parameter)){
-            LT_error("Closure parameter must be symbol");
-        }
+        if (optional_parameters){
+            LT_Value parameter_name;
+            LT_Value value;
 
-        LT_Environment_bind(
-            target_environment,
-            parameter,
-            LT_car(argument_cursor),
-            0
-        );
+            parameter_name = optional_parameter_name(parameter);
+            if (LT_Pair_p(argument_cursor)){
+                value = LT_car(argument_cursor);
+                argument_cursor = LT_cdr(argument_cursor);
+            } else if (argument_cursor == LT_NIL){
+                value = eval_form(
+                    optional_parameter_default_expression(parameter),
+                    target_environment,
+                    NULL
+                );
+            } else {
+                LT_error("Closure arity mismatch");
+                return;
+            }
+
+            LT_Environment_bind(
+                target_environment,
+                parameter_name,
+                value,
+                0
+            );
+        } else {
+            if (!LT_Pair_p(argument_cursor)){
+                LT_error("Closure arity mismatch");
+            }
+
+            if (!LT_Symbol_p(parameter)){
+                LT_error("Closure parameter must be symbol");
+            }
+
+            LT_Environment_bind(
+                target_environment,
+                parameter,
+                LT_car(argument_cursor),
+                0
+            );
+
+            argument_cursor = LT_cdr(argument_cursor);
+        }
 
         parameter_cursor = LT_cdr(parameter_cursor);
-        argument_cursor = LT_cdr(argument_cursor);
     }
 
     if (LT_Symbol_p(parameter_cursor)){

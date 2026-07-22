@@ -1731,6 +1731,16 @@
 (check (= ({x y x} 11 22) 11) "closure syntax all-symbol arguments keep prefix parameters")
 (check (equal? ((lambda (x . rest) rest) 1 2 3) '(2 3)) "dotted rest parameter")
 (check (equal? ((lambda args args) 4 5) '(4 5)) "symbol rest parameter")
+(check (= ((lambda (:optional x) x) 42) 42) "optional parameter")
+(check (= ((lambda (:optional (x 7)) x)) 7) "optional parameter default")
+(check (= ((lambda (base :optional (x (+ base 3))) x) 4) 7)
+       "optional parameter default sees application environment")
+(check (= ((lambda (:optional x (y (+ x 1))) y) 5) 6)
+       "optional parameter default sees earlier optional binding")
+(check (equal? ((lambda (:rest rest) rest) 1 2 3) '(1 2 3))
+       ":rest parameter")
+(check (equal? ((lambda (x :rest rest) rest) 1 2 3) '(2 3))
+       "positional and :rest parameters")
 (check (= ((lambda (:key x) x) :x 42) 42) "keyword parameter")
 (check (= ((lambda (:key (x 7)) x)) 7) "keyword parameter default")
 (check (= ((lambda (base :key (x (+ base 3))) x) 4) 7)
@@ -1747,6 +1757,12 @@
   ((lambda (:key x) x) 'x 1))
 (check-raises "malformed keyword parameter raises"
   (lambda (:key (x 1 2)) x))
+(check-raises "malformed optional parameter raises"
+  (lambda (:optional (x 1 2)) x))
+(check-raises ":rest and :key cannot be combined"
+  (lambda (:rest rest :key x) rest))
+(check-raises ":rest parameter must be last"
+  (lambda (:rest rest x) rest))
 
 ;;; Tail call optimization
 

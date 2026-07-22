@@ -120,23 +120,44 @@ static int is_keyword_named_symbol(LT_Value value, const char* name){
     return strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0;
 }
 
-static void validate_keyword_parameter(LT_Value parameter){
+static void validate_defaultable_parameter(LT_Value parameter,
+                                           const char* type_error_message,
+                                           const char* name_error_message,
+                                           const char* default_error_message){
     LT_Value tail;
 
     if (LT_Symbol_p(parameter)){
         return;
     }
     if (!LT_Pair_p(parameter)){
-        LT_error("%lambda keyword parameter must be symbol or two element list");
+        LT_error(type_error_message);
     }
     if (!LT_Symbol_p(LT_car(parameter))){
-        LT_error("%lambda keyword parameter name must be symbol");
+        LT_error(name_error_message);
     }
 
     tail = LT_cdr(parameter);
     if (!LT_Pair_p(tail) || LT_cdr(tail) != LT_NIL){
-        LT_error("%lambda keyword parameter default must be a two element list");
+        LT_error(default_error_message);
     }
+}
+
+static void validate_keyword_parameter(LT_Value parameter){
+    validate_defaultable_parameter(
+        parameter,
+        "%lambda keyword parameter must be symbol or two element list",
+        "%lambda keyword parameter name must be symbol",
+        "%lambda keyword parameter default must be a two element list"
+    );
+}
+
+static void validate_optional_parameter(LT_Value parameter){
+    validate_defaultable_parameter(
+        parameter,
+        "%lambda optional parameter must be symbol or two element list",
+        "%lambda optional parameter name must be symbol",
+        "%lambda optional parameter default must be a two element list"
+    );
 }
 
 static LT_FoldQuasiquoteResult fold_quasiquote_template(
@@ -415,6 +436,7 @@ static LT_Value special_form_lambda(LT_Value arguments,
     LT_Value parameters;
     LT_Value body;
     LT_Value parameter_cursor;
+    int optional_parameters = 0;
 
     LT_OBJECT_ARG(cursor, name_expression);
     LT_OBJECT_ARG(cursor, parameters);
@@ -437,16 +459,62 @@ static LT_Value special_form_lambda(LT_Value arguments,
     while (LT_Pair_p(parameter_cursor)){
         LT_Value parameter;
         parameter = LT_car(parameter_cursor);
+        if (is_keyword_named_symbol(parameter, "optional")){
+            if (optional_parameters){
+                LT_error("%lambda parameters have duplicate :optional marker");
+            }
+            optional_parameters = 1;
+            parameter_cursor = LT_cdr(parameter_cursor);
+            continue;
+        }
         if (is_keyword_named_symbol(parameter, "key")){
             parameter_cursor = LT_cdr(parameter_cursor);
             while (parameter_cursor != LT_NIL){
                 if (!LT_Pair_p(parameter_cursor)){
                     LT_error("%lambda keyword parameters must be a proper list");
                 }
+                if (is_keyword_named_symbol(LT_car(parameter_cursor), "optional")){
+                    LT_error("%lambda parameters have misplaced :optional marker");
+                }
+                if (is_keyword_named_symbol(LT_car(parameter_cursor), "rest")){
+                    LT_error("%lambda parameters cannot combine :rest and :key");
+                }
                 validate_keyword_parameter(LT_car(parameter_cursor));
                 parameter_cursor = LT_cdr(parameter_cursor);
             }
             return LT_Closure_new(name, parameters, body, environment);
+        }
+        if (is_keyword_named_symbol(parameter, "rest")){
+            LT_Value tail = LT_cdr(parameter_cursor);
+            LT_Value rest_parameter;
+
+            if (!LT_Pair_p(tail)){
+                LT_error("%lambda :rest marker must be followed by a symbol");
+            }
+            rest_parameter = LT_car(tail);
+            if (!LT_Symbol_p(rest_parameter)){
+                LT_error("%lambda :rest parameter must be symbol");
+            }
+
+            tail = LT_cdr(tail);
+            while (tail != LT_NIL){
+                LT_Value trailing_parameter;
+
+                if (!LT_Pair_p(tail)){
+                    LT_error("%lambda parameters must be proper after :rest");
+                }
+                trailing_parameter = LT_car(tail);
+                if (is_keyword_named_symbol(trailing_parameter, "key")){
+                    LT_error("%lambda parameters cannot combine :rest and :key");
+                }
+                LT_error("%lambda :rest parameter must be last");
+            }
+            return LT_Closure_new(name, parameters, body, environment);
+        }
+        if (optional_parameters && LT_Pair_p(parameter)){
+            validate_optional_parameter(parameter);
+            parameter_cursor = LT_cdr(parameter_cursor);
+            continue;
         }
         if (!LT_Symbol_p(parameter)){
             LT_error("%lambda parameter must be symbol");
