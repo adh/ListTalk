@@ -453,3 +453,6 @@
 (define-macro (ListTalk:define-condition-variable name)
   "Define a condition variable with the given name."
   `(define ,name [ConditionVariable new: ',name]))
+(define-macro (ListTalk:define-message-queue name capacity)
+  "Define a message queue with the given name."
+  `(define ,name [MessageQueue new: ,capacity named:',name]))
