@@ -2418,6 +2418,45 @@
 (check (class? RationalNumber) "RationalNumber class is bound")
 (check (class? RealNumber) "RealNumber class is bound")
 
+;;; MessageDigest
+
+(check (class? MessageDigest) "MessageDigest class is bound")
+(check-error-message "Class is not allocatable"
+                     "MessageDigest is abstract"
+  [MessageDigest alloc])
+
+(define-class TestMessageDigest (Object) ())
+(check-error-message "Subclass responsibility"
+                     "MessageDigest>>update: is subclass responsibility"
+  [[MessageDigest >> :update:] value: [TestMessageDigest alloc] value: (bytevector 1 2 3)])
+(check-error-message "Subclass responsibility"
+                     "MessageDigest>>finish is subclass responsibility"
+  [[MessageDigest >> :finish] value: [TestMessageDigest alloc]])
+
+;;; DigestSHA256
+
+(check (class? DigestSHA256) "DigestSHA256 class is bound")
+(check (eq? (type-of [DigestSHA256 new]) DigestSHA256)
+       "DigestSHA256 class>>new returns DigestSHA256")
+(check (equal? [[DigestSHA256 digest: (bytevector)] hex]
+               "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+       "DigestSHA256 class>>digest: digests empty bytevector")
+(check (equal? [[DigestSHA256 digest: (string->bytevector "abc")] hex]
+               "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+       "DigestSHA256 class>>digest: digests abc")
+(let ((digest [DigestSHA256 new]))
+  (check (eq? [digest update: (string->bytevector "a")] digest)
+         "DigestSHA256>>update: returns receiver")
+  [digest update: (string->bytevector "bc")]
+  (check (equal? [[digest finish] hex]
+                 "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+         "DigestSHA256 incremental update: and finish match class digest:"))
+(let ((digest [DigestSHA256 new]))
+  [digest finish]
+  (check-error-message "DigestSHA256 digest is already finished"
+                       "DigestSHA256>>update: rejects updates after finish"
+    [digest update: (bytevector 1)]))
+
 ;;; RandomNumberGenerator
 
 (check (class? RandomNumberGenerator) "RandomNumberGenerator class is bound")

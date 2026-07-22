@@ -45,6 +45,8 @@
 #include <ListTalk/classes/MethodDescriptor.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/MessageDigest.h>
+#include <ListTalk/classes/DigestSHA256.h>
 #include <ListTalk/classes/RandomNumberGenerator.h>
 #include <ListTalk/classes/XoshiroRNG.h>
 #include <ListTalk/classes/AsconRNG.h>
