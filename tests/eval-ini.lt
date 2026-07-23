@@ -1,0 +1,36 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-ini)
+
+(define-test "INI module"
+;;; INI module
+
+(check (eq? (type-of [ListTalk-INI:INIReader new])
+            ListTalk-INI:INIReader)
+       "INIReader class>>new returns reader")
+
+(let* ((decoded [ListTalk-INI:INIReader
+                 read: "root = yes\n[database]\nhost = localhost\nport: 5432\n"])
+       (global [decoded at: ""])
+       (database [decoded at: "database"]))
+  (check (equal? [global at: "root"] "yes")
+         "INIReader decodes global keys")
+  (check (equal? [database at: "host"] "localhost")
+         "INIReader decodes section key with equals")
+  (check (equal? [database at: "port"] "5432")
+         "INIReader decodes section key with colon"))
+
+(let* ((reader [ListTalk-INI:INIReader new])
+       (decoded #nil))
+  [reader duplicatePolicy: :first-wins]
+  (set! decoded [reader read: "[section]\nkey = first\nkey = second\n"])
+  (check (equal? [[decoded at: "section"] at: "key"] "first")
+         "INIReader supports first-wins duplicate policy"))
+
+(let ((reader [ListTalk-INI:INIReader new]))
+  [reader allowEmptyValues?: #false]
+  (check-raises "INIReader rejects empty values when disabled"
+    [reader read: "[section]\nkey = \n"]))
+)

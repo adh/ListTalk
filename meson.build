@@ -87,6 +87,7 @@ vm_lib = library(
                 'src/vm/throw_catch.c',
                 'src/utils/base64.c',
                 'src/utils/hex.c',
+                'src/utils/ini.c',
                 'src/utils/crypto/ascon.c',
                 'src/utils/crypto/sha256.c',
                 'src/utils/lock.c',
@@ -216,6 +217,17 @@ cmdopts_module = shared_module(
         install_dir : listtalk_native_module_dir
 )
 
+ini_module = shared_module(
+        'ini',
+        'src/modules/ini.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -277,6 +289,13 @@ cmdopts_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+ini_test_exe = executable(
+        'ini_test',
+        'tests/ini_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 uuid_test_exe = executable(
         'uuid_test',
         'tests/uuid_test.c',
@@ -325,7 +344,7 @@ test(
                 '-L', meson.current_source_dir() / 'tests' / 'fixtures',
                 meson.current_source_dir() / 'tests' / 'eval-test.lt'
         ],
-        depends : [os_module, gc_module, cmdopts_module, json_module]
+        depends : [os_module, gc_module, cmdopts_module, json_module, ini_module]
 )
 
 test(
@@ -363,6 +382,11 @@ test(
 test(
         'cmdopts_test',
         cmdopts_test_exe
+)
+
+test(
+        'ini_test',
+        ini_test_exe
 )
 
 test(
