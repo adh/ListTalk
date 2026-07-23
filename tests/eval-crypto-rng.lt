@@ -1,0 +1,182 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-crypto-rng)
+
+(define-test "Numeric abstract classes"
+;;; Numeric abstract classes
+
+(check (class? ComplexNumber) "ComplexNumber class is bound")
+(check (class? Integer) "Integer class is bound")
+(check (class? RationalNumber) "RationalNumber class is bound")
+(check (class? RealNumber) "RealNumber class is bound")
+)
+
+(define-test "MessageDigest"
+;;; MessageDigest
+
+(check (class? MessageDigest) "MessageDigest class is bound")
+(check-error-message "Class is not allocatable"
+                     "MessageDigest is abstract"
+  [MessageDigest alloc])
+
+(define-class TestMessageDigest (Object) ())
+(check-error-message "Subclass responsibility"
+                     "MessageDigest>>update: is subclass responsibility"
+  [[MessageDigest >> :update:] value: [TestMessageDigest alloc] value: (bytevector 1 2 3)])
+(check-error-message "Subclass responsibility"
+                     "MessageDigest>>finish is subclass responsibility"
+  [[MessageDigest >> :finish] value: [TestMessageDigest alloc]])
+)
+
+(define-test "DigestSHA256"
+;;; DigestSHA256
+
+(check (class? DigestSHA256) "DigestSHA256 class is bound")
+(check (eq? (type-of [DigestSHA256 new]) DigestSHA256)
+       "DigestSHA256 class>>new returns DigestSHA256")
+(check (equal? [[DigestSHA256 digest: (bytevector)] hex]
+               "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+       "DigestSHA256 class>>digest: digests empty bytevector")
+(check (equal? [[DigestSHA256 digest: (string->bytevector "abc")] hex]
+               "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+       "DigestSHA256 class>>digest: digests abc")
+(let ((digest [DigestSHA256 new]))
+  (check (eq? [digest update: (string->bytevector "a")] digest)
+         "DigestSHA256>>update: returns receiver")
+  [digest update: (string->bytevector "bc")]
+  (check (equal? [[digest finish] hex]
+                 "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+         "DigestSHA256 incremental update: and finish match class digest:"))
+(let ((digest [DigestSHA256 new]))
+  [digest finish]
+  (check-error-message "DigestSHA256 digest is already finished"
+                       "DigestSHA256>>update: rejects updates after finish"
+    [digest update: (bytevector 1)]))
+)
+
+(define-test "RandomNumberGenerator"
+;;; RandomNumberGenerator
+
+(check (class? RandomNumberGenerator) "RandomNumberGenerator class is bound")
+(check-error-message "Class is not allocatable"
+                     "RandomNumberGenerator is abstract"
+  [RandomNumberGenerator alloc])
+
+(define-class TestRandomNumberGenerator (RandomNumberGenerator) (state))
+(define-constructor [TestRandomNumberGenerator newWithState: state]
+  (set! .state state))
+(define-method [TestRandomNumberGenerator bytes: length]
+  (let ((result (make-bytevector length)))
+    (let loop ((index 0))
+      (if (< index length)
+          (begin
+            [result at: index put: .state]
+            (set! .state
+                  (if (= .state 255)
+                      0
+                      (+ .state 1)))
+            (loop (+ index 1)))))
+    result))
+
+(let ((rng [TestRandomNumberGenerator newWithState: 0]))
+  (check (= [rng integerBelow: 10] 3)
+         "RandomNumberGenerator>>integerBelow: returns bounded integer"))
+(let ((rng [TestRandomNumberGenerator newWithState: 0]))
+  (let ((value [rng float]))
+    (check (and (eq? (type-of value) Float) (>= value 0.0) (< value 1.0))
+           "RandomNumberGenerator>>float returns float in range")))
+(let ((rng [TestRandomNumberGenerator newWithState: 0]))
+  (check (= [rng integerFrom: -5 to: 5] 3)
+         "RandomNumberGenerator>>integerFrom:to: returns inclusive ranged integer"))
+(check-error-message "Subclass responsibility"
+                     "RandomNumberGenerator>>bytes: is subclass responsibility"
+  [[RandomNumberGenerator >> :bytes:] value: [TestRandomNumberGenerator newWithState: 0] value: 4])
+)
+
+(define-test "XoshiroRNG"
+;;; XoshiroRNG
+
+(check (class? XoshiroRNG) "XoshiroRNG class is bound")
+(let ((rng [XoshiroRNG seed: 0]))
+  (check (eq? (type-of rng) XoshiroRNG)
+         "XoshiroRNG class>>seed: returns XoshiroRNG")
+  (check (equal? [rng bytes: 16]
+                 (bytevector 153 236 95 54 203 117 242 180
+                             191 110 31 120 73 86 69 42))
+         "XoshiroRNG>>bytes: returns deterministic xoshiro256** stream"))
+(let ((rng [XoshiroRNG seed: 0]))
+  (check (= [rng integerBelow: 10] 0)
+         "XoshiroRNG inherits RandomNumberGenerator>>integerBelow:"))
+(let ((rng [XoshiroRNG seed: 0]))
+  (let ((value [rng float]))
+    (check (and (eq? (type-of value) Float) (>= value 0.0) (< value 1.0))
+           "XoshiroRNG inherits RandomNumberGenerator>>float")))
+(let ((rng [XoshiroRNG seed: 0]))
+  (check (= [rng integerFrom: -5 to: 5] -3)
+         "XoshiroRNG inherits RandomNumberGenerator>>integerFrom:to:"))
+(let ((rng [XoshiroRNG fromByteVector:
+             (bytevector 0 0 0 0 0 0 0 1
+                         0 0 0 0 0 0 0 2
+                         0 0 0 0 0 0 0 3
+                         0 0 0 0 0 0 0 4)]))
+  (check (eq? (type-of rng) XoshiroRNG)
+         "XoshiroRNG class>>fromByteVector: returns XoshiroRNG"))
+(check (eq? (type-of [XoshiroRNG random]) XoshiroRNG)
+       "XoshiroRNG class>>random returns XoshiroRNG")
+(check-error-message "XoshiroRNG state must be 32 bytes"
+                     "XoshiroRNG class>>fromByteVector: rejects wrong state length"
+  [XoshiroRNG fromByteVector: (bytevector 1 2 3)])
+(check-error-message "XoshiroRNG state must not be all zero"
+                     "XoshiroRNG class>>fromByteVector: rejects all-zero state"
+  [XoshiroRNG fromByteVector: (make-bytevector 32)])
+)
+
+(define-test "AsconRNG"
+;;; AsconRNG
+
+(check (class? AsconRNG) "AsconRNG class is bound")
+(let ((rng [AsconRNG fromByteVector:
+             (bytevector 0 1 2 3 4 5 6 7
+                         8 9 10 11 12 13 14 15
+                         16 17 18 19 20 21 22 23
+                         24 25 26 27 28 29 30 31)]))
+  (check (eq? (type-of rng) AsconRNG)
+         "AsconRNG class>>fromByteVector: returns AsconRNG")
+  (check (equal? [rng bytes: 16]
+                 (bytevector 46 95 52 3 244 23 20 113
+                             204 121 52 181 25 130 206 206))
+         "AsconRNG>>bytes: returns deterministic Ascon-XOF128 stream"))
+(let ((left [AsconRNG fromByteVector:
+              (bytevector 0 1 2 3 4 5 6 7
+                          8 9 10 11 12 13 14 15
+                          16 17 18 19 20 21 22 23
+                          24 25 26 27 28 29 30 31)])
+      (right [AsconRNG fromByteVector:
+               (bytevector 0 1 2 3 4 5 6 7
+                           8 9 10 11 12 13 14 15
+                           16 17 18 19 20 21 22 23
+                           24 25 26 27 28 29 30 31)]))
+  (let ((prefix [left bytes: 3])
+        (suffix [left bytes: 13]))
+    (check (equal? [prefix append: suffix]
+                   [right bytes: 16])
+           "AsconRNG>>bytes: preserves stream across partial reads")))
+(let ((rng [AsconRNG fromByteVector:
+             (bytevector 0 1 2 3 4 5 6 7
+                         8 9 10 11 12 13 14 15
+                         16 17 18 19 20 21 22 23
+                         24 25 26 27 28 29 30 31)]))
+  (check (and (>= [rng integerBelow: 10] 0)
+              (< [rng integerBelow: 10] 10))
+         "AsconRNG inherits RandomNumberGenerator>>integerBelow:"))
+(check (eq? (type-of [AsconRNG random]) AsconRNG)
+       "AsconRNG class>>random returns AsconRNG")
+(check-error-message "AsconRNG seed must be 32 bytes"
+                     "AsconRNG class>>fromByteVector: rejects wrong seed length"
+  [AsconRNG fromByteVector: (bytevector 1 2 3)])
+(check-error-message "AsconRNG seed must not be all zero"
+                     "AsconRNG class>>fromByteVector: rejects all-zero seed"
+  [AsconRNG fromByteVector: (make-bytevector 32)])
+)
