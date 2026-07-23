@@ -1,0 +1,103 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :test-framework)
+
+(define test-framework:%tests '())
+(define test-framework:%current-checks 0)
+(define test-framework:%current-failures 0)
+(define test-framework:%total-checks 0)
+(define test-framework:%total-failures 0)
+
+(define (test-framework:%print-line text)
+  (display (string-append text "\n")))
+
+(define-macro (define-test name . body)
+  `(set! test-framework:%tests
+         (append test-framework:%tests
+                 (list (list ,name (lambda () ,@body))))))
+
+(define (check condition description)
+  (set! test-framework:%current-checks
+        (+ test-framework:%current-checks 1))
+  (if condition
+      #true
+      (begin
+        (set! test-framework:%current-failures
+              (+ test-framework:%current-failures 1))
+        (test-framework:%print-line
+          (string-append "FAIL: " description))
+        #false)))
+
+(define (check-near actual expected epsilon description)
+  (check (and (<= (- actual expected) epsilon)
+              (<= (- expected actual) epsilon))
+         description))
+
+(define (raises? thunk)
+  (catch :raises-check
+    (handler-bind (lambda (c) (throw :raises-check c))
+      (thunk)
+      #false)))
+
+(define-macro (check-raises description . body)
+  `(check (raises? (lambda () ,@body)) ,description))
+
+(define-macro (check-error-message message description . body)
+  `(let ((c (raises? (lambda () ,@body))))
+     (check (and c (equal? (slot-ref c 'message) ,message)) ,description)))
+
+(define (test-framework:%run-one test)
+  (let ((name (car test))
+        (thunk (cadr test)))
+    (set! test-framework:%current-checks 0)
+    (set! test-framework:%current-failures 0)
+    (let ((condition
+            (catch :test-framework-test-error
+              (handler-bind
+                (lambda (c) (throw :test-framework-test-error c))
+                (thunk)
+                #nil))))
+      (if condition
+          (begin
+            (set! test-framework:%current-failures
+                  (+ test-framework:%current-failures 1))
+            (test-framework:%print-line
+              (string-append "ERROR: " name ": "
+                             (slot-ref condition 'message))))))
+    (set! test-framework:%total-checks
+          (+ test-framework:%total-checks test-framework:%current-checks))
+    (set! test-framework:%total-failures
+          (+ test-framework:%total-failures test-framework:%current-failures))
+    (if (> test-framework:%current-failures 0)
+        (test-framework:%print-line
+          (string-append "FAIL: " name " ("
+                         (number->string test-framework:%current-failures)
+                         "/"
+                         (number->string test-framework:%current-checks)
+                         " checks failed)"))
+        (test-framework:%print-line
+          (string-append "PASS: " name " ("
+                         (number->string test-framework:%current-checks)
+                         " checks)")))))
+
+(define (run-tests)
+  (set! test-framework:%total-checks 0)
+  (set! test-framework:%total-failures 0)
+  (for-each test-framework:%run-one test-framework:%tests)
+  (if (> test-framework:%total-failures 0)
+      (test-framework:%print-line
+        (string-append
+          (number->string test-framework:%total-failures)
+          " test check(s) failed across "
+          (number->string (length test-framework:%tests))
+          " test(s)"))
+      (test-framework:%print-line
+        (string-append
+          "eval tests passed ("
+          (number->string test-framework:%total-checks)
+          " checks across "
+          (number->string (length test-framework:%tests))
+          " tests)")))
+  test-framework:%total-failures)
