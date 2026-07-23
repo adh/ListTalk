@@ -95,7 +95,7 @@
           " test(s)"))
       (test-framework:%print-line
         (string-append
-          "eval tests passed ("
+          "tests passed ("
           (number->string test-framework:%total-checks)
           " checks across "
           (number->string (length test-framework:%tests))
