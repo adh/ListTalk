@@ -63,11 +63,7 @@ static int set_entry_value(LT_Set* set,
     if (set_weak_identity_p(set)){
         LT_WeakValue* weak = (LT_WeakValue*)entry->key;
 
-        if (!LT_weak_is_alive(*weak)){
-            return 0;
-        }
-        *value_out = LT_weak_unbox(*weak);
-        return 1;
+        return LT_weak_try_unbox(weak, value_out);
     }
 
     *value_out = (LT_Value)(uintptr_t)entry->key;

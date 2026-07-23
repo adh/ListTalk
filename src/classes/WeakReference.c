@@ -116,14 +116,16 @@ LT_WeakReference* LT_WeakReference_new(LT_Value value){
 }
 
 int LT_WeakReference_alive_p(LT_WeakReference* reference){
-    return LT_weak_is_alive(reference->value);
+    return LT_weak_is_alive(&reference->value);
 }
 
 LT_Value LT_WeakReference_value(LT_WeakReference* reference){
-    if (!LT_WeakReference_alive_p(reference)){
+    LT_Value value;
+
+    if (!LT_weak_try_unbox(&reference->value, &value)){
         LT_error("WeakReference is not alive");
     }
-    return LT_weak_unbox(reference->value);
+    return value;
 }
 
 void LT_WeakReference_setValue(LT_WeakReference* reference, LT_Value value){

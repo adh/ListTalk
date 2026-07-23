@@ -23,7 +23,7 @@ static LT_IdentityDictionary* dynamic_value_dictionary(void){
     LT_ThreadState* state = LT_thread_state();
 
     if (state->dynamic_values == NULL){
-        state->dynamic_values = LT_WeakKeyIdentityDictionary_new();
+        state->dynamic_values = LT_IdentityDictionary_new();
     }
     return (LT_IdentityDictionary*)state->dynamic_values;
 }

@@ -72,11 +72,7 @@ static int dictionary_entry_key(LT_IdentityDictionary* dictionary,
     if (dictionary_weak_key_p(dictionary)){
         LT_WeakValue* weak = (LT_WeakValue*)entry->key;
 
-        if (!LT_weak_is_alive(*weak)){
-            return 0;
-        }
-        *key_out = LT_weak_unbox(*weak);
-        return 1;
+        return LT_weak_try_unbox(weak, key_out);
     }
 
     *key_out = (LT_Value)(uintptr_t)entry->key;
@@ -87,11 +83,7 @@ static int dictionary_entry_value(LT_IdentityDictionary* dictionary,
                                   struct LT_IdentityDictionary_Entry* entry,
                                   LT_Value* value_out){
     if (dictionary_weak_value_p(dictionary)){
-        if (!LT_weak_is_alive(entry->weak_value)){
-            return 0;
-        }
-        *value_out = LT_weak_unbox(entry->weak_value);
-        return 1;
+        return LT_weak_try_unbox(&entry->weak_value, value_out);
     }
 
     *value_out = entry->value;
