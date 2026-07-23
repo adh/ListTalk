@@ -1,0 +1,58 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-json)
+
+(define-test "JSON module"
+;;; JSON module
+
+(check (eq? (type-of [ListTalk-JSON:JSONDecoder new])
+            ListTalk-JSON:JSONDecoder)
+       "JSONDecoder class>>new returns decoder")
+(check (eq? (type-of [ListTalk-JSON:JSONEncoder new])
+            ListTalk-JSON:JSONEncoder)
+       "JSONEncoder class>>new returns encoder")
+
+(let ((decoded [[ListTalk-JSON:JSONDecoder new]
+                 decode: "{\"a\":[1,true,null],\"b\":2}"]))
+  (check (eq? (type-of decoded) Dictionary)
+         "JSONDecoder defaults objects to Dictionary")
+  (check (equal? [decoded at: "b"] 2)
+         "JSONDecoder decodes object integer values")
+  (check (equal? [decoded at: "a"] (list 1 #true #nil))
+         "JSONDecoder defaults arrays to List"))
+
+(check (equal? [[ListTalk-JSON:JSONDecoder
+                  newWithArrayConversion: :vector
+                  objectConversion: :plist]
+                 decode: "{\"a\":[1,2],\"b\":false}"]
+               (list "a" #(1 2) "b" #false))
+       "JSONDecoder supports vector arrays and plist objects")
+
+(check (equal? [[ListTalk-JSON:JSONDecoder
+                  newWithArrayConversion: (lambda (items) (cons :array items))
+                  objectConversion: (lambda (items) (cons :object items))]
+                 decode: "{\"a\":[1]}"]
+               (list :object "a" (list :array 1)))
+       "JSONDecoder supports callable conversions")
+
+(check (equal? [[ListTalk-JSON:JSONEncoder new]
+                 encode: (list 1 "x" #true #nil)]
+               "[1,\"x\",true,null]")
+       "JSONEncoder encodes compact string output")
+
+(check-raises "JSONEncoder rejects exact fractions"
+  [[ListTalk-JSON:JSONEncoder new] encode: 1/2])
+
+(check (equal? [[ListTalk-JSON:JSONEncoder pretty]
+                 encodePlist: (list "a" 1 "b" (list 2 3))]
+               "{\n  \"a\": 1,\n  \"b\": [\n    2,\n    3\n  ]\n}")
+       "JSONEncoder supports pretty plist object output")
+
+(let ((encoder [ListTalk-JSON:JSONEncoder new]))
+  [encoder output: :byte-vector]
+  (check (equal? [encoder encode: (list "ok")]
+                 (bytevector 91 34 111 107 34 93))
+         "JSONEncoder supports byte-vector output"))
+)
