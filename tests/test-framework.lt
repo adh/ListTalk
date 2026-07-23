@@ -4,6 +4,8 @@
 
 (provide :test-framework)
 
+(define-package :test-framework :ListTalk)
+
 (define test-framework:%tests '())
 (define test-framework:%current-checks 0)
 (define test-framework:%current-failures 0)
