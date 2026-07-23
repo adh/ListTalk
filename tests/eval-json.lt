@@ -42,6 +42,9 @@
                "[1,\"x\",true,null]")
        "JSONEncoder encodes compact string output")
 
+(check-raises "JSONEncoder rejects exact fractions"
+  [[ListTalk-JSON:JSONEncoder new] encode: 1/2])
+
 (check (equal? [[ListTalk-JSON:JSONEncoder pretty]
                  encodePlist: (list "a" 1 "b" (list 2 3))]
                "{\n  \"a\": 1,\n  \"b\": [\n    2,\n    3\n  ]\n}")
