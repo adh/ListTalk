@@ -1,0 +1,249 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-modules-os)
+
+(define-test "GC module"
+;;; GC module
+
+(check (primitive? ListTalk-GC:collect!) "gc module exposes collect!")
+(check (integer? (ListTalk-GC:heap-size)) "heap-size returns integer")
+(check (integer? (ListTalk-GC:free-bytes)) "free-bytes returns integer")
+(check (integer? (ListTalk-GC:unmapped-bytes)) "unmapped-bytes returns integer")
+(check (integer? (ListTalk-GC:bytes-since-gc)) "bytes-since-gc returns integer")
+(check (integer? (ListTalk-GC:total-bytes)) "total-bytes returns integer")
+(check (integer? (ListTalk-GC:collection-count))
+       "collection-count returns integer")
+(let ((stats (ListTalk-GC:statistics)))
+  (check (pair? (assq :heap-size stats)) "statistics includes heap size")
+  (check (pair? (assq :free-bytes stats)) "statistics includes free bytes")
+  (check (pair? (assq :unmapped-bytes stats))
+         "statistics includes unmapped bytes")
+  (check (pair? (assq :bytes-since-gc stats))
+         "statistics includes bytes since gc")
+  (check (pair? (assq :total-bytes stats)) "statistics includes total bytes")
+  (check (pair? (assq :collection-count stats))
+         "statistics includes collection count"))
+(let ((before (ListTalk-GC:collection-count)))
+  (ListTalk-GC:collect!)
+  (check (>= (ListTalk-GC:collection-count) before)
+         "collect! leaves collection count monotonic"))
+)
+
+(define-test "OS module"
+;;; OS module
+
+(define (contains-string? items target)
+  (any (lambda (item) (equal? item target)) items))
+
+(check (string? (ListTalk-OS:getenv "PATH")) "getenv returns string for present variable")
+(check (null? (ListTalk-OS:getenv "__LISTTALK_EVAL_TEST_MISSING_ENV__"))
+       "getenv returns nil for missing variable")
+(check (string? (ListTalk-OS:getpwd)) "getpwd returns current directory")
+(let ((bytes (ListTalk-OS:getentropy 300)))
+  (check (eq? (type-of bytes) ByteVector) "getentropy returns ByteVector")
+  (check (= (bytevector-length bytes) 300) "getentropy returns requested length"))
+
+(let* ((seed (ListTalk-OS:getentropy 4))
+       (original-cwd (ListTalk-OS:getpwd))
+       (suffix (string-append
+                 (number->string (bytevector-u8-ref seed 0)) "-"
+                 (number->string (bytevector-u8-ref seed 1)) "-"
+                 (number->string (bytevector-u8-ref seed 2)) "-"
+                 (number->string (bytevector-u8-ref seed 3))))
+       (root (string-append original-cwd "/listtalk-os-" suffix))
+       (nested (string-append root "/nested/child/grandchild"))
+       (original (string-append root "/alpha.txt"))
+       (moved (string-append root "/beta.txt"))
+       (hard (string-append root "/hard.txt"))
+       (soft (string-append root "/soft.txt"))
+       (string-file (string-append root "/string.txt"))
+       (data-file (string-append root "/data.lt"))
+       (bytevector-file (string-append root "/bytes.bin")))
+  (ListTalk-OS:mkdir root)
+  (check (ListTalk-OS:access root) "mkdir creates directory")
+  (let ((root-stat [ListTalk-OS:Stat file: root]))
+    (check (eq? (type-of root-stat) ListTalk-OS:Stat)
+           "Stat file: returns Stat instance")
+    (check (equal? (slot-ref root-stat 'path) root)
+           "Stat stores source path")
+    (check [root-stat directory?] "Stat directory? recognizes directory")
+    (check (not [root-stat regular-file?])
+           "Stat regular-file? rejects directory"))
+  (check (ListTalk-OS:directory? root)
+         "directory? recognizes directory path")
+  (check (not (ListTalk-OS:regular-file? root))
+         "regular-file? rejects directory path")
+  (ListTalk-OS:mkdirs nested)
+  (check (ListTalk-OS:access nested) "mkdirs creates parent directories")
+  (ListTalk-OS:mkdirs nested)
+  (check (ListTalk-OS:access nested) "mkdirs accepts existing directory")
+  (check (equal? (ListTalk-OS:chdir root) root) "chdir returns new directory")
+  (check (equal? (ListTalk-OS:getpwd) root) "getpwd reflects chdir")
+  (ListTalk-OS:chdir original-cwd)
+  (let ((stream [FileStream newForOutput: original]))
+    [stream writeString: "alpha"]
+    [stream close])
+  (check (ListTalk-OS:access original) "access sees created file")
+  (let ((file-stat [ListTalk-OS:Stat file: original]))
+    (check [file-stat regular-file?] "Stat regular-file? recognizes file")
+    (check (not [file-stat directory?]) "Stat directory? rejects file")
+    (check (not [file-stat pipe?]) "Stat pipe? rejects file")
+    (check (not [file-stat device?]) "Stat device? rejects file")
+    (check (not [file-stat socket?]) "Stat socket? rejects file")
+    (check (= [file-stat size] 5) "Stat size returns file byte length")
+    (check (integer? [file-stat dev]) "Stat dev returns integer")
+    (check (integer? [file-stat ino]) "Stat ino returns integer")
+    (check (integer? [file-stat mode]) "Stat mode returns integer")
+    (check (integer? [file-stat nlink]) "Stat nlink returns integer")
+    (check (integer? [file-stat uid]) "Stat uid returns integer")
+    (check (integer? [file-stat gid]) "Stat gid returns integer")
+    (check (integer? [file-stat rdev]) "Stat rdev returns integer")
+    (check (integer? [file-stat blksize]) "Stat blksize returns integer")
+    (check (integer? [file-stat blocks]) "Stat blocks returns integer")
+    (check (eq? (type-of [file-stat atime]) Instant) "Stat atime returns Instant")
+    (check (eq? (type-of [file-stat mtime]) Instant) "Stat mtime returns Instant")
+    (check (eq? (type-of [file-stat ctime]) Instant) "Stat ctime returns Instant"))
+  (check (ListTalk-OS:regular-file? original)
+         "regular-file? recognizes file path")
+  (check (not (ListTalk-OS:directory? original))
+         "directory? rejects file path")
+  ["alpha\nλ" writeToFile: string-file]
+  (check (equal? [String fromFile: string-file] "alpha\nλ")
+         "String class>>fromFile: reads file written by String>>writeToFile:")
+  ["FileData:alpha :key 17" writeToFile: data-file]
+  (let ((data (read-file-as-data data-file)))
+    (check (= (length data) 3) "read-file-as-data reads all forms")
+    (let ((package (slot-ref (car data) 'package)))
+      (check (equal? [package name] "FileData")
+             "read-file-as-data reads qualified symbol package"))
+    (check (keyword? (cadr data)) "read-file-as-data preserves keywords")
+    (check (= (caddr data) 17) "read-file-as-data reads numbers"))
+  [(bytevector 0 65 255 10) writeToFile: bytevector-file]
+  (check (equal? [ByteVector fromFile: bytevector-file]
+                 (bytevector 0 65 255 10))
+         "ByteVector class>>fromFile: reads file written by ByteVector>>writeToFile:")
+  (ListTalk-OS:move original moved)
+  (check (ListTalk-OS:access moved) "move renames file")
+  (check (not (ListTalk-OS:access original)) "move removes old path")
+  (ListTalk-OS:link moved hard)
+  (check (ListTalk-OS:access hard) "link creates hard link")
+  (ListTalk-OS:symlink moved soft)
+  (check (ListTalk-OS:access soft) "symlink creates directory entry")
+  (check (equal? (ListTalk-OS:readlink soft) moved) "readlink returns symlink target")
+  (let ((entries (ListTalk-OS:list-directory root)))
+    (check (contains-string? entries "beta.txt") "list-directory contains moved file")
+    (check (contains-string? entries "hard.txt") "list-directory contains hard link")
+    (check (contains-string? entries "soft.txt") "list-directory contains symlink"))
+  (ListTalk-OS:unlink hard)
+  (ListTalk-OS:unlink soft)
+  (ListTalk-OS:unlink string-file)
+  (ListTalk-OS:unlink bytevector-file)
+  (ListTalk-OS:unlink moved))
+)
+
+(define-test "Slot access"
+;;; Slot access
+
+(let ((p (cons 1 2)))
+  (check (= (slot-ref p 'car) 1) "slot-ref reads pair slot"))
+(let ((p (cons 1 2)))
+  (slot-set! p 'car 77)
+  (check (= (slot-ref p 'car) 77) "slot-set! mutates pair slot"))
+(check (eq? (slot-ref (type-of 1) 'name) 'SmallInteger)
+       "slot-ref resolves through superclass slots")
+(let ((metaclass-name (slot-ref (type-of SmallInteger) 'name)))
+  (check (symbol? metaclass-name) "metaclass name slot contains symbol")
+  (check (equal? [metaclass-name name] "SmallInteger class")
+         "metaclass gets synthesized class name"))
+)
+
+(define-test "Quote and quasiquote"
+;;; Quote and quasiquote
+
+(check (equal? (quote (+ 1 2)) '(+ 1 2)) "quote does not evaluate")
+(check (equal? '(+ 1 2) (quote (+ 1 2))) "quote reader syntax")
+(let ((data (read-string-as-data "DataReader:alpha :key 42 DataReader:*dynamic* DataReader:.slot")))
+  (check (= (length data) 5) "read-string-as-data reads all forms")
+  (let ((package (slot-ref (car data) 'package)))
+    (check (equal? [package name] "DataReader")
+           "read-string-as-data reads qualified symbol package"))
+  (check (equal? (symbol-name (car data)) "alpha")
+         "read-string-as-data reads qualified symbol name")
+  (check (keyword? (cadr data)) "read-string-as-data preserves keywords")
+  (check (= (caddr data) 42) "read-string-as-data reads numbers")
+  (check (equal? (symbol-name (cadddr data)) "*dynamic*")
+         "read-string-as-data does not expand dynamic variables")
+  (check (equal? (symbol-name (car (cddddr data))) ".slot")
+         "read-string-as-data does not expand slot accessors"))
+(check-raises "read-string-as-data rejects unqualified symbols"
+  (read-string-as-data "alpha"))
+(check-raises "read-string-as-data rejects bracket send syntax"
+  (read-string-as-data "[DataReader:alpha value]"))
+(check (equal? `(+ ,(+ 1 2) 4) '(+ 3 4)) "quasiquote with unquote")
+(check (equal? `(1 ,@(list 2 3) 4) '(1 2 3 4)) "quasiquote with unquote-splicing")
+)
+
+(define-test "Lambda"
+;;; Lambda
+
+(check (= ((lambda (x y) (+ x y)) 3 4) 7) "closure application")
+(check (= ((λ (x y) (+ x y)) 3 4) 7) "lambda unicode alias")
+(check (= ({x y (+ x y)} 3 4) 7) "closure syntax with symbol parameter prefix")
+(check (= ({(+ 19 23)}) 42) "closure syntax without parameters")
+(check (= ({x x} 42) 42) "closure syntax uses final all-symbol argument as body")
+(check (= ({x y x} 11 22) 11) "closure syntax all-symbol arguments keep prefix parameters")
+(check (equal? ((lambda (x . rest) rest) 1 2 3) '(2 3)) "dotted rest parameter")
+(check (equal? ((lambda args args) 4 5) '(4 5)) "symbol rest parameter")
+(check (= ((lambda (:optional x) x) 42) 42) "optional parameter")
+(check (= ((lambda (:optional (x 7)) x)) 7) "optional parameter default")
+(check (= ((lambda (base :optional (x (+ base 3))) x) 4) 7)
+       "optional parameter default sees application environment")
+(check (= ((lambda (:optional x (y (+ x 1))) y) 5) 6)
+       "optional parameter default sees earlier optional binding")
+(check (equal? ((lambda (:rest rest) rest) 1 2 3) '(1 2 3))
+       ":rest parameter")
+(check (equal? ((lambda (x :rest rest) rest) 1 2 3) '(2 3))
+       "positional and :rest parameters")
+(check (= ((lambda (:key x) x) :x 42) 42) "keyword parameter")
+(check (= ((lambda (:key (x 7)) x)) 7) "keyword parameter default")
+(check (= ((lambda (base :key (x (+ base 3))) x) 4) 7)
+       "keyword parameter default sees application environment")
+(check (= ((lambda (:key x (y (+ x 1))) y) :x 5) 6)
+       "keyword parameter default sees earlier keyword binding")
+(check (= ((lambda (x :key y) (+ x y)) 3 :y 4) 7)
+       "positional and keyword parameters")
+(check-raises "keyword argument without value raises"
+  ((lambda (:key x) x) :x))
+(check-raises "unknown keyword argument raises"
+  ((lambda (:key x) x) :y 1))
+(check-raises "keyword argument name must be keyword"
+  ((lambda (:key x) x) 'x 1))
+(check-raises "malformed keyword parameter raises"
+  (lambda (:key (x 1 2)) x))
+(check-raises "malformed optional parameter raises"
+  (lambda (:optional (x 1 2)) x))
+(check-raises ":rest and :key cannot be combined"
+  (lambda (:rest rest :key x) rest))
+(check-raises ":rest parameter must be last"
+  (lambda (:rest rest x) rest))
+)
+
+(define-test "Tail call optimization"
+;;; Tail call optimization
+
+(define (make-deep-list-loop i acc n)
+  (if (= i n)
+      acc
+      (make-deep-list-loop (+ i 1) (cons '() acc) n)))
+
+(define (make-deep-list n)
+  (make-deep-list-loop 0 '() n))
+
+(define (len-loop xs acc)
+  (if xs (len-loop (cdr xs) (+ acc 1)) acc))
+
+(check (= (len-loop (make-deep-list 20000) 0) 20000)
+       "tail recursion stays bounded and returns expected value")
+)

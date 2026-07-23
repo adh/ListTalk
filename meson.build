@@ -321,6 +321,7 @@ test(
         listtalk_exe,
         args : [
                 '-L', meson.current_build_dir(),
+                '-L', meson.current_source_dir() / 'tests',
                 '-L', meson.current_source_dir() / 'tests' / 'fixtures',
                 meson.current_source_dir() / 'tests' / 'eval-test.lt'
         ],

@@ -1043,8 +1043,11 @@ static LT_Value read_number_token_with_radix(
     char* token;
     LT_Value value;
 
-    if (ch == EOF || is_delimiter(ch)){
+    if (ch == EOF){
         reader_incomplete_input(reader, "Numeric dispatch macro expects token");
+    }
+    if (is_delimiter(ch)){
+        reader_error(reader, "Numeric dispatch macro expects token");
     }
 
     token = read_token_string(reader, ch, stream);

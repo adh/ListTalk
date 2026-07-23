@@ -784,6 +784,27 @@ static int test_dispatch_binary_number(void){
     );
 }
 
+static int test_dispatch_binary_number_requires_token(void){
+    LT_Value value = read_one_catch_error("#b\"");
+
+    if (expect(
+        LT_ReaderError_p(value),
+        "dispatch #b delimiter signals reader error"
+    )){
+        return 1;
+    }
+    if (expect(
+        !LT_IncompleteInputSyntaxError_p(value),
+        "dispatch #b delimiter is not incomplete input"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Numeric dispatch macro expects token") == 0,
+        "dispatch #b delimiter error message"
+    );
+}
+
 static int test_dispatch_octal_number(void){
     LT_Value value = read_one("#o52");
     return expect(
@@ -2269,6 +2290,7 @@ int main(void){
     failures += test_dispatch_character_literal_rejects_whitespace();
     failures += test_dispatch_bang_comment();
     failures += test_dispatch_binary_number();
+    failures += test_dispatch_binary_number_requires_token();
     failures += test_dispatch_octal_number();
     failures += test_dispatch_hex_fraction();
     failures += test_dispatch_explicit_radix_number();

@@ -1,0 +1,177 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-loading-control)
+
+(define-test "Load tests"
+;;; Load tests
+
+(load! :test-module-foo)
+(check (= loaded-from-foo 42) "load! loads module into environment")
+(check (pair? (memq :test-module-foo ListTalk:%modules)) "provide records loaded module")
+
+(define saved-resolvers ListTalk:module-resolvers)
+(load! :test-module-bar "/nonexistent-extra-path")
+(check (= loaded-from-bar 91) "load! uses call-local resolvers")
+(check (eq? saved-resolvers ListTalk:module-resolvers)
+       "load! call-local resolvers do not mutate module-resolvers")
+
+(check (primitive? ListTalk-OS:exit) "load! loads native module primitive")
+(check (pair? (memq :os ListTalk:%modules)) "native module records provided module")
+(check (primitive? ListTalk-GC:collect!) "load! loads gc native module primitive")
+(check (class? ListTalk-cmdopts:Parser) "load! loads cmdopts Parser class")
+
+(let ((parser [ListTalk-cmdopts:Parser newWithFlags: '(:strict-order)])
+      (verbose 0)
+      (name #nil)
+      (arguments '()))
+  [parser addOption: #false
+          shortOption: #\v
+          longOption: "verbose"
+          do: (lambda (p value)
+                (check (eq? p parser) "cmdopts option callback receives parser")
+                (check (null? value) "cmdopts flag callback receives nil value")
+                (set! verbose (+ verbose 1)))]
+  [parser addOption: #true
+          shortOption: #\n
+          longOption: "name"
+          do: (lambda (p value) (set! name value))]
+  [parser addArgument: '(:multiple)
+          do: (lambda (p value) (set! arguments (cons value arguments)))]
+  [parser parseList: '("-vv" "--name=sample" "first" "second")]
+  (check (= verbose 2) "cmdopts parses clustered short flags")
+  (check (equal? name "sample") "cmdopts parses long option argument")
+  (check (equal? arguments '("second" "first")) "cmdopts parses positional arguments"))
+
+(let ((parser [ListTalk-cmdopts:Parser new])
+      (verbose 0)
+      (dry-run #false)
+      (name #nil)
+      (required #nil)
+      (arguments '()))
+  [parser addOption: #\v
+          do: (lambda (p value)
+                (check (eq? p parser) "cmdopts shortcut option callback receives parser")
+                (check (null? value) "cmdopts shortcut flag callback receives nil value")
+                (set! verbose (+ verbose 1)))]
+  [parser addOption: "dry-run"
+          do: (lambda (p value) (set! dry-run #true))]
+  [parser addOption: '(#\n "name")
+          withArgumentDo: (lambda (p value) (set! name value))]
+  [parser addRequiredArgument: (lambda (p value) (set! required value))]
+  [parser addMultipleArguments: (lambda (p value) (set! arguments (cons value arguments)))]
+  [parser parseList: '("-v" "--dry-run" "--name" "sample" "first" "second" "third")]
+  (check (= verbose 1) "cmdopts addOption:do: accepts character options")
+  (check dry-run "cmdopts addOption:do: accepts string options")
+  (check (equal? name "sample") "cmdopts addOption:withArgumentDo: accepts short and long option list")
+  (check (equal? required "first") "cmdopts addRequiredArgument: adds required positional argument")
+  (check (equal? arguments '("third" "second")) "cmdopts addMultipleArguments: adds repeated positional arguments"))
+(check (pair? (memq :gc ListTalk:%modules)) "gc native module records provided module")
+)
+
+(define-test "catch / throw / unwind-protect / handler-bind"
+;;; catch / throw / unwind-protect / handler-bind
+
+(check (= (catch :t (+ 1 2)) 3) "catch returns body value when no throw happens")
+(check (= (catch :t (throw :t 42) 99) 42) "throw transfers control to matching catch")
+(check (= (catch :outer (catch :inner (throw :outer 7))) 7)
+       "throw skips non-matching inner catch")
+
+(define unwind-x 0)
+(check (= (unwind-protect 7 (set! unwind-x 1)) 7)
+       "unwind-protect returns protected value on normal path")
+(check (= unwind-x 1) "unwind-protect runs cleanup on normal path")
+
+(define unwind-y 0)
+(check (= (catch :t (unwind-protect (throw :t 9) (set! unwind-y 1))) 9)
+       "unwind-protect rethrows and outer catch receives value")
+(check (= unwind-y 1) "unwind-protect runs cleanup during throw")
+
+(let ((c (catch :t
+           (handler-bind (lambda (cond) (throw :t cond))
+             (error "boom")))))
+  (check (equal? (slot-ref c 'message) "boom")
+         "handler-bind catches error condition with correct message"))
+
+(check (null? (current-restarts))
+       "current-restarts returns nil outside restart dynamic extent")
+(check (null? (find-restart :missing-restart))
+       "find-restart returns nil without matching active restart")
+(check-raises "invoke-restart raises without matching active restart"
+              (invoke-restart :missing-restart))
+(let ((restart [Restart named: :stored
+                         fromClosure: (lambda (value)
+                                        "Return stored restart value."
+                                        value)]))
+  (check (= (restart-bind restart
+              (invoke-restart :stored 11))
+            11)
+         "restart-bind accepts restart variable"))
+(check (= (restart-bind ([Restart named: :computed
+                                  fromClosure: (lambda (value)
+                                                 "Return computed restart value."
+                                                 value)])
+            (invoke-restart :computed 12))
+          12)
+       "restart-bind accepts parenthesized restart expression")
+(check (= (restart-bind (:named-closure (lambda (value)
+                                          "Return named closure restart value."
+                                          value))
+            (invoke-restart :named-closure 13))
+          13)
+       "restart-bind accepts name and closure")
+(check (= (restart-bind ((:inline value)
+                         "Return inline restart value."
+                         value)
+            (invoke-restart :inline 14))
+          14)
+       "restart-bind accepts inline restart signature")
+(restart-bind ((:documented value)
+               "Documented inline restart."
+               value)
+  (check (equal? [(find-restart :documented) description]
+                 "Documented inline restart.")
+         "restart-bind inline restart preserves docstring"))
+)
+
+(define-test "Symbol package slot"
+;;; Symbol package slot
+
+(check (not (null? (slot-ref 'eval-test-alpha 'package)))
+       "symbol package slot exposes package object")
+(check (eq? ['eval-test-alpha package] (slot-ref 'eval-test-alpha 'package))
+       "Symbol>>package returns package object")
+(check (null? [[Symbol gensym] package])
+       "Symbol>>package returns nil for uninterned symbol")
+(check [:eval-test-keyword keyword?] "Symbol>>keyword? true for keyword symbol")
+(check (not ['eval-test-alpha keyword?])
+       "Symbol>>keyword? false for non-keyword symbol")
+(check ['eval-test-alpha nameStartsWith?: "eval"]
+       "Symbol>>nameStartsWith?: accepts prefix")
+(check (not ['eval-test-alpha nameStartsWith?: "alpha"])
+       "Symbol>>nameStartsWith?: rejects non-prefix")
+(let ((alpha-package [Package named: "OrderingAlpha"])
+      (beta-package [Package named: "OrderingBeta"]))
+  (check [alpha-package < beta-package]
+         "Package>>< compares package names lexicographically")
+  (check [beta-package > alpha-package]
+         "Package>>> compares package names lexicographically")
+  (check [alpha-package <= alpha-package]
+         "Package>><= accepts equality")
+  (check (= [alpha-package compareWith: beta-package] -1)
+         "Package>>compareWith: returns -1 for less")
+  (let ((alpha-a [Symbol intern: "a" in: alpha-package])
+        (alpha-b [Symbol intern: "b" in: alpha-package])
+        (beta-a [Symbol intern: "a" in: beta-package]))
+    (check [alpha-a < alpha-b]
+           "Symbol>>< compares local names within package")
+    (check [alpha-b < beta-a]
+           "Symbol>>< compares packages before local names")
+    (check [alpha-a <= alpha-a]
+           "Symbol>><= accepts equality")
+    (check (= [alpha-a compareWith: alpha-b] -1)
+           "Symbol>>compareWith: returns -1 for local name ordering")))
+(check-error-message "Readonly slot" "symbol package slot is readonly"
+  (slot-set! 'eval-test-alpha 'package 1))
+)
