@@ -325,7 +325,7 @@ test(
                 '-L', meson.current_source_dir() / 'tests' / 'fixtures',
                 meson.current_source_dir() / 'tests' / 'eval-test.lt'
         ],
-        depends : [os_module, gc_module, cmdopts_module]
+        depends : [os_module, gc_module, cmdopts_module, json_module]
 )
 
 test(
@@ -337,7 +337,7 @@ test(
                 meson.current_build_dir(),
                 meson.current_source_dir() / 'tests' / 'fixtures'
         ],
-        depends : [listtalk_exe, json_module]
+        depends : [listtalk_exe]
 )
 
 test(

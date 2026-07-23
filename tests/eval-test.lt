@@ -5,6 +5,7 @@
 (load! :os)
 (load! :gc)
 (load! :cmdopts)
+(load! :json)
 
 (load! :test-framework)
 (load! :eval-arithmetic-types)
@@ -14,6 +15,7 @@
 (load! :eval-language)
 (load! :eval-loading-control)
 (load! :eval-crypto-rng)
+(load! :eval-json)
 
 (if (> (run-tests) 0)
     (ListTalk-OS:exit 1)
