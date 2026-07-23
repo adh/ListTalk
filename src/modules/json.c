@@ -649,10 +649,17 @@ static void json_emit_number(JSONEmitter* emitter, LT_Value value){
         if (!isfinite(double_value)){
             LT_error("Cannot JSON encode non-finite number");
         }
+        LT_StringBuilder_append_str(emitter->builder, LT_Number_to_string(value));
+        return;
     }
+
+    /* Exact fractions stringify as n/d, which is not valid JSON. */
+    if (LT_SmallFraction_p(value) || LT_Fraction_p(value)){
+        LT_error("Cannot JSON encode exact fraction; convert to float first");
+    }
+
     LT_StringBuilder_append_str(emitter->builder, LT_Number_to_string(value));
 }
-
 static void json_emit_value(JSONEmitter* emitter, LT_Value value, int depth){
     if (value == LT_NIL){
         LT_StringBuilder_append_str(emitter->builder, "null");
