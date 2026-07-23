@@ -76,6 +76,36 @@ def main():
     )
     failures += run_case(
         exe,
+        [
+            "-L",
+            build_dir,
+            "-E",
+            '(begin (require :json) [[ListTalk-JSON:JSONDecoder newWithArrayConversion: :vector objectConversion: :plist] decode: "{\\"a\\":[1,2],\\"b\\":false}"])',
+        ],
+        '("a" #(1 2) "b" #false)\n',
+    )
+    failures += run_case(
+        exe,
+        [
+            "-L",
+            build_dir,
+            "-E",
+            '(begin (require :json) [[ListTalk-JSON:JSONEncoder new] encode: (list 1 "x" #true #nil)])',
+        ],
+        '"[1,\\"x\\",true,null]"\n',
+    )
+    failures += run_case(
+        exe,
+        [
+            "-L",
+            build_dir,
+            "-E",
+            '(begin (require :json) (define e [ListTalk-JSON:JSONEncoder new]) [e output: :byte-vector] [e encode: (list "ok")])',
+        ],
+        '#"[\\"ok\\"]"\n',
+    )
+    failures += run_case(
+        exe,
         [fixture_dir + "/command-line.lt", "arg1", "arg2"],
         '("{0}/command-line.lt" "arg1" "arg2")\n'.format(fixture_dir),
     )

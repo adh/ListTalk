@@ -194,6 +194,17 @@ gc_module = shared_module(
         install_dir : listtalk_native_module_dir
 )
 
+json_module = shared_module(
+        'json',
+        'src/modules/json.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
 cmdopts_module = shared_module(
         'cmdopts',
         'src/modules/cmdopts.c',
@@ -325,7 +336,7 @@ test(
                 meson.current_build_dir(),
                 meson.current_source_dir() / 'tests' / 'fixtures'
         ],
-        depends : [listtalk_exe]
+        depends : [listtalk_exe, json_module]
 )
 
 test(
