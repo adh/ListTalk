@@ -25,11 +25,11 @@ struct LT_INIReader_s {
     LT_Value allow_empty_values;
 };
 
-static LT_Value ini_keyword(char* name){
-    return LT_Symbol_new_in(LT_PACKAGE_KEYWORD, name);
+static LT_Value ini_keyword(const char* name){
+    return LT_Symbol_new_in(LT_PACKAGE_KEYWORD, (char*)name);
 }
 
-static int ini_keyword_p(LT_Value value, char* name){
+static int ini_keyword_p(LT_Value value, const char* name){
     LT_Symbol* symbol;
 
     if (!LT_Symbol_p(value)){
