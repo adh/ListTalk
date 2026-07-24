@@ -102,7 +102,7 @@ static LT_INISection* ini_find_section(LT_INI* ini, const char* name){
     return NULL;
 }
 
-static LT_INISection* ini_get_section(LT_INI* ini, const char* name){
+static LT_INISection* ini_get_section(LT_INI* ini, char* name){
     LT_INISection* section;
 
     section = ini_find_section(ini, name);
@@ -110,7 +110,7 @@ static LT_INISection* ini_get_section(LT_INI* ini, const char* name){
         return section;
     }
 
-    section = ini_section_new(LT_strdup((char*)(name == NULL ? "" : name)));
+    section = ini_section_new(name == NULL ? LT_strdup("") : name);
     if (ini->last_section == NULL){
         ini->sections = section;
     } else {
