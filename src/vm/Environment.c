@@ -7,6 +7,7 @@
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/vm/base_env.h>
+#include <ListTalk/vm/epoch.h>
 #include <ListTalk/classes/InvocationContextKind.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/BindingDescriptor.h>
@@ -194,6 +195,8 @@ void LT_Environment_bind(LT_Environment* environment,
     if (binding == NULL){
         binding = GC_NEW(struct LT_Environment_Binding);
         LT_PointerHash_at_put(&environment->bindings, symbol_key, binding);
+    } else if ((binding->flags & LT_ENV_BINDING_FLAG_CONSTANT) != 0){
+        LT_compilation_epoch_increment();
     }
 
     binding->value = value;

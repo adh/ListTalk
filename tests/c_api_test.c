@@ -10,6 +10,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/epoch.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -592,6 +593,71 @@ static int test_class_add_method_invalidates_method_cache(void){
         LT_Symbol_p(result)
             && strcmp(LT_Symbol_name(LT_Symbol_from_value(result)), "PairOverride") == 0,
         "LT_Class_addMethod invalidates stale method cache entries"
+    );
+}
+
+static int test_class_add_method_increments_ilc_epoch(void){
+    LT_EpochCounter before = 0;
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "epoch-test-method");
+
+    LT_ilc_epoch_copy_acquire_release(&before);
+    LT_Class_addMethod(
+        &LT_Object_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_object_class_name_method)
+    );
+
+    return expect(
+        !LT_ilc_epoch_equals_acquire(&before),
+        "LT_Class_addMethod increments inline-cache epoch"
+    );
+}
+
+static int test_class_new_increments_ilc_epoch(void){
+    LT_EpochCounter before = 0;
+    LT_Value name = LT_Symbol_new("EpochTestClass");
+    LT_Value superclasses = LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID);
+
+    LT_ilc_epoch_copy_acquire_release(&before);
+    (void)LT_Class_new(name, superclasses, LT_NIL);
+
+    return expect(
+        !LT_ilc_epoch_equals_acquire(&before),
+        "LT_Class_new increments inline-cache epoch for class hierarchy changes"
+    );
+}
+
+static int test_constant_redefinition_increments_compilation_epoch(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value symbol = LT_Symbol_new("epoch-constant");
+    LT_EpochCounter before_define = 0;
+    LT_EpochCounter before_redefine = 0;
+
+    LT_compilation_epoch_copy_acquire_release(&before_define);
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(1),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    if (expect(
+        LT_compilation_epoch_equals_acquire(&before_define),
+        "new constant binding does not increment compilation epoch"
+    )){
+        return 1;
+    }
+
+    LT_compilation_epoch_copy_acquire_release(&before_redefine);
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(2),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    return expect(
+        !LT_compilation_epoch_equals_acquire(&before_redefine),
+        "forced constant binding redefinition increments compilation epoch"
     );
 }
 
@@ -3491,6 +3557,9 @@ int main(void){
     RUN_TEST(test_send_passes_next_precedence_tail_as_invocation_context_data);
     RUN_TEST(test_super_send_c_api_uses_explicit_precedence_list);
     RUN_TEST(test_class_add_method_invalidates_method_cache);
+    RUN_TEST(test_class_add_method_increments_ilc_epoch);
+    RUN_TEST(test_class_new_increments_ilc_epoch);
+    RUN_TEST(test_constant_redefinition_increments_compilation_epoch);
     RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_immutable_list_methods);
     RUN_TEST(test_immutable_list_from_list);
