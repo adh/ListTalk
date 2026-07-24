@@ -4,6 +4,8 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/utils.h>
 
 void LT__init(void){
+    LT_run_registered_constructors();
 }

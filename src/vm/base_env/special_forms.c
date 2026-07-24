@@ -110,6 +110,56 @@ static int is_listtalk_named_symbol(LT_Value value, const char* name){
     return strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0;
 }
 
+static int is_keyword_named_symbol(LT_Value value, const char* name){
+    if (!LT_Symbol_p(value)){
+        return 0;
+    }
+    if (LT_Symbol_package(LT_Symbol_from_value(value)) != LT_PACKAGE_KEYWORD){
+        return 0;
+    }
+    return strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0;
+}
+
+static void validate_defaultable_parameter(LT_Value parameter,
+                                           const char* type_error_message,
+                                           const char* name_error_message,
+                                           const char* default_error_message){
+    LT_Value tail;
+
+    if (LT_Symbol_p(parameter)){
+        return;
+    }
+    if (!LT_Pair_p(parameter)){
+        LT_error(type_error_message);
+    }
+    if (!LT_Symbol_p(LT_car(parameter))){
+        LT_error(name_error_message);
+    }
+
+    tail = LT_cdr(parameter);
+    if (!LT_Pair_p(tail) || LT_cdr(tail) != LT_NIL){
+        LT_error(default_error_message);
+    }
+}
+
+static void validate_keyword_parameter(LT_Value parameter){
+    validate_defaultable_parameter(
+        parameter,
+        "%lambda keyword parameter must be symbol or two element list",
+        "%lambda keyword parameter name must be symbol",
+        "%lambda keyword parameter default must be a two element list"
+    );
+}
+
+static void validate_optional_parameter(LT_Value parameter){
+    validate_defaultable_parameter(
+        parameter,
+        "%lambda optional parameter must be symbol or two element list",
+        "%lambda optional parameter name must be symbol",
+        "%lambda optional parameter default must be a two element list"
+    );
+}
+
 static LT_FoldQuasiquoteResult fold_quasiquote_template(
     LT_Value expression,
     LT_Environment* environment,
@@ -386,6 +436,7 @@ static LT_Value special_form_lambda(LT_Value arguments,
     LT_Value parameters;
     LT_Value body;
     LT_Value parameter_cursor;
+    int optional_parameters = 0;
 
     LT_OBJECT_ARG(cursor, name_expression);
     LT_OBJECT_ARG(cursor, parameters);
@@ -408,6 +459,63 @@ static LT_Value special_form_lambda(LT_Value arguments,
     while (LT_Pair_p(parameter_cursor)){
         LT_Value parameter;
         parameter = LT_car(parameter_cursor);
+        if (is_keyword_named_symbol(parameter, "optional")){
+            if (optional_parameters){
+                LT_error("%lambda parameters have duplicate :optional marker");
+            }
+            optional_parameters = 1;
+            parameter_cursor = LT_cdr(parameter_cursor);
+            continue;
+        }
+        if (is_keyword_named_symbol(parameter, "key")){
+            parameter_cursor = LT_cdr(parameter_cursor);
+            while (parameter_cursor != LT_NIL){
+                if (!LT_Pair_p(parameter_cursor)){
+                    LT_error("%lambda keyword parameters must be a proper list");
+                }
+                if (is_keyword_named_symbol(LT_car(parameter_cursor), "optional")){
+                    LT_error("%lambda parameters have misplaced :optional marker");
+                }
+                if (is_keyword_named_symbol(LT_car(parameter_cursor), "rest")){
+                    LT_error("%lambda parameters cannot combine :rest and :key");
+                }
+                validate_keyword_parameter(LT_car(parameter_cursor));
+                parameter_cursor = LT_cdr(parameter_cursor);
+            }
+            return LT_Closure_new(name, parameters, body, environment);
+        }
+        if (is_keyword_named_symbol(parameter, "rest")){
+            LT_Value tail = LT_cdr(parameter_cursor);
+            LT_Value rest_parameter;
+
+            if (!LT_Pair_p(tail)){
+                LT_error("%lambda :rest marker must be followed by a symbol");
+            }
+            rest_parameter = LT_car(tail);
+            if (!LT_Symbol_p(rest_parameter)){
+                LT_error("%lambda :rest parameter must be symbol");
+            }
+
+            tail = LT_cdr(tail);
+            while (tail != LT_NIL){
+                LT_Value trailing_parameter;
+
+                if (!LT_Pair_p(tail)){
+                    LT_error("%lambda parameters must be proper after :rest");
+                }
+                trailing_parameter = LT_car(tail);
+                if (is_keyword_named_symbol(trailing_parameter, "key")){
+                    LT_error("%lambda parameters cannot combine :rest and :key");
+                }
+                LT_error("%lambda :rest parameter must be last");
+            }
+            return LT_Closure_new(name, parameters, body, environment);
+        }
+        if (optional_parameters && LT_Pair_p(parameter)){
+            validate_optional_parameter(parameter);
+            parameter_cursor = LT_cdr(parameter_cursor);
+            continue;
+        }
         if (!LT_Symbol_p(parameter)){
             LT_error("%lambda parameter must be symbol");
         }
@@ -919,6 +1027,27 @@ static LT_Value special_form_handler_bind(
     return result;
 }
 
+static LT_Value special_form_restart_bind(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value restart_expression;
+    LT_Value body;
+    LT_Value restart;
+    LT_Value result = LT_NIL;
+
+    LT_OBJECT_ARG(cursor, restart_expression);
+    LT_ARG_REST(cursor, body);
+
+    restart = LT_eval(restart_expression, environment, NULL);
+    LT_RESTART_BIND(restart, {
+        result = LT_eval_sequence(body, environment, tail_call_unwind_marker);
+    });
+    return result;
+}
+
 static LT_Value special_form_get_current_environment(
     LT_Value arguments,
     LT_Environment* environment,
@@ -1003,7 +1132,7 @@ static LT_SpecialForm lambda_special_form = {
     .function = special_form_lambda,
     .expand_function = expand_special_form_lambda,
     .name = "%lambda",
-    .arguments = "(name (arg ...) body ...)",
+    .arguments = "(name (:rest arg) :rest body)",
     .description = "Create closure with lexical scope."
 };
 
@@ -1011,7 +1140,7 @@ static LT_SpecialForm if_special_form = {
     .function = special_form_if,
     .expand_function = expand_special_form_default,
     .name = "if",
-    .arguments = "(condition then [else])",
+    .arguments = "(condition then :optional else)",
     .description = "Evaluate then or else based on condition."
 };
 
@@ -1019,7 +1148,7 @@ static LT_SpecialForm and_special_form = {
     .function = special_form_and,
     .expand_function = expand_special_form_default,
     .name = "and",
-    .arguments = "(expression ...)",
+    .arguments = "(:rest expression)",
     .description = "Evaluate expressions until one is falsey, else return last value."
 };
 
@@ -1027,7 +1156,7 @@ static LT_SpecialForm or_special_form = {
     .function = special_form_or,
     .expand_function = expand_special_form_default,
     .name = "or",
-    .arguments = "(expression ...)",
+    .arguments = "(:rest expression)",
     .description = "Evaluate expressions until one is truthy, else return last value."
 };
 
@@ -1035,7 +1164,7 @@ static LT_SpecialForm cond_special_form = {
     .function = special_form_cond,
     .expand_function = expand_special_form_default,
     .name = "cond",
-    .arguments = "((test body ...) ...)",
+    .arguments = "(:rest (test :rest body))",
     .description = "Evaluate the body of the first clause with a truthy test."
 };
 
@@ -1043,7 +1172,7 @@ static LT_SpecialForm while_special_form = {
     .function = special_form_while,
     .expand_function = expand_special_form_default,
     .name = "%while",
-    .arguments = "(condition body ...)",
+    .arguments = "(condition :rest body)",
     .description = "Evaluate body while condition is truthy."
 };
 
@@ -1051,7 +1180,7 @@ static LT_SpecialForm begin_special_form = {
     .function = special_form_begin,
     .expand_function = expand_special_form_default,
     .name = "begin",
-    .arguments = "(body ...)",
+    .arguments = "(:rest body)",
     .description = "Evaluate body forms in order in the current environment."
 };
 
@@ -1059,7 +1188,7 @@ static LT_SpecialForm let_special_form = {
     .function = special_form_let,
     .expand_function = expand_special_form_default,
     .name = "%let",
-    .arguments = "(((symbol value-expression) ...) body ...)",
+    .arguments = "((:rest (symbol value-expression)) :rest body)",
     .description = "Evaluate body in lexical scope with local bindings."
 };
 
@@ -1067,7 +1196,7 @@ static LT_SpecialForm letrec_special_form = {
     .function = special_form_letrec,
     .expand_function = expand_special_form_default,
     .name = "letrec",
-    .arguments = "(((symbol value-expression) ...) body ...)",
+    .arguments = "((:rest (symbol value-expression)) :rest body)",
     .description = "Evaluate body in lexical scope with mutually recursive bindings."
 };
 
@@ -1115,7 +1244,7 @@ static LT_SpecialForm catch_special_form = {
     .function = special_form_catch,
     .expand_function = expand_special_form_default,
     .name = "catch",
-    .arguments = "(tag-expression body ...)",
+    .arguments = "(tag-expression :rest body)",
     .description = "Evaluate body and intercept throws matching tag."
 };
 
@@ -1123,7 +1252,7 @@ static LT_SpecialForm unwind_protect_special_form = {
     .function = special_form_unwind_protect,
     .expand_function = expand_special_form_default,
     .name = "unwind-protect",
-    .arguments = "(protected-expression cleanup ...)",
+    .arguments = "(protected-expression :rest cleanup)",
     .description = "Always run cleanup forms; rethrow non-local exits."
 };
 
@@ -1131,8 +1260,16 @@ static LT_SpecialForm handler_bind_special_form = {
     .function = special_form_handler_bind,
     .expand_function = expand_special_form_default,
     .name = "handler-bind",
-    .arguments = "(handler-expression body ...)",
+    .arguments = "(handler-expression :rest body)",
     .description = "Bind condition handler during dynamic extent of body."
+};
+
+static LT_SpecialForm restart_bind_special_form = {
+    .function = special_form_restart_bind,
+    .expand_function = expand_special_form_default,
+    .name = "%restart-bind",
+    .arguments = "(restart-expression :rest body)",
+    .description = "Bind restart during dynamic extent of body."
 };
 
 static LT_SpecialForm get_current_environment_special_form = {
@@ -1147,7 +1284,7 @@ static LT_SpecialForm send_special_form = {
     .function = special_form_send,
     .expand_function = expand_special_form_default,
     .name = "%send",
-    .arguments = "(receiver selector argument ...)",
+    .arguments = "(receiver selector :rest argument)",
     .description = "Evaluate and send selector to receiver."
 };
 
@@ -1155,7 +1292,7 @@ static LT_SpecialForm super_send_special_form = {
     .function = special_form_super_send,
     .expand_function = expand_special_form_default,
     .name = "%super-send",
-    .arguments = "(receiver selector argument ...)",
+    .arguments = "(receiver selector :rest argument)",
     .description = "Evaluate and send selector using send invocation context."
 };
 
@@ -1228,6 +1365,11 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
     bind_static_special_form(environment, &catch_special_form);
     bind_static_special_form(environment, &unwind_protect_special_form);
     bind_static_special_form(environment, &handler_bind_special_form);
+    bind_static_special_form_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &restart_bind_special_form
+    );
     bind_static_special_form(environment, &get_current_environment_special_form);
     bind_static_special_form_in(
         environment,

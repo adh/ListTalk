@@ -149,6 +149,7 @@ LT_DEFINE_CLASS(LT_Pair) {
     .superclass = &LT_List_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Pair",
+    .documentation = "Immutable cons pair containing car and cdr.",
     .instance_size = sizeof(LT_Pair),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_ABSTRACT,
     .hash = Pair_hash,
@@ -162,6 +163,7 @@ LT_DEFINE_CLASS(LT_MutablePair) {
     .superclass = &LT_Pair_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "MutablePair",
+    .documentation = "Mutable cons pair containing car and cdr.",
     .instance_size = sizeof(LT_MutablePair),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .hash = Pair_hash,
@@ -195,6 +197,18 @@ LT_Value LT_list(LT_Value first, ...){
             break;
         }
         LT_ListBuilder_append(builder, value);
+    }
+    va_end(args);
+    return LT_ListBuilder_valueWithRest(builder, LT_NIL);
+}
+
+LT_Value LT_listn(size_t count, ...){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    va_list args;
+
+    va_start(args, count);
+    for (size_t i = 0; i < count; i++){
+        LT_ListBuilder_append(builder, va_arg(args, LT_Value));
     }
     va_end(args);
     return LT_ListBuilder_valueWithRest(builder, LT_NIL);

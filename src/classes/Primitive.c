@@ -3,8 +3,12 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/String.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/metadata.h>
 #include <ListTalk/utils.h>
 
 static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
@@ -18,13 +22,62 @@ static void Primitive_debugPrintOn(LT_Value obj, FILE* stream){
     fputc('>', stream);
 }
 
+static LT_Value primitive_string_or_nil(char* string){
+    if (string == NULL){
+        return LT_NIL;
+    }
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(string);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_method_documentation,
+    "Primitive>>documentation",
+    "(self)",
+    "Return primitive documentation."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return primitive_string_or_nil(
+        LT_Primitive_description(LT_Primitive_from_value(self))
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_method_arguments,
+    "Primitive>>arguments",
+    "(self)",
+    "Return primitive argument list, or the raw argument string if it cannot be read."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_parse_lambda_list_metadata(
+        LT_Primitive_arguments(LT_Primitive_from_value(self))
+    );
+}
+
+static LT_Method_Descriptor Primitive_methods[] = {
+    {"documentation", &primitive_method_documentation},
+    {"arguments", &primitive_method_arguments},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_Primitive) {
-    .superclass = &LT_Object_class,
+    .superclass = &LT_Function_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Primitive",
+    .documentation = "Callable function implemented in native code.",
     .instance_size = sizeof(LT_Primitive),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = Primitive_debugPrintOn,
+    .methods = Primitive_methods,
 };
 
 LT_Value LT_Primitive_new(char* name,

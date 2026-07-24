@@ -13,6 +13,19 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
+
+enum {
+    THREAD_COUNT = 8,
+    THREAD_INSERT_COUNT = 2000,
+};
+
+typedef struct DictionaryThreadArgs DictionaryThreadArgs;
+
+struct DictionaryThreadArgs {
+    LT_Dictionary* dictionary;
+    int thread_index;
+};
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -193,6 +206,51 @@ static int test_equal_p_still_handles_strings_lists_vectors(void){
     );
 }
 
+static void* dictionary_insert_thread_main(void* opaque){
+    DictionaryThreadArgs* args = opaque;
+    int base = args->thread_index * THREAD_INSERT_COUNT;
+
+    for (int i = 0; i < THREAD_INSERT_COUNT; i++){
+        LT_Value key = LT_SmallInteger_new(base + i);
+        LT_Value value = LT_SmallInteger_new(i);
+
+        LT_Dictionary_atPut(args->dictionary, key, value);
+        (void)LT_Dictionary_at(args->dictionary, key, NULL);
+    }
+
+    return NULL;
+}
+
+static int test_concurrent_dictionary_inserts_keep_table_coherent(void){
+    LT_Dictionary* dictionary = LT_Dictionary_new();
+    pthread_t threads[THREAD_COUNT];
+    DictionaryThreadArgs args[THREAD_COUNT];
+
+    for (int i = 0; i < THREAD_COUNT; i++){
+        args[i].dictionary = dictionary;
+        args[i].thread_index = i;
+        if (pthread_create(
+                &threads[i],
+                NULL,
+                dictionary_insert_thread_main,
+                &args[i]
+            ) != 0){
+            return fail("pthread_create failed");
+        }
+    }
+
+    for (int i = 0; i < THREAD_COUNT; i++){
+        if (pthread_join(threads[i], NULL) != 0){
+            return fail("pthread_join failed");
+        }
+    }
+
+    return expect(
+        LT_Dictionary_size(dictionary) == THREAD_COUNT * THREAD_INSERT_COUNT,
+        "concurrent dictionary inserts keep table coherent"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -205,6 +263,7 @@ int main(void){
     failures += test_remove_uses_equal_semantics();
     failures += test_immutable_dictionary_uses_dictionary_c_api();
     failures += test_equal_p_still_handles_strings_lists_vectors();
+    failures += test_concurrent_dictionary_inserts_keep_table_coherent();
 
     if (failures == 0){
         puts("dictionary tests passed");

@@ -1,10 +1,28 @@
 project('ListTalk', 'c',
+        version : '0.1.0',
         default_options : ['c_std=c11'])
 
+fs = import('fs')
+pkg = import('pkgconfig')
 bdwgc = dependency('bdw-gc')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
 libm = cc.find_library('m', required : false)
+listtalk_home_dir = get_option('datadir') / 'ListTalk'
+listtalk_native_module_dir = get_option('libdir') / 'ListTalk'
+listtalk_source_module_dir = listtalk_home_dir / 'modules'
+
+if fs.is_absolute(listtalk_native_module_dir)
+        listtalk_native_module_runtime_dir = listtalk_native_module_dir
+else
+        listtalk_native_module_runtime_dir = get_option('prefix') / listtalk_native_module_dir
+endif
+
+if fs.is_absolute(listtalk_source_module_dir)
+        listtalk_source_module_runtime_dir = listtalk_source_module_dir
+else
+        listtalk_source_module_runtime_dir = get_option('prefix') / listtalk_source_module_dir
+endif
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 
@@ -61,10 +79,17 @@ vm_lib = library(
                 'src/vm/utils.c',
                 'src/vm/cmdopts.c',
                 'src/vm/init.c',
+                'src/vm/thread_state.c',
+                'src/vm/metadata.c',
                 'src/vm/error.c',
                 'src/vm/stack_trace.c',
                 'src/vm/conditions.c',
                 'src/vm/throw_catch.c',
+                'src/utils/base64.c',
+                'src/utils/hex.c',
+                'src/utils/crypto/ascon.c',
+                'src/utils/crypto/sha256.c',
+                'src/utils/lock.c',
                 'src/utils/utf8.c',
                 'src/classes/Object.c',
                 'src/classes/Boolean.c',
@@ -82,14 +107,24 @@ vm_lib = library(
                 'src/classes/ExactComplexNumber.c',
                 'src/classes/BigInteger.c',
                 'src/classes/Fraction.c',
+                'src/classes/Iterator.c',
                 'src/classes/Float.c',
                 'src/classes/List.c',
                 'src/classes/String.c',
                 'src/classes/Vector.c',
                 'src/classes/ByteVector.c',
+                'src/classes/MessageDigest.c',
+                'src/classes/DigestSHA256.c',
+                'src/classes/RandomNumberGenerator.c',
+                'src/classes/XoshiroRNG.c',
+                'src/classes/AsconRNG.c',
+                'src/classes/UUID.c',
                 'src/classes/Condition.c',
+                'src/classes/Restart.c',
                 'src/classes/SourceLocation.c',
                 'src/classes/InvocationContextKind.c',
+                'src/classes/CompoundForm.c',
+                'src/classes/Function.c',
                 'src/classes/Closure.c',
                 'src/classes/Primitive.c',
                 'src/classes/Macro.c',
@@ -98,6 +133,8 @@ vm_lib = library(
                 'src/classes/ImmutableList.c',
                 'src/classes/Pair.c',
                 'src/classes/StackFrame.c',
+                'src/classes/BindingDescriptor.c',
+                'src/classes/MethodDescriptor.c',
                 'src/classes/Message.c',
                 'src/classes/SmallInteger.c',
                 'src/classes/SmallFraction.c',
@@ -108,9 +145,32 @@ vm_lib = library(
                 'src/classes/DynamicVariable.c',
                 'src/classes/Stream.c',
                 'src/classes/Instant.c',
-                'src/classes/DateTime.c'
+                'src/classes/DateTime.c',
+                'src/classes/Mutex.c',
+                'src/classes/ReadWriteLock.c',
+                'src/classes/ConditionVariable.c',
+                'src/classes/MessageQueue.c',
+                'src/classes/Thread.c'
         ], 
         install : true, dependencies : [bdwgc, libm])
+
+pkg.generate(
+        vm_lib,
+        filebase : 'ListTalkVM',
+        name : 'ListTalkVM',
+        description : 'ListTalk virtual machine library',
+        subdirs : '.',
+        requires : [bdwgc],
+        libraries_private : [libm],
+        variables : [
+                'ListTalk_repl=${prefix}/@0@/listtalk'.format(get_option('bindir')),
+                'ListTalk_home=${prefix}/@0@'.format(listtalk_home_dir)
+        ],
+        uninstalled_variables : [
+                'ListTalk_repl=${prefix}/listtalk',
+                'ListTalk_home=${pcfiledir}'
+        ]
+)
 
 os_module = shared_module(
         'os',
@@ -119,7 +179,41 @@ os_module = shared_module(
         name_suffix : 'ltm',
         link_with : [vm_lib],
         dependencies : listtalk_deps,
-        install : true
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
+gc_module = shared_module(
+        'gc',
+        'src/modules/gc.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : [bdwgc],
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
+json_module = shared_module(
+        'json',
+        'src/modules/json.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
+cmdopts_module = shared_module(
+        'cmdopts',
+        'src/modules/cmdopts.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true,
+        install_dir : listtalk_native_module_dir
 )
 
 listtalk_exe = executable(
@@ -127,7 +221,10 @@ listtalk_exe = executable(
         'src/bin/listtalk/main.c', 
         link_with: [vm_lib], 
         dependencies : listtalk_deps,
-        c_args : listtalk_c_args,
+        c_args : listtalk_c_args + [
+                '-DLT_NATIVE_MODULE_DIR="@0@"'.format(listtalk_native_module_runtime_dir),
+                '-DLT_SOURCE_MODULE_DIR="@0@"'.format(listtalk_source_module_runtime_dir)
+        ],
         install : true
 )
 
@@ -180,6 +277,34 @@ cmdopts_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+uuid_test_exe = executable(
+        'uuid_test',
+        'tests/uuid_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
+lock_test_exe = executable(
+        'lock_test',
+        'tests/lock_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
+synchronization_classes_test_exe = executable(
+        'synchronization_classes_test',
+        'tests/synchronization_classes_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
+message_queue_test_exe = executable(
+        'message_queue_test',
+        'tests/message_queue_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -196,10 +321,23 @@ test(
         listtalk_exe,
         args : [
                 '-L', meson.current_build_dir(),
+                '-L', meson.current_source_dir() / 'tests',
                 '-L', meson.current_source_dir() / 'tests' / 'fixtures',
                 meson.current_source_dir() / 'tests' / 'eval-test.lt'
         ],
-        depends : [os_module]
+        depends : [os_module, gc_module, cmdopts_module, json_module]
+)
+
+test(
+        'listtalk_cli_test',
+        python3,
+        args : [
+                meson.current_source_dir() / 'tests' / 'listtalk_cli_test.py',
+                listtalk_exe.full_path(),
+                meson.current_build_dir(),
+                meson.current_source_dir() / 'tests' / 'fixtures'
+        ],
+        depends : [listtalk_exe]
 )
 
 test(
@@ -227,7 +365,32 @@ test(
         cmdopts_test_exe
 )
 
+test(
+        'uuid_test',
+        uuid_test_exe
+)
+
+test(
+        'lock_test',
+        lock_test_exe
+)
+
+test(
+        'synchronization_classes_test',
+        synchronization_classes_test_exe
+)
+
+test(
+        'message_queue_test',
+        message_queue_test_exe
+)
+
 install_subdir(
         'ListTalk',
         install_dir: get_option('includedir')
+)
+
+install_data(
+        'modules/html-gen.lt',
+        install_dir : listtalk_source_module_dir
 )

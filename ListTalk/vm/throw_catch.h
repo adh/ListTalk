@@ -10,6 +10,7 @@
 
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/stack_trace.h>
+#include <ListTalk/vm/thread_state.h>
 
 #include <setjmp.h>
 
@@ -25,7 +26,7 @@ typedef struct LT_ThrowCatchFrame_s {
     struct LT_ThrowCatchFrame_s* previous;
 } LT_ThrowCatchFrame;
 
-extern _Thread_local LT_ThrowCatchFrame* LT__throw_catch_stack;
+#define LT__throw_catch_stack (LT_thread_state()->throw_catch_stack)
 
 _Noreturn void LT_throw(LT_Value tag, LT_Value value);
 

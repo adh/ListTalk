@@ -22,6 +22,13 @@ LT_Value LT_Closure_new(
     LT_Value body,
     LT_Environment* environment
 );
+LT_Value LT_Closure_new_with_documentation(
+    LT_Value name,
+    LT_Value parameters,
+    LT_Value body,
+    LT_Environment* environment,
+    LT_Value documentation
+);
 LT_Value LT_Closure_invocation_context_of_kind(
     LT_Closure* closure,
     LT_Value invocation_context_kind
@@ -29,6 +36,7 @@ LT_Value LT_Closure_invocation_context_of_kind(
 LT_Value LT_Closure_name(LT_Closure* closure);
 LT_Value LT_Closure_parameters(LT_Closure* closure);
 LT_Value LT_Closure_body(LT_Closure* closure);
+LT_Value LT_Closure_documentation(LT_Closure* closure);
 LT_Environment* LT_Closure_environment(LT_Closure* closure);
 
 LT__END_DECLS

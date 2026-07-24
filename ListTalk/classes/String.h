@@ -12,10 +12,12 @@
 #include <ListTalk/macros/decl_macros.h>
 
 #include <stdint.h>
+#include <wchar.h>
 
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_String);
+LT_DECLARE_CLASS(LT_StringIterator);
 
 typedef void (*LT_String_SubstringCallback)(LT_String* substring, void* baton);
 
@@ -54,6 +56,8 @@ void LT_String_splitOnDo(
 );
 LT_Value LT_String_splitOn(LT_String* string, LT_Value delimiters);
 LT_String* LT_String_join(LT_String* delimiter, LT_Value strings);
+LT_String* LT_String_format(LT_String* format_string, LT_Value arguments);
+int LT_String_compare(LT_String* left, LT_String* right);
 int LT_String_startsWith(LT_String* string, LT_String* prefix);
 int LT_String_contains(LT_String* string, LT_String* needle);
 int LT_String_find(LT_String* string, LT_String* needle, size_t* index_out);
@@ -67,6 +71,7 @@ const char* LT_String_utf8_next(const char* cursor);
 uint32_t LT_String_at(LT_String* string, size_t index);
 LT_Value LT_String_to_character_list(LT_String* string);
 LT_String* LT_String_from_character_list(LT_Value characters);
+wchar_t* LT_String_to_wchar_array(LT_String* string, size_t* length_out);
 
 LT__END_DECLS
 

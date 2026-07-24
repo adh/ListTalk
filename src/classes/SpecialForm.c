@@ -3,8 +3,13 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/classes/CompoundForm.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SpecialForm.h>
+#include <ListTalk/classes/String.h>
+#include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/metadata.h>
 #include <ListTalk/utils.h>
 
 static void SpecialForm_debugPrintOn(LT_Value obj, FILE* stream){
@@ -18,13 +23,62 @@ static void SpecialForm_debugPrintOn(LT_Value obj, FILE* stream){
     fputc('>', stream);
 }
 
+static LT_Value special_form_string_or_nil(char* string){
+    if (string == NULL){
+        return LT_NIL;
+    }
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(string);
+}
+
+LT_DEFINE_PRIMITIVE(
+    special_form_method_documentation,
+    "SpecialForm>>documentation",
+    "(self)",
+    "Return special form documentation."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return special_form_string_or_nil(
+        LT_SpecialForm_description(LT_SpecialForm_from_value(self))
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    special_form_method_arguments,
+    "SpecialForm>>arguments",
+    "(self)",
+    "Return special form argument list, or the raw argument string if it cannot be read."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_parse_lambda_list_metadata(
+        LT_SpecialForm_arguments(LT_SpecialForm_from_value(self))
+    );
+}
+
+static LT_Method_Descriptor SpecialForm_methods[] = {
+    {"documentation", &special_form_method_documentation},
+    {"arguments", &special_form_method_arguments},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
 LT_DEFINE_CLASS(LT_SpecialForm) {
-    .superclass = &LT_Object_class,
+    .superclass = &LT_CompoundForm_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SpecialForm",
+    .documentation = "Evaluator form with special argument rules.",
     .instance_size = sizeof(LT_SpecialForm),
     .class_flags = LT_CLASS_FLAG_SPECIAL,
     .debugPrintOn = SpecialForm_debugPrintOn,
+    .methods = SpecialForm_methods,
 };
 
 LT_Value LT_SpecialForm_new(char* name,

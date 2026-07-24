@@ -14,6 +14,7 @@
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_IdentityDictionary);
+LT_DECLARE_CLASS(LT_IdentityDictionaryIterator);
 typedef struct LT_WeakKeyIdentityDictionary_s LT_WeakKeyIdentityDictionary;
 typedef struct LT_WeakValueIdentityDictionary_s LT_WeakValueIdentityDictionary;
 

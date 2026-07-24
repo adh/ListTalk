@@ -9,6 +9,7 @@
 #include <ListTalk/macros/env_macros.h>
 
 #include <stdbool.h>
+#include <stdio.h>
 
 LT__BEGIN_DECLS
 
@@ -69,6 +70,7 @@ typedef uintptr_t LT_Value;
 #define LT_VALUE_FIXNUM_MAX ((INT64_C(1) << 55) - 1)
 
 typedef struct LT_Class_s LT_Class;
+typedef struct LT_String_s LT_String;
 
 typedef struct LT_Object_s {
     LT_Class* klass;
@@ -78,6 +80,7 @@ extern LT_Class* const LT__Immediate_classes[];
 extern LT_Class* const LT__Pointer_classes[];
 extern LT_Class LT_Float_class;
 void LT_Value_debugPrintOn(LT_Value value, FILE* stream);
+LT_String* LT_Value_asString(LT_Value value);
 size_t LT_Value_hash(LT_Value value);
 bool LT_Value_eqv_p(LT_Value left, LT_Value right);
 bool LT_Value_equal_p(LT_Value left, LT_Value right);

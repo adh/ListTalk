@@ -14,6 +14,7 @@ LT_DECLARE_CLASS(LT_Duration)
 
 LT_Value LT_Duration_new(LT_Value microseconds);
 LT_Value LT_Duration_microseconds(LT_Value value);
+void LT_sleep_seconds(LT_Value seconds);
 
 LT__END_DECLS
 

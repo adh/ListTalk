@@ -54,6 +54,7 @@ typedef struct LT_StringReaderStream_s {
 struct LT_Reader_s {
     LT_Object base;
     LT_Value source_file;
+    unsigned int flags;
     LT_Value line;
     LT_Value column;
     LT_Value nesting_depth;
@@ -68,7 +69,9 @@ static LT_Value read_object_from_first(
     LT_ReaderStream* stream,
     int first
 );
+static int reader_syntax_sugar_enabled(LT_Reader* reader);
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream);
+static LT_Value read_closure_form(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_vector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_bytevector_literal(LT_Reader* reader, LT_ReaderStream* stream);
 static LT_Value read_bytevector_string_literal(
@@ -846,8 +849,12 @@ static int parse_complex_polar_token(const char* token, LT_Value* value){
     return 1;
 }
 
-static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_result){
+static LT_Value parse_symbol_token_from_reader_token(
+    LT_Reader* reader,
+    LT_ReadTokenResult token_result
+){
     char* token = token_result.token;
+    LT_Package* current_package;
 
     if (token[0] == '\0'){
         LT_error("Symbol token must not be empty");
@@ -860,8 +867,12 @@ static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_re
         return LT_Symbol_new_in(LT_PACKAGE_KEYWORD, token + 1);
     }
 
+    current_package = LT_get_current_package();
     if (!token_result.has_unescaped_colon){
-        return LT_Package_intern_symbol(LT_get_current_package(), token);
+        if (current_package == NULL){
+            reader_error(reader, "Unqualified symbol without current package");
+        }
+        return LT_Package_intern_symbol(current_package, token);
     }
 
     if (token[token_result.last_unescaped_colon + 1] == '\0'){
@@ -875,10 +886,9 @@ static LT_Value parse_symbol_token_from_reader_token(LT_ReadTokenResult token_re
 
         memcpy(package_name, token, package_len);
         package_name[package_len] = '\0';
-        package = LT_Package_resolve_used_package(
-            LT_get_current_package(),
-            package_name
-        );
+        package = current_package == NULL
+            ? NULL
+            : LT_Package_resolve_used_package(current_package, package_name);
         if (package == NULL){
             package = LT_Package_new(package_name);
         }
@@ -891,12 +901,25 @@ static LT_Value expand_self_slot_accessor(LT_Reader* reader, LT_Value source_loc
 
     if (token[0] != '.'
         || token[1] == '\0'
+        || token[1] == '.'
         || isdigit((unsigned char)token[1])){
         return 0;
     }
 
     values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%self-slot");
-    values[1] = LT_Symbol_parse_token(token + 1);
+    {
+        LT_ReadTokenResult slot_token_result = {0};
+        char* slot_token = token + 1;
+        char* colon = strrchr(slot_token, ':');
+
+        slot_token_result.token = slot_token;
+        if (colon != NULL){
+            slot_token_result.last_unescaped_colon = (size_t)(colon - slot_token);
+            slot_token_result.has_unescaped_colon = 1;
+            slot_token_result.first_char_is_unescaped_colon = colon == slot_token;
+        }
+        values[1] = parse_symbol_token_from_reader_token(reader, slot_token_result);
+    }
     return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
@@ -926,7 +949,7 @@ static LT_Value expand_dynamic_ref(LT_Reader* reader,
     }
 
     values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK_IMPLEMENTATION, "%dynamic-ref");
-    values[1] = parse_symbol_token_from_reader_token(token_result);
+    values[1] = parse_symbol_token_from_reader_token(reader, token_result);
     return reader_immutable_list(reader, source_location, 2, values, LT_NIL);
 }
 
@@ -955,19 +978,21 @@ static LT_Value read_atom(LT_Reader* reader, int first, LT_ReaderStream* stream)
         return value;
     }
 
-    if (!token_result.has_symbol_quoting){
+    if (reader_syntax_sugar_enabled(reader) && !token_result.has_symbol_quoting){
         expanded = expand_self_slot_accessor(reader, source_location, token);
         if (expanded != 0){
             return expanded;
         }
     }
 
-    expanded = expand_dynamic_ref(reader, source_location, token_result);
-    if (expanded != 0){
-        return expanded;
+    if (reader_syntax_sugar_enabled(reader)){
+        expanded = expand_dynamic_ref(reader, source_location, token_result);
+        if (expanded != 0){
+            return expanded;
+        }
     }
 
-    return parse_symbol_token_from_reader_token(token_result);
+    return parse_symbol_token_from_reader_token(reader, token_result);
 }
 
 static void consume_dispatch_suffix_or_short(
@@ -1018,8 +1043,11 @@ static LT_Value read_number_token_with_radix(
     char* token;
     LT_Value value;
 
-    if (ch == EOF || is_delimiter(ch)){
+    if (ch == EOF){
         reader_incomplete_input(reader, "Numeric dispatch macro expects token");
+    }
+    if (is_delimiter(ch)){
+        reader_error(reader, "Numeric dispatch macro expects token");
     }
 
     token = read_token_string(reader, ch, stream);
@@ -1282,11 +1310,186 @@ static void read_character_literal_separator(LT_Reader* reader,
     }
 }
 
+typedef struct NamedCharacter_s {
+    const char* name;
+    uint32_t codepoint;
+} NamedCharacter;
+
+static int character_literal_name_equal(const char* left, const char* right){
+    while (*left != '\0' && *right != '\0'){
+        unsigned char left_ch = (unsigned char)*left;
+        unsigned char right_ch = (unsigned char)*right;
+
+        if (tolower((int)left_ch) != tolower((int)right_ch)){
+            return 0;
+        }
+        left++;
+        right++;
+    }
+    return *left == '\0' && *right == '\0';
+}
+
+static int named_character_codepoint(const char* token, uint32_t* codepoint){
+    static const NamedCharacter named_characters[] = {
+        {"null", 0x00},
+        {"nul", 0x00},
+        {"start-of-heading", 0x01},
+        {"soh", 0x01},
+        {"start-of-text", 0x02},
+        {"stx", 0x02},
+        {"end-of-text", 0x03},
+        {"etx", 0x03},
+        {"end-of-transmission", 0x04},
+        {"eot", 0x04},
+        {"enquiry", 0x05},
+        {"enq", 0x05},
+        {"acknowledge", 0x06},
+        {"ack", 0x06},
+        {"bell", 0x07},
+        {"bel", 0x07},
+        {"backspace", 0x08},
+        {"bs", 0x08},
+        {"tab", 0x09},
+        {"character-tabulation", 0x09},
+        {"horizontal-tabulation", 0x09},
+        {"ht", 0x09},
+        {"newline", 0x0a},
+        {"line-feed", 0x0a},
+        {"lf", 0x0a},
+        {"line-tabulation", 0x0b},
+        {"vertical-tabulation", 0x0b},
+        {"vt", 0x0b},
+        {"form-feed", 0x0c},
+        {"ff", 0x0c},
+        {"return", 0x0d},
+        {"carriage-return", 0x0d},
+        {"cr", 0x0d},
+        {"shift-out", 0x0e},
+        {"so", 0x0e},
+        {"shift-in", 0x0f},
+        {"si", 0x0f},
+        {"data-link-escape", 0x10},
+        {"dle", 0x10},
+        {"device-control-one", 0x11},
+        {"dc1", 0x11},
+        {"device-control-two", 0x12},
+        {"dc2", 0x12},
+        {"device-control-three", 0x13},
+        {"dc3", 0x13},
+        {"device-control-four", 0x14},
+        {"dc4", 0x14},
+        {"negative-acknowledge", 0x15},
+        {"nak", 0x15},
+        {"synchronous-idle", 0x16},
+        {"syn", 0x16},
+        {"end-of-transmission-block", 0x17},
+        {"etb", 0x17},
+        {"cancel", 0x18},
+        {"can", 0x18},
+        {"end-of-medium", 0x19},
+        {"em", 0x19},
+        {"substitute", 0x1a},
+        {"sub", 0x1a},
+        {"escape", 0x1b},
+        {"esc", 0x1b},
+        {"file-separator", 0x1c},
+        {"information-separator-four", 0x1c},
+        {"fs", 0x1c},
+        {"group-separator", 0x1d},
+        {"information-separator-three", 0x1d},
+        {"gs", 0x1d},
+        {"record-separator", 0x1e},
+        {"information-separator-two", 0x1e},
+        {"rs", 0x1e},
+        {"unit-separator", 0x1f},
+        {"information-separator-one", 0x1f},
+        {"us", 0x1f},
+        {"space", 0x20},
+        {"delete", 0x7f},
+        {"del", 0x7f},
+        {"rubout", 0x7f},
+        {"padding-character", 0x80},
+        {"pad", 0x80},
+        {"high-octet-preset", 0x81},
+        {"hop", 0x81},
+        {"break-permitted-here", 0x82},
+        {"bph", 0x82},
+        {"no-break-here", 0x83},
+        {"nbh", 0x83},
+        {"index", 0x84},
+        {"ind", 0x84},
+        {"next-line", 0x85},
+        {"nel", 0x85},
+        {"start-of-selected-area", 0x86},
+        {"ssa", 0x86},
+        {"end-of-selected-area", 0x87},
+        {"esa", 0x87},
+        {"character-tabulation-set", 0x88},
+        {"hts", 0x88},
+        {"character-tabulation-with-justification", 0x89},
+        {"htj", 0x89},
+        {"line-tabulation-set", 0x8a},
+        {"vts", 0x8a},
+        {"partial-line-forward", 0x8b},
+        {"pld", 0x8b},
+        {"partial-line-backward", 0x8c},
+        {"plu", 0x8c},
+        {"reverse-line-feed", 0x8d},
+        {"ri", 0x8d},
+        {"single-shift-two", 0x8e},
+        {"ss2", 0x8e},
+        {"single-shift-three", 0x8f},
+        {"ss3", 0x8f},
+        {"device-control-string", 0x90},
+        {"dcs", 0x90},
+        {"private-use-one", 0x91},
+        {"pu1", 0x91},
+        {"private-use-two", 0x92},
+        {"pu2", 0x92},
+        {"set-transmit-state", 0x93},
+        {"sts", 0x93},
+        {"cancel-character", 0x94},
+        {"cch", 0x94},
+        {"message-waiting", 0x95},
+        {"mw", 0x95},
+        {"start-of-guarded-area", 0x96},
+        {"spa", 0x96},
+        {"end-of-guarded-area", 0x97},
+        {"epa", 0x97},
+        {"start-of-string", 0x98},
+        {"sos", 0x98},
+        {"single-graphic-character-introducer", 0x99},
+        {"sgc", 0x99},
+        {"single-character-introducer", 0x9a},
+        {"sci", 0x9a},
+        {"control-sequence-introducer", 0x9b},
+        {"csi", 0x9b},
+        {"string-terminator", 0x9c},
+        {"st", 0x9c},
+        {"operating-system-command", 0x9d},
+        {"osc", 0x9d},
+        {"privacy-message", 0x9e},
+        {"pm", 0x9e},
+        {"application-program-command", 0x9f},
+        {"apc", 0x9f}
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(named_characters) / sizeof(named_characters[0]); i++){
+        if (character_literal_name_equal(token, named_characters[i].name)){
+            *codepoint = named_characters[i].codepoint;
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* stream){
     int ch = reader_getc(reader, stream);
     char* token;
     char* end;
     unsigned long parsed;
+    uint32_t named_codepoint;
 
     if (ch == EOF){
         reader_incomplete_input(
@@ -1335,17 +1538,8 @@ static LT_Value read_character_literal(LT_Reader* reader, LT_ReaderStream* strea
     if (token[0] != '\0' && *LT_utf8_next(token) == '\0'){
         return LT_Character_new(LT_utf8_codepoint_at(token));
     }
-    if (strcmp(token, "space") == 0){
-        return LT_Character_new((uint32_t)' ');
-    }
-    if (strcmp(token, "tab") == 0){
-        return LT_Character_new((uint32_t)'\t');
-    }
-    if (strcmp(token, "newline") == 0){
-        return LT_Character_new((uint32_t)'\n');
-    }
-    if (strcmp(token, "return") == 0){
-        return LT_Character_new((uint32_t)'\r');
+    if (named_character_codepoint(token, &named_codepoint)){
+        return LT_Character_new(named_codepoint);
     }
     if ((token[0] == 'u' || token[0] == 'U')
         && token[1] == '+'
@@ -1597,6 +1791,37 @@ static LT_Value read_list(LT_Reader* reader, LT_ReaderStream* stream){
     }
 }
 
+static LT_Value read_closure_form(LT_Reader* reader, LT_ReaderStream* stream){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value source_location = reader_source_location(reader);
+    int ch;
+
+    LT_ListBuilder_append(
+        builder,
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK_IMPLEMENTATION, "%closure")
+    );
+
+    ch = read_non_space_char(reader, stream);
+    while (ch != '}'){
+        LT_Value item;
+
+        if (ch == EOF){
+            reader_incomplete_input(reader, "Unterminated closure form");
+        }
+
+        item = read_object_from_first(reader, stream, ch);
+        LT_ListBuilder_append(builder, item);
+        ch = read_non_space_char(reader, stream);
+    }
+
+    return reader_immutable_list_from_builder(
+        reader,
+        source_location,
+        builder,
+        LT_NIL
+    );
+}
+
 static char* read_token_string(LT_Reader* reader, int first, LT_ReaderStream* stream){
     return read_token(reader, first, stream).token;
 }
@@ -1782,14 +2007,26 @@ static LT_Value read_object_from_first(
     if (first == '('){
         return read_list(reader, stream);
     }
-    if (first == '['){
+    if (first == '{' && reader_syntax_sugar_enabled(reader)){
+        return read_closure_form(reader, stream);
+    }
+    if (first == '{'){
+        reader_error(reader, "Unexpected '{'");
+    }
+    if (first == '[' && reader_syntax_sugar_enabled(reader)){
         return read_bracket_form(reader, stream);
+    }
+    if (first == '['){
+        reader_error(reader, "Unexpected '['");
     }
     if (first == ')'){
         reader_error(reader, "Unexpected ')'");
     }
     if (first == ']'){
         reader_error(reader, "Unexpected ']'");
+    }
+    if (first == '}'){
+        reader_error(reader, "Unexpected '}'");
     }
     if (first == '\''){
         return read_quote_syntax(reader, stream);
@@ -1805,6 +2042,10 @@ static LT_Value read_object_from_first(
     }
 
     return read_atom(reader, first, stream);
+}
+
+static int reader_syntax_sugar_enabled(LT_Reader* reader){
+    return (reader->flags & LT_READER_FLAG_DATA) == 0;
 }
 
 static LT_Slot_Descriptor Reader_slots[] = {
@@ -1823,6 +2064,7 @@ LT_DEFINE_CLASS(LT_Reader) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Reader",
+    .documentation = "Parser for ListTalk source forms.",
     .instance_size = sizeof(LT_Reader),
     .slots = Reader_slots,
 };
@@ -1852,14 +2094,24 @@ size_t LT_ReaderStream_stringOffset(LT_ReaderStream* stream){
 LT_Reader* LT_Reader_new(LT_Value source_file){
     LT_Reader* reader = LT_Class_ALLOC(LT_Reader);
     reader->source_file = source_file;
+    reader->flags = 0;
     reader_reset_position(reader);
     return reader;
+}
+
+unsigned int LT_Reader_flags(LT_Reader* reader){
+    return reader->flags;
+}
+
+void LT_Reader_setFlags(LT_Reader* reader, unsigned int flags){
+    reader->flags = flags;
 }
 
 LT_Reader* LT_Reader_clone(LT_Reader* reader){
     LT_Reader* clone = LT_Class_ALLOC(LT_Reader);
 
     clone->source_file = reader->source_file;
+    clone->flags = reader->flags;
     clone->line = reader->line;
     clone->column = reader->column;
     clone->nesting_depth = reader->nesting_depth;
@@ -1880,4 +2132,27 @@ LT_Value LT_Reader_readObject(LT_Reader* reader, LT_ReaderStream* stream){
     }
 
     return read_object_from_first(reader, stream, first);
+}
+
+LT_Value LT_Reader_read_stream_as_data(LT_ReaderStream* stream){
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value result = LT_NIL;
+
+    LT_WITH_PACKAGE(NULL, {
+        int first;
+
+        reader->flags = LT_READER_FLAG_DATA;
+        first = read_non_space_char(reader, stream);
+        while (first != EOF){
+            LT_ListBuilder_append(
+                builder,
+                read_object_from_first(reader, stream, first)
+            );
+            first = read_non_space_char(reader, stream);
+        }
+        result = LT_ListBuilder_value(builder);
+    });
+
+    return result;
 }

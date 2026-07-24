@@ -8,8 +8,19 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/cmdopts.h>
 
+#include <pthread.h>
 #include <stdio.h>
+#include <stdatomic.h>
 #include <string.h>
+
+enum {
+    THREAD_COUNT = 8,
+    THREAD_PARSE_COUNT = 1000,
+};
+
+typedef struct {
+    LT_CmdOpts* parser;
+} CmdOptsThreadArgs;
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -29,6 +40,14 @@ static void count_argument(LT_CmdOpts* parser, void* baton, char* value){
     (void)value;
 
     (*count)++;
+}
+
+static void count_atomic(LT_CmdOpts* parser, void* baton, char* value){
+    atomic_int* count = baton;
+    (void)parser;
+    (void)value;
+
+    atomic_fetch_add(count, 1);
 }
 
 static int test_options_and_arguments(void){
@@ -203,6 +222,70 @@ static int test_required_string_list_argument_accepts_one_value(void){
     return expect(LT_Pair_p(rest), "required list argument accepts one value");
 }
 
+static void* cmdopts_parse_thread_main(void* opaque){
+    CmdOptsThreadArgs* args = opaque;
+    char* argv[] = {"-v", "first", "second"};
+
+    for (int i = 0; i < THREAD_PARSE_COUNT; i++){
+        LT_CmdOpts_parseArgv(args->parser, 3, argv);
+    }
+
+    return NULL;
+}
+
+static int test_concurrent_parse_uses_private_state(void){
+    LT_CmdOpts* parser = LT_CmdOpts_new(0);
+    pthread_t threads[THREAD_COUNT];
+    atomic_int option_count = 0;
+    atomic_int argument_count = 0;
+    CmdOptsThreadArgs args = {
+        .parser = parser,
+    };
+
+    LT_CmdOpts_addOption(
+        parser,
+        0,
+        'v',
+        "verbose",
+        count_atomic,
+        &option_count
+    );
+    LT_CmdOpts_addArgument(
+        parser,
+        LT_CMDOPTS_ARGUMENT_MULTIPLE | LT_CMDOPTS_ARGUMENT_REQUIRED,
+        count_atomic,
+        &argument_count
+    );
+
+    for (int i = 0; i < THREAD_COUNT; i++){
+        if (pthread_create(
+                &threads[i],
+                NULL,
+                cmdopts_parse_thread_main,
+                &args
+            ) != 0){
+            return fail("pthread_create failed");
+        }
+    }
+
+    for (int i = 0; i < THREAD_COUNT; i++){
+        if (pthread_join(threads[i], NULL) != 0){
+            return fail("pthread_join failed");
+        }
+    }
+
+    if (expect(
+        atomic_load(&option_count) == THREAD_COUNT * THREAD_PARSE_COUNT,
+        "concurrent parses count options"
+    )){
+        return 1;
+    }
+    return expect(
+        atomic_load(&argument_count) == THREAD_COUNT * THREAD_PARSE_COUNT * 2,
+        "concurrent parses keep positional state private"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -214,6 +297,7 @@ int main(void){
     failures += test_single_argument_does_not_repeat();
     failures += test_string_list_argument_collects_rest();
     failures += test_required_string_list_argument_accepts_one_value();
+    failures += test_concurrent_parse_uses_private_state();
 
     if (failures == 0){
         puts("cmdopts tests passed");

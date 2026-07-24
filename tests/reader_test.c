@@ -74,6 +74,13 @@ static LT_Value read_one(const char* source){
     return LT_Reader_readObject(reader, stream);
 }
 
+static LT_Value read_one_data(const char* source){
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    LT_Reader_setFlags(reader, LT_READER_FLAG_DATA);
+    return LT_Reader_readObject(reader, stream);
+}
+
 static LT_Value read_one_with_source_file(const char* source, const char* source_file){
     LT_Reader* reader = LT_Reader_new(
         (LT_Value)(uintptr_t)LT_String_new_cstr((char*)source_file)
@@ -108,6 +115,37 @@ static LT_Value read_one_catch_error(const char* source){
     LT_CATCH(LT__reader_error_tag, caught, {
         LT_HANDLER_BIND(LT_Primitive_from_static(&reader_error_handler), {
             (void)LT_Reader_readObject(reader, stream);
+        });
+    });
+    return caught;
+}
+
+static LT_Value read_one_data_catch_error(const char* source){
+    LT_Value caught = LT_NIL;
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    LT_Reader_setFlags(reader, LT_READER_FLAG_DATA);
+
+    LT_CATCH(LT__reader_error_tag, caught, {
+        LT_HANDLER_BIND(LT_Primitive_from_static(&reader_error_handler), {
+            (void)LT_Reader_readObject(reader, stream);
+        });
+    });
+    return caught;
+}
+
+static LT_Value read_all_data(const char* source){
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+    return LT_Reader_read_stream_as_data(stream);
+}
+
+static LT_Value read_all_data_catch_error(const char* source){
+    LT_Value caught = LT_NIL;
+    LT_ReaderStream* stream = LT_ReaderStream_newForString(source);
+
+    LT_CATCH(LT__reader_error_tag, caught, {
+        LT_HANDLER_BIND(LT_Primitive_from_static(&reader_error_handler), {
+            (void)LT_Reader_read_stream_as_data(stream);
         });
     });
     return caught;
@@ -601,6 +639,56 @@ static int test_dispatch_character_named(void){
     );
 }
 
+static int test_dispatch_character_control_names(void){
+    LT_Value end_of_transmission = read_one("#\\end-of-transmission");
+    LT_Value mixed_case = read_one("#\\End-Of-Transmission");
+    LT_Value rubout = read_one("#\\rubout");
+    LT_Value next_line = read_one("#\\next-line");
+    LT_Value file_separator = read_one("#\\file-separator");
+    LT_Value information_separator_four = read_one("#\\information-separator-four");
+
+    if (expect(
+            LT_Character_p(end_of_transmission)
+                && LT_Character_value(end_of_transmission) == UINT32_C(0x04),
+            "dispatch character C0 control name"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(mixed_case)
+                && LT_Character_value(mixed_case) == UINT32_C(0x04),
+            "dispatch character control name is case folded"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(rubout)
+                && LT_Character_value(rubout) == UINT32_C(0x7f),
+            "dispatch character rubout alias"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(next_line)
+                && LT_Character_value(next_line) == UINT32_C(0x85),
+            "dispatch character C1 control name"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Character_p(file_separator)
+                && LT_Character_value(file_separator) == UINT32_C(0x1c),
+            "dispatch character ASCII information separator name"
+        )){
+        return 1;
+    }
+    return expect(
+        LT_Character_p(information_separator_four)
+            && LT_Character_value(information_separator_four) == UINT32_C(0x1c),
+        "dispatch character Unicode information separator name"
+    );
+}
+
 static int test_dispatch_character_unicode(void){
     LT_Value value = read_one("#\\u+03bb");
 
@@ -693,6 +781,27 @@ static int test_dispatch_binary_number(void){
     return expect(
         LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 42,
         "dispatch #b parses binary integer"
+    );
+}
+
+static int test_dispatch_binary_number_requires_token(void){
+    LT_Value value = read_one_catch_error("#b\"");
+
+    if (expect(
+        LT_ReaderError_p(value),
+        "dispatch #b delimiter signals reader error"
+    )){
+        return 1;
+    }
+    if (expect(
+        !LT_IncompleteInputSyntaxError_p(value),
+        "dispatch #b delimiter is not incomplete input"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Numeric dispatch macro expects token") == 0,
+        "dispatch #b delimiter error message"
     );
 }
 
@@ -1037,6 +1146,119 @@ static int test_quote_syntax_in_user_package_uses_listtalk_quote(void){
     );
 }
 
+static int test_closure_syntax_empty(void){
+    LT_Value value = read_one("{}");
+
+    if (expect(LT_ImmutableList_p(value), "empty closure syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "%closure"
+            ) == 0,
+        "empty closure syntax head symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(value)))
+            == LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "empty closure syntax targets implementation package"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(value) == LT_NIL, "empty closure syntax has no body");
+}
+
+static int test_closure_syntax_values(void){
+    LT_Value value = read_one("{alpha 42 \"body\"}");
+    LT_Value cursor;
+
+    if (expect(LT_ImmutableList_p(value), "closure syntax returns list")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(value))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(value))),
+                "%closure"
+            ) == 0,
+        "closure syntax head symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(value)))
+            == LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "closure syntax targets implementation package"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(value);
+    if (expect(LT_ImmutableList_p(cursor), "closure syntax first body cons")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_p(LT_car(cursor))
+            && strcmp(
+                LT_Symbol_name(LT_Symbol_from_value(LT_car(cursor))),
+                "alpha"
+            ) == 0,
+        "closure syntax first body value"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(LT_ImmutableList_p(cursor), "closure syntax second body cons")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(cursor))
+            && LT_SmallInteger_value(LT_car(cursor)) == 42,
+        "closure syntax second body value"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(LT_ImmutableList_p(cursor), "closure syntax third body cons")){
+        return 1;
+    }
+    if (expect(
+        LT_Value_class(LT_car(cursor)) == &LT_String_class
+            && strcmp(
+                LT_String_value_cstr(LT_String_from_value(LT_car(cursor))),
+                "body"
+            ) == 0,
+        "closure syntax third body value"
+    )){
+        return 1;
+    }
+
+    return expect(LT_cdr(cursor) == LT_NIL, "closure syntax body list end");
+}
+
+static int test_closure_syntax_in_user_package_uses_implementation_closure(void){
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_USER, {
+        value = read_one("{}");
+    });
+
+    if (expect(LT_ImmutableList_p(value), "closure syntax in user package returns list")){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(value)))
+            == LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "closure syntax in user package targets implementation package"
+    );
+}
+
 static int test_symbol_package_interning(void){
     LT_Value default_symbol = LT_Symbol_new("alpha");
     LT_Value listtalk_symbol = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "alpha");
@@ -1079,6 +1301,144 @@ static int test_reader_uses_thread_local_current_package(void){
     );
 }
 
+static int test_reader_rejects_unqualified_symbol_without_current_package(void){
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(NULL, {
+        value = read_one_catch_error("alpha");
+    });
+
+    if (expect(
+        LT_ReaderError_p(value),
+        "nil current package rejects unqualified symbol"
+    )){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Unqualified symbol without current package") == 0,
+        "nil current package unqualified symbol error message"
+    );
+}
+
+static int test_reader_accepts_fully_qualified_symbol_without_current_package(void){
+    LT_Value value = LT_NIL;
+    LT_Symbol* symbol;
+
+    LT_WITH_PACKAGE(NULL, {
+        value = read_one("nil-current-reader:alpha");
+    });
+
+    if (expect(LT_Symbol_p(value), "nil current package reads qualified symbol")){
+        return 1;
+    }
+    symbol = LT_Symbol_from_value(value);
+    if (expect(strcmp(LT_Symbol_name(symbol), "alpha") == 0, "qualified symbol name")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Package_name(LT_Symbol_package(symbol)), "nil-current-reader") == 0,
+        "qualified symbol package without current package"
+    );
+}
+
+static int test_reader_accepts_keyword_without_current_package(void){
+    LT_Value value = LT_NIL;
+
+    LT_WITH_PACKAGE(NULL, {
+        value = read_one(":alpha");
+    });
+
+    if (expect(LT_Symbol_p(value), "nil current package reads keyword")){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_value(value)) == LT_PACKAGE_KEYWORD,
+        "nil current package keyword package"
+    );
+}
+
+static int test_reader_read_stream_as_data_returns_all_objects(void){
+    LT_Value value = read_all_data(
+        "reader-data-package:alpha :keyword 42 reader-data-package:*dynamic*"
+    );
+    LT_Value cursor = value;
+    LT_Value symbol;
+
+    if (expect(LT_Pair_p(cursor), "read stream as data returns first pair")){
+        return 1;
+    }
+    symbol = LT_car(cursor);
+    if (expect(LT_Symbol_p(symbol), "read stream as data first object symbol")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Package_name(LT_Symbol_package(LT_Symbol_from_value(symbol))),
+               "reader-data-package") == 0,
+        "read stream as data first object package"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(LT_car(cursor))) == LT_PACKAGE_KEYWORD,
+        "read stream as data keeps keyword package"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    if (expect(
+        LT_Value_is_fixnum(LT_car(cursor)) && LT_SmallInteger_value(LT_car(cursor)) == 42,
+        "read stream as data reads numeric object"
+    )){
+        return 1;
+    }
+
+    cursor = LT_cdr(cursor);
+    symbol = LT_car(cursor);
+    if (expect(LT_Symbol_p(symbol), "read stream as data dynamic-looking symbol")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(symbol)), "*dynamic*") == 0,
+        "read stream as data does not expand dynamic-looking symbol"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(cursor) == LT_NIL, "read stream as data list terminates");
+}
+
+static int test_reader_read_stream_as_data_rejects_unqualified_symbol(void){
+    LT_Value value = read_all_data_catch_error("alpha");
+
+    if (expect(LT_ReaderError_p(value), "read stream as data rejects unqualified symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Unqualified symbol without current package") == 0,
+        "read stream as data unqualified symbol error message"
+    );
+}
+
+static int test_reader_read_stream_as_data_restores_state(void){
+    LT_Package* package = LT_Package_new("reader-data-restore");
+    LT_ReaderStream* stream = LT_ReaderStream_newForString("reader-data-restore:alpha");
+    int failed = 0;
+
+    LT_WITH_PACKAGE(package, {
+        (void)LT_Reader_read_stream_as_data(stream);
+        if (expect(
+            LT_get_current_package() == package,
+            "read stream as data restores current package"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
 static int test_symbol_print_omits_prefix_in_current_package(void){
     LT_Package* package = LT_Package_new("print-current");
     LT_Value symbol = LT_NIL;
@@ -1090,6 +1450,41 @@ static int test_symbol_print_omits_prefix_in_current_package(void){
             symbol,
             "token",
             "symbol in current package prints without prefix"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_symbol_print_keeps_prefix_without_current_package(void){
+    LT_Package* package = LT_Package_new("print-nil-current");
+    LT_Value symbol = LT_Symbol_new_in(package, "token");
+    int failed = 0;
+
+    LT_WITH_PACKAGE(NULL, {
+        if (expect_symbol_print(
+            symbol,
+            "print-nil-current:token",
+            "symbol prints qualified without current package"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
+static int test_keyword_print_unchanged_without_current_package(void){
+    LT_Value symbol = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "token");
+    int failed = 0;
+
+    LT_WITH_PACKAGE(NULL, {
+        if (expect_symbol_print(
+            symbol,
+            ":token",
+            "keyword print unaffected without current package"
         )){
             failed = 1;
         }
@@ -1388,6 +1783,18 @@ static int test_bracket_binary_send_too_many_args_signals_error(void){
     );
 }
 
+static int test_data_reader_disables_bracket_send_syntax(void){
+    LT_Value value = read_one_data_catch_error("[obj foo]");
+
+    if (expect(LT_ReaderError_p(value), "data reader bracket form signals error")){
+        return 1;
+    }
+    return expect(
+        strcmp(condition_message_cstr(value), "Unexpected '['") == 0,
+        "data reader bracket form is not send syntax"
+    );
+}
+
 static int test_slot_accessor_syntax(void){
     LT_Value value = read_one(".slot");
     LT_Value tail;
@@ -1413,6 +1820,66 @@ static int test_slot_accessor_syntax(void){
         return 1;
     }
     return expect(LT_cdr(tail) == LT_NIL, "slot accessor arg list end");
+}
+
+static int expect_symbol_named(LT_Value value, const char* name, const char* message){
+    if (expect(LT_Symbol_p(value), message)){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), name) == 0,
+        message
+    );
+}
+
+static int test_dot_dot_symbols_do_not_expand_slot_accessor(void){
+    if (expect_symbol_named(read_one(".."), "..", "double-dot token is symbol")){
+        return 1;
+    }
+    if (expect_symbol_named(read_one("..."), "...", "all-dot token is symbol")){
+        return 1;
+    }
+    return expect_symbol_named(
+        read_one("..slot"),
+        "..slot",
+        "two-dot-prefixed token is symbol"
+    );
+}
+
+static int test_data_reader_disables_slot_accessor_syntax(void){
+    LT_Value value = read_one_data(".slot");
+
+    if (expect(LT_Symbol_p(value), "data reader .slot is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), ".slot") == 0,
+        "data reader .slot keeps symbol name"
+    );
+}
+
+static int test_data_reader_disables_dynamic_variable_expansion(void){
+    LT_Value value = read_one_data("*dynamic*");
+
+    if (expect(LT_Symbol_p(value), "data reader dynamic variable is symbol")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_Symbol_name(LT_Symbol_from_value(value)), "*dynamic*") == 0,
+        "data reader dynamic variable keeps symbol name"
+    );
+}
+
+static int test_reader_clone_copies_flags(void){
+    LT_Reader* reader = LT_Reader_new(LT_NIL);
+    LT_Reader* clone;
+
+    LT_Reader_setFlags(reader, LT_READER_FLAG_DATA);
+    clone = LT_Reader_clone(reader);
+    return expect(
+        LT_Reader_flags(clone) == LT_READER_FLAG_DATA,
+        "reader clone copies flags"
+    );
 }
 
 static int test_dot_prefixed_tokens_inside_list(void){
@@ -1815,6 +2282,7 @@ int main(void){
     failures += test_dispatch_nil_short();
     failures += test_dispatch_character_single();
     failures += test_dispatch_character_named();
+    failures += test_dispatch_character_control_names();
     failures += test_dispatch_character_unicode();
     failures += test_dispatch_character_delimiter_literals();
     failures += test_dispatch_character_utf8_single_literal();
@@ -1822,6 +2290,7 @@ int main(void){
     failures += test_dispatch_character_literal_rejects_whitespace();
     failures += test_dispatch_bang_comment();
     failures += test_dispatch_binary_number();
+    failures += test_dispatch_binary_number_requires_token();
     failures += test_dispatch_octal_number();
     failures += test_dispatch_hex_fraction();
     failures += test_dispatch_explicit_radix_number();
@@ -1838,9 +2307,20 @@ int main(void){
     failures += test_unquote_syntax();
     failures += test_unquote_splicing_syntax();
     failures += test_quote_syntax_in_user_package_uses_listtalk_quote();
+    failures += test_closure_syntax_empty();
+    failures += test_closure_syntax_values();
+    failures += test_closure_syntax_in_user_package_uses_implementation_closure();
     failures += test_symbol_package_interning();
     failures += test_reader_uses_thread_local_current_package();
+    failures += test_reader_rejects_unqualified_symbol_without_current_package();
+    failures += test_reader_accepts_fully_qualified_symbol_without_current_package();
+    failures += test_reader_accepts_keyword_without_current_package();
+    failures += test_reader_read_stream_as_data_returns_all_objects();
+    failures += test_reader_read_stream_as_data_rejects_unqualified_symbol();
+    failures += test_reader_read_stream_as_data_restores_state();
     failures += test_symbol_print_omits_prefix_in_current_package();
+    failures += test_symbol_print_keeps_prefix_without_current_package();
+    failures += test_keyword_print_unchanged_without_current_package();
     failures += test_symbol_print_omits_prefix_from_used_package_without_conflict();
     failures += test_symbol_print_keeps_prefix_for_used_package_conflict();
     failures += test_package_prefixed_symbol();
@@ -1851,7 +2331,12 @@ int main(void){
     failures += test_bracket_binary_send_syntax();
     failures += test_bracket_binary_send_multi_char_selector();
     failures += test_bracket_binary_send_too_many_args_signals_error();
+    failures += test_data_reader_disables_bracket_send_syntax();
     failures += test_slot_accessor_syntax();
+    failures += test_dot_dot_symbols_do_not_expand_slot_accessor();
+    failures += test_data_reader_disables_slot_accessor_syntax();
+    failures += test_data_reader_disables_dynamic_variable_expansion();
+    failures += test_reader_clone_copies_flags();
     failures += test_dot_prefixed_tokens_inside_list();
     failures += test_bare_dot_top_level_signals_error();
     failures += test_incomplete_input_signals_specific_syntax_error();

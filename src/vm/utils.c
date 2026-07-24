@@ -5,10 +5,15 @@
 
 #include <ListTalk/utils.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/vm/error.h>
 
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 
 uint32_t LT_fnv_hash(char* string){
@@ -61,6 +66,71 @@ extern char* LT_sprintf(const char* fmt, ...){
     va_end(args);
 
     return buf;
+}
+
+extern char* LT_strerror(int errnum){
+    char buffer[1024];
+
+    if (strerror_r(errnum, buffer, sizeof(buffer)) == 0){
+        return LT_strdup(buffer);
+    }
+    return LT_sprintf("Unknown error %d", errnum);
+}
+
+void LT_write_file_bytes_atomically(const char* path,
+                                    const void* bytes,
+                                    size_t length){
+    const unsigned char* byte_cursor = bytes;
+    size_t path_length = strlen(path);
+    const char* suffix = ".tmp.XXXXXX";
+    size_t suffix_length = strlen(suffix);
+    char* temp_path = GC_MALLOC_ATOMIC(path_length + suffix_length + 1);
+    int fd;
+    size_t offset = 0;
+
+    memcpy(temp_path, path, path_length);
+    memcpy(temp_path + path_length, suffix, suffix_length + 1);
+
+    fd = mkstemp(temp_path);
+    if (fd < 0){
+        LT_system_error("Could not create temporary file", errno);
+    }
+
+    while (offset < length){
+        size_t chunk = length - offset;
+        ssize_t written;
+
+        if (chunk > (size_t)SSIZE_MAX){
+            chunk = (size_t)SSIZE_MAX;
+        }
+        written = write(fd, byte_cursor + offset, chunk);
+        if (written < 0){
+            int saved_errno = errno;
+
+            close(fd);
+            unlink(temp_path);
+            LT_system_error("Could not write file", saved_errno);
+        }
+        if (written == 0){
+            close(fd);
+            unlink(temp_path);
+            LT_error("Could not write file");
+        }
+        offset += (size_t)written;
+    }
+
+    if (close(fd) != 0){
+        int saved_errno = errno;
+
+        unlink(temp_path);
+        LT_system_error("Could not close file", saved_errno);
+    }
+    if (rename(temp_path, path) != 0){
+        int saved_errno = errno;
+
+        unlink(temp_path);
+        LT_system_error("Could not replace file", saved_errno);
+    }
 }
 
 #define STRING_BUILDER_INIT_SIZE 64
@@ -183,6 +253,7 @@ size_t LT_ListBuilder_length(LT_ListBuilder* builder){
 
 
 void LT_InlineHash_init(LT_InlineHash* h){
+    LT_MutexWord_init(&h->lock);
     h->mask = 0x7;
     h->count = 0;
     h->vector = GC_MALLOC(sizeof(LT_InlineHash_Entry*)*8);
@@ -191,7 +262,12 @@ void LT_InlineHash_init(LT_InlineHash* h){
 }
 
 size_t LT_InlineHash_count(LT_InlineHash* h){
-    return h->count;
+    size_t count;
+
+    LT_MutexWord_lock(&h->lock);
+    count = h->count;
+    LT_MutexWord_unlock(&h->lock);
+    return count;
 }
 
 static LT_InlineHash_Entry* get_hash_entry(LT_InlineHash* h, 
@@ -298,6 +374,7 @@ void LT_StringHash_at_put(LT_InlineHash* h, char* key, void* value){
     size_t hash;
 
     hash = LT_fnv_hash(key);
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry(h, key, hash);
 
     if (e){
@@ -305,25 +382,32 @@ void LT_StringHash_at_put(LT_InlineHash* h, char* key, void* value){
     } else {
         add_hash_entry_string(h, key, hash, value);
     }
+    LT_MutexWord_unlock(&h->lock);
 }
 
 void* LT_StringHash_at(LT_InlineHash* h, char* key){
     LT_InlineHash_Entry* e;
+    void* value = NULL;
 
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry(h, key, LT_fnv_hash(key));
 
     if (e){
-        return e->value;
-    } else {
-        return NULL;
+        value = e->value;
     }
+    LT_MutexWord_unlock(&h->lock);
+    return value;
 }
 
 int LT_StringHash_remove(LT_InlineHash* h, char* key, void** value_out){
     size_t hash = LT_fnv_hash(key);
-    size_t index = hash & h->mask;
-    LT_InlineHash_Entry* current = h->vector[index];
+    size_t index;
+    LT_InlineHash_Entry* current;
     LT_InlineHash_Entry* previous = NULL;
+
+    LT_MutexWord_lock(&h->lock);
+    index = hash & h->mask;
+    current = h->vector[index];
 
     while (current != NULL){
         if (current->hash == hash && strcmp(current->key, key) == 0){
@@ -337,12 +421,14 @@ int LT_StringHash_remove(LT_InlineHash* h, char* key, void** value_out){
             if (value_out != NULL){
                 *value_out = current->value;
             }
+            LT_MutexWord_unlock(&h->lock);
             return 1;
         }
         previous = current;
         current = current->next;
     }
 
+    LT_MutexWord_unlock(&h->lock);
     return 0;
 }
 
@@ -351,6 +437,7 @@ void LT_PointerHash_at_put(LT_InlineHash* h, void* key, void* value){
     size_t hash;
 
     hash = LT_pointer_hash(key);
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry_pointer(h, key, hash);
 
     if (e){
@@ -358,25 +445,32 @@ void LT_PointerHash_at_put(LT_InlineHash* h, void* key, void* value){
     } else {
         add_hash_entry_pointer(h, key, hash, value);
     }
+    LT_MutexWord_unlock(&h->lock);
 }
 
 void* LT_PointerHash_at(LT_InlineHash* h, void* key){
     LT_InlineHash_Entry* e;
+    void* value = NULL;
 
+    LT_MutexWord_lock(&h->lock);
     e = get_hash_entry_pointer(h, key, LT_pointer_hash(key));
 
     if (e){
-        return e->value;
-    } else {
-        return NULL;
+        value = e->value;
     }
+    LT_MutexWord_unlock(&h->lock);
+    return value;
 }
 
 int LT_PointerHash_remove(LT_InlineHash* h, void* key, void** value_out){
     size_t hash = LT_pointer_hash(key);
-    size_t index = hash & h->mask;
-    LT_InlineHash_Entry* current = h->vector[index];
+    size_t index;
+    LT_InlineHash_Entry* current;
     LT_InlineHash_Entry* previous = NULL;
+
+    LT_MutexWord_lock(&h->lock);
+    index = hash & h->mask;
+    current = h->vector[index];
 
     while (current != NULL){
         if (current->hash == hash && current->key == key){
@@ -390,16 +484,55 @@ int LT_PointerHash_remove(LT_InlineHash* h, void* key, void** value_out){
             if (value_out != NULL){
                 *value_out = current->value;
             }
+            LT_MutexWord_unlock(&h->lock);
             return 1;
         }
         previous = current;
         current = current->next;
     }
 
+    LT_MutexWord_unlock(&h->lock);
     return 0;
 }
 
+enum {
+    LT_REGISTERED_CONSTRUCTOR_CAPACITY = 256,
+};
+
+static void (*LT_registered_constructors[LT_REGISTERED_CONSTRUCTOR_CAPACITY])(void);
+static size_t LT_registered_constructor_count = 0;
+static size_t LT_registered_constructor_run_count = 0;
+static int LT_registered_constructors_running = 0;
+static int LT_registered_constructors_ran = 0;
+
 void LT_register_constructor(void (*ctor)(void)){
-    /* TODO: handle VM initialization internal states */
-    ctor();
+    if (LT_registered_constructors_ran &&
+        !LT_registered_constructors_running){
+        ctor();
+        return;
+    }
+
+    if (LT_registered_constructor_count >=
+        LT_REGISTERED_CONSTRUCTOR_CAPACITY){
+        fputs("Too many ListTalk native constructors\n", stderr);
+        abort();
+    }
+
+    LT_registered_constructors[LT_registered_constructor_count++] = ctor;
+}
+
+void LT_run_registered_constructors(void){
+    if (LT_registered_constructors_ran){
+        return;
+    }
+
+    LT_registered_constructors_running = 1;
+    while (LT_registered_constructor_run_count <
+           LT_registered_constructor_count){
+        void (*ctor)(void) =
+            LT_registered_constructors[LT_registered_constructor_run_count++];
+        ctor();
+    }
+    LT_registered_constructors_running = 0;
+    LT_registered_constructors_ran = 1;
 }

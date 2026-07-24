@@ -72,6 +72,7 @@ LT_DEFINE_CLASS(LT_InexactComplexNumber) {
     .superclass = &LT_ComplexNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "InexactComplexNumber",
+    .documentation = "Complex number with inexact real and imaginary parts.",
     .instance_size = sizeof(LT_InexactComplexNumber),
     .class_flags = LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
     .debugPrintOn = InexactComplexNumber_debugPrintOn,

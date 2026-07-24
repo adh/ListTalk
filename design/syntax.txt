@@ -21,3 +21,15 @@ URIs as package names), except when the first character is colon.
 
 In other words symbols in keyword package can contain unescaped colons,
 other symbols can not.
+
+Closure shorthand
+=================
+Closures can be alternatively written as braced blocks. 
+
+- {foo} -> (lambda () foo)
+- {arg (+ arg 1)} -> (lambda (arg) (+ arg 1))
+
+Last element of closure is always part of the closure body, initial prefix
+consisting entirely of symbols is handled as closure arguments. This 
+restricts the allowed shape of lambda lists of such closure somewhat,
+but in such cases full lambda (or define) is preferred anyway.

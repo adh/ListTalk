@@ -1,0 +1,44 @@
+Lambda lists
+============
+
+ListTalk closures currently support these lambda list shapes:
+
+* `symbol`
+  Binds the whole argument list to `symbol`.
+
+* `(required...)`
+  Binds one argument per required parameter. Extra or missing arguments are an
+  arity error.
+
+* `(required... . rest)`
+  Binds required parameters first, then binds the remaining argument list to
+  `rest`.
+
+* `(required... :optional optional...)`
+  Binds required parameters first, then optional positional parameters.
+  Optional parameters may be symbols or two element lists of the form
+  `(name default-expression)`. Missing optional arguments evaluate their default
+  expressions in the closure application environment, so defaults can refer to
+  earlier bindings. A symbol optional parameter defaults to nil.
+
+* `(required... :rest rest)`
+  Binds required parameters first, then binds the remaining argument list to
+  `rest`. The `:rest` parameter must be a symbol and must be the final entry in
+  the lambda list.
+
+* `(required... :optional optional... :rest rest)`
+  Combines optional positional parameters with a final rest parameter.
+
+* `(required... :key keyword...)`
+  Binds required parameters first, then consumes the remaining arguments as
+  keyword/value pairs. Keyword parameters may be symbols or two element lists of
+  the form `(name default-expression)`. The accepted call keyword is the
+  parameter name interned in the keyword package, for example parameter `x`
+  accepts `:x`.
+
+* `(required... :optional optional... :key keyword...)`
+  Combines optional positional parameters with keyword parameters.
+
+`:rest` and `:key` are mutually exclusive. Unknown keyword arguments, keyword
+arguments without values, non-keyword argument names in the keyword tail, and
+malformed optional or keyword parameter specs are errors.

@@ -23,7 +23,7 @@ static LT_Value class_predicate(LT_Value value, LT_Value class_value){
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_add,
     "+",
-    "(n ...)",
+    "(:rest n)",
     "Return sum of numeric arguments.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -42,7 +42,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_subtract,
     "-",
-    "(n [n ...])",
+    "(n :rest n)",
     "Negate one value or subtract remaining values from first.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -66,7 +66,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_multiply,
     "*",
-    "(n ...)",
+    "(:rest n)",
     "Return product of numeric arguments.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -85,7 +85,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_divide,
     "/",
-    "(n n ...)",
+    "(n :rest n)",
     "Divide first value by remaining values.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -109,7 +109,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_less_than,
     "<",
-    "(n n ...)",
+    "(n :rest n)",
     "Return true when numeric arguments are in strictly ascending order.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -137,7 +137,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_greater_than,
     ">",
-    "(n n ...)",
+    "(n :rest n)",
     "Return true when numeric arguments are in strictly descending order.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -165,7 +165,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_less_than_or_equal,
     "<=",
-    "(n n ...)",
+    "(n :rest n)",
     "Return true when numeric arguments are in non-descending order.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -193,7 +193,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_greater_than_or_equal,
     ">=",
-    "(n n ...)",
+    "(n :rest n)",
     "Return true when numeric arguments are in non-ascending order.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -356,7 +356,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_min,
     "min",
-    "(n [n ...])",
+    "(n :rest n)",
     "Return smallest real numeric argument.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -376,7 +376,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_max,
     "max",
-    "(n [n ...])",
+    "(n :rest n)",
     "Return largest real numeric argument.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -531,7 +531,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_expt,
     "expt",
-    "([base [exponent]])",
+    "(:optional base exponent)",
     "Raise base to exponent, treat one argument as e^x, and return e with no arguments.",
     LT_PRIMITIVE_FLAG_PURE
 ){

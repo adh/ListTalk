@@ -7,6 +7,9 @@
 #define H__ListTalk__utils__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/utils/base64.h>
+#include <ListTalk/utils/hex.h>
+#include <ListTalk/utils/lock.h>
 #include <ListTalk/utils/utf8.h>
 #include <ListTalk/vm/value.h>
 
@@ -20,6 +23,12 @@ extern uint32_t LT_pointer_hash(void* pointer);
 
 extern char* LT_strdup(char*);
 extern char* LT_sprintf(const char* fmt, ...);
+extern char* LT_strerror(int errnum);
+void LT_write_file_bytes_atomically(
+    const char* path,
+    const void* bytes,
+    size_t length
+);
 
 typedef struct LT_StringBuilder LT_StringBuilder;
 
@@ -47,6 +56,7 @@ typedef struct LT_InlineHash LT_InlineHash;
 typedef struct LT_InlineHash_Entry LT_InlineHash_Entry;
 
 struct LT_InlineHash {
+    LT_MutexWord lock;
     LT_InlineHash_Entry** vector;
     size_t mask;
     size_t count;
@@ -86,6 +96,7 @@ int LT_PointerHash_remove(
  * setup and native class initialization. So the VM is guaranteed to not be
  * in some weird state. */
 void LT_register_constructor(void (*ctor)(void));
+void LT_run_registered_constructors(void);
 
 #define LT_REGISTER_CONSTRUCTOR(ctor) \
     void __attribute__((constructor)) LT___register_constructor_##ctor(void){ \

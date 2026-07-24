@@ -1,0 +1,1014 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-objects)
+
+(define-test "OOP: class methods"
+;;; OOP: class methods
+
+(check (eq? [1 class] SmallInteger) "Object>>class returns receiver class")
+(check (eq? [Object class] (type-of Object))
+       "Object class object inherits Object>>class")
+(check (primitive? [Object lookupSelector: :class])
+       "Object class object inherits Class method lookup")
+(check (eq? [IdentityDictionary class] (type-of IdentityDictionary))
+       "early native class object inherits Object>>class")
+(check (primitive? [IdentityDictionary lookupSelector: :class])
+       "early native class object inherits Class method lookup")
+(check (eq? [[ImmutableDictionary new] class] ImmutableDictionary)
+       "ImmutableDictionary class>>new returns immutable dictionary")
+(check (eq? [[Dictionary new] class] Dictionary)
+       "Dictionary class>>new returns dictionary")
+(check (eq? [[IdentityDictionary new] class] IdentityDictionary)
+       "early native class method dispatch still works")
+(check (eq? [[Mutex new] class] Mutex)
+       "Mutex class>>new returns mutex")
+(let ((mutex [Mutex new]))
+  (check [mutex tryLock] "Mutex>>tryLock locks unlocked mutex")
+  (check (not [mutex tryLock]) "Mutex>>tryLock rejects locked mutex")
+  [mutex unlock]
+  (check (eq? [mutex lock] mutex) "Mutex>>lock returns receiver")
+  (check (eq? [mutex unlock] mutex) "Mutex>>unlock returns receiver"))
+(check (equal? [[Mutex new: "eval-mutex"] name] "eval-mutex")
+       "Mutex class>>new: stores name")
+(check (equal? [[ReadWriteLock new: "eval-rwlock"] name] "eval-rwlock")
+       "ReadWriteLock class>>new: stores name")
+(check (equal? [[ConditionVariable new: "eval-cond"] name] "eval-cond")
+       "ConditionVariable class>>new: stores name")
+(check (eq? [[Mutex new: :eval-mutex-symbol] name] :eval-mutex-symbol)
+       "synchronization names can be arbitrary objects")
+(let ((mutex [Mutex new])
+      (ran #false))
+  (check (= (with-mutex mutex
+              (set! ran #true)
+              42)
+            42)
+         "with-mutex returns body value")
+  (check ran "with-mutex evaluates body")
+  (check [mutex tryLock] "with-mutex releases mutex after normal return")
+  [mutex unlock]
+  (check (= (catch :with-mutex-exit
+              (with-mutex mutex
+                (throw :with-mutex-exit 7)))
+            7)
+         "with-mutex propagates non-local exit value")
+  (check [mutex tryLock] "with-mutex releases mutex on non-local exit")
+  [mutex unlock])
+(let ((rwlock [ReadWriteLock new])
+      (ran-read #false)
+      (ran-write #false))
+  (check (= (with-read-lock rwlock
+              (set! ran-read #true)
+              (if [rwlock tryWriteLock] 0 13))
+            13)
+         "with-read-lock holds lock and returns body value")
+  (check ran-read "with-read-lock evaluates body")
+  (check [rwlock tryWriteLock] "with-read-lock releases lock after normal return")
+  [rwlock writeUnlock]
+  (check (= (catch :with-read-lock-exit
+              (with-read-lock rwlock
+                (throw :with-read-lock-exit 17)))
+            17)
+         "with-read-lock propagates non-local exit value")
+  (check [rwlock tryWriteLock] "with-read-lock releases lock on non-local exit")
+  [rwlock writeUnlock]
+  (check (= (with-write-lock rwlock
+              (set! ran-write #true)
+              (if [rwlock tryReadLock] 0 19))
+            19)
+         "with-write-lock holds lock and returns body value")
+  (check ran-write "with-write-lock evaluates body")
+  (check [rwlock tryReadLock] "with-write-lock releases lock after normal return")
+  [rwlock readUnlock]
+  (check (= (catch :with-write-lock-exit
+              (with-write-lock rwlock
+                (throw :with-write-lock-exit 23)))
+            23)
+         "with-write-lock propagates non-local exit value")
+  (check [rwlock tryReadLock] "with-write-lock releases lock on non-local exit")
+  [rwlock readUnlock])
+(define-mutex eval-defined-mutex)
+(check (equal? [eval-defined-mutex name] 'eval-defined-mutex)
+       "define-mutex names the mutex after the binding")
+(define-rwlock eval-defined-rwlock)
+(check (equal? [eval-defined-rwlock name] 'eval-defined-rwlock)
+       "define-rwlock names the read-write lock after the binding")
+(define-condition-variable eval-defined-cond)
+(check (equal? [eval-defined-cond name] 'eval-defined-cond)
+       "define-condition-variable names the condition variable after the binding")
+(define-message-queue eval-defined-queue 1)
+(check (equal? [eval-defined-queue name] 'eval-defined-queue)
+       "define-message-queue names the message queue after the binding")
+(let ((queue [MessageQueue new: 1]))
+  (check (eq? [queue capacity] 1) "MessageQueue class>>new: accepts capacity 1")
+  (check [queue empty?] "new MessageQueue is empty")
+  (check (eq? [queue put: 42] queue) "MessageQueue>>put: returns receiver")
+  (check [queue full?] "capacity-one MessageQueue becomes full")
+  (check (not [queue tryPut: 43]) "MessageQueue>>tryPut: rejects full queue")
+  (check (eq? [queue get] 42) "MessageQueue>>get returns queued value")
+  (check [queue empty?] "MessageQueue is empty after get"))
+(check (equal? [[MessageQueue new: 1 named: "eval-queue"] name] "eval-queue")
+       "MessageQueue class>>new:named: stores name")
+(check (eq? [[Thread new: (lambda () 42)] join] 42)
+       "Thread class>>new: starts thread and Thread>>join returns result")
+(let ((thread [Thread new: (lambda () 42) named: "eval-thread"]))
+  (check (and (equal? [thread name] "eval-thread")
+              (eq? [thread join] 42))
+         "Thread class>>new:named: stores name and starts thread"))
+(let ((thread [Thread new: (lambda () 42)]))
+  (check (and (eq? [thread join] 42)
+              (eq? [thread join] 42))
+         "Thread>>join returns result after thread was already joined"))
+(check (eq? [[[Thread new: (lambda () 42)] makeDetached] class] Thread)
+       "Thread>>makeDetached returns thread")
+(check (eq? [WeakKeyIdentityDictionary class] (type-of WeakKeyIdentityDictionary))
+       "early native subclass class object inherits Object>>class")
+(check (eq? [WeakValueIdentityDictionary class] (type-of WeakValueIdentityDictionary))
+       "early native weak value class object inherits Object>>class")
+(check (primitive? [Pair lookupSelector: :car]) "Class>>lookupSelector: returns method")
+(check (primitive? [Pair >> :car]) "Class>>>> returns direct method")
+(check (null? [Pair lookupSelector: :does-not-exist])
+       "Class>>lookupSelector: nil for missing selector")
+(check (null? [Pair >> :does-not-exist])
+       "Class>>>> nil for missing selector")
+(check (primitive? [Nil lookupSelector: :length])
+       "Nil inherits List>>length")
+(check (null? [Nil >> :length])
+       "Class>>>> excludes inherited method")
+(check (null? [Nil lookupSelector: :car])
+       "Nil does not inherit List>>car")
+(check [[Pair selectors] contains?: :car] "Class>>selectors contains direct method")
+(check (not [[Pair selectors] contains?: :length])
+       "Class>>selectors excludes inherited method")
+(check [[Pair allSelectors] contains?: :length]
+       "Class>>allSelectors contains inherited method")
+(check (memq :car [Pair selectorsAsList])
+       "Class>>selectorsAsList contains direct method")
+(check (memq :length [Pair allSelectorsAsList])
+       "Class>>allSelectorsAsList contains inherited method")
+(check (memq 'name [Class slots]) "Class>>slots contains name")
+(check (equal? [Class documentation]
+               "Runtime representation of classes and metaclasses.")
+       "Class>>documentation returns class documentation")
+(check (eq? (car [Pair precedenceList]) Pair)
+       "Class>>precedenceList starts with receiver class")
+(check (memq Object [Pair precedenceList])
+       "Class>>precedenceList includes inherited classes")
+(let ((selectors '()))
+  [Pair methodsDo: (lambda (method)
+                     (set! selectors (cons [method selector] selectors))
+                     (check (eq? (type-of method) MethodDescriptor)
+                            "Class>>methodsDo: passes method descriptor")
+                     (check (function? [method callable])
+                            "MethodDescriptor>>callable returns method")
+                     (check (eq? [method implementing-class] Pair)
+                            "MethodDescriptor>>implementing-class returns direct class"))]
+  (check (memq :car selectors) "Class>>methodsDo: visits direct method")
+  (check (not (memq :length selectors))
+         "Class>>methodsDo: excludes inherited method"))
+(check (memq :car (map (lambda (method) [method selector]) [Pair methodsAsList]))
+       "Class>>methodsAsList returns method descriptors")
+(let ((methods [Pair methodsAsList]))
+  (let ((sorted-methods [methods sort]))
+    (check [(car sorted-methods) <= (cadr sorted-methods)]
+           "MethodDescriptor ordering forwards to selector")))
+(let ((selectors '()))
+  [Nil allMethodsDo: (lambda (method)
+                       (set! selectors (cons [method selector] selectors))
+                       (check (function? [method callable])
+                              "Class>>allMethodsDo: passes method descriptor"))]
+  (check (memq :length selectors) "Class>>allMethodsDo: visits inherited method")
+  (check (memq :class selectors) "Class>>allMethodsDo: visits Object method"))
+(check (memq :class (map (lambda (method) [method selector]) [Nil allMethodsAsList]))
+       "Class>>allMethodsAsList returns inherited method descriptors")
+(define-class ReflectionOverride (Object) ())
+(define-method [ReflectionOverride asString] "reflection-override")
+(let ((as-string-methods '()))
+  [ReflectionOverride allMethodsDo:
+                      (lambda (method)
+                        (if (eq? [method selector] :asString)
+                            (set! as-string-methods
+                                  (cons [method implementing-class]
+                                        as-string-methods))))]
+  (check (equal? as-string-methods (list ReflectionOverride))
+         "Class>>allMethodsDo: keeps most-specific implementation"))
+(let ((reflection-local 88)
+      (symbols '()))
+  (let ((environment (get-current-environment)))
+    [environment bindingsDo:
+                 (lambda (binding)
+                   (set! symbols (cons [binding symbol] symbols))
+                   (if (eq? [binding symbol] 'reflection-local)
+                       (begin
+                         (check (eq? (type-of binding) BindingDescriptor)
+                                "Environment>>bindingsDo: passes binding descriptor")
+                         (check (= [binding value] 88)
+                                "BindingDescriptor>>value returns value")
+                         (check (= [binding flags] 0)
+                                "BindingDescriptor>>flags returns flags"))))]
+    (check (memq 'reflection-local symbols)
+           "Environment>>bindingsDo: visits direct binding")
+    (check (memq 'reflection-local
+                 (map (lambda (binding) [binding symbol])
+                      [environment bindingsAsList]))
+           "Environment>>bindingsAsList returns binding descriptors")
+    (let ((bindings [environment bindingsAsList]))
+      (let ((sorted-bindings [bindings sort]))
+        (check [(car sorted-bindings) <= (cadr sorted-bindings)]
+               "BindingDescriptor ordering forwards to symbol")))))
+(let ((environment [Environment new]))
+  (check (environment? environment) "Environment class>>new returns environment")
+  (check (not [environment contains?: 'missing-environment-binding])
+         "Environment>>contains?: rejects missing binding")
+  (check-error-message "Environment binding not found"
+                       "Environment>>at: signals error for missing binding"
+                       [environment at: 'missing-environment-binding])
+  (check (= [environment at: 'environment-value put: 123] 123)
+         "Environment>>at:put: returns value")
+  (check [environment contains?: 'environment-value]
+         "Environment>>contains?: finds direct binding")
+  (check (= [environment at: 'environment-value] 123)
+         "Environment>>at: reads direct binding")
+  (check (not [environment constant?: 'environment-value])
+         "Environment>>constant?: false for mutable binding")
+  (check (= [environment at: 'environment-constant putConstant: 456] 456)
+         "Environment>>at:putConstant: returns value")
+  (check [environment constant?: 'environment-constant]
+         "Environment>>constant?: true for constant binding")
+  (check (not [environment constant?: 'missing-environment-binding])
+         "Environment>>constant?: false for missing binding")
+  (let ((constant-descriptor-seen #false))
+    [environment bindingsDo:
+                 (lambda (binding)
+                   (if (eq? [binding symbol] 'environment-constant)
+                       (set! constant-descriptor-seen [binding constant?])))]
+    (check constant-descriptor-seen
+           "BindingDescriptor>>constant? true for constant binding")))
+(let ((parent [Environment new]))
+  [parent at: 'parent-value put: 789]
+  [parent at: 'parent-constant putConstant: 987]
+  (let ((child [Environment newWithParent: parent]))
+    (check (environment? child)
+           "Environment class>>newWithParent: returns environment")
+    (check [child contains?: 'parent-value]
+           "Environment>>contains?: finds parent binding")
+    (check (= [child at: 'parent-value] 789)
+           "Environment>>at: reads parent binding")
+    (check [child constant?: 'parent-constant]
+           "Environment>>constant?: sees parent constant binding")))
+(check (environment? [Environment sharedBase])
+       "Environment class>>sharedBase returns environment")
+(check (eq? [Environment sharedBase] [Environment sharedBase])
+       "Environment class>>sharedBase returns shared instance")
+(let ((base-environment [Environment newBase]))
+  (check (and (environment? base-environment)
+              [base-environment contains?: '+])
+         "Environment class>>newBase returns initialized base environment"))
+
+(check (class? Message) "Message is a class")
+(check (class? CompoundForm) "CompoundForm is a class")
+(check (class? Function) "Function is a class")
+(check (primitive? [CompoundForm >> :documentation])
+       "CompoundForm defines documentation protocol")
+(check (primitive? [CompoundForm >> :arguments])
+       "CompoundForm defines arguments protocol")
+(check (primitive? [Function lookupSelector: :documentation])
+       "Function inherits documentation protocol")
+(check (closure? [Function lookupSelector: :value])
+       "Function defines value protocol")
+(check (closure? [Boolean lookupSelector: :ifTrue:])
+       "Boolean defines ifTrue: protocol")
+(check (primitive? [RealNumber >> :from:to:withStep:do:])
+       "RealNumber defines from:to:withStep:do:")
+(check (null? [Number lookupSelector: :from:to:withStep:do:])
+       "Number does not define from:to:withStep:do:")
+(check (function? [Macro lookupSelector: :arguments])
+       "Macro inherits CompoundForm protocol")
+(check (primitive? [SpecialForm lookupSelector: :documentation])
+       "SpecialForm inherits CompoundForm protocol")
+(check (primitive? [Primitive lookupSelector: :documentation])
+       "Primitive inherits Function>>documentation")
+(check (primitive? [Closure lookupSelector: :arguments])
+       "Closure inherits Function>>arguments")
+(check (equal? [[Primitive >> :arguments] arguments] '(self))
+       "Primitive>>arguments parses primitive argument metadata")
+(check (equal? [[Primitive >> :documentation] documentation]
+               "Return primitive documentation.")
+       "Primitive>>documentation returns primitive description")
+(check (equal? [(lambda (x y) (+ x y)) arguments] '(x y))
+       "Closure>>arguments returns closure parameters")
+(check (null? [(lambda (x) x) documentation])
+       "Closure>>documentation returns nil")
+(check (= [(lambda () 42) value] 42)
+       "Function>>value calls with no arguments")
+(check (= [(lambda (x) (+ x 1)) value: 41] 42)
+       "Function>>value: calls with one argument")
+(check (= [(lambda (x y) (+ x y)) value: 19 value: 23] 42)
+       "Function>>value:value: calls with two arguments")
+(check (= [(lambda (x y z) (+ x y z)) value: 10 value: 12 value: 20] 42)
+       "Function>>value:value:value: calls with three arguments")
+(check (= [(lambda (x y) (+ x y)) valueWithArguments: '(19 23)] 42)
+       "Function>>valueWithArguments: applies argument list")
+(check (equal? [ListTalk-implementation:%lambda arguments]
+               '(name (:rest arg) :rest body))
+       "SpecialForm>>arguments parses special form argument metadata")
+(check (equal? [ListTalk-implementation:%lambda documentation]
+               "Create closure with lexical scope.")
+       "SpecialForm>>documentation returns special form description")
+(let ((test-macro (macro (lambda (x y) x))))
+  (check (equal? [test-macro arguments] '(x y))
+         "Macro>>arguments forwards to callable")
+  (check (null? [test-macro documentation])
+         "Macro>>documentation forwards to callable"))
+
+(define-class DNUReceiver (Object) ())
+(define-method [DNUReceiver doesNotUnderstand: message]
+  (list [message selector]
+        [message receiver]
+        [message arguments]
+        (type-of message)))
+(let* ((receiver (make-instance DNUReceiver))
+       (handled [receiver missing: 1]))
+  (check (and (eq? (car handled) :missing:)
+              (eq? (car (cdr handled)) receiver)
+              (equal? (car (cdr (cdr handled))) (list 1))
+              (eq? (type-of (car (cdr (cdr handled)))) ImmutableList)
+              (eq? (car (cdr (cdr (cdr handled)))) Message))
+         "not understood send dispatches doesNotUnderstand: with Message"))
+)
+
+(define-test "OOP: weak references"
+;;; OOP: weak references
+
+(let ((reference [WeakReference new: 42]))
+  (check [reference alive?] "WeakReference>>alive? true for immediate value")
+  (check (= [reference value] 42) "WeakReference>>value returns value")
+  [reference value: #false]
+  (check (not [reference value]) "WeakReference>>value: updates value"))
+
+(let ((set [WeakIdentitySet new]))
+  [set put: 42]
+  (check [set contains?: 42] "WeakIdentitySet inherits Set methods"))
+
+(let ((dictionary [IdentityDictionary new])
+      (a (cons 1 2))
+      (b (cons 1 2))
+      (c (cons 1 2)))
+  [dictionary at: a put: "a"]
+  [dictionary at: b put: "b"]
+  (check (= [dictionary size] 2) "IdentityDictionary>>size")
+  (check (equal? [dictionary at: a] "a") "IdentityDictionary>>at: returns value")
+  (check [dictionary contains?: b] "IdentityDictionary>>contains?: finds key")
+  (check (not [dictionary contains?: c])
+         "IdentityDictionary>>contains?: rejects equal non-identical key")
+  (check (null? [dictionary at: c]) "IdentityDictionary>>at: returns nil for absent key")
+  (check (equal? [dictionary remove: a] "a") "IdentityDictionary>>remove: returns value")
+  (check (not [dictionary contains?: a]) "IdentityDictionary>>remove: removes key"))
+
+(let ((dictionary [Dictionary newFromAList: '(("a" . 1) ("b" . 2) ("a" . 3))]))
+  (check (= [dictionary size] 2) "Dictionary class>>newFromAList: sets size")
+  (check (= [dictionary at: "a"] 3)
+         "Dictionary class>>newFromAList: uses structural keys")
+  (check (= [dictionary at: "b"] 2)
+         "Dictionary class>>newFromAList: stores values")
+  (check (equal? (assoc "a" [dictionary asAList]) '("a" . 3))
+         "Dictionary>>asAList returns associations")
+  (check (= [[dictionary map: (lambda (key value) value)] reduce: +] 5)
+         "Dictionary>>map: maps key/value pairs")
+  (check (let ((sum 0))
+           (and (null? [dictionary forEach:
+                                   (lambda (key value) (set! sum (+ sum value)))])
+                (= sum 5)))
+         "Dictionary>>forEach: applies callable to key/value pairs"))
+
+(let ((dictionary [Dictionary newFromAList: '(("a" . 1))]))
+  (let ((iterator [dictionary asIterator]))
+    (check (eq? [iterator class] DictionaryIterator)
+           "Dictionary>>asIterator returns DictionaryIterator")
+    (check [iterator hasThis?] "DictionaryIterator starts on an association")
+    (check (equal? [iterator this] '("a" . 1))
+           "DictionaryIterator>>this returns association")
+    [iterator next!]
+    (check (not [iterator hasThis?]) "DictionaryIterator advances past end")))
+(check (eq? [[[Dictionary new] asIterator] class] EmptyIterator)
+       "Empty Dictionary>>asIterator returns EmptyIterator")
+
+(let ((dictionary [ImmutableDictionary newFromAList:
+                   '(("a" . 1) ("b" . 2) ("a" . 3))]))
+  (check (= [dictionary size] 2)
+         "ImmutableDictionary class>>newFromAList: sets size")
+  (check (= [dictionary at: "a"] 3)
+         "ImmutableDictionary class>>newFromAList: uses structural keys")
+  (check [dictionary contains?: "b"]
+         "ImmutableDictionary inherits dictionary lookup protocol")
+  (check (equal? (assoc "a" [dictionary asAList]) '("a" . 3))
+         "ImmutableDictionary>>asAList returns associations")
+  (check (= [[dictionary map: (lambda (key value) value)] reduce: +] 5)
+         "ImmutableDictionary>>map: maps key/value pairs"))
+
+(let ((dictionary [ImmutableDictionary newFromAList: '(("a" . 3))]))
+  (check (equal? [[dictionary asIterator] this] '("a" . 3))
+         "ImmutableDictionary>>asIterator uses dictionary associations"))
+
+(let ((key (list 1)))
+  (let ((dictionary [IdentityDictionary newFromAList:
+                                      (list (cons key "first")
+                                            (cons (list 1) "second")
+                                            (cons key "third"))]))
+    (check (= [dictionary size] 2)
+           "IdentityDictionary class>>newFromAList: uses identity keys")
+    (check (equal? [dictionary at: key] "third")
+           "IdentityDictionary class>>newFromAList: overwrites identical key")
+    (check (equal? (assq key [dictionary asAList]) (cons key "third"))
+           "IdentityDictionary>>asAList returns associations")
+    (check (= [[dictionary map:
+                           (lambda (key value)
+                             (if (equal? value "third") 10 1))] reduce: +] 11)
+           "IdentityDictionary>>map: maps key/value pairs")
+    (check (let ((count 0))
+             (and (null? [dictionary forEach:
+                                     (lambda (key value)
+                                       (set! count (+ count 1)))])
+                  (= count 2)))
+           "IdentityDictionary>>forEach: applies callable to key/value pairs")))
+
+(let ((key (list 1)))
+  (let ((dictionary [IdentityDictionary newFromAList: (list (cons key 42))]))
+    (let ((iterator [dictionary asIterator]))
+      (check (eq? [iterator class] IdentityDictionaryIterator)
+             "IdentityDictionary>>asIterator returns IdentityDictionaryIterator")
+      (check (eq? (car [iterator this]) key)
+             "IdentityDictionaryIterator>>this preserves key identity")
+      (check (= (cdr [iterator this]) 42)
+             "IdentityDictionaryIterator>>this returns value")
+      [iterator next!]
+      (check (not [iterator hasThis?])
+             "IdentityDictionaryIterator advances past end"))))
+(check (eq? [[[IdentityDictionary new] asIterator] class] EmptyIterator)
+       "Empty IdentityDictionary>>asIterator returns EmptyIterator")
+
+(let ((dictionary [WeakKeyIdentityDictionary new])
+      (key (cons 1 2)))
+  [dictionary at: key put: 99]
+  (check (= [dictionary at: key] 99)
+         "WeakKeyIdentityDictionary inherits IdentityDictionary methods"))
+
+(let ((dictionary [WeakValueIdentityDictionary new])
+      (key (cons 3 4)))
+  [dictionary at: key put: 100]
+  (check (= [dictionary at: key] 100)
+         "WeakValueIdentityDictionary inherits IdentityDictionary methods"))
+
+(let ((key (list 2)))
+  (let ((dictionary [WeakKeyIdentityDictionary newFromAList:
+                                           (list (cons key 8))]))
+    (check (= [dictionary at: key] 8)
+           "WeakKeyIdentityDictionary class>>newFromAList: stores entries")
+    (check (= [[dictionary map: (lambda (key value) value)] car] 8)
+           "WeakKeyIdentityDictionary>>map: uses inherited method")))
+
+(let ((key (list 3)))
+  (let ((dictionary [WeakValueIdentityDictionary newFromAList:
+                                             (list (cons key 9))]))
+    (check (= [dictionary at: key] 9)
+           "WeakValueIdentityDictionary class>>newFromAList: stores entries")
+    (check (= [(assq key [dictionary asAList]) cdr] 9)
+           "WeakValueIdentityDictionary>>asAList uses inherited method")))
+
+(let ((variable [DynamicVariable new: "default"]))
+  (check (equal? [variable value] "default")
+         "DynamicVariable>>value returns default before assignment")
+  (check (equal? (ListTalk-implementation:%dynamic-ref variable) "default")
+         "ListTalk-implementation:%dynamic-ref returns default before assignment")
+  [variable value: "thread-value"]
+  (check (equal? [variable value] "thread-value")
+         "DynamicVariable>>value: sets current thread value")
+  (check (equal? (ListTalk-implementation:%dynamic-ref variable) "thread-value")
+         "ListTalk-implementation:%dynamic-ref returns current thread value"))
+
+(let ((|*reader-dynamic-variable*| [DynamicVariable new: "reader-default"]))
+  (check (equal? *reader-dynamic-variable* "reader-default")
+         "star-delimited symbol reads as dynamic variable reference")
+  [|*reader-dynamic-variable*| value: "reader-thread-value"]
+  (check (equal? *reader-dynamic-variable* "reader-thread-value")
+         "star-delimited symbol reads current dynamic variable value"))
+
+(define *surface-dynamic-variable* "surface-default")
+(check (equal? *surface-dynamic-variable* "surface-default")
+       "define creates DynamicVariable for star-delimited target")
+(set! *surface-dynamic-variable* "surface-thread-value")
+(check (equal? *surface-dynamic-variable* "surface-thread-value")
+       "set! updates star-delimited dynamic variable target")
+
+(define *dynamic-let-variable* "outer")
+(check (equal? (dynamic-let ((*dynamic-let-variable* "inner"))
+                *dynamic-let-variable*)
+              "inner")
+       "dynamic-let binds dynamic variable during body")
+(check (equal? *dynamic-let-variable* "outer")
+       "dynamic-let restores dynamic variable after normal exit")
+(check (equal? (dynamic-let ((*dynamic-let-variable* "middle"))
+                (dynamic-let ((*dynamic-let-variable* "inner"))
+                  *dynamic-let-variable*))
+              "inner")
+       "nested dynamic-let uses innermost value")
+(check (equal? *dynamic-let-variable* "outer")
+       "nested dynamic-let restores outer value")
+(check (equal? (catch :dynamic-let-exit
+                 (dynamic-let ((*dynamic-let-variable* "throwing"))
+                   (throw :dynamic-let-exit *dynamic-let-variable*)))
+              "throwing")
+       "dynamic-let body can exit non-locally")
+(check (equal? *dynamic-let-variable* "outer")
+       "dynamic-let restores dynamic variable after non-local exit")
+)
+
+(define-test "OOP: number binary messages"
+;;; OOP: number binary messages
+
+(check (= [3 + 4] 7) "Number>>+ dispatches correctly")
+(check (= [10 - 3] 7) "Number>>- dispatches correctly")
+(check (= [3 * 4] 12) "Number>>* dispatches correctly")
+(check (= [10 / 4] 5/2) "Number>>/ dispatches correctly")
+(check [3 == 3] "Number>>== identity equal")
+(check (let ((f 3.5)) [f == f]) "Number>>== float identity equal")
+(check (not [3 == 4]) "Number>>== not equal")
+(check [3 < 4] "Number>>< less than")
+(check [4 > 3] "Number>>> greater than")
+(check [3 <= 3] "Number>><= less than or equal")
+(check [3 >= 3] "Number>>>= greater than or equal")
+(check (= [-5/2 abs] 5/2) "Number>>abs preserves exact real magnitude")
+(check-near [3+4i abs] 5.0 1e-12 "Number>>abs handles complex numbers")
+(check-near [-2 phase] pi 1e-12 "Number>>phase handles negative reals")
+(check-near [0+1i phase] (/ pi 2) 1e-12 "Number>>phase handles complex numbers")
+(check (= [-5/2 floor] -3) "Number>>floor")
+(check (= [-5/2 truncate] -2) "Number>>truncate")
+(check (= [-5/2 ceiling] -2) "Number>>ceiling")
+(check (= [-5/2 round] -3) "Number>>round")
+(check-near [4 sqrt] 2.0 1e-12 "Number>>sqrt")
+(check (= [4 min: 2] 2) "Number>>min:")
+(check (= [4 max: 2] 4) "Number>>max:")
+(let ((values '()))
+  [4 timesDo: (lambda (i) (set! values (cons i values)))]
+  (check (equal? values '(3 2 1 0)) "Integer>>timesDo: iterates zero-based indexes"))
+(let ((values '()))
+  [-2 timesDo: (lambda (i) (set! values (cons i values)))]
+  (check (null? values) "Integer>>timesDo: skips negative receivers"))
+(let ((values '()))
+  [0 from: 1 to: 5 withStep: 2 do: (lambda (i) (set! values (cons i values)))]
+  (check (equal? values '(3 1)) "RealNumber>>from:to:withStep:do: iterates upward half-open ranges"))
+(let ((values '()))
+  [0 from: 5 to: 1 withStep: -2 do: (lambda (i) (set! values (cons i values)))]
+  (check (equal? values '(3 5)) "RealNumber>>from:to:withStep:do: iterates downward half-open ranges"))
+(check [0 zero?] "Number>>zero?")
+(check [1 positive?] "Number>>positive?")
+(check [-1 negative?] "Number>>negative?")
+(check-near [(/ pi 2) sin] 1.0 1e-12 "Number>>sin")
+(check-near [pi cos] -1.0 1e-12 "Number>>cos")
+(check-near [0 tan] 0.0 1e-12 "Number>>tan")
+(check-near [(expt 1) log] 1.0 1e-12 "Number>>log")
+(check-near [2 expt] 7.38905609893065 1e-12 "Number>>expt")
+(check (= [2 expt: 10] 1024) "Number>>expt: dispatches correctly")
+(check (eq? (type-of [1+1i sin]) InexactComplexNumber) "Number>>sin accepts complex numbers")
+(check (eq? (type-of [(- 1) log]) InexactComplexNumber)
+       "Number>>log promotes negative real to complex")
+(check (eq? (type-of [(- 1) expt: 1/2]) InexactComplexNumber)
+       "Number>>expt: promotes negative base with non-integer exponent to complex")
+(check (equal? [5/2 asString] "5/2") "Number>>asString formats rationals")
+(check (equal? [(+ 340282366920938463463374607431768211456 1) asString]
+               "340282366920938463463374607431768211457")
+       "Number>>asString formats big integers")
+(check (equal? [#true asString] "#true") "Object>>asString uses debug printing")
+(check (equal? ["aλ" asString] "aλ") "String>>asString returns receiver")
+(check (equal? [#\λ asString] "λ") "Character>>asString returns UTF-8 string")
+(check (= [#\a width] 1) "Character>>width returns wcwidth")
+(check (= ["abc" width] 3) "String>>width returns wcswidth")
+(check (= [3 asFloat] 3.0) "RealNumber>>asFloat converts integers")
+(check (= [1/2 asFloat] 0.5) "RealNumber>>asFloat converts rationals")
+)
+
+(define-test "Instants and durations"
+;;; Instants and durations
+
+(let ((d [Duration fromSeconds: 3/2]))
+  (check (= [d asMicroseconds] 1500000)
+         "Duration class>>fromSeconds: preserves exact microseconds")
+  (check (= [d asSeconds] 3/2)
+         "Duration>>asSeconds preserves exact seconds"))
+(check [[Duration fromSeconds: 1] = [Duration fromMicroseconds: 1000000]]
+       "Duration equality uses microseconds")
+(check [[Instant fromSeconds: 1] = [Instant fromMicroseconds: 1000000]]
+       "Instant equality uses microseconds")
+(let ((d [Duration fromMicroseconds: -500000]))
+  (check (= [d asSeconds] -1/2)
+         "Duration accepts negative microseconds"))
+(check (primitive? sleep)
+       "sleep primitive is bound")
+(check (= (sleep -1/2) -1/2)
+       "sleep primitive treats negative durations as no-op")
+(let ((d [Duration fromSeconds: -1]))
+  (check (eq? [d sleep] d)
+         "Duration>>sleep returns receiver after negative no-op"))
+(let ((t [Instant fromSeconds: 10])
+      (d [Duration fromSeconds: 2]))
+  (check (= [[t afterDuration: d] asSeconds] 12)
+         "Instant>>afterDuration: advances instant")
+  (check (= [[t + d] asSeconds] 12)
+         "Instant>>+ aliases afterDuration:")
+  (check (= [[t beforeDuration: d] asSeconds] 8)
+         "Instant>>beforeDuration: moves instant backward")
+  (check (= [[t - d] asSeconds] 8)
+         "Instant>>- subtracts duration")
+  (check (= [[t durationSince: [Instant fromSeconds: 7]] asSeconds] 3)
+         "Instant>>durationSince: returns duration")
+  (check (= [[t durationUntil: [Instant fromSeconds: 13]] asSeconds] 3)
+         "Instant>>durationUntil: returns duration")
+  (check (= [[t - [Instant fromSeconds: 7]] asSeconds] 3)
+         "Instant>>- subtracts instant as duration"))
+(let ((t [Instant fromSeconds: 0]))
+  (check (eq? [t sleepUntil] t)
+         "Instant>>sleepUntil returns receiver after past no-op"))
+(let ((d1 [Duration fromSeconds: 5])
+      (d2 [Duration fromSeconds: 2])
+      (t [Instant fromSeconds: 10]))
+  (check (= [[d1 addDuration: d2] asSeconds] 7)
+         "Duration>>addDuration: adds durations")
+  (check (= [[d1 + d2] asSeconds] 7)
+         "Duration>>+ aliases duration addition")
+  (check (= [[d1 substractDuration: d2] asSeconds] 3)
+         "Duration>>substractDuration: subtracts durations")
+  (check (= [[d1 - d2] asSeconds] 3)
+         "Duration>>- aliases duration subtraction")
+  (check (= [[d2 + t] asSeconds] 12)
+         "Duration>>+ advances instant"))
+(check (eq? (type-of [Instant now]) Instant)
+       "Instant class>>now returns an Instant")
+)
+
+(define-test "UTC date-times"
+;;; UTC date-times
+
+(let ((dt [UTCDateTime fromYear: 1970
+                       month: 1
+                       day: 2
+                       hour: 3
+                       minute: 4
+                       second: 5
+                       microsecond: 123456]))
+  (check (= [dt year] 1970) "UTCDateTime>>year")
+  (check (= [dt month] 1) "UTCDateTime>>month")
+  (check (= [dt day] 2) "UTCDateTime>>day")
+  (check (= [dt hour] 3) "UTCDateTime>>hour")
+  (check (= [dt minute] 4) "UTCDateTime>>minute")
+  (check (= [dt second] 5) "UTCDateTime>>second")
+  (check (= [dt microsecond] 123456) "UTCDateTime>>microsecond")
+  (check (equal? [dt asISO8601] "1970-01-02T03:04:05.123456Z")
+         "UTCDateTime>>asISO8601 emits UTC ISO8601")
+  (check (equal? [dt asISO8601WithSeparator: #\space]
+                 "1970-01-02 03:04:05.123456Z")
+         "UTCDateTime>>asISO8601WithSeparator: accepts Character")
+  (check (equal? [dt asISO8601WithSeparator: "_"]
+                 "1970-01-02_03:04:05.123456Z")
+         "UTCDateTime>>asISO8601WithSeparator: accepts String"))
+(check (equal? [[UTCDateTime fromISO8601: "1970-01-02T03:04:05Z"] asISO8601]
+               "1970-01-02T03:04:05Z")
+       "UTCDateTime ISO8601 omits zero microseconds")
+(let ((instant [Instant fromMicroseconds: 123456])
+      (dt [UTCDateTime fromInstant: [Instant fromMicroseconds: 123456]]))
+  (check (= [dt year] 1970) "UTCDateTime class>>fromInstant: year")
+  (check (= [dt month] 1) "UTCDateTime class>>fromInstant: month")
+  (check (= [dt day] 1) "UTCDateTime class>>fromInstant: day")
+  (check (= [dt hour] 0) "UTCDateTime class>>fromInstant: hour")
+  (check (= [dt minute] 0) "UTCDateTime class>>fromInstant: minute")
+  (check (= [dt second] 0) "UTCDateTime class>>fromInstant: second")
+  (check (= [dt microsecond] 123456) "UTCDateTime class>>fromInstant: microsecond")
+  (check [[dt asInstant] = instant] "UTCDateTime>>asInstant round-trips"))
+(let ((dt [UTCDateTime fromISO8601: "1970-01-02T03:04:05.123456Z"]))
+  (check (= [dt year] 1970) "UTCDateTime class>>fromISO8601: year")
+  (check (= [dt month] 1) "UTCDateTime class>>fromISO8601: month")
+  (check (= [dt day] 2) "UTCDateTime class>>fromISO8601: day")
+  (check (= [dt hour] 3) "UTCDateTime class>>fromISO8601: hour")
+  (check (= [dt minute] 4) "UTCDateTime class>>fromISO8601: minute")
+  (check (= [dt second] 5) "UTCDateTime class>>fromISO8601: second")
+  (check (= [dt microsecond] 123456) "UTCDateTime class>>fromISO8601: microsecond")
+  (check (equal? [dt asISO8601] "1970-01-02T03:04:05.123456Z")
+         "UTCDateTime class>>fromISO8601: parses asISO8601 output"))
+(let ((dt [UTCDateTime fromYear: 1970
+                       month: 1
+                       day: 1
+                       hour: 0
+                       minute: 0
+                       second: 0
+                       microsecond: 3/2]))
+  (check (= [[dt asInstant] asMicroseconds] 3/2)
+         "UTCDateTime>>asInstant preserves non-integer microseconds")
+  (check (= [[UTCDateTime fromInstant: [dt asInstant]] microsecond] 3/2)
+         "UTCDateTime class>>fromInstant: preserves non-integer microseconds"))
+(check [[UTCDateTime fromYear: 2000
+                     month: 2
+                     day: 29
+                     hour: 0
+                     minute: 0
+                     second: 0
+                     microsecond: 0]
+        = [UTCDateTime fromInstant:
+             [[UTCDateTime fromYear: 2000
+                           month: 2
+                           day: 29
+                           hour: 0
+                           minute: 0
+                           second: 0
+                           microsecond: 0]
+              asInstant]]]
+       "UTCDateTime>>asInstant handles leap day directly")
+(check-error-message "Day out of range"
+                     "UTCDateTime>>asInstant rejects invalid civil day"
+  [[UTCDateTime fromYear: 2023
+                month: 2
+                day: 29
+                hour: 0
+                minute: 0
+                second: 0
+                microsecond: 0]
+   asInstant])
+)
+
+(define-test "OOP: identity and structural equal"
+;;; OOP: identity and structural equal
+
+(check (let ((p '(1 . 2))) [p == p]) "Object>>== identity equal same object")
+(check (not ['(1) == '(1)]) "Object>>== not equal for distinct pairs")
+(check [1 = 1] "Object>>equal: structurally equal fixnums")
+(check ['(1 2) = '(1 2)] "Object>>equal: structurally equal lists")
+(check (not ['(1 2) = '(1 3)]) "Object>>equal: structurally unequal lists")
+)
+
+(define-test "OOP: Pair methods"
+;;; OOP: Pair methods
+
+(check (= ['(1 . 2) car] 1) "Pair>>car dispatches correctly")
+(check (= ['(1 . 2) cdr] 2) "Pair>>cdr dispatches correctly")
+(let ((p (cons 5 6)))
+  [p car: 42]
+  (check (= [p car] 42) "Pair>>car: mutates car")
+  (let ((q (cons 10 20)))
+    [q cdr: 99]
+    (check (= [q cdr] 99) "Pair>>cdr: mutates cdr")))
+)
+
+(define-test "OOP: String and Vector methods"
+;;; OOP: String and Vector methods
+
+(check (= ['(1 2 3) length] 3) "List>>length")
+(check (= ['() length] 0) "Nil as empty List>>length")
+(check (= ['(1 2 3) at: 1] 2) "List>>at: dispatches correctly")
+(check (= ["hello" length] 5) "String>>length")
+(check (eq? ["hello" at: 1] (string-ref "hello" 1)) "String>>at: dispatches correctly")
+(check (equal? ["aλ" append: "😀z"] "aλ😀z") "String>>append: concatenates")
+(check (equal? ["aλ😀z" from: 1 to: 3] "λ😀")
+       "String>>from:to: uses half-open codepoint indexes")
+(check (equal? ["aλ😀z" substringFrom: 1 to: 3] "λ😀")
+       "String>>substringFrom:to: uses half-open codepoint indexes")
+(check ["abc" < "abd"] "String>>< compares lexicographically")
+(check ["abd" > "abc"] "String>>> compares lexicographically")
+(check ["abc" <= "abc"] "String>><= accepts equality")
+(check ["abc" <= "abcd"] "String>><= sorts shorter prefix first")
+(check ["abcd" >= "abc"] "String>>>= sorts longer prefixed string after shorter")
+(check ["λ" < "😀"] "String>>< compares Unicode codepoint order")
+(check (= ["abc" compareWith: "abd"] -1) "String>>compareWith: returns -1 for less")
+(check (= ["abc" compareWith: "abc"] 0) "String>>compareWith: returns 0 for equal")
+(check (= ["abd" compareWith: "abc"] 1) "String>>compareWith: returns 1 for greater")
+(check (equal? ["bananana" replace: "na" with: "λ"] "baλλλ")
+       "String>>replace:with: replaces all occurrences")
+(check (equal? ["bananana" replaceFirst: "na" with: "λ"] "baλnana")
+       "String>>replaceFirst:with: replaces first occurrence")
+(check (equal? ["aλ😀" replace: "λ" with: "LL"] "aLL😀")
+       "String>>replace:with: handles Unicode codepoint boundaries")
+(check ["bananana" contains?: "nan"] "String>>contains?: finds substring")
+(check (not ["bananana" contains?: "xyz"])
+       "String>>contains?: rejects absent substring")
+(check ["aλ😀" startsWith?: "aλ"] "String>>startsWith?: accepts prefix")
+(check ["aλ😀" startsWith?: ""] "String>>startsWith?: accepts empty prefix")
+(check (not ["aλ😀" startsWith?: "λ"])
+       "String>>startsWith?: rejects non-prefix")
+(check (not ["aλ😀" startsWith?: "aλ😀z"])
+       "String>>startsWith?: rejects longer prefix")
+(check (= ["aλ😀λ" find: "😀"] 2)
+       "String>>find: returns codepoint index")
+(check (null? ["aλ😀λ" find: "z"])
+       "String>>find: returns nil for absent substring")
+(check (equal? ["bananana" findAll: "na"] '(2 4 6))
+       "String>>findAll: returns match codepoint indices")
+(check (equal? ["aλ😀λ" findAll: "λ"] '(1 3))
+       "String>>findAll: counts Unicode codepoints")
+(let ((mapping [IdentityDictionary new]))
+  [mapping at: (string-ref "abc" 0) put: (string-ref "XYZ" 0)]
+  [mapping at: (string-ref "abc" 1) put: "yy"]
+  (check (equal? ["abcλ" mapCharacters: mapping] "Xyycλ")
+         "String>>mapCharacters: maps Character keys to Character or String values"))
+(check (equal? ["  a\tλ\n 😀  " substrings] '("a" "λ" "😀"))
+       "String>>substrings splits on whitespace without empty substrings")
+(check (let ((seen '()))
+         (and (null? ["  a λ  " substringsDo:
+                     (lambda (each) (set! seen (cons each seen)))])
+              (equal? seen '("λ" "a"))))
+       "String>>substringsDo: calls callable without constructing a list")
+(check (equal? ["a--λ----😀--" substrings: "--"] '("a" "λ" "" "😀" ""))
+       "String>>substrings: splits on delimiter string with empty substrings")
+(check (let ((seen '()))
+         (and (null? ["a--λ----😀--" substrings: "--" do:
+                     (lambda (each) (set! seen (cons each seen)))])
+              (equal? seen '("" "😀" "" "λ" "a"))))
+       "String>>substrings:do: calls callable for empty substrings")
+(check (equal? ["a,λ,,😀," splitOn: #\,] '("a" "λ" "" "😀" ""))
+       "String>>splitOn: splits on Character")
+(check (equal? ["a,λ;😀" splitOn: ",;"] '("a" "λ" "😀"))
+       "String>>splitOn: splits on any character in String")
+(check (equal? ["a,λ;😀" splitOn: [Set fromList: (list #\, #\;)]]
+               '("a" "λ" "😀"))
+       "String>>splitOn: splits on any character in Set")
+(check (equal? ["a\r\n\rb\n" splitLines] '("a" "b"))
+       "String>>splitLines strips line terminators and surrounding CR bytes")
+(check (equal? ["a\n" splitLines] '("a"))
+       "String>>splitLines omits final empty line after terminator")
+(check (equal? ["\n" splitLines] '(""))
+       "String>>splitLines preserves empty terminated line")
+(check (let ((seen '()))
+         (and (null? ["a,λ,,😀," splitOn: #\, do:
+                     (lambda (each) (set! seen (cons each seen)))])
+              (equal? seen '("" "😀" "" "λ" "a"))))
+       "String>>splitOn:do: calls callable for empty substrings")
+(check (equal? (string-join ", " '("a" "λ" "😀")) "a, λ, 😀")
+       "string-join joins list with delimiter")
+(check (equal? ["-" join: '("a" "λ" "😀")] "a-λ-😀")
+       "String>>join: uses receiver as delimiter")
+(check (equal? [", " join: '()] "")
+       "String>>join: returns empty string for empty list")
+(check (equal? (format "a=~a s=~s~~~%" 42 "x") "a=42 s=\"x\"~\n")
+       "format supports ~a, ~s, ~~, and ~%")
+(check (equal? (format "~{[~a]~}" '(1 2 3)) "[1][2][3]")
+       "format supports ~{...~} iteration")
+(check (equal? (format "~{~a=~s; ~}" '("x" 1 "y" 2)) "x=1; y=2; ")
+       "format iteration body can consume multiple arguments")
+(check (equal? (format "~:{~a=~s; ~}" '(("x" 1) ("y" 2))) "x=1; y=2; ")
+       "format supports colon iteration over argument lists")
+(check (equal? (format "~2{[~a]~} ~@{~a~}" '(1 2 3) "ab") "[1][2] ab")
+       "format supports numeric iteration limits and at-sign asList iteration")
+(check (equal? (format "~:@{~a=~s; ~}" #(#("x" 1) #("y" 2))) "x=1; y=2; ")
+       "format supports colon-at-sign iteration over asList sublists")
+(check (equal? (format "~d ~d ~b ~o ~x" 42 5/2 -10 #o777 #xBEEF)
+               "42 2.5 -1010 777 beef")
+       "format supports decimal, binary, octal, and hexadecimal numeric directives")
+(check (equal? (format "~f ~e ~g" 5/2 2500 5/2) "2.500000 2.500000e+03 2.5")
+       "format supports fixed, exponential, and general float directives")
+(check (equal? (format "~x" #x10000000000000000) "10000000000000000")
+       "format radix directives support big integers")
+(check (equal? (format "~a ~s ~a ~s" "x" "x" #\λ #\λ)
+               "x \"x\" λ #\\u+03bb")
+       "format distinguishes display and debug strings and characters")
+(define-class FormatAsStringThing (Object) ())
+(define-method [FormatAsStringThing asString] "custom-format-value")
+(let ((value [FormatAsStringThing alloc]))
+  (check (equal? (format "~a" value) "custom-format-value")
+         "format ~a dispatches asString")
+  (check (not (equal? (format "~s" value) "custom-format-value"))
+         "format ~s uses debug printing without asString dispatch"))
+(check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
+(check (equal? ['(1 2 3) asList] '(1 2 3)) "List>>asList returns receiver")
+(check (equal? [#(1 2 3) asList] '(1 2 3)) "Vector>>asList converts elements")
+(let ((v #(1 2 3)))
+  [v at: 1 put: 9]
+  (check (eq? [v at: 1] 9) "Vector>>at:put: mutates element"))
+(let ((v #(3 1 2 1)))
+  (check (equal? [v sort] #(1 1 2 3)) "Vector>>sort returns sorted fresh vector")
+  (check (equal? v #(3 1 2 1)) "Vector>>sort does not mutate receiver"))
+(check (equal? [#("b" "aa" "c") sort] #("aa" "b" "c"))
+       "Vector>>sort uses element compareWith:")
+(check (equal? [#(3 1 2) sortUsing: (lambda (a b) [b compareWith: a])]
+               #(3 2 1))
+       "Vector>>sortUsing: uses callable comparator")
+(check (equal? [#() sort] #()) "Vector>>sort handles empty vector")
+(check (= [(bytevector 65 200 66) length] 3) "ByteVector>>length")
+(check (= [(bytevector 65 200 66) at: 1] 200)
+       "ByteVector>>at: returns unsigned bytes")
+(let ((bv (bytevector 1 2 3)))
+  [bv at: 1 put: 255]
+  (check (= [bv at: 1] 255) "ByteVector>>at:put: mutates bytes"))
+(check (equal? [(bytevector 65 66) append: (bytevector 67)] (bytevector 65 66 67))
+       "ByteVector>>append: concatenates")
+(check (equal? [(bytevector 10 20 30 40) from: 1 to: 3] (bytevector 20 30))
+       "ByteVector>>from:to: uses half-open byte indexes")
+(check [(bytevector 1 2) < (bytevector 1 3)] "ByteVector>>< compares bytes")
+(check [(bytevector 1 3) > (bytevector 1 2)] "ByteVector>>> compares bytes")
+(check [(bytevector 1 2) <= (bytevector 1 2)] "ByteVector>><= accepts equality")
+(check [(bytevector 1 2) <= (bytevector 1 2 0)]
+       "ByteVector>><= sorts shorter prefix first")
+(check [(bytevector 1 2 0) >= (bytevector 1 2)]
+       "ByteVector>>>= sorts longer prefixed vector after shorter")
+(check (= [(bytevector 1 2) compareWith: (bytevector 1 3)] -1)
+       "ByteVector>>compareWith: returns -1 for less")
+(check (= [(bytevector 1 2) compareWith: (bytevector 1 2)] 0)
+       "ByteVector>>compareWith: returns 0 for equal")
+(check (= [(bytevector 1 3) compareWith: (bytevector 1 2)] 1)
+       "ByteVector>>compareWith: returns 1 for greater")
+(check (equal? [(bytevector 65 200 66) asList] '(65 200 66))
+       "ByteVector>>asList converts bytes")
+(let ((bytes [ByteVector random: 300]))
+  (check (eq? (type-of bytes) ByteVector) "ByteVector class>>random: returns ByteVector")
+  (check (= [bytes length] 300) "ByteVector class>>random: returns requested length"))
+(check (equal? [(bytevector 97 13 10 13 98 10) splitLines]
+               (list (bytevector 97) (bytevector 98)))
+       "ByteVector>>splitLines strips line terminators and surrounding CR bytes")
+(check (equal? [(bytevector 97 10) splitLines] (list (bytevector 97)))
+       "ByteVector>>splitLines omits final empty line after terminator")
+(check (equal? ["aλ" asByteVector] (string->bytevector "aλ"))
+       "String>>asByteVector converts to ByteVector")
+(check (equal? [(string->bytevector "aλ") asString] "aλ")
+       "ByteVector>>asString converts to String")
+(check (equal? [(bytevector 0 1 10 16 255) hex] "00010a10ff")
+       "ByteVector>>hex encodes lowercase hexadecimal")
+(check (equal? [(bytevector 0 1 10 16 255) asBase16] "00010A10FF")
+       "ByteVector>>asBase16 encodes uppercase hexadecimal")
+(check (equal? ["" asHexByteVector] (bytevector))
+       "String>>asHexByteVector decodes empty input")
+(check (equal? ["00010A10ff" asHexByteVector] (bytevector 0 1 10 16 255))
+       "String>>asHexByteVector decodes mixed-case hexadecimal")
+(check (equal? ["00 01\n0a\t10\r\nff" asHexByteVector]
+               (bytevector 0 1 10 16 255))
+       "String>>asHexByteVector skips ASCII whitespace")
+(check-error-message "Invalid hex"
+                     "String>>asHexByteVector rejects odd digit count"
+  ["abc" asHexByteVector])
+(check-error-message "Invalid hex"
+                     "String>>asHexByteVector rejects non-hex digits"
+  ["xx" asHexByteVector])
+(check (equal? [(string->bytevector "hello") asBase64] "aGVsbG8=")
+       "ByteVector>>asBase64 encodes bytes")
+(check (equal? [(string->bytevector "hello") asBase64WithPadding: #false] "aGVsbG8")
+       "ByteVector>>asBase64WithPadding: omits padding")
+(check (equal? [(bytevector 251 255) asBase64URI] "-_8=")
+       "ByteVector>>asBase64URI encodes URI-safe bytes")
+(check (equal? [(bytevector 251 255) asBase64URIWithPadding: #false] "-_8")
+       "ByteVector>>asBase64URIWithPadding: omits padding")
+(check (equal? ["" decodeBase64] (bytevector))
+       "String>>decodeBase64 decodes empty input")
+(check (equal? ["aGVsbG8=" decodeBase64] (string->bytevector "hello"))
+       "String>>decodeBase64 decodes padded input")
+(check (equal? [" aG\nVs\r\nbG8=\t" decodeBase64] (string->bytevector "hello"))
+       "String>>decodeBase64 skips ASCII whitespace")
+(check (equal? ["aGVsbG8" decodeBase64IgnoringPadding: #true]
+               (string->bytevector "hello"))
+       "String>>decodeBase64IgnoringPadding: decodes unpadded input")
+(check (equal? ["-_8=" decodeBase64URI] (bytevector 251 255))
+       "String>>decodeBase64URI decodes URI-safe input")
+(check (equal? ["-\n_8=" decodeBase64URI] (bytevector 251 255))
+       "String>>decodeBase64URI skips ASCII whitespace")
+(check (equal? ["-_8" decodeBase64URIIgnoringPadding: #true] (bytevector 251 255))
+       "String>>decodeBase64URIIgnoringPadding: decodes unpadded URI-safe input")
+(check (equal? ["AAECA/8=" decodeBase64] (bytevector 0 1 2 3 255))
+       "String>>decodeBase64 decodes arbitrary bytes")
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64 rejects malformed input"
+  ["abc" decodeBase64])
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64 rejects URI-safe alphabet"
+  ["-_8=" decodeBase64])
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64URI rejects standard alphabet"
+  ["+/8=" decodeBase64URI])
+(check-error-message "Invalid base64"
+                     "String>>decodeBase64 rejects non-canonical padding bits"
+  ["AB==" decodeBase64])
+(check (equal? ["aλ" asList] '(#\a #\λ)) "String>>asList converts characters")
+)
+
+(define-test "make-class and make-instance"
+;;; make-class and make-instance
+
+(let ((MakePoint (make-class 'Point (list Object) '(x y))))
+  (check (class? MakePoint) "make-class returns class object")
+  (let ((inst (make-instance MakePoint)))
+    (check (eq? (type-of inst) MakePoint) "make-instance returns instance of class"))
+  (let ((inst [MakePoint alloc]))
+    (check (eq? (type-of inst) MakePoint) "Class>>alloc creates instance")))
+
+(check-error-message "Class is not allocatable"
+                     "make-instance non-allocatable class signals error"
+  (make-instance Symbol))
+
+(check-error-message "Class is not allocatable"
+                     "Class>>alloc non-allocatable class signals error"
+  [Symbol alloc])
+)
+
+(define-test "Class>>addMethod:withSelector:"
+;;; Class>>addMethod:withSelector:
+
+(let ((MakePoint2 (make-class 'Point2 (list Object) '(x y))))
+  [MakePoint2 addMethod: (lambda (self) (slot-ref self 'x))
+              withSelector: :get-x]
+  (let ((inst (make-instance MakePoint2)))
+    (slot-set! inst 'x 77)
+    (check (= [inst get-x] 77) "Class>>addMethod:withSelector: installs method")))
+)

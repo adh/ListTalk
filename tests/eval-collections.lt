@@ -1,0 +1,382 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-collections)
+
+(define (iterator->list iterator)
+  (let loop ((values '()))
+    (if [iterator hasThis?]
+        (let ((value [iterator this]))
+          [iterator next!]
+          (loop (cons value values)))
+        (reverse values))))
+
+(define-test "Pairs / list primitives"
+;;; Pairs / list primitives
+
+(check (equal? (cons 1 2) '(1 . 2)) "cons creates pair")
+(check (= (car '(1 . 2)) 1) "car returns first element")
+(check (= (cdr '(1 . 2)) 2) "cdr returns second element")
+(check (pair? '(1 . 2)) "pair? true for pair")
+(check (not (pair? 1)) "pair? false for non-pair")
+(check (equal? (list 1 2 3) '(1 2 3)) "list constructor")
+(check (list? '(1 2 3)) "list? true for proper list")
+(check (not (list? '(1 . 2))) "list? false for dotted pair")
+(check (equal? ['(1 2 3) map: (lambda (x) (+ x 2))] '(3 4 5))
+       "List>>map: maps callable across receiver")
+(check (let ((seen '()))
+         (and (null? ['(1 2 3) forEach: (lambda (x) (set! seen (cons x seen)))])
+              (equal? seen '(3 2 1))))
+       "List>>forEach: applies callable across receiver")
+(check (equal? ['(3 1 2 1) sort] '(1 1 2 3))
+       "List>>sort returns sorted fresh list")
+(check (equal? ['("b" "aa" "c") sort] '("aa" "b" "c"))
+       "List>>sort uses element compareWith:")
+(check (equal? ['(3 1 2) sortUsing: (lambda (a b) [b compareWith: a])]
+               '(3 2 1))
+       "List>>sortUsing: uses callable comparator")
+(check (equal? ['() sort] '()) "List>>sort handles empty list")
+(check ['(1 2 3) any: (lambda (x) (= x 2))]
+       "List>>any: returns true when any element matches")
+(check (not ['(1 2 3) any: (lambda (x) (= x 9))])
+       "List>>any: returns false when no element matches")
+(check ['(1 2 3) every: (lambda (x) (< x 4))]
+       "List>>every: returns true when every element matches")
+(check (not ['(1 2 3) every: (lambda (x) (< x 3))])
+       "List>>every: returns false when an element misses")
+(check (= ['(1 2 3) reduce: +] 6) "List>>reduce: reduces receiver from the left")
+(check (= ['(1 2 3) inject: 10 into: +] 16)
+       "List>>inject:into: folds receiver from the left")
+)
+
+(define-test "Set"
+;;; Set
+
+(check (eq? (type-of [Set new]) Set) "Set>>new returns set")
+(let ((s [Set new]))
+  [s put: 1]
+  [s put: 2]
+  [s put: 1]
+  (check [s contains?: 1] "Set>>contains?: finds inserted item")
+  (check (not [s contains?: 3]) "Set>>contains?: rejects absent item")
+  (check (= [[s asList] reduce: +] 3) "Set>>asList returns unique elements"))
+(let ((s [Set fromList: '(5)]))
+  (let ((iterator [s asIterator]))
+    (check (eq? [iterator class] SetIterator) "Set>>asIterator returns SetIterator")
+    (check (= [iterator this] 5) "SetIterator>>this returns current element")
+    [iterator next!]
+    (check (not [iterator hasThis?]) "SetIterator advances past end")))
+(check (eq? [[[Set new] asIterator] class] EmptyIterator)
+       "Empty Set>>asIterator returns EmptyIterator")
+(let ((s [Set fromList: '(1 2 1 3)]))
+  (check (and [s contains?: 1] [s contains?: 2] [s contains?: 3])
+         "Set class>>fromList: inserts list elements")
+  (check (= [[s asList] reduce: +] 6) "Set class>>fromList: removes duplicates")
+  (check (let ((seen '()))
+           (and (null? [s forEach: (lambda (x) (set! seen (cons x seen)))])
+                (= [seen reduce: +] 6)))
+         "Set>>forEach: applies callable across receiver")
+  (check [s any: (lambda (x) (= x 2))]
+         "Set>>any: returns true when any element matches")
+  (check (not [s any: (lambda (x) (= x 9))])
+         "Set>>any: returns false when no element matches")
+  (check [s every: (lambda (x) (< x 4))]
+         "Set>>every: returns true when every element matches")
+  (check (not [s every: (lambda (x) (< x 3))])
+         "Set>>every: returns false when an element misses")
+  (check (= [s inject: 10 into: +] 16)
+         "Set>>inject:into: folds receiver with initial value")
+  (check (= [s reduce: +] 6) "Set>>reduce: reduces receiver"))
+(check-raises "Set>>reduce: rejects empty set" [[Set new] reduce: +])
+)
+
+(define-test "IdentitySet"
+;;; IdentitySet
+
+(let ((a (list 1))
+      (b (list 1))
+      (c (list 1)))
+  (let ((s [IdentitySet new]))
+    [s put: a]
+    [s put: b]
+    [s put: a]
+    (check (eq? (type-of s) IdentitySet) "IdentitySet>>new returns identity set")
+    (check [s contains?: a] "IdentitySet>>contains?: finds identical item")
+    (check [s contains?: b] "IdentitySet>>contains?: preserves distinct equal item")
+    (check (not [s contains?: c]) "IdentitySet>>contains?: rejects equal non-identical item")
+    (check (= [[s asList] inject: 0 into: (lambda (count each) (+ count 1))] 2)
+           "IdentitySet>>put: collapses by identity only")))
+(let ((a (list 1)))
+  (let ((s [IdentitySet fromList: (list a (list 1) a)]))
+    (check (= [[s asList] inject: 0 into: (lambda (count each) (+ count 1))] 2)
+           "IdentitySet class>>fromList: removes duplicate identities")
+    (check (let ((seen '()))
+             (and (null? [s forEach: (lambda (x) (set! seen (cons x seen)))])
+                  (= [seen inject: 0 into: (lambda (count each) (+ count 1))] 2)))
+           "IdentitySet>>forEach: uses inherited Set method")
+    (check [s any: (lambda (x) (eq? x a))]
+           "IdentitySet>>any: uses inherited Set method")
+    (check [s every: list?]
+           "IdentitySet>>every: uses inherited Set method")
+    (check (= [s inject: 0 into: (lambda (count each) (+ count 1))] 2)
+           "IdentitySet>>inject:into: uses inherited Set method")
+    (check (= [s reduce: (lambda (left right) 9)] 9)
+           "IdentitySet>>reduce: uses inherited Set method")))
+(check-raises "IdentitySet>>reduce: rejects empty set" [[IdentitySet new] reduce: +])
+)
+
+(define-test "Equality primitives"
+;;; Equality primitives
+
+(check (= 1 1) "= equal fixnums")
+(check (not (= 1 2)) "= unequal fixnums")
+(check (= 1/2 2/4) "= equal fractions")
+(check (= 340282366920938463463374607431768211456
+          340282366920938463463374607431768211456)
+       "= equal big integers")
+(check (= 1+2i 1+2i) "= equal complex numbers")
+(check-raises "= type error on non-number" (= 1 "x"))
+(check (eq? 'a 'a) "eq? identical symbols")
+(check (not (eq? '(1) '(1))) "eq? distinct pairs")
+(check (eqv? 1 1) "eqv? equal fixnums")
+(check (eqv? 1.0 1.0) "eqv? equal floats")
+(check (equal? '(1 2 3) '(1 2 3)) "equal? structurally equal lists")
+(check (not (equal? '(1 2) '(1 3))) "equal? structurally unequal lists")
+)
+
+(define-test "Ordering"
+;;; Ordering
+
+(check (< 1 2) "< true")
+(check (not (< 2 1)) "< false")
+(check (<= 1 1) "<= equal")
+(check (> 2 1) "> true")
+(check (>= 2 2) ">= equal")
+(check (not (not #true)) "not of true is false")
+(check (not #false) "not of false is true")
+)
+
+(define-test "List operations"
+;;; List operations
+
+(check (equal? (append '(1 2) '(3 4)) '(1 2 3 4)) "append")
+(check (= (length '(1 2 3)) 3) "length returns proper list length")
+(check (= (length '()) 0) "length returns zero for empty list")
+(check-raises "length raises on improper list"
+  (length '(1 . 2)))
+(check (equal? (reverse '(1 2 3)) '(3 2 1)) "reverse returns reversed list")
+(check (equal? (reverse '()) '()) "reverse returns empty list for empty list")
+(check-raises "reverse raises on improper list"
+  (reverse '(1 . 2)))
+(check (equal? (map (lambda (x) (+ x 1)) '(1 2 3)) '(2 3 4))
+       "map applies callable across single list")
+(check (equal? (map + '(1 2 3) '(10 20 30 40)) '(11 22 33))
+       "map terminates on shortest list when mapping multiple lists")
+(check (let ((seen '()))
+         (and (null? (for-each (lambda (x y) (set! seen (cons (+ x y) seen)))
+                               '(1 2 3)
+                               '(10 20)))
+              (equal? seen '(22 11))))
+       "for-each applies callable and terminates on shortest list")
+(check (any (lambda (x) (= x 2)) '(1 2 3)) "any returns true for a matching element")
+(check (not (any (lambda (x) (= x 9)) '(1 2 3))) "any returns false without a match")
+(check (let ((count 0))
+         (and (any (lambda (x) (set! count (+ count 1)) (= x 3)) '(1 2 3 4))
+              (= count 3)))
+       "any short-circuits after truthy result")
+(check (every (lambda (x) (< x 4)) '(1 2 3)) "every returns true when all match")
+(check (not (every (lambda (x) (< x 3)) '(1 2 3))) "every returns false on first miss")
+(check (let ((count 0))
+         (and (not (every (lambda (x) (set! count (+ count 1)) (< x 3)) '(1 2 3 4)))
+              (= count 3)))
+       "every short-circuits after falsey result")
+(check (not (any (lambda (x) x) '())) "any returns false for an empty list")
+(check (every (lambda (x) x) '()) "every returns true for an empty list")
+(check (= (fold-left (lambda (acc x) (- acc x)) 0 '(1 2 3)) -6)
+       "fold-left folds from the left")
+(check (= (fold-right (lambda (x acc) (- x acc)) 0 '(1 2 3)) 2)
+       "fold-right folds from the right")
+(check (= (fold-left (lambda (acc x y) (+ acc x y)) 0 '(1 2 3) '(10 20)) 33)
+       "fold-left terminates on shortest list when folding multiple lists")
+(check (equal? (fold-right (lambda (x y acc) (cons (+ x y) acc))
+                           '()
+                           '(1 2 3)
+                           '(10 20))
+               '(11 22))
+       "fold-right terminates on shortest list when folding multiple lists")
+(check (= (fold-left + 5 '()) 5) "fold-left returns initial value for empty list")
+(check (= (fold-right + 5 '()) 5) "fold-right returns initial value for empty list")
+(check (= (reduce-left (lambda (acc x) (- acc x)) '(10 1 2)) 7)
+       "reduce-left reduces from the left")
+(check (= (reduce-right (lambda (x acc) (- x acc)) '(10 1 2)) 11)
+       "reduce-right reduces from the right")
+(check (equal? (reduce-left (lambda args args) '(1 2) '(10 20)) '((1 10) 2 20))
+       "reduce-left uses first element tuple as seed with multiple lists")
+(check (equal? (reduce-right (lambda args args) '(1 2) '(10 20)) '(1 10 (2 20)))
+       "reduce-right uses rightmost element tuple as seed with multiple lists")
+(check-raises "reduce-left raises on empty list"
+  (reduce-left + '()))
+(check-raises "reduce-right raises on empty list"
+  (reduce-right + '()))
+(check (equal? (memq 'b '(a b c)) '(b c)) "memq returns matching tail")
+(check (not (memq (string-append "a" "") '("a"))) "memq returns false on identity miss")
+(check (equal? (assoc "ab" '(("ab" . 3) ("cd" . 4))) '("ab" . 3)) "assoc matches structurally")
+(check (equal? (assq 'b '((a . 1) (b . 2))) '(b . 2)) "assq matches by identity")
+(check (not (assq (string-append "a" "") '(("a" . 1)))) "assq returns false on identity miss")
+(check (equal? (assv 1.0 '((1 . 9))) '(1 . 9)) "assv matches numerically equivalent keys")
+(check (equal? (alist->plist '((a . 1) (b . 2))) '(a 1 b 2))
+       "alist->plist converts associations to property list")
+(check (equal? (plist->alist '(a 1 b 2)) '((a . 1) (b . 2)))
+       "plist->alist converts property list to associations")
+(check-raises "plist->alist raises on odd length property list"
+  (plist->alist '(a 1 b)))
+(check (= (list-ref '(4 5 6) 1) 5) "list-ref returns item at index")
+(check-error-message "List index out of bounds"
+                     "list-ref signals out of bounds"
+  (list-ref '(4 5 6) 3))
+(check (equal? (vector->list (list->vector '(4 5 6))) '(4 5 6))
+       "list->vector and vector->list round-trip")
+(check (= (vector-length (list->vector '())) 0)
+       "list->vector accepts empty list")
+(check-raises "list->vector raises on improper list"
+  (list->vector '(1 . 2)))
+(check (= (caar '((1 . 2) . 3)) 1) "caar")
+(check (= (cadr '(1 2 3)) 2) "cadr")
+(check (= (caddr '(1 2 3 4)) 3) "caddr")
+(check (= (cadddr '(1 2 3 4 5)) 4) "cadddr")
+(let ((iterator ['(1 2 3) asIterator]))
+  (check (eq? [iterator class] ListIterator) "List>>asIterator returns ListIterator")
+  (check [iterator hasThis?] "ListIterator starts on first element")
+  (check (= [iterator this] 1) "ListIterator this returns first element")
+  [iterator next!]
+  (check [iterator hasThis?] "ListIterator has second element")
+  (check (= [iterator this] 2) "ListIterator this returns second element")
+  [iterator next!]
+  (check [iterator hasThis?] "ListIterator has third element")
+  (check (= [iterator this] 3) "ListIterator this returns third element")
+  (check (eq? [iterator next!] iterator) "ListIterator next! returns receiver")
+  (check (not [iterator hasThis?]) "ListIterator is past end"))
+(let ((iterator ['() asIterator]))
+  (check (eq? [iterator class] EmptyIterator) "Nil>>asIterator returns EmptyIterator")
+  (check (eq? iterator ['() asIterator]) "Nil>>asIterator returns singleton")
+  (check (not [iterator hasThis?]) "EmptyIterator has no current element")
+  (check (eq? [iterator next!] iterator) "EmptyIterator next! returns receiver")
+  (check-raises "EmptyIterator this raises" [iterator this]))
+(check-raises "ListIterator raises on improper tail"
+  (let ((iterator ['(1 . 2) asIterator]))
+    [iterator next!]
+    [iterator hasThis?]))
+
+(check (equal? (iterator->list [#(1 2 3) asIterator]) '(1 2 3))
+       "Vector>>asIterator iterates elements")
+(check (equal? [[#(1 2 3) asIterator] asList] '(1 2 3))
+       "Iterator>>asList consumes vector iterator")
+(check (eq? [[(make-vector 0) asIterator] class] EmptyIterator)
+       "Empty Vector>>asIterator returns EmptyIterator")
+(check (null? [[(make-vector 0) asIterator] asList])
+       "Iterator>>asList handles empty iterator")
+(check (equal? (iterator->list [(bytevector 1 2 3) asIterator]) '(1 2 3))
+       "ByteVector>>asIterator iterates bytes")
+(check (eq? [[(bytevector) asIterator] class] EmptyIterator)
+       "Empty ByteVector>>asIterator returns EmptyIterator")
+(check (equal? [[MapIterator map: [#(1 2 3) asIterator]
+                             with: (lambda (x) (+ x 10))] asList]
+               '(11 12 13))
+       "MapIterator maps wrapped iterator lazily")
+(let ((v (vector 1)))
+  (let ((iterator [MapIterator map: [v asIterator] with: (lambda (x) (+ x 1))]))
+    [v at: 0 put: 41]
+    (check (= [iterator this] 42) "MapIterator reads wrapped iterator lazily")))
+(let ((calls 0)
+      (iterator [MapIterator map: ['() asIterator]
+                             with: (lambda (x) (set! calls (+ calls 1)) x)]))
+  (check (null? [iterator asList]) "MapIterator handles empty wrapped iterator")
+  (check (= calls 0) "MapIterator does not call function without current value"))
+)
+
+(define-test "Strings"
+;;; Strings
+
+(check (string? "abc") "string? true for string")
+(check (not (string? 1)) "string? false for non-string")
+(check (= (string-length "hello") 5) "string-length")
+(check (= (string-length "aλ😀") 3) "string-length counts unicode codepoints")
+(check (equal? (string-ref "ABC" 1) (string-ref "xBx" 1)) "string-ref returns character")
+(check (equal? (string-ref "aλ😀" 1) #\λ) "string-ref returns BMP unicode character")
+(check (equal? (string-ref "aλ😀" 2) #\U+1f600) "string-ref returns astral unicode character")
+(check (equal? "\u03BB\U01F600" "λ😀")
+       "string reader supports unicode escapes")
+(check (equal? "\xFF" "ÿ")
+       "string reader hex escape is a unicode codepoint")
+(check (character? (string-ref "x" 0)) "character? true for character")
+(check (not (character? 1)) "character? false for non-character")
+(check (equal? (string->list "ABC") (list (string-ref "ABC" 0)
+                                          (string-ref "ABC" 1)
+                                          (string-ref "ABC" 2)))
+       "string->list round-trip")
+(check (equal? (iterator->list ["ABC" asIterator]) (string->list "ABC"))
+       "String>>asIterator iterates characters")
+(check (equal? [["ABC" asIterator] asList] (string->list "ABC"))
+       "Iterator>>asList consumes string iterator")
+(check (eq? [["" asIterator] class] EmptyIterator)
+       "Empty String>>asIterator returns EmptyIterator")
+(check (equal? (string->list "aλ😀") (list #\a #\λ #\U+1f600))
+       "string->list uses unicode codepoints")
+(check (equal? (list->string (string->list "hello")) "hello") "list->string round-trip")
+(check (equal? (list->string (list #\a #\λ #\U+1f600)) "aλ😀")
+       "list->string encodes unicode codepoints")
+(check (equal? (string-append "ab" "cd") "abcd") "string-append concatenates")
+(check (equal? (string-append "aλ" "😀") "aλ😀")
+       "string-append preserves unicode codepoints")
+(check (equal? (substring "aλ😀z" 1 3) "λ😀")
+       "substring uses half-open unicode codepoint indexes")
+(check (equal? (substring "aλ😀z" 0 4) "aλ😀z") "substring can span whole string")
+(check (equal? (substring "aλ😀z" 2 2) "") "substring supports empty ranges")
+)
+
+(define-test "Vectors"
+;;; Vectors
+
+(check (vector? #(1 2)) "vector? true for vector")
+(check (not (vector? 1)) "vector? false for non-vector")
+(check (= (vector-length #(1 2 3)) 3) "vector-length")
+(check (= (vector-ref (vector 4 5 6) 2) 6) "vector constructor and vector-ref")
+(check (= (vector-ref (make-vector 3 9) 1) 9) "make-vector with fill value")
+(check (equal? (vector->list #(1 2 3)) '(1 2 3)) "vector->list converts elements")
+(check (equal? (vector->list (make-vector 0)) '()) "vector->list accepts empty vector")
+(let ((v (vector 1 2 3)))
+  (vector-set! v 1 99)
+  (check (= (vector-ref v 1) 99) "vector-set! mutates vector"))
+)
+
+(define-test "ByteVectors"
+;;; ByteVectors
+
+(check (bytevector? (bytevector 1 2)) "bytevector? true for bytevector")
+(check (not (bytevector? 1)) "bytevector? false for non-bytevector")
+(check (equal? #u8(1 2 255) (bytevector 1 2 255))
+       "#u8 reader syntax creates bytevectors")
+(check (equal? #"A\nZ" (bytevector 65 10 90))
+       "#\"\" reader syntax creates ASCII bytevectors")
+(check (equal? #"\a\b\f\n\r\t\v\\\'\"\?\101\xFF\u0042\U000043"
+               (bytevector 7 8 12 10 13 9 11 92 39 34 63 65 255 66 67))
+       "#\"\" reader syntax supports common C escapes")
+(check (= (bytevector-length (bytevector 1 2 3)) 3) "bytevector-length")
+(check (= (bytevector-u8-ref (bytevector 4 255 6) 1) 255)
+       "bytevector-u8-ref returns unsigned fixnum")
+(let ((bv (make-bytevector 3 9)))
+  (bytevector-u8-set! bv 1 200)
+  (check (= (bytevector-u8-ref bv 1) 200)
+         "bytevector-u8-set! mutates bytevector"))
+(check (equal? (bytevector-append (bytevector 1 2) (bytevector 3 4))
+               (bytevector 1 2 3 4))
+       "bytevector-append concatenates")
+(check (equal? (bytevector-copy (bytevector 1 2 3 4) 1 3)
+               (bytevector 2 3))
+       "bytevector-copy slices half-open byte indexes")
+(check (equal? (bytevector->string (string->bytevector "aλ😀")) "aλ😀")
+       "string bytevector conversion round-trip")
+(check (= (bytevector-length (string->bytevector "λ")) 2)
+       "string->bytevector exposes UTF-8 bytes")
+)

@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/String.h>
@@ -16,6 +17,7 @@
 #include <string.h>
 #include <math.h>
 #include <pthread.h>
+#include <time.h>
 #include <unistd.h>
 
 static int fail(const char* message){
@@ -66,6 +68,47 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
 
     return LT_Number_add2(LT_car(self), LT_cdr(self));
+}
+
+static LT_Value primitive_test_noop_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    (void)arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE_RESTART(
+    primitive_test_restart,
+    "test-restart",
+    "(value)",
+    "Test helper restart."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return value;
+}
+
+static LT_Value special_form_test_noop_impl(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    (void)arguments;
+    (void)environment;
+    (void)tail_call_unwind_marker;
+    return LT_NIL;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -127,6 +170,25 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
     return invocation_context_data;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_add_argument_method,
+    "test-add-argument-method",
+    "(self value)",
+    "Test helper method: add receiver and argument."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_add2(self, value);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -200,6 +262,8 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static int primitive_test_for_each_count = 0;
+static LT_Value primitive_test_target_value = LT_INVALID;
+static int primitive_test_target_value_seen = 0;
 
 LT_DEFINE_PRIMITIVE(
     primitive_test_count_for_each,
@@ -217,6 +281,26 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, x);
     LT_ARG_END(cursor);
     primitive_test_for_each_count++;
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_test_note_target_value,
+    "test-note-target-value",
+    "(x)",
+    "Test helper primitive: note when argument is target value."
+){
+    LT_Value cursor = arguments;
+    LT_Value x;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, x);
+    LT_ARG_END(cursor);
+    if (x == primitive_test_target_value){
+        primitive_test_target_value_seen++;
+    }
     return LT_NIL;
 }
 
@@ -239,6 +323,37 @@ static char* debug_string_for_value(LT_Value value){
     return buffer;
 }
 
+static int expect_bytevector_bytes(LT_Value value,
+                                   const uint8_t* expected,
+                                   size_t expected_length,
+                                   const char* message){
+    LT_ByteVector* bytevector;
+    size_t i;
+
+    if (expect(LT_ByteVector_p(value), message)){
+        return 1;
+    }
+    bytevector = LT_ByteVector_from_value(value);
+    if (expect(LT_ByteVector_length(bytevector) == expected_length, message)){
+        return 1;
+    }
+    for (i = 0; i < expected_length; i++){
+        if (expect(LT_ByteVector_at(bytevector, i) == expected[i], message)){
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int test_value_asString_c_api_uses_debug_print(void){
+    LT_String* string = LT_Value_asString(LT_TRUE);
+
+    return expect(
+        strcmp(LT_String_value_cstr(string), "#true") == 0,
+        "LT_Value_asString uses debug printing"
+    );
+}
+
 static int test_send_primitive_uses_direct_method_dictionary(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "sum");
     LT_Value result;
@@ -253,6 +368,80 @@ static int test_send_primitive_uses_direct_method_dictionary(void){
     return expect(
         LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 3,
         "send dispatches to direct method"
+    );
+}
+
+static int test_send_site_macros_c_api(void){
+    LT_Value sum_selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "plus:");
+    LT_Value pair = LT_cons(LT_SmallInteger_new(1), LT_SmallInteger_new(2));
+    LT_Value car_result;
+    LT_Value send_args_result;
+    LT_Value send_result;
+
+    LT_Class_addMethod(
+        &LT_Integer_class,
+        sum_selector,
+        LT_Primitive_from_static(&primitive_test_add_argument_method)
+    );
+
+    car_result = LT_SEND(pair, "car");
+    if (expect(
+        LT_Value_is_fixnum(car_result) && LT_SmallInteger_value(car_result) == 1,
+        "LT_SEND supports zero-argument sends"
+    )){
+        return 1;
+    }
+
+    send_args_result = LT_SEND_ARGS(
+        LT_SmallInteger_new(3),
+        "plus:",
+        LT_list(LT_SmallInteger_new(4), LT_INVALID)
+    );
+    if (expect(
+        LT_Value_is_fixnum(send_args_result) && LT_SmallInteger_value(send_args_result) == 7,
+        "LT_SEND_ARGS sends with prebuilt arguments"
+    )){
+        return 1;
+    }
+
+    send_result = LT_SEND(
+        LT_SmallInteger_new(5),
+        "plus:",
+        LT_SmallInteger_new(6)
+    );
+    return expect(
+        LT_Value_is_fixnum(send_result) && LT_SmallInteger_value(send_result) == 11,
+        "LT_SEND builds argument list from varargs"
+    );
+}
+
+static int test_apply_varargs_c_api(void){
+    LT_Value primitive = LT_Primitive_from_static(&primitive_test_add_argument_method);
+    LT_Value applyv_result = LT_applyv(
+        primitive,
+        LT_SmallInteger_new(7),
+        LT_SmallInteger_new(8),
+        LT_INVALID
+    );
+    LT_Value apply_macro_result;
+
+    if (expect(
+        LT_Value_is_fixnum(applyv_result)
+            && LT_SmallInteger_value(applyv_result) == 15,
+        "LT_applyv builds argument list from varargs"
+    )){
+        return 1;
+    }
+
+    apply_macro_result = LT_APPLY(
+        primitive,
+        LT_SmallInteger_new(20),
+        LT_SmallInteger_new(22)
+    );
+    return expect(
+        LT_Value_is_fixnum(apply_macro_result)
+            && LT_SmallInteger_value(apply_macro_result) == 42,
+        "LT_APPLY builds argument list from varargs"
     );
 }
 
@@ -319,7 +508,7 @@ static int test_send_passes_invocation_context_kind_to_primitive_method(void){
         LT_Primitive_from_static(&primitive_test_invocation_context_kind_method)
     );
 
-    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    result = LT_SEND(LT_SmallInteger_new(1), "invocation-context-kind");
     return expect(
         result == (LT_Value)(uintptr_t)&LT_send_invocation_context,
         "send passes send invocation context kind to method"
@@ -336,7 +525,7 @@ static int test_send_passes_next_precedence_tail_as_invocation_context_data(void
         LT_Primitive_from_static(&primitive_test_invocation_context_data_method)
     );
 
-    result = LT_send(LT_SmallInteger_new(1), selector, LT_NIL, NULL);
+    result = LT_SEND(LT_SmallInteger_new(1), "next-precedence-tail");
     if (expect(
         LT_ImmutableList_p(result),
         "send passes immutable precedence tail as invocation context data"
@@ -468,10 +657,8 @@ static int test_immutable_list_methods(void){
         LT_SmallInteger_new(5),
     };
     LT_Value immutable_list = LT_ImmutableList_new(2, values);
-    LT_Value selector_car = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "car");
-    LT_Value selector_cdr = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "cdr");
-    LT_Value car_value = LT_send(immutable_list, selector_car, LT_NIL, NULL);
-    LT_Value cdr_value = LT_send(immutable_list, selector_cdr, LT_NIL, NULL);
+    LT_Value car_value = LT_SEND(immutable_list, "car");
+    LT_Value cdr_value = LT_SEND(immutable_list, "cdr");
 
     if (expect(
         LT_Value_is_fixnum(car_value) && LT_SmallInteger_value(car_value) == 4,
@@ -667,6 +854,76 @@ static int test_list_at_c_api(void){
         LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 2,
         "LT_List_at returns indexed item"
     );
+}
+
+static int test_list_constructor_helpers_c_api(void){
+    LT_Value counted_list = LT_listn(
+        3,
+        LT_SmallInteger_new(4),
+        LT_INVALID,
+        LT_SmallInteger_new(6)
+    );
+
+    if (expect(
+        LT_listn(0) == LT_NIL,
+        "LT_listn returns nil for zero items"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SmallInteger_value(LT_List_at(counted_list, 0)) == 4,
+        "LT_listn keeps first counted item"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_List_at(counted_list, 1) == LT_INVALID,
+        "LT_listn keeps LT_INVALID as counted item"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_SmallInteger_value(LT_List_at(counted_list, 2)) == 6,
+        "LT_listn keeps items after LT_INVALID"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_cdr(LT_cdr(LT_cdr(counted_list))) == LT_NIL,
+        "LT_listn terminates after explicit item count"
+    );
+}
+
+static int test_list_proper_predicate_c_api(void){
+    LT_Value first = LT_SmallInteger_new(1);
+    LT_Value second = LT_SmallInteger_new(2);
+    LT_Value values[2] = {first, second};
+    LT_Value proper_pair_list = LT_listn(2, first, second);
+    LT_Value proper_immutable_list = LT_ImmutableList_new(2, values);
+    LT_Value improper_list = LT_cons(first, second);
+    int failed = 0;
+
+    failed += expect(
+        LT_List_proper_p(LT_NIL),
+        "LT_List_proper_p accepts nil"
+    );
+    failed += expect(
+        LT_List_proper_p(proper_pair_list),
+        "LT_List_proper_p accepts proper pair list"
+    );
+    failed += expect(
+        LT_List_proper_p(proper_immutable_list),
+        "LT_List_proper_p accepts proper immutable list"
+    );
+    failed += expect(
+        !LT_List_proper_p(improper_list),
+        "LT_List_proper_p rejects improper list"
+    );
+    failed += expect(
+        !LT_List_proper_p(first),
+        "LT_List_proper_p rejects non-list value"
+    );
+    return failed;
 }
 
 static int test_list_map_many_c_api(void){
@@ -882,6 +1139,73 @@ static int test_use_package_with_nickname(void){
     return failed;
 }
 
+static int list_contains_identity(LT_Value list, LT_Value value){
+    LT_Value cursor = list;
+
+    while (LT_Pair_p(cursor)){
+        if (LT_car(cursor) == value){
+            return 1;
+        }
+        cursor = LT_cdr(cursor);
+    }
+    if (cursor != LT_NIL){
+        LT_error("list_contains_identity expects proper list");
+    }
+    return 0;
+}
+
+static int test_package_enumeration_c_api(void){
+    LT_Package* package = LT_Package_new("CApiPackageReflection");
+    LT_Value package_value = (LT_Value)(uintptr_t)package;
+    LT_Value alpha = LT_Package_intern_local_symbol(package, "alpha");
+    LT_Value beta = LT_Package_intern_local_symbol(package, "beta");
+    LT_Value symbols = LT_Package_symbols_asList(package);
+    LT_Value packages = LT_Package_packages_asList();
+
+    if (expect(
+        list_contains_identity(symbols, alpha),
+        "LT_Package_symbols_asList contains local symbol"
+    )){
+        return 1;
+    }
+    if (expect(
+        list_contains_identity(symbols, beta),
+        "LT_Package_symbols_asList contains second local symbol"
+    )){
+        return 1;
+    }
+    primitive_test_for_each_count = 0;
+    LT_Package_symbols_do(
+        package,
+        LT_Primitive_from_static(&primitive_test_count_for_each)
+    );
+    if (expect(
+        primitive_test_for_each_count == 2,
+        "LT_Package_symbols_do visits local symbols"
+    )){
+        return 1;
+    }
+    if (expect(
+        list_contains_identity(packages, package_value),
+        "LT_Package_packages_asList contains package"
+    )){
+        return 1;
+    }
+    primitive_test_target_value = package_value;
+    primitive_test_target_value_seen = 0;
+    LT_Package_packages_do(
+        LT_Primitive_from_static(&primitive_test_note_target_value)
+    );
+    if (expect(
+        primitive_test_target_value_seen == 1,
+        "LT_Package_packages_do visits package"
+    )){
+        return 1;
+    }
+    primitive_test_target_value = LT_INVALID;
+    return 0;
+}
+
 static int test_lambda_macro_expands_to_named_nil_closure(void){
     LT_Value value = eval_one("(lambda (x) x)");
     LT_Closure* closure;
@@ -953,6 +1277,327 @@ static int test_anonymous_closure_debug_print_includes_address(void){
     );
     free(printed);
     return result;
+}
+
+static int test_closure_documentation_from_docstring(void){
+    LT_Value closure = eval_one("(lambda (x) \"Return x.\" x)");
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    LT_Value documentation = LT_Closure_documentation(closure_object);
+    LT_Value body = LT_Closure_body(closure_object);
+    int failed = 0;
+
+    failed += expect(
+        LT_String_p(documentation)
+            && strcmp(
+                LT_String_value_cstr(LT_String_from_value(documentation)),
+                "Return x."
+            ) == 0,
+        "Closure docstring becomes documentation"
+    );
+    failed += expect(
+        LT_Pair_p(body)
+            && LT_Symbol_p(LT_car(body))
+            && LT_cdr(body) == LT_NIL,
+        "Closure docstring is stripped from body"
+    );
+    failed += expect(
+        LT_SEND(closure, "documentation") == documentation,
+        "Closure>>documentation returns documentation slot"
+    );
+    return failed;
+}
+
+static int test_closure_explicit_documentation_constructor(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value documentation =
+        (LT_Value)(uintptr_t)LT_String_new_cstr("Explicit closure documentation.");
+    LT_Value body = LT_cons(LT_SmallInteger_new(9), LT_NIL);
+    LT_Value closure = LT_Closure_new_with_documentation(
+        LT_NIL,
+        LT_NIL,
+        body,
+        env,
+        documentation
+    );
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    int failed = 0;
+
+    failed += expect(
+        LT_Closure_documentation(closure_object) == documentation,
+        "explicit Closure constructor stores documentation"
+    );
+    failed += expect(
+        LT_Closure_body(closure_object) == body,
+        "explicit Closure constructor preserves body"
+    );
+    return failed;
+}
+
+static int test_primitive_arguments_falls_back_to_string(void){
+    LT_Value primitive = LT_Primitive_new(
+        "bad-arguments",
+        "(not closed",
+        "primitive with malformed argument metadata",
+        primitive_test_noop_impl
+    );
+    LT_Value result = LT_SEND(primitive, "arguments");
+
+    if (expect(LT_String_p(result), "malformed primitive arguments return string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "(not closed"
+        ) == 0,
+        "malformed primitive arguments preserve original text"
+    );
+}
+
+static int test_primitive_documentation_returns_description_string(void){
+    LT_Value primitive = LT_Primitive_new(
+        "documented",
+        "(value)",
+        "primitive documentation text",
+        primitive_test_noop_impl
+    );
+    LT_Value result = LT_SEND(primitive, "documentation");
+
+    if (expect(LT_String_p(result), "primitive documentation returns string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "primitive documentation text"
+        ) == 0,
+        "primitive documentation preserves description"
+    );
+}
+
+static int test_restart_c_api_and_listtalk_accessors(void){
+    LT_Value name = LT_Symbol_new("use-value");
+    LT_Value description = (LT_Value)(uintptr_t)LT_String_new_cstr("Use value.");
+    LT_Value parameter = LT_Symbol_new("value");
+    LT_Value argument_list = LT_cons(parameter, LT_NIL);
+    LT_Value callable = LT_Primitive_from_static(&primitive_test_increment);
+    LT_Value restart = LT_Restart_new(
+        name,
+        description,
+        argument_list,
+        callable
+    );
+    LT_Restart* restart_object = LT_Restart_from_value(restart);
+    int failed = 0;
+
+    failed += expect(
+        LT_Restart_name(restart_object) == name,
+        "Restart C accessor returns name"
+    );
+    failed += expect(
+        LT_Restart_description(restart_object) == description,
+        "Restart C accessor returns description"
+    );
+    failed += expect(
+        LT_Restart_argument_list(restart_object) == argument_list,
+        "Restart C accessor returns argument-list"
+    );
+    failed += expect(
+        LT_Restart_callable(restart_object) == callable,
+        "Restart C accessor returns callable"
+    );
+    failed += expect(
+        LT_SEND(restart, "name") == name,
+        "Restart>>name returns name"
+    );
+    failed += expect(
+        LT_SEND(restart, "description") == description,
+        "Restart>>description returns description"
+    );
+    failed += expect(
+        LT_SEND(restart, "argument-list") == argument_list,
+        "Restart>>argument-list returns argument-list"
+    );
+    failed += expect(
+        LT_SEND(restart, "callable") == callable,
+        "Restart>>callable returns callable"
+    );
+    failed += expect(
+        (LT_Restart_class.class_flags & LT_CLASS_FLAG_IMMUTABLE) != 0,
+        "Restart class is immutable"
+    );
+    return failed;
+}
+
+static int test_static_primitive_restart_macro(void){
+    LT_Value restart = LT_Restart_from_static(&primitive_test_restart);
+    LT_Restart* restart_object = LT_Restart_from_value(restart);
+    LT_Value name = LT_Restart_name(restart_object);
+    LT_Value description = LT_Restart_description(restart_object);
+    LT_Value argument_list = LT_Restart_argument_list(restart_object);
+    LT_Value callable = LT_Restart_callable(restart_object);
+    LT_Value applied;
+    int failed = 0;
+
+    failed += expect(
+        LT_String_p(name)
+            && strcmp(LT_String_value_cstr(LT_String_from_value(name)),
+                      "test-restart") == 0,
+        "static Restart name comes from primitive metadata"
+    );
+    failed += expect(
+        LT_String_p(description)
+            && strcmp(LT_String_value_cstr(LT_String_from_value(description)),
+                      "Test helper restart.") == 0,
+        "static Restart description comes from primitive metadata"
+    );
+    failed += expect(
+        LT_Pair_p(argument_list)
+            && LT_Symbol_p(LT_car(argument_list))
+            && LT_cdr(argument_list) == LT_NIL,
+        "static Restart argument-list is parsed as proper list"
+    );
+    failed += expect(
+        LT_Primitive_p(callable),
+        "static Restart callable is primitive"
+    );
+
+    applied = LT_apply(
+        callable,
+        LT_cons(LT_SmallInteger_new(42), LT_NIL),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+    failed += expect(
+        LT_Value_is_fixnum(applied) && LT_SmallInteger_value(applied) == 42,
+        "static Restart callable invokes primitive implementation"
+    );
+    return failed;
+}
+
+static int test_restart_listtalk_primitives_and_low_level_bind(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value name = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "use-value");
+    LT_Value restart = LT_Restart_new(
+        name,
+        LT_NIL,
+        LT_cons(LT_Symbol_new("value"), LT_NIL),
+        LT_Primitive_from_static(&primitive_test_restart_primitive)
+    );
+    LT_Value restart_symbol = LT_Symbol_new("test-restart-object");
+    LT_Value result;
+
+    LT_Environment_bind(env, restart_symbol, restart, LT_ENV_BINDING_FLAG_CONSTANT);
+    result = LT_eval(
+        read_one(
+            "(ListTalk-implementation:%restart-bind test-restart-object "
+            "  (and (eq? (car (current-restarts)) test-restart-object) "
+            "       (eq? (find-restart :use-value) test-restart-object) "
+            "       (= (invoke-restart :use-value 41) 41)))"
+        ),
+        env,
+        NULL
+    );
+
+    return expect(
+        result == LT_TRUE,
+        "%restart-bind exposes restart to current-restarts, find-restart, and invoke-restart"
+    );
+}
+
+static int test_restart_class_methods_from_closure(void){
+    LT_Value closure = eval_one(
+        "(lambda (value) \"Use supplied value.\" value)"
+    );
+    LT_Closure* closure_object = LT_Closure_from_value(closure);
+    LT_Value inferred = LT_SEND_ARGS(
+        (LT_Value)(uintptr_t)&LT_Restart_class,
+        "fromClosure:",
+        LT_cons(closure, LT_NIL)
+    );
+    LT_Value explicit_name = LT_Symbol_new("explicit-restart-name");
+    LT_Value named = LT_SEND_ARGS(
+        (LT_Value)(uintptr_t)&LT_Restart_class,
+        "named:fromClosure:",
+        LT_cons(explicit_name, LT_cons(closure, LT_NIL))
+    );
+    LT_Restart* inferred_restart = LT_Restart_from_value(inferred);
+    LT_Restart* named_restart = LT_Restart_from_value(named);
+    int failed = 0;
+
+    failed += expect(
+        LT_Restart_name(inferred_restart) == LT_Closure_name(closure_object),
+        "Restart fromClosure: uses closure name"
+    );
+    failed += expect(
+        LT_Restart_description(inferred_restart)
+            == LT_Closure_documentation(closure_object),
+        "Restart fromClosure: uses closure documentation"
+    );
+    failed += expect(
+        LT_Restart_argument_list(inferred_restart)
+            == LT_Closure_parameters(closure_object),
+        "Restart fromClosure: uses closure parameters"
+    );
+    failed += expect(
+        LT_Restart_callable(inferred_restart) == closure,
+        "Restart fromClosure: uses closure as callable"
+    );
+    failed += expect(
+        LT_Restart_name(named_restart) == explicit_name,
+        "Restart named:fromClosure: uses explicit name"
+    );
+    failed += expect(
+        LT_Restart_description(named_restart)
+            == LT_Closure_documentation(closure_object),
+        "Restart named:fromClosure: uses closure documentation"
+    );
+    return failed;
+}
+
+static int test_special_form_arguments_falls_back_to_string(void){
+    LT_Value special_form = LT_SpecialForm_new(
+        "bad-special-form-arguments",
+        "(not closed",
+        "special form with malformed argument metadata",
+        special_form_test_noop_impl,
+        NULL
+    );
+    LT_Value result = LT_SEND(special_form, "arguments");
+
+    if (expect(LT_String_p(result), "malformed special form arguments return string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "(not closed"
+        ) == 0,
+        "malformed special form arguments preserve original text"
+    );
+}
+
+static int test_special_form_documentation_returns_description_string(void){
+    LT_Value special_form = LT_SpecialForm_new(
+        "documented-special-form",
+        "(value)",
+        "special form documentation text",
+        special_form_test_noop_impl,
+        NULL
+    );
+    LT_Value result = LT_SEND(special_form, "documentation");
+
+    if (expect(LT_String_p(result), "special form documentation returns string")){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(result)),
+            "special form documentation text"
+        ) == 0,
+        "special form documentation preserves description"
+    );
 }
 
 static int test_symbol_uninterned_and_gensym_c_api(void){
@@ -1950,6 +2595,8 @@ static int test_character_api_uses_unicode_codepoints(void){
 
 static int test_string_api_uses_unicode_codepoints(void){
     LT_String* string = LT_String_new_cstr("a\xce\xbb\xf0\x9f\x98\x80");
+    wchar_t* wchar_array;
+    size_t wchar_length;
 
     if (expect(LT_String_length(string) == 3, "string length counts codepoints")){
         return 1;
@@ -1963,10 +2610,27 @@ static int test_string_api_uses_unicode_codepoints(void){
     if (expect(LT_String_at(string, 1) == UINT32_C(0x03bb), "string at BMP codepoint")){
         return 1;
     }
-    return expect(
-        LT_String_at(string, 2) == UINT32_C(0x1f600),
-        "string at astral codepoint"
-    );
+    if (expect(
+            LT_String_at(string, 2) == UINT32_C(0x1f600),
+            "string at astral codepoint"
+        )){
+        return 1;
+    }
+
+    wchar_array = LT_String_to_wchar_array(string, &wchar_length);
+    if (expect(wchar_length == 3, "wchar array length counts codepoints")){
+        return 1;
+    }
+    if (expect(wchar_array[0] == L'a', "wchar array includes ASCII codepoint")){
+        return 1;
+    }
+    if (expect(wchar_array[1] == (wchar_t)UINT32_C(0x03bb), "wchar array includes BMP codepoint")){
+        return 1;
+    }
+    if (expect(wchar_array[2] == (wchar_t)UINT32_C(0x1f600), "wchar array includes astral codepoint")){
+        return 1;
+    }
+    return expect(wchar_array[3] == L'\0', "wchar array is null terminated");
 }
 
 static int test_string_utf8_helpers_replace_invalid_sequences(void){
@@ -2075,6 +2739,234 @@ static int test_string_search_c_api_uses_codepoint_indexes(void){
         LT_SmallInteger_value(LT_List_at(matches, 1)) == 3,
         "LT_String_findAll second codepoint index"
     );
+}
+
+static int test_string_format_c_api(void){
+    uint8_t first_row[] = {1, 2};
+    uint8_t second_row[] = {3, 4};
+    LT_String* result = LT_String_format(
+        LT_String_new_cstr("a=~a s=~s~~~%"),
+        LT_list(
+            LT_SmallInteger_new(42),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("x"),
+            LT_INVALID
+        )
+    );
+    LT_String* iteration = LT_String_format(
+        LT_String_new_cstr(
+            "~{[~a]~} ~{~a=~s; ~} ~:{(~a ~s)~} "
+            "~2{~a~} ~@{~a~} ~:@{(~d ~d)~}"
+        ),
+        LT_list(
+            LT_list(
+                LT_SmallInteger_new(1),
+                LT_SmallInteger_new(2),
+                LT_SmallInteger_new(3),
+                LT_INVALID
+            ),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_String_new_cstr("x"),
+                LT_SmallInteger_new(1),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("y"),
+                LT_SmallInteger_new(2),
+                LT_INVALID
+            ),
+            LT_list(
+                LT_list(
+                    (LT_Value)(uintptr_t)LT_String_new_cstr("a"),
+                    LT_SmallInteger_new(10),
+                    LT_INVALID
+                ),
+                LT_list(
+                    (LT_Value)(uintptr_t)LT_String_new_cstr("b"),
+                    LT_SmallInteger_new(20),
+                    LT_INVALID
+                ),
+                LT_INVALID
+            ),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_String_new_cstr("u"),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("v"),
+                (LT_Value)(uintptr_t)LT_String_new_cstr("w"),
+                LT_INVALID
+            ),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("rs"),
+            LT_list(
+                (LT_Value)(uintptr_t)LT_ByteVector_new(first_row, 2),
+                (LT_Value)(uintptr_t)LT_ByteVector_new(second_row, 2),
+                LT_INVALID
+            ),
+            LT_INVALID
+        )
+    );
+    LT_String* numbers = LT_String_format(
+        LT_String_new_cstr("~d ~d ~b ~o ~x ~x ~f ~e ~g"),
+        LT_list(
+            LT_SmallInteger_new(42),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_SmallInteger_new(-10),
+            LT_SmallInteger_new(511),
+            LT_SmallInteger_new(48879),
+            LT_BigInteger_new_from_digits("10000000000000000", 16),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_SmallInteger_new(2500),
+            LT_Number_divide2(LT_SmallInteger_new(5), LT_SmallInteger_new(2)),
+            LT_INVALID
+        )
+    );
+
+    if (expect(
+        strcmp(LT_String_value_cstr(result), "a=42 s=\"x\"~\n") == 0,
+        "LT_String_format supports SRFI-28-style directives"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(iteration),
+            "[1][2][3] x=1; y=2;  (a 10)(b 20) uv rs (1 2)(3 4)"
+        ) == 0,
+        "LT_String_format supports iteration modifiers, asList, and numeric arguments"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(numbers),
+            "42 2.5 -1010 777 beef 10000000000000000 2.500000 2.500000e+03 2.5"
+        ) == 0,
+        "LT_String_format supports numeric directives"
+    )){
+        return 1;
+    }
+    return 0;
+}
+
+static int test_integer_from_intmax_c_api(void){
+    LT_Value negative = LT_Integer_from_intmax((intmax_t)-42);
+    LT_Value large_unsigned = LT_Integer_from_uintmax(UINTMAX_MAX);
+    char* large_unsigned_string = LT_Number_to_string(large_unsigned);
+
+    if (expect(
+        negative == LT_SmallInteger_new(-42),
+        "LT_Integer_from_intmax returns fixnum when possible"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_instance_of(large_unsigned, LT_STATIC_CLASS(LT_Integer)),
+        "LT_Integer_from_uintmax returns integer"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(large_unsigned_string, "18446744073709551615") == 0,
+        "LT_Integer_from_uintmax preserves UINTMAX_MAX"
+    )){
+        return 1;
+    }
+    return 0;
+}
+
+static int test_integer_bytevector_conversions(void){
+    static const uint8_t zero[] = {0x00};
+    static const uint8_t unsigned_255[] = {0xff};
+    static const uint8_t unsigned_255_2[] = {0x00, 0xff};
+    static const uint8_t unsigned_256[] = {0x01, 0x00};
+    static const uint8_t twos_127[] = {0x7f};
+    static const uint8_t twos_128[] = {0x00, 0x80};
+    static const uint8_t twos_minus_1[] = {0xff};
+    static const uint8_t twos_minus_1_2[] = {0xff, 0xff};
+    static const uint8_t twos_minus_128[] = {0x80};
+    static const uint8_t twos_minus_129[] = {0xff, 0x7f};
+    int failed = 0;
+    LT_Value decoded;
+
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(0), "toBytes"),
+        zero,
+        sizeof(zero),
+        "Integer>>toBytes encodes zero as one byte"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(255), "toBytes"),
+        unsigned_255,
+        sizeof(unsigned_255),
+        "Integer>>toBytes encodes unsigned magnitude"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(255), "toBytes:", LT_SmallInteger_new(2)),
+        unsigned_255_2,
+        sizeof(unsigned_255_2),
+        "Integer>>toBytes: pads unsigned magnitude"
+    );
+    decoded = LT_SEND(
+        LT_STATIC_CLASS(LT_Integer),
+        "fromBytes:",
+        (LT_Value)(uintptr_t)LT_ByteVector_new(unsigned_256, sizeof(unsigned_256))
+    );
+    failed += expect(
+        LT_Value_is_fixnum(decoded) && LT_SmallInteger_value(decoded) == 256,
+        "Integer class>>fromBytes: decodes unsigned magnitude"
+    );
+
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(127), "toTwosComplement"),
+        twos_127,
+        sizeof(twos_127),
+        "Integer>>toTwosComplement encodes largest positive one-byte value"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(128), "toTwosComplement"),
+        twos_128,
+        sizeof(twos_128),
+        "Integer>>toTwosComplement prefixes positive sign byte when needed"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-1), "toTwosComplement"),
+        twos_minus_1,
+        sizeof(twos_minus_1),
+        "Integer>>toTwosComplement encodes -1 minimally"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-1), "toTwosComplement:", LT_SmallInteger_new(2)),
+        twos_minus_1_2,
+        sizeof(twos_minus_1_2),
+        "Integer>>toTwosComplement: sign-extends negative values"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-128), "toTwosComplement"),
+        twos_minus_128,
+        sizeof(twos_minus_128),
+        "Integer>>toTwosComplement encodes smallest one-byte value"
+    );
+    failed += expect_bytevector_bytes(
+        LT_SEND(LT_SmallInteger_new(-129), "toTwosComplement"),
+        twos_minus_129,
+        sizeof(twos_minus_129),
+        "Integer>>toTwosComplement sign-extends when negative value needs another byte"
+    );
+
+    decoded = LT_SEND(
+        LT_STATIC_CLASS(LT_Integer),
+        "fromTwosComplement:",
+        (LT_Value)(uintptr_t)LT_ByteVector_new(twos_128, sizeof(twos_128))
+    );
+    failed += expect(
+        LT_Value_is_fixnum(decoded) && LT_SmallInteger_value(decoded) == 128,
+        "Integer class>>fromTwosComplement: decodes positive sign-prefixed value"
+    );
+    decoded = LT_SEND(
+        LT_STATIC_CLASS(LT_Integer),
+        "fromTwosComplement:",
+        (LT_Value)(uintptr_t)LT_ByteVector_new(twos_minus_129, sizeof(twos_minus_129))
+    );
+    failed += expect(
+        LT_Value_is_fixnum(decoded) && LT_SmallInteger_value(decoded) == -129,
+        "Integer class>>fromTwosComplement: decodes negative value"
+    );
+
+    return failed;
 }
 
 struct substring_capture {
@@ -2373,30 +3265,15 @@ static int test_file_stream_class_constructors(void){
     }
     close(fd);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForOutput:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForOutput:", filename);
     LT_Stream_writeString(stream_value, LT_String_new_cstr("one"));
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForAppending:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForAppending:", filename);
     LT_Stream_writeString(stream_value, LT_String_new_cstr(" two"));
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "newForInput:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "newForInput:", filename);
     contents = LT_Stream_readString(stream_value);
     failed += expect(
         strcmp(LT_String_value_cstr(contents), "one two") == 0,
@@ -2404,12 +3281,7 @@ static int test_file_stream_class_constructors(void){
     );
     LT_Stream_close(stream_value);
 
-    stream_value = LT_send(
-        class_value,
-        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "new:"),
-        LT_cons(filename, LT_NIL),
-        NULL
-    );
+    stream_value = LT_SEND(class_value, "new:", filename);
     failed += expect(
         LT_Stream_isReadable(stream_value),
         "FileStream new: is readable"
@@ -2428,6 +3300,53 @@ struct dynamic_variable_thread_test_args {
     int failed;
 };
 
+struct blocking_thread_callable_state {
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    int started;
+    int release;
+};
+
+struct thread_join_test_args {
+    LT_Thread* thread;
+    LT_Value result;
+    int failed;
+};
+
+static struct blocking_thread_callable_state* blocking_thread_callable_state;
+
+static LT_Value primitive_blocking_thread_callable_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    struct blocking_thread_callable_state* state =
+        blocking_thread_callable_state;
+    (void)arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    pthread_mutex_lock(&state->mutex);
+    state->started = 1;
+    pthread_cond_broadcast(&state->cond);
+    while (!state->release){
+        pthread_cond_wait(&state->cond, &state->mutex);
+    }
+    pthread_mutex_unlock(&state->mutex);
+
+    return LT_SmallInteger_new(1234);
+}
+
+static LT_Primitive primitive_blocking_thread_callable = {
+    .function = primitive_blocking_thread_callable_impl,
+    .flags = 0,
+    .name = "blocking-thread-callable",
+    .arguments = "()",
+    .description = "Test helper that blocks until released."
+};
+
 static void* dynamic_variable_thread_test_main(void* data){
     struct dynamic_variable_thread_test_args* args =
         (struct dynamic_variable_thread_test_args*)data;
@@ -2438,6 +3357,84 @@ static void* dynamic_variable_thread_test_main(void* data){
         "DynamicVariable uses thread-local values"
     );
     return NULL;
+}
+
+static void* thread_join_test_main(void* data){
+    struct thread_join_test_args* args =
+        (struct thread_join_test_args*)data;
+
+    args->result = LT_Thread_join(args->thread);
+    args->failed = expect(
+        LT_Value_is_fixnum(args->result)
+            && LT_SmallInteger_value(args->result) == 1234,
+        "concurrent LT_Thread_join returns thread result"
+    );
+    return NULL;
+}
+
+static int test_thread_join_returns_result_to_concurrent_joiners(void){
+    struct blocking_thread_callable_state state = {
+        .mutex = PTHREAD_MUTEX_INITIALIZER,
+        .cond = PTHREAD_COND_INITIALIZER,
+        .started = 0,
+        .release = 0,
+    };
+    LT_Value callable =
+        LT_Primitive_from_static(&primitive_blocking_thread_callable);
+    LT_Thread* thread;
+    pthread_t join_threads[2];
+    struct thread_join_test_args args[2];
+    struct timespec joiner_delay = {
+        .tv_sec = 0,
+        .tv_nsec = 10000000,
+    };
+    LT_Value joined_again;
+    int failed = 0;
+
+    blocking_thread_callable_state = &state;
+    thread = LT_Thread_new(callable, "c-api-thread");
+    failed += expect(
+        strcmp(LT_Thread_name(thread), "c-api-thread") == 0,
+        "LT_Thread_new stores thread name"
+    );
+
+    pthread_mutex_lock(&state.mutex);
+    while (!state.started){
+        pthread_cond_wait(&state.cond, &state.mutex);
+    }
+    pthread_mutex_unlock(&state.mutex);
+
+    for (int i = 0; i < 2; ++i){
+        args[i].thread = thread;
+        args[i].result = LT_NIL;
+        args[i].failed = 0;
+        if (pthread_create(&join_threads[i], NULL, thread_join_test_main, &args[i]) != 0){
+            return fail("pthread_create failed");
+        }
+    }
+
+    nanosleep(&joiner_delay, NULL);
+    pthread_mutex_lock(&state.mutex);
+    state.release = 1;
+    pthread_cond_broadcast(&state.cond);
+    pthread_mutex_unlock(&state.mutex);
+
+    for (int i = 0; i < 2; ++i){
+        if (pthread_join(join_threads[i], NULL) != 0){
+            return fail("pthread_join failed");
+        }
+        failed += args[i].failed;
+    }
+
+    joined_again = LT_Thread_join(thread);
+    failed += expect(
+        LT_Value_is_fixnum(joined_again)
+            && LT_SmallInteger_value(joined_again) == 1234,
+        "LT_Thread_join returns result after previous join"
+    );
+
+    blocking_thread_callable_state = NULL;
+    return failed;
 }
 
 static int test_dynamic_variable_c_api_uses_thread_local_values(void){
@@ -2485,6 +3482,9 @@ int main(void){
     } while (0)
 
     RUN_TEST(test_send_primitive_uses_direct_method_dictionary);
+    RUN_TEST(test_send_site_macros_c_api);
+    RUN_TEST(test_apply_varargs_c_api);
+    RUN_TEST(test_value_asString_c_api_uses_debug_print);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
@@ -2498,6 +3498,8 @@ int main(void){
     RUN_TEST(test_immutable_list_trailer_values);
     RUN_TEST(test_immutable_list_missing_trailer_values_are_nil);
     RUN_TEST(test_list_at_c_api);
+    RUN_TEST(test_list_constructor_helpers_c_api);
+    RUN_TEST(test_list_proper_predicate_c_api);
     RUN_TEST(test_list_map_single_c_api);
     RUN_TEST(test_list_map_many_c_api);
     RUN_TEST(test_list_for_each_c_api);
@@ -2507,10 +3509,21 @@ int main(void){
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);
     RUN_TEST(test_use_package_with_nickname);
+    RUN_TEST(test_package_enumeration_c_api);
     RUN_TEST(test_lambda_macro_expands_to_named_nil_closure);
     RUN_TEST(test_define_function_shorthand_sets_closure_name);
     RUN_TEST(test_closure_debug_print_includes_name);
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
+    RUN_TEST(test_closure_documentation_from_docstring);
+    RUN_TEST(test_closure_explicit_documentation_constructor);
+    RUN_TEST(test_primitive_arguments_falls_back_to_string);
+    RUN_TEST(test_primitive_documentation_returns_description_string);
+    RUN_TEST(test_restart_c_api_and_listtalk_accessors);
+    RUN_TEST(test_static_primitive_restart_macro);
+    RUN_TEST(test_restart_listtalk_primitives_and_low_level_bind);
+    RUN_TEST(test_restart_class_methods_from_closure);
+    RUN_TEST(test_special_form_arguments_falls_back_to_string);
+    RUN_TEST(test_special_form_documentation_returns_description_string);
     RUN_TEST(test_symbol_uninterned_and_gensym_c_api);
     RUN_TEST(test_gensym_primitive);
     RUN_TEST(test_symbol_class_methods_for_uninterned_and_gensym);
@@ -2540,10 +3553,14 @@ int main(void){
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
+    RUN_TEST(test_string_format_c_api);
+    RUN_TEST(test_integer_from_intmax_c_api);
+    RUN_TEST(test_integer_bytevector_conversions);
     RUN_TEST(test_string_split_c_api);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);
+    RUN_TEST(test_thread_join_returns_result_to_concurrent_joiners);
     RUN_TEST(test_dynamic_variable_c_api_uses_thread_local_values);
 
 #undef RUN_TEST

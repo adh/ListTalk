@@ -13,6 +13,8 @@
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/decl_macros.h>
 
+#include <stddef.h>
+
 LT__BEGIN_DECLS
 
 typedef struct LT_Pair_s LT_Pair;
@@ -42,6 +44,7 @@ static inline LT_MutablePair* LT_MutablePair_from_value(LT_Value value){
 
 LT_Value LT_cons(LT_Value car, LT_Value cdr);
 LT_Value LT_list(LT_Value first, ...);
+LT_Value LT_listn(size_t count, ...);
 LT_Value LT_list_with_rest(LT_Value first, ...);
 void LT_Pair_set_car(LT_Value pair, LT_Value value);
 void LT_Pair_set_cdr(LT_Value pair, LT_Value value);

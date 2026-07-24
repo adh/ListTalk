@@ -21,6 +21,7 @@ LT_DEFINE_CLASS(LT_SmallInteger) {
     .superclass = &LT_Integer_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SmallInteger",
+    .documentation = "Immediate exact integer value fitting in a machine word.",
     .instance_size = sizeof(LT_SmallInteger),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,

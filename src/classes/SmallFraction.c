@@ -20,6 +20,7 @@ LT_DEFINE_CLASS(LT_SmallFraction) {
     .superclass = &LT_RationalNumber_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SmallFraction",
+    .documentation = "Compact exact rational number with small integer parts.",
     .instance_size = sizeof(LT_SmallFraction),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,

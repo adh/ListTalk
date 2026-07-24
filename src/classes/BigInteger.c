@@ -379,6 +379,12 @@ static LT_Value make_integer_from_limbs(
     return (LT_Value)(uintptr_t)integer;
 }
 
+LT_Value LT_BigInteger_new_from_limbs(int negative,
+                                      size_t limb_count,
+                                      const uint32_t* limbs){
+    return make_integer_from_limbs(negative, limb_count, limbs);
+}
+
 static void divide_abs_values(
     size_t dividend_count,
     const uint32_t* dividend_limbs,
@@ -484,6 +490,7 @@ LT_DEFINE_CLASS(LT_BigInteger) {
     .superclass = &LT_Integer_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "BigInteger",
+    .documentation = "Arbitrary-precision exact integer value.",
     .instance_size = sizeof(LT_BigInteger),
     .class_flags = LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
     .debugPrintOn = BigInteger_debugPrintOn,

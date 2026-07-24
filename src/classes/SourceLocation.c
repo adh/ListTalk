@@ -23,6 +23,7 @@ LT_DEFINE_CLASS(LT_SourceLocation) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "SourceLocation",
+    .documentation = "Source file, line, and column location.",
     .instance_size = sizeof(LT_SourceLocation),
     .class_flags = LT_CLASS_FLAG_SPECIAL | LT_CLASS_FLAG_FINAL
         | LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,

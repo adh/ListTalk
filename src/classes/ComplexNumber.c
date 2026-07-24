@@ -36,6 +36,7 @@ LT_DEFINE_CLASS(LT_ComplexNumber) {
     .superclass = &LT_Number_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "ComplexNumber",
+    .documentation = "Abstract root for complex numeric values.",
     .instance_size = sizeof(LT_ComplexNumber),
     .methods = ComplexNumber_methods,
     .class_flags = LT_CLASS_FLAG_ABSTRACT

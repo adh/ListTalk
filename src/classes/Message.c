@@ -94,6 +94,7 @@ LT_DEFINE_CLASS(LT_Message) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Message",
+    .documentation = "Object message selector and arguments.",
     .instance_size = sizeof(LT_Message),
     .debugPrintOn = Message_debugPrintOn,
     .slots = Message_slots,

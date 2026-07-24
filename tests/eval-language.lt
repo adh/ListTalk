@@ -1,0 +1,516 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(provide :eval-language)
+
+(define-test "if"
+;;; if
+
+(check (= (if '() 1 2) 2) "if nil branch is false")
+(check (= (if #false 1 2) 2) "if #false branch is false")
+(check (= (if #true 1 2) 1) "if #true branch is true")
+)
+
+(define-test "and"
+;;; and
+
+(check (eq? (and) #true) "and with no expressions returns true")
+(check (= (and 1 2 3) 3) "and returns last truthy value")
+(check (eq? (and 1 '() (error "skipped")) '()) "and returns first falsey value")
+(let ((x 0))
+  (and #false (set! x 1))
+  (check (= x 0) "and short-circuits after falsey value"))
+(and #true (define and-defined 23))
+(check (= and-defined 23) "and does not wrap later forms in a lexical environment")
+)
+
+(define-test "or"
+;;; or
+
+(check (eq? (or) #false) "or with no expressions returns false")
+(check (= (or '() #false 7 (error "skipped")) 7) "or returns first truthy value")
+(check (eq? (or '() #false) #false) "or returns last falsey value")
+(let ((x 0))
+  (or 5 (set! x 1))
+  (check (= x 0) "or short-circuits after truthy value"))
+(define or-anchor #false)
+(or or-anchor (define or-defined 24))
+(check (= or-defined 24) "or does not wrap later forms in a lexical environment")
+)
+
+(define-test "cond"
+;;; cond
+
+(check (= (cond ('() (error "skipped")) ((= 1 1) 42) (else 99)) 42)
+       "cond evaluates first truthy clause body")
+(check (= (cond ('() 1) (else 2 3)) 3) "cond else clause evaluates body sequence")
+(check (= (cond ((+ 1 2))) 3) "cond clause without body returns test value")
+(check (eq? (cond ('() 1)) #false) "cond without matching clause returns false")
+(cond (#true (define cond-defined 25)))
+(check (= cond-defined 25) "cond does not wrap clause bodies in a lexical environment")
+)
+
+(define-test "begin"
+;;; begin
+
+(check (eq? (begin) '()) "begin with no forms returns nil")
+(check (= (begin 1 2 3) 3) "begin returns last body value")
+(begin (define begin-defined 26))
+(check (= begin-defined 26) "begin evaluates body in current environment")
+)
+
+(define-test "let"
+;;; let
+
+(check (= (let ((x 1) (y 2)) (+ x y)) 3) "let binds local names")
+(define outer-x 10)
+(check (= (let ((x 1) (y outer-x)) y) 10)
+       "let evaluates binding expressions in outer environment")
+(check (= (let ((x 99)) x) 99) "let local binding shadows outer")
+(check (= outer-x 10) "let local binding does not leak to outer environment")
+(check (= (let loop ((n 5) (acc 1))
+            (if (= n 0)
+                acc
+                (loop (- n 1) (* acc n))))
+          120)
+       "let supports named let")
+)
+
+(define-test "let*"
+;;; let*
+
+(check (= (let* ((x 1)
+                 (y (+ x 2))
+                 (z (+ y 3)))
+            (+ x y z))
+          10)
+       "let* evaluates bindings sequentially")
+)
+
+(define-test "letrec"
+;;; letrec
+
+(check (= (letrec ((even? (lambda (n)
+                            (if (= n 0)
+                                #true
+                                (odd? (- n 1)))))
+                   (odd? (lambda (n)
+                           (if (= n 0)
+                               #false
+                               (even? (- n 1))))))
+            (if (and (even? 10) (odd? 9))
+                1
+                0))
+          1)
+       "letrec supports mutually recursive bindings")
+)
+
+(define-test "define"
+;;; define
+
+(define add1 (lambda (x) (+ x 1)))
+(check (= (add1 9) 10) "define binds value in current environment")
+
+(define (add2 x y) (+ x y))
+(check (= (add2 3 4) 7) "define function shorthand creates callable binding")
+
+(define (bump x) (set! x (+ x 1)) x)
+(check (= (bump 9) 10) "define function shorthand keeps full function body sequence")
+
+(check (closure? add2) "lambda returns closure")
+)
+
+(define-test "define function/macro constant bindings"
+;;; define function/macro constant bindings
+
+(define-constant runtime-constant 42)
+(check (= runtime-constant 42) "define-constant binds value")
+
+(let ((c (raises? (lambda () (set! runtime-constant 43)))))
+  (check (and c (equal? (slot-ref c 'message)
+                        "Special form set! expected existing mutable binding"))
+         "define-constant creates constant binding"))
+
+(define (const-fn x) x)
+(let ((c (raises? (lambda () (set! const-fn (lambda (x) x))))))
+  (check (and c (equal? (slot-ref c 'message)
+                        "Special form set! expected existing mutable binding"))
+         "define function shorthand creates constant binding"))
+
+(define-macro (inc-macro x) (list '+ x 1))
+(check (= (inc-macro 41) 42) "define-macro shorthand defines macro")
+
+(let ((c (raises? (lambda () (set! inc-macro (macro (lambda (x) x)))))))
+  (check (and c (equal? (slot-ref c 'message)
+                        "Special form set! expected existing mutable binding"))
+         "define-macro creates constant binding"))
+)
+
+(define-test "Gensym (behavioral)"
+;;; Gensym (behavioral)
+
+(check (symbol? (gensym)) "gensym returns symbol")
+(check (null? (slot-ref (gensym) 'package)) "gensym returns uninterned symbol")
+(check (not (eq? (gensym) (gensym))) "gensym returns unique symbols")
+(check (null? (slot-ref (gensym "tmp") 'package))
+       "gensym with string name behaves like uninterned symbol")
+(check (null? (slot-ref (gensym 'symtmp) 'package))
+       "gensym with symbol name behaves like uninterned symbol")
+(check (null? (slot-ref [Symbol gensym] 'package))
+       "Symbol class>>gensym returns uninterned symbol")
+(let ((u [Symbol uninterned: 'temp]))
+  (check (null? (slot-ref u 'package)) "Symbol class>>uninterned: returns uninterned symbol")
+  (check (equal? ['temp name] "temp") "Symbol>>name returns symbol name string"))
+(let* ((package [Package named: "EvalSymbolClassPackage"])
+       (same-package [Package named: 'EvalSymbolClassPackage])
+       (symbol [Symbol intern: "value" in: package])
+       (same-symbol [Symbol intern: 'value in: "EvalSymbolClassPackage"])
+       (keyword [Symbol keyword: "class-keyword"]))
+  (check (eq? package same-package) "Package class>>named: returns existing package")
+  (check (eq? [Package find: "EvalSymbolClassPackage"] package)
+         "Package class>>find: returns existing package")
+  (check (eq? [Package find: 'EvalSymbolClassPackage] package)
+         "Package class>>find: accepts symbol designator")
+  (check (null? [Package find: "EvalSymbolClassPackageMissing"])
+         "Package class>>find: returns nil for missing package")
+  (check (equal? [package name] "EvalSymbolClassPackage")
+         "Package>>name returns package name")
+  (check (eq? [symbol package] package) "Symbol class>>intern:in: uses package object")
+  (check (eq? symbol same-symbol) "Symbol class>>intern:in: interns by name and package")
+  (check (keyword? keyword) "Symbol class>>keyword: returns keyword symbol")
+  (check [keyword keyword?] "Symbol class>>keyword: result answers keyword?"))
+(let* ((package [Package named: "EvalPackageReflection"])
+       (alpha [Symbol intern: "alpha" in: package])
+       (beta [Symbol intern: "beta" in: package]))
+  (check (memq alpha [package symbolsAsList])
+         "Package>>symbolsAsList contains local interned symbol")
+  (check (memq beta [package symbolsAsList])
+         "Package>>symbolsAsList contains second local interned symbol")
+  (let ((symbols '()))
+    (check (null? [package symbolsDo: (lambda (symbol) (set! symbols (cons symbol symbols)))])
+           "Package>>symbolsDo: returns nil")
+    (check (and (memq alpha symbols) (memq beta symbols))
+           "Package>>symbolsDo: visits local interned symbols"))
+  (check (memq package [Package packagesAsList])
+         "Package class>>packagesAsList contains created package")
+  (let ((packages '()))
+    (check (null? [Package packagesDo: (lambda (each) (set! packages (cons each packages)))])
+           "Package class>>packagesDo: returns nil")
+    (check (memq package packages)
+           "Package class>>packagesDo: visits created package")))
+)
+
+(define-test "with-gensyms"
+;;; with-gensyms
+
+(let ((result (with-gensyms (a b)
+                (list (symbol? a)
+                      (symbol? b)
+                      (eq? a b)
+                      (null? (slot-ref a 'package))
+                      (null? (slot-ref b 'package))))))
+  (check (car result) "with-gensyms binds symbol for first name")
+  (check (cadr result) "with-gensyms binds symbol for second name")
+  (check (not (caddr result)) "with-gensyms symbols are distinct")
+  (check (cadddr result) "with-gensyms first symbol is uninterned")
+  (check (car (cddddr result)) "with-gensyms second symbol is uninterned"))
+)
+
+(define-test "set!"
+;;; set!
+
+(define set-x 10)
+(set! set-x 42)
+(check (= set-x 42) "set! updates existing binding")
+
+(define set-y 1)
+((lambda () (set! set-y 9)))
+(check (= set-y 9) "set! updates lexical parent binding")
+)
+
+(define-test "when and unless"
+;;; when and unless
+
+(check (= (when #true 7) 7) "when with true condition evaluates body")
+(check (eq? (when #false 7) '()) "when with false condition returns nil")
+(check (= (unless #false 7) 7) "unless with false condition evaluates body")
+(check (eq? (unless #true 7) '()) "unless with true condition returns nil")
+)
+
+(define-test "define-class and define-method"
+;;; define-class and define-method
+
+(define-class DefPoint (Object) (x y))
+(let ((inst (make-instance DefPoint)))
+  (check (eq? (type-of inst) DefPoint) "define-class wraps make-class and define"))
+
+(define-method [Pair first] (%self-slot car))
+(check (= [(cons 9 8) first] 9) "define-method installs zero-argument method")
+(check (closure? [Pair lookupSelector: :first])
+       "define-method installs closure as method")
+
+(define-method [Pair setFirst: value]
+  (set! (%self-slot car) value)
+  (%self-slot car))
+(check (= [(cons 9 8) setFirst: 42] 42)
+       "define-method method body can use %self-slot read and write")
+
+(check (= [(cons 1 2) setFirst: 77] 77)
+       "set! macro dispatches %self-slot target to slot-set!")
+)
+
+(define-test "define-constructor"
+;;; define-constructor
+
+(define-class DefConstructorMeep (Object) (foo bar))
+(define-constructor [DefConstructorMeep newWithFoo: foo bar: bar]
+  (set! (%self-slot foo) foo)
+  (set! (%self-slot bar) bar))
+(let ((meep [DefConstructorMeep newWithFoo: 3 bar: 4]))
+  (check (eq? (type-of meep) DefConstructorMeep)
+         "define-constructor newWith... class method returns instance")
+  (check (= (slot-ref meep 'foo) 3)
+         "define-constructor newWith... initializes first slot")
+  (check (= (slot-ref meep 'bar) 4)
+         "define-constructor newWith... initializes second slot"))
+(check (closure? [[DefConstructorMeep class] lookupSelector: :newWithFoo:bar:])
+       "define-constructor installs newWith... class method")
+(check (closure? [DefConstructorMeep lookupSelector: :initWithFoo:bar:])
+       "define-constructor installs initWith... instance method")
+
+(define-class DefConstructorNew (Object) (foo))
+(define-constructor [DefConstructorNew newFoo: foo]
+  (set! (%self-slot foo) foo))
+(let ((value [DefConstructorNew newFoo: 17]))
+  (check (eq? (type-of value) DefConstructorNew)
+         "define-constructor new... class method returns instance")
+  (check (= (slot-ref value 'foo) 17)
+         "define-constructor new... initializes slot"))
+(check (closure? [DefConstructorNew lookupSelector: :initFoo:])
+       "define-constructor installs init... instance method")
+
+(define-class DefConstructorFrom (Object) (foo))
+(define-constructor [DefConstructorFrom fromFoo: foo]
+  (set! (%self-slot foo) foo))
+(let ((value [DefConstructorFrom fromFoo: 42]))
+  (check (eq? (type-of value) DefConstructorFrom)
+         "define-constructor from... class method returns instance")
+  (check (= (slot-ref value 'foo) 42)
+         "define-constructor from... initializes slot"))
+(check (closure? [DefConstructorFrom lookupSelector: :initFromFoo:])
+       "define-constructor installs initFrom... instance method")
+)
+
+(define-test "Rectangle example"
+;;; Rectangle example
+
+(define-class DefRectangle (Object) (width height))
+(define-method [[DefRectangle class] width: w height: h]
+  (let ((inst [self alloc]))
+    (slot-set! inst 'width w)
+    (slot-set! inst 'height h)
+    inst))
+(define-method [DefRectangle area]
+  (* (%self-slot width) (%self-slot height)))
+(check (= [[DefRectangle width: 4 height: 5] area] 20)
+       "rectangle define-class/define-method example")
+)
+
+(define-test "super send"
+;;; super send
+
+(define-class DefParent (Object) ())
+(define-class DefChild (DefParent) ())
+(define-method [DefParent answer] 11)
+(define-method [DefChild answer] [ListTalk:super answer])
+(check (= [(make-instance DefChild) answer] 11)
+       "send macro rewrites super receiver to super send")
+)
+
+(define-test "macro special form"
+;;; macro special form
+
+(check (macro? (macro (lambda (x) x))) "macro special form creates macro value")
+(check (= ((macro (lambda (x) x)) (+ 1 2)) 3) "macro expansion is evaluated")
+
+(define x-for-macro 42)
+(define-macro (id-macro x) x)
+(check (= (id-macro x-for-macro) 42) "macro expansion evaluates in caller environment")
+)
+
+(define-test "while special form"
+;;; while special form
+
+(let ((n 0)
+      (sum 0))
+  (ListTalk-implementation:%while (< n 5)
+    (set! sum (+ sum n))
+    (set! n (+ n 1)))
+  (check (= sum 10) "%while evaluates body while condition is truthy"))
+
+(let ((ran #false))
+  (check (null? (ListTalk-implementation:%while #false
+                 (set! ran #true)))
+         "%while returns nil when condition becomes false")
+  (check (not ran) "%while skips body when condition is false"))
+
+(check-raises "%while expects body"
+  (ListTalk-implementation:%while #false))
+
+(let ((break :outer-break)
+      (continue :outer-continue))
+  (ListTalk-implementation:%while #false
+    (set! break :inner-break)
+    (set! continue :inner-continue))
+  (check (eq? break :outer-break) "%while does not bind break")
+  (check (eq? continue :outer-continue) "%while does not bind continue"))
+)
+
+(define-test "while macro"
+;;; while macro
+
+(let ((n 0)
+      (sum 0))
+  (check (not (while (< n 5)
+                (set! sum (+ sum n))
+                (set! n (+ n 1))))
+         "while returns false when condition becomes false")
+  (check (= sum 10) "while evaluates body while condition is truthy"))
+
+(check (while #true (break)) "while break without value returns true")
+(check (= (while #true (break 42)) 42) "while break returns value")
+(check (equal? (while #true (break 1 2 3)) '(1 2 3))
+       "while break returns multiple values as list")
+
+(let ((n 0)
+      (seen '()))
+  (while (< n 5)
+    (set! n (+ n 1))
+    (if (= n 3)
+        (continue))
+    (set! seen (cons n seen)))
+  (check (equal? seen '(5 4 2 1)) "while continue skips remaining body"))
+
+(let ((n 0)
+      (body-runs 0))
+  (while (begin
+           (set! n (+ n 1))
+           (if (< n 3)
+               (continue)
+               (< n 5)))
+    (set! body-runs (+ body-runs 1)))
+  (check (= n 5) "while condition can use continue")
+  (check (= body-runs 2) "while continue in condition skips body"))
+)
+
+(define-test "closure control-flow methods"
+;;; closure control-flow methods
+
+(check (= [#true ifTrue: (lambda () 42)] 42)
+       "Boolean>>ifTrue: evaluates true branch")
+(check (null? [#false ifTrue: (lambda () 42)])
+       "Boolean>>ifTrue: skips false receiver")
+(check (= [#false ifFalse: (lambda () 42)] 42)
+       "Boolean>>ifFalse: evaluates false branch")
+(check (null? [#true ifFalse: (lambda () 42)])
+       "Boolean>>ifFalse: skips true receiver")
+(check (= [#true ifTrue: (lambda () 1) ifFalse: (lambda () 2)] 1)
+       "Boolean>>ifTrue:ifFalse: evaluates true branch")
+(check (= [#false ifTrue: (lambda () 1) ifFalse: (lambda () 2)] 2)
+       "Boolean>>ifTrue:ifFalse: evaluates false branch")
+(check (= [#true ifFalse: (lambda () 1) ifTrue: (lambda () 2)] 2)
+       "Boolean>>ifFalse:ifTrue: evaluates true branch")
+(check (= [#false ifFalse: (lambda () 1) ifTrue: (lambda () 2)] 1)
+       "Boolean>>ifFalse:ifTrue: evaluates false branch")
+
+(let ((calls 0))
+  (check (not [#false and: (lambda () (set! calls (+ calls 1)) #true)])
+         "Boolean>>and: returns false receiver")
+  (check (= calls 0) "Boolean>>and: skips block when false")
+  (check [#true and: (lambda () (set! calls (+ calls 1)) :truthy)]
+         "Boolean>>and: evaluates block when true")
+  (check (= calls 1) "Boolean>>and: evaluates block once"))
+
+(let ((calls 0))
+  (check [#true or: (lambda () (set! calls (+ calls 1)) #false)]
+         "Boolean>>or: returns true receiver")
+  (check (= calls 0) "Boolean>>or: skips block when true")
+  (check [#false or: (lambda () (set! calls (+ calls 1)) :truthy)]
+         "Boolean>>or: evaluates block when false")
+  (check (= calls 1) "Boolean>>or: evaluates block once"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda ()
+     (if (< n 5)
+         (begin
+           (set! sum (+ sum n))
+           (set! n (+ n 1))
+           #true)
+         #false))
+   whileTrue]
+  (check (= sum 10) "Function>>whileTrue repeats receiver while truthy"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda () (< n 5))
+   whileTrue: (lambda ()
+                (set! sum (+ sum n))
+                (set! n (+ n 1)))]
+  (check (= sum 10) "Function>>whileTrue: evaluates body while receiver is truthy"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda ()
+     (if (< n 5)
+         (begin
+           (set! sum (+ sum n))
+           (set! n (+ n 1))
+           #false)
+         #true))
+   whileFalse]
+  (check (= sum 10) "Function>>whileFalse repeats receiver while falsey"))
+
+(let ((n 0)
+      (sum 0))
+  [(lambda () (>= n 5))
+   whileFalse: (lambda ()
+                 (set! sum (+ sum n))
+                 (set! n (+ n 1)))]
+  (check (= sum 10) "Function>>whileFalse: evaluates body while receiver is falsey"))
+)
+
+(define-test "fold-expression and macroexpand"
+;;; fold-expression and macroexpand
+
+(check (= (fold-expression '(+ 1 2 3) (get-current-environment)) 6)
+       "fold-expression constant-folds pure primitive application")
+
+(check (environment? (get-current-environment))
+       "get-current-environment returns environment")
+
+(check (= (eval '(+ 20 22) (get-current-environment)) 42)
+       "eval evaluates form in explicit environment")
+
+(let ((eval-local 17))
+  (check (= (eval 'eval-local (get-current-environment)) 17)
+         "eval sees lexical environment bindings"))
+
+(check (= (apply + '(10 20 12)) 42)
+       "apply calls primitive with argument list")
+
+(check (= (apply (lambda (x y) (+ x y)) '(19 23)) 42)
+       "apply calls closure with argument list")
+
+(define-macro (test-macroexpand-mac x) (list '+ x 1))
+(let ((expanded (macroexpand '(test-macroexpand-mac 41) (get-current-environment))))
+  (check (pair? expanded) "macroexpand returns pair")
+  (check (eq? (car expanded) '+) "macroexpand expands to application"))
+
+(let ((folded (fold-expression '`(,(test-macroexpand-mac 41)) (get-current-environment))))
+  (check (special-form? [folded car])
+         "fold-expression resolves quasiquote operator to special form")
+  (check (equal? [[folded cdr] car] '((unquote 42)))
+         "fold-expression recurses into quasiquote unquote"))
+)

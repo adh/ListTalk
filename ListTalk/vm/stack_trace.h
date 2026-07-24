@@ -10,6 +10,7 @@
 
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/Environment.h>
+#include <ListTalk/vm/thread_state.h>
 #include <ListTalk/classes/Pair.h>
 
 #include <stdio.h>
@@ -36,7 +37,7 @@ typedef struct LT_StackFrame_s {
     struct LT_StackFrame_s* previous;
 } LT_StackFrame;
 
-extern _Thread_local LT_StackFrame* LT__stack_trace_stack;
+#define LT__stack_trace_stack (LT_thread_state()->stack_trace_stack)
 
 static inline void LT_stack_trace_push(LT_StackFrame* frame){
     frame->previous = LT__stack_trace_stack;

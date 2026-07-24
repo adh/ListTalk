@@ -25,9 +25,12 @@
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/vm/error.h>
 
+#include <errno.h>
 #include <inttypes.h>
 #include <stdbool.h>
+#include <stdlib.h>
 
 LT_Class* const LT__Immediate_classes[64] = {
     [LT_VALUE_IMMEDIATE_TAG_BOOLEAN & 0x3f] = &LT_Boolean_class,
@@ -67,6 +70,28 @@ void LT_Value_debugPrintOn(LT_Value value, FILE* stream){
         class_name,
         (uintptr_t)value
     );
+}
+
+LT_String* LT_Value_asString(LT_Value value){
+    char* buffer = NULL;
+    size_t length = 0;
+    FILE* stream = open_memstream(&buffer, &length);
+    LT_String* string;
+
+    if (stream == NULL){
+        LT_system_error("open_memstream", errno);
+    }
+
+    LT_Value_debugPrintOn(value, stream);
+    if (fclose(stream) != 0){
+        int errnum = errno;
+        free(buffer);
+        LT_system_error("open_memstream", errnum);
+    }
+
+    string = LT_String_new(buffer, length);
+    free(buffer);
+    return string;
 }
 
 bool LT_Value_eqv_p(LT_Value left, LT_Value right){

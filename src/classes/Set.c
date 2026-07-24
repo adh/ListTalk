@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/IdentitySet.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/WeakIdentitySet.h>
@@ -32,6 +33,14 @@ struct LT_WeakIdentitySet_s {
     LT_InlineHash table;
 };
 
+struct LT_SetIterator_s {
+    LT_Object base;
+    LT_Set* set;
+    size_t bucket_index;
+    LT_InlineHash_Entry* entry;
+    LT_Value current;
+};
+
 static LT_Set* set_from_value(LT_Value obj){
     if (!LT_Value_is_instance_of(obj, (LT_Value)(uintptr_t)&LT_Set_class)){
         LT_type_error(obj, &LT_Set_class);
@@ -54,11 +63,7 @@ static int set_entry_value(LT_Set* set,
     if (set_weak_identity_p(set)){
         LT_WeakValue* weak = (LT_WeakValue*)entry->key;
 
-        if (!LT_weak_is_alive(*weak)){
-            return 0;
-        }
-        *value_out = LT_weak_unbox(*weak);
-        return 1;
+        return LT_weak_try_unbox(weak, value_out);
     }
 
     *value_out = (LT_Value)(uintptr_t)entry->key;
@@ -101,6 +106,75 @@ static void WeakIdentitySet_debugPrintOn(LT_Value obj, FILE* stream){
         (void*)set,
         LT_InlineHash_count(&set->table)
     );
+}
+
+static void SetIterator_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_SetIterator* iterator = LT_SetIterator_from_value(obj);
+
+    fprintf(
+        stream,
+        "#<SetIterator %p bucket=%zu>",
+        (void*)iterator,
+        iterator->bucket_index
+    );
+}
+
+static int set_iterator_set_current(LT_SetIterator* iterator){
+    LT_Value value;
+
+    if (iterator->entry == NULL
+        || !set_entry_value(iterator->set, iterator->entry, &value)){
+        iterator->current = LT_INVALID;
+        return 0;
+    }
+
+    iterator->current = value;
+    return 1;
+}
+
+static void set_iterator_find_current(LT_SetIterator* iterator){
+    LT_InlineHash* table = &iterator->set->table;
+
+    LT_MutexWord_lock(&table->lock);
+    while (1){
+        while (iterator->entry == NULL && iterator->bucket_index <= table->mask){
+            iterator->entry = table->vector[iterator->bucket_index];
+            iterator->bucket_index++;
+        }
+
+        if (iterator->entry == NULL){
+            iterator->current = LT_INVALID;
+            LT_MutexWord_unlock(&table->lock);
+            return;
+        }
+        if (set_iterator_set_current(iterator)){
+            LT_MutexWord_unlock(&table->lock);
+            return;
+        }
+        iterator->entry = iterator->entry->next;
+    }
+}
+
+static void set_iterator_advance(LT_SetIterator* iterator){
+    LT_InlineHash* table = &iterator->set->table;
+
+    LT_MutexWord_lock(&table->lock);
+    if (iterator->entry != NULL){
+        iterator->entry = iterator->entry->next;
+    }
+    LT_MutexWord_unlock(&table->lock);
+    set_iterator_find_current(iterator);
+}
+
+static LT_SetIterator* set_iterator_new(LT_Set* set){
+    LT_SetIterator* iterator = LT_Class_ALLOC(LT_SetIterator);
+
+    iterator->set = set;
+    iterator->bucket_index = 0;
+    iterator->entry = NULL;
+    iterator->current = LT_INVALID;
+    set_iterator_find_current(iterator);
+    return iterator;
 }
 
 static void set_grow_table(LT_Set* set){
@@ -236,9 +310,12 @@ size_t LT_Set_size(LT_Set* set){
 int LT_Set_put(LT_Set* set, LT_Value value){
     LT_InlineHash* table = &set->table;
     size_t hash = set_value_hash(set, value);
-    LT_InlineHash_Entry* entry = set_find_entry(set, value, hash);
+    LT_InlineHash_Entry* entry;
 
+    LT_MutexWord_lock(&table->lock);
+    entry = set_find_entry(set, value, hash);
     if (entry != NULL){
+        LT_MutexWord_unlock(&table->lock);
         return 0;
     }
 
@@ -260,11 +337,18 @@ int LT_Set_put(LT_Set* set, LT_Value value){
     entry->next = table->vector[hash & table->mask];
     table->vector[hash & table->mask] = entry;
     table->count++;
+    LT_MutexWord_unlock(&table->lock);
     return 1;
 }
 
 int LT_Set_contains(LT_Set* set, LT_Value value){
-    return set_find_entry(set, value, set_value_hash(set, value)) != NULL;
+    LT_InlineHash* table = &set->table;
+    int contains;
+
+    LT_MutexWord_lock(&table->lock);
+    contains = set_find_entry(set, value, set_value_hash(set, value)) != NULL;
+    LT_MutexWord_unlock(&table->lock);
+    return contains;
 }
 
 LT_Value LT_Set_asList(LT_Set* set){
@@ -272,6 +356,7 @@ LT_Value LT_Set_asList(LT_Set* set){
     LT_Value list = LT_NIL;
     size_t i;
 
+    LT_MutexWord_lock(&table->lock);
     for (i = 0; i < table->mask + 1; i++){
         LT_InlineHash_Entry* entry = table->vector[i];
 
@@ -284,109 +369,67 @@ LT_Value LT_Set_asList(LT_Set* set){
             entry = entry->next;
         }
     }
+    LT_MutexWord_unlock(&table->lock);
     return list;
 }
 
 void LT_Set_for_each(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
-    size_t i;
+    LT_Value values = LT_Set_asList(set);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)){
-                (void)set_apply1(callable, value);
-            }
-            entry = entry->next;
-        }
+    while (values != LT_NIL){
+        (void)set_apply1(callable, LT_car(values));
+        values = LT_cdr(values);
     }
 }
 
 LT_Value LT_Set_any(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
-    size_t i;
+    LT_Value values = LT_Set_asList(set);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)
-                && LT_Value_truthy_p(set_apply1(callable, value))){
-                return LT_TRUE;
-            }
-            entry = entry->next;
+    while (values != LT_NIL){
+        if (LT_Value_truthy_p(set_apply1(callable, LT_car(values)))){
+            return LT_TRUE;
         }
+        values = LT_cdr(values);
     }
     return LT_FALSE;
 }
 
 LT_Value LT_Set_every(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
-    size_t i;
+    LT_Value values = LT_Set_asList(set);
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)
-                && !LT_Value_truthy_p(set_apply1(callable, value))){
-                return LT_FALSE;
-            }
-            entry = entry->next;
+    while (values != LT_NIL){
+        if (!LT_Value_truthy_p(set_apply1(callable, LT_car(values)))){
+            return LT_FALSE;
         }
+        values = LT_cdr(values);
     }
     return LT_TRUE;
 }
 
 LT_Value LT_Set_inject_into(LT_Set* set, LT_Value initial, LT_Value callable){
-    LT_InlineHash* table = &set->table;
+    LT_Value values = LT_Set_asList(set);
     LT_Value accumulator = initial;
-    size_t i;
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)){
-                accumulator = set_apply2(callable, accumulator, value);
-            }
-            entry = entry->next;
-        }
+    while (values != LT_NIL){
+        accumulator = set_apply2(callable, accumulator, LT_car(values));
+        values = LT_cdr(values);
     }
     return accumulator;
 }
 
 LT_Value LT_Set_reduce(LT_Set* set, LT_Value callable){
-    LT_InlineHash* table = &set->table;
+    LT_Value values = LT_Set_asList(set);
     LT_Value accumulator = LT_NIL;
     int has_accumulator = 0;
-    size_t i;
 
-    for (i = 0; i < table->mask + 1; i++){
-        LT_InlineHash_Entry* entry = table->vector[i];
-
-        while (entry != NULL){
-            LT_Value value;
-
-            if (set_entry_value(set, entry, &value)){
-                if (!has_accumulator){
-                    accumulator = value;
-                    has_accumulator = 1;
-                } else {
-                    accumulator = set_apply2(callable, accumulator, value);
-                }
-            }
-            entry = entry->next;
+    while (values != LT_NIL){
+        if (!has_accumulator){
+            accumulator = LT_car(values);
+            has_accumulator = 1;
+        } else {
+            accumulator = set_apply2(callable, accumulator, LT_car(values));
         }
+        values = LT_cdr(values);
     }
 
     if (!has_accumulator){
@@ -590,6 +633,24 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    set_method_as_iterator,
+    "Set>>asIterator",
+    "(self)",
+    "Return an iterator over set elements."
+){
+    LT_Value cursor = arguments;
+    LT_Set* set;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, set, LT_Set*, set_from_value);
+    LT_ARG_END(cursor);
+    if (LT_Set_size(set) == 0){
+        return (LT_Value)(uintptr_t)LT_EmptyIterator_instance();
+    }
+    return (LT_Value)(uintptr_t)set_iterator_new(set);
+}
+
+LT_DEFINE_PRIMITIVE(
     set_method_any,
     "Set>>any:",
     "(self callable)",
@@ -659,15 +720,74 @@ LT_DEFINE_PRIMITIVE(
     return LT_Set_reduce(set_from_value(self), callable);
 }
 
+LT_DEFINE_PRIMITIVE(
+    set_iterator_method_this,
+    "SetIterator>>this",
+    "(self)",
+    "Return the current set element."
+){
+    LT_Value cursor = arguments;
+    LT_SetIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_SetIterator*, LT_SetIterator_from_value);
+    LT_ARG_END(cursor);
+    if (iterator->current == LT_INVALID){
+        LT_error("SetIterator is not positioned");
+    }
+    return iterator->current;
+}
+
+LT_DEFINE_PRIMITIVE(
+    set_iterator_method_has_this,
+    "SetIterator>>hasThis?",
+    "(self)",
+    "Return true when the iterator has a current set element."
+){
+    LT_Value cursor = arguments;
+    LT_SetIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_SetIterator*, LT_SetIterator_from_value);
+    LT_ARG_END(cursor);
+    return iterator->current == LT_INVALID ? LT_FALSE : LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    set_iterator_method_next,
+    "SetIterator>>next!",
+    "(self)",
+    "Advance the iterator and return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_SetIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    iterator = LT_SetIterator_from_value(self);
+    set_iterator_advance(iterator);
+    return self;
+}
+
 static LT_Method_Descriptor Set_methods[] = {
     {"put:", &set_method_put},
     {"contains?:", &set_method_contains},
     {"asList", &set_method_as_list},
+    {"asIterator", &set_method_as_iterator},
     {"forEach:", &set_method_for_each},
     {"any:", &set_method_any},
     {"every:", &set_method_every},
     {"inject:into:", &set_method_inject_into},
     {"reduce:", &set_method_reduce},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor SetIterator_methods[] = {
+    {"this", &set_iterator_method_this},
+    {"hasThis?", &set_iterator_method_has_this},
+    {"next!", &set_iterator_method_next},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -693,6 +813,7 @@ LT_DEFINE_CLASS(LT_Set) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Set",
+    .documentation = "Collection of unique values compared by equality.",
     .instance_size = sizeof(LT_Set),
     .debugPrintOn = Set_debugPrintOn,
     .methods = Set_methods,
@@ -703,6 +824,7 @@ LT_DEFINE_CLASS(LT_IdentitySet) {
     .superclass = &LT_Set_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "IdentitySet",
+    .documentation = "Set of unique values compared by identity.",
     .instance_size = sizeof(LT_IdentitySet),
     .debugPrintOn = IdentitySet_debugPrintOn,
     .class_methods = IdentitySet_class_methods,
@@ -712,7 +834,18 @@ LT_DEFINE_CLASS(LT_WeakIdentitySet) {
     .superclass = &LT_IdentitySet_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "WeakIdentitySet",
+    .documentation = "Identity set that does not keep members alive.",
     .instance_size = sizeof(LT_WeakIdentitySet),
     .debugPrintOn = WeakIdentitySet_debugPrintOn,
     .class_methods = WeakIdentitySet_class_methods,
+};
+
+LT_DEFINE_CLASS(LT_SetIterator) {
+    .superclass = &LT_Iterator_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "SetIterator",
+    .documentation = "Iterator over set elements.",
+    .instance_size = sizeof(LT_SetIterator),
+    .debugPrintOn = SetIterator_debugPrintOn,
+    .methods = SetIterator_methods,
 };

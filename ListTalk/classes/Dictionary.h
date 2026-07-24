@@ -15,6 +15,7 @@ LT__BEGIN_DECLS
 
 typedef struct LT_Dictionary_s LT_Dictionary;
 typedef LT_Dictionary LT_ImmutableDictionary;
+LT_DECLARE_CLASS(LT_DictionaryIterator);
 
 extern LT_Class LT_ImmutableDictionary_class;
 extern LT_Class LT_ImmutableDictionary_class_class;

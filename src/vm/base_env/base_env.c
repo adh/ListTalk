@@ -23,12 +23,22 @@
 #include <ListTalk/classes/Float.h>
 #include <ListTalk/classes/SmallFraction.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Iterator.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Message.h>
+#include <ListTalk/classes/BindingDescriptor.h>
+#include <ListTalk/classes/MethodDescriptor.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/MessageDigest.h>
+#include <ListTalk/classes/DigestSHA256.h>
+#include <ListTalk/classes/RandomNumberGenerator.h>
+#include <ListTalk/classes/XoshiroRNG.h>
+#include <ListTalk/classes/AsconRNG.h>
+#include <ListTalk/classes/CompoundForm.h>
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/InvocationContextKind.h>
@@ -53,6 +63,12 @@
 #include <ListTalk/classes/Duration.h>
 #include <ListTalk/classes/DateTime.h>
 #include <ListTalk/classes/UTCDateTime.h>
+#include <ListTalk/classes/UUID.h>
+#include <ListTalk/classes/Mutex.h>
+#include <ListTalk/classes/ReadWriteLock.h>
+#include <ListTalk/classes/ConditionVariable.h>
+#include <ListTalk/classes/MessageQueue.h>
+#include <ListTalk/classes/Thread.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/utils.h>
@@ -88,16 +104,32 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"SmallInteger", &LT_SmallInteger_class},
     {"SmallFraction", &LT_SmallFraction_class},
     {"Float", &LT_Float_class},
+    {"Iterator", &LT_Iterator_class},
+    {"EmptyIterator", &LT_EmptyIterator_class},
+    {"MapIterator", &LT_MapIterator_class},
     {"List", &LT_List_class},
+    {"ListIterator", &LT_ListIterator_class},
     {"ImmutableList", &LT_ImmutableList_class},
     {"Pair", &LT_Pair_class},
     {"MutablePair", &LT_MutablePair_class},
     {"Message", &LT_Message_class},
+    {"BindingDescriptor", &LT_BindingDescriptor_class},
+    {"MethodDescriptor", &LT_MethodDescriptor_class},
     {"Vector", &LT_Vector_class},
+    {"VectorIterator", &LT_VectorIterator_class},
     {"ByteVector", &LT_ByteVector_class},
+    {"ByteVectorIterator", &LT_ByteVectorIterator_class},
+    {"MessageDigest", &LT_MessageDigest_class},
+    {"DigestSHA256", &LT_DigestSHA256_class},
+    {"RandomNumberGenerator", &LT_RandomNumberGenerator_class},
+    {"XoshiroRNG", &LT_XoshiroRNG_class},
+    {"AsconRNG", &LT_AsconRNG_class},
     {"String", &LT_String_class},
+    {"StringIterator", &LT_StringIterator_class},
     {"Symbol", &LT_Symbol_class},
     {"Package", &LT_Package_class},
+    {"CompoundForm", &LT_CompoundForm_class},
+    {"Function", &LT_Function_class},
     {"Closure", &LT_Closure_class},
     {"Primitive", &LT_Primitive_class},
     {"InvocationContextKind", &LT_InvocationContextKind_class},
@@ -112,14 +144,18 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"SystemError", &LT_SystemError_class},
     {"ReaderError", &LT_ReaderError_class},
     {"IncompleteInputSyntaxError", &LT_IncompleteInputSyntaxError_class},
+    {"Restart", &LT_Restart_class},
     {"IdentityDictionary", &LT_IdentityDictionary_class},
     {"ImmutableDictionary", &LT_ImmutableDictionary_class},
     {"Dictionary", &LT_Dictionary_class},
+    {"DictionaryIterator", &LT_DictionaryIterator_class},
     {"Set", &LT_Set_class},
+    {"SetIterator", &LT_SetIterator_class},
     {"IdentitySet", &LT_IdentitySet_class},
     {"WeakIdentitySet", &LT_WeakIdentitySet_class},
     {"WeakKeyIdentityDictionary", &LT_WeakKeyIdentityDictionary_class},
     {"WeakValueIdentityDictionary", &LT_WeakValueIdentityDictionary_class},
+    {"IdentityDictionaryIterator", &LT_IdentityDictionaryIterator_class},
     {"WeakReference", &LT_WeakReference_class},
     {"DynamicVariable", &LT_DynamicVariable_class},
     {"Stream", &LT_Stream_class},
@@ -128,6 +164,12 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Duration", &LT_Duration_class},
     {"DateTime", &LT_DateTime_class},
     {"UTCDateTime", &LT_UTCDateTime_class},
+    {"UUID", &LT_UUID_class},
+    {"Mutex", &LT_Mutex_class},
+    {"ReadWriteLock", &LT_ReadWriteLock_class},
+    {"ConditionVariable", &LT_ConditionVariable_class},
+    {"MessageQueue", &LT_MessageQueue_class},
+    {"Thread", &LT_Thread_class},
 };
 
 static LT_Value modules_symbol(void){

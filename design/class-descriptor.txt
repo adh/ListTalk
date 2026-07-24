@@ -30,7 +30,8 @@ Descriptor fields
 Current descriptor structure (`ListTalk/vm/Class.h`):
 - `superclass`: class-side direct superclass
 - `metaclass_superclass`: metaclass-side direct superclass
-- `package`, `name`: symbolic metadata (currently not materialized by init)
+- `package`, `name`: symbolic metadata (package is not yet materialized by init)
+- `documentation`: class documentation text copied to `klass->documentation`
 - `instance_size`: copied to `klass->instance_size`
 - `class_flags`: copied to `klass->class_flags`
 - `debugPrintOn`: copied to `klass->debugPrintOn`
@@ -52,6 +53,7 @@ Initialization contract (`LT_init_native_class`)
    - `klass->instance_size`
    - `klass->class_flags`
    - `klass->debugPrintOn`
+   - `klass->documentation`
    - `klass->superclasses` as a NULL-terminated list containing only
      `descriptor->superclass` (or `NULL` if not set)
 
@@ -74,7 +76,7 @@ Important properties
 
 Current limitations / TODO
 --------------------------
-- `package`, `name` are not yet copied into runtime class objects.
+- `package` is not yet copied into runtime class objects.
 - `slots`, `methods`, and `class_methods` are not yet materialized.
 - Superclass handling currently assumes one direct superclass per side.
 - MRO / precedence-list construction is not yet implemented here.

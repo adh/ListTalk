@@ -7,6 +7,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Printer.h>
+#include <ListTalk/classes/Reader.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Float.h>
@@ -14,6 +15,8 @@
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Closure.h>
+#include <ListTalk/classes/Duration.h>
+#include <ListTalk/classes/Function.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Object.h>
@@ -27,6 +30,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 
 static int class_object_p(LT_Value value){
     return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Class));
@@ -76,7 +80,7 @@ static const char* package_nickname_from_designator(LT_Value designator){
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_numeric_equal,
     "=",
-    "(n n ...)",
+    "(n :rest n)",
     "Return true when all numeric arguments are equal.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -110,7 +114,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_eq_p,
     "eq?",
-    "(left right ...)",
+    "(left :rest right)",
     "Return true when all arguments are the same value identity.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -137,7 +141,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_eqv_p,
     "eqv?",
-    "(left right ...)",
+    "(left :rest right)",
     "Return true when all arguments are numerically equivalent or identical.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -164,7 +168,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_equal_p,
     "equal?",
-    "(left right ...)",
+    "(left :rest right)",
     "Return true when all arguments are structurally equal.",
     LT_PRIMITIVE_FLAG_PURE
 ){
@@ -206,7 +210,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
 LT_DEFINE_PRIMITIVE(
     primitive_gensym,
     "gensym",
-    "([name])",
+    "(:optional name)",
     "Return a fresh gensym or named uninterned symbol."
 ){
     LT_Value cursor = arguments;
@@ -225,6 +229,22 @@ LT_DEFINE_PRIMITIVE(
         }
     }
     return LT_Symbol_gensym(name);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_sleep,
+    "sleep",
+    "(seconds)",
+    "Sleep for seconds."
+){
+    LT_Value cursor = arguments;
+    LT_Value seconds;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, seconds);
+    LT_ARG_END(cursor);
+    LT_sleep_seconds(seconds);
+    return seconds;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -325,6 +345,23 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return (LT_Value)(uintptr_t)LT_String_new_cstr(
         LT_Symbol_name(LT_Symbol_from_value(value))
     );
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_function_p,
+    "function?",
+    "(value)",
+    "Return true when value is a function.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Function))
+        ? LT_TRUE
+        : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -434,7 +471,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_send,
     "send",
-    "(receiver selector argument ...)",
+    "(receiver selector :rest argument)",
     "Send selector to receiver with arguments."
 ){
     LT_Value cursor = arguments;
@@ -582,6 +619,50 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_current_restarts,
+    "current-restarts",
+    "()",
+    "Return currently active restarts."
+){
+    LT_Value cursor = arguments;
+    (void)tail_call_unwind_marker;
+
+    LT_ARG_END(cursor);
+    return LT_current_restarts();
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_find_restart,
+    "find-restart",
+    "(name)",
+    "Return active restart with eq name or nil."
+){
+    LT_Value cursor = arguments;
+    LT_Value name;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, name);
+    LT_ARG_END(cursor);
+    return LT_find_restart(name);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_invoke_restart,
+    "invoke-restart",
+    "(name :rest arguments)",
+    "Invoke active restart with eq name."
+){
+    LT_Value cursor = arguments;
+    LT_Value name;
+    LT_Value restart_arguments;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, name);
+    LT_ARG_REST(cursor, restart_arguments);
+    return LT_invoke_restart(name, restart_arguments);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_display,
     "display",
     "(value)",
@@ -634,6 +715,63 @@ LT_DEFINE_PRIMITIVE(
         LT_StringBuilder_value(builder),
         LT_StringBuilder_length(builder)
     );
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_read_string_as_data,
+    "read-string-as-data",
+    "(source)",
+    "Read all s-expressions from source string as data."
+){
+    LT_Value cursor = arguments;
+    LT_Value source;
+    LT_ReaderStream* stream;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, source);
+    LT_ARG_END(cursor);
+    if (!LT_String_p(source)){
+        LT_type_error(source, &LT_String_class);
+    }
+
+    stream = LT_ReaderStream_newForString(
+        LT_String_value_cstr(LT_String_from_value(source))
+    );
+    return LT_Reader_read_stream_as_data(stream);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_read_file_as_data,
+    "read-file-as-data",
+    "(path)",
+    "Read all s-expressions from path as data."
+){
+    LT_Value cursor = arguments;
+    LT_Value path;
+    const char* path_cstr;
+    FILE* file;
+    LT_ReaderStream* stream;
+    LT_Value result;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, path);
+    LT_ARG_END(cursor);
+    if (!LT_String_p(path)){
+        LT_type_error(path, &LT_String_class);
+    }
+
+    path_cstr = LT_String_value_cstr(LT_String_from_value(path));
+    file = fopen(path_cstr, "r");
+    if (file == NULL){
+        LT_system_error("Could not open file for reading", errno);
+    }
+
+    stream = LT_ReaderStream_newForFile(file);
+    result = LT_Reader_read_stream_as_data(stream);
+    if (fclose(file) != 0){
+        LT_system_error("Could not close file", errno);
+    }
+    return result;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -721,7 +859,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_define_package,
     "define-package",
-    "(package-designator [used-package-or-(used-package nickname)] ...)",
+    "(package-designator :rest (:either used-package (used-package nickname)))",
     "Define package and optionally add used packages."
 ){
     LT_Value cursor = arguments;
@@ -777,15 +915,17 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, package_designator);
     LT_ARG_END(cursor);
 
-    package = package_from_designator(package_designator, 0);
+    package = package_designator == LT_NIL
+        ? NULL
+        : package_from_designator(package_designator, 0);
     LT_set_current_package(package);
-    return (LT_Value)(uintptr_t)package;
+    return package == NULL ? LT_NIL : (LT_Value)(uintptr_t)package;
 }
 
 LT_DEFINE_PRIMITIVE(
     primitive_use_package,
     "use-package",
-    "(used-package-designator [nickname-designator])",
+    "(used-package-designator :optional nickname-designator)",
     "Use package in current package, optionally by nickname only."
 ){
     LT_Value cursor = arguments;
@@ -816,12 +956,14 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_equal_p);
     LT_base_env_bind_static_primitive(environment, &primitive_not);
     LT_base_env_bind_static_primitive(environment, &primitive_gensym);
+    LT_base_env_bind_static_primitive(environment, &primitive_sleep);
     LT_base_env_bind_static_primitive(environment, &primitive_null_p);
     LT_base_env_bind_static_primitive(environment, &primitive_boolean_p);
     LT_base_env_bind_static_primitive(environment, &primitive_number_p);
     LT_base_env_bind_static_primitive(environment, &primitive_symbol_p);
     LT_base_env_bind_static_primitive(environment, &primitive_keyword_p);
     LT_base_env_bind_static_primitive(environment, &primitive_symbol_name);
+    LT_base_env_bind_static_primitive(environment, &primitive_function_p);
     LT_base_env_bind_static_primitive(environment, &primitive_primitive_p);
     LT_base_env_bind_static_primitive(environment, &primitive_closure_p);
     LT_base_env_bind_static_primitive(environment, &primitive_macro_p);
@@ -841,8 +983,13 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     );
     LT_base_env_bind_static_primitive(environment, &primitive_slot_set);
     LT_base_env_bind_static_primitive(environment, &primitive_error);
+    LT_base_env_bind_static_primitive(environment, &primitive_current_restarts);
+    LT_base_env_bind_static_primitive(environment, &primitive_find_restart);
+    LT_base_env_bind_static_primitive(environment, &primitive_invoke_restart);
     LT_base_env_bind_static_primitive(environment, &primitive_display);
     LT_base_env_bind_static_primitive(environment, &primitive_read);
+    LT_base_env_bind_static_primitive(environment, &primitive_read_string_as_data);
+    LT_base_env_bind_static_primitive(environment, &primitive_read_file_as_data);
     LT_base_env_bind_static_primitive(environment, &primitive_macroexpand);
     LT_base_env_bind_static_primitive(environment, &primitive_eval);
     LT_base_env_bind_static_primitive(environment, &primitive_apply);
