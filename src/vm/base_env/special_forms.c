@@ -160,6 +160,79 @@ static void validate_optional_parameter(LT_Value parameter){
     );
 }
 
+static LT_Value defaultable_parameter_name_for_compilation(LT_Value parameter){
+    if (LT_Symbol_p(parameter)){
+        return parameter;
+    }
+    if (LT_Pair_p(parameter)){
+        return LT_car(parameter);
+    }
+    return LT_NIL;
+}
+
+static void bind_compiler_parameter_shadow(LT_Environment* environment,
+                                           LT_Value symbol){
+    if (LT_Symbol_p(symbol)){
+        LT_Environment_bind(environment, symbol, LT_NIL, 0);
+    }
+}
+
+static void bind_compiler_parameter_shadows(LT_Environment* environment,
+                                            LT_Value parameters){
+    LT_Value cursor = parameters;
+    int optional_parameters = 0;
+
+    if (LT_Symbol_p(cursor)){
+        bind_compiler_parameter_shadow(environment, cursor);
+        return;
+    }
+
+    while (LT_Pair_p(cursor)){
+        LT_Value parameter = LT_car(cursor);
+
+        if (is_keyword_named_symbol(parameter, "optional")){
+            optional_parameters = 1;
+            cursor = LT_cdr(cursor);
+            continue;
+        }
+
+        if (is_keyword_named_symbol(parameter, "key")){
+            cursor = LT_cdr(cursor);
+            while (LT_Pair_p(cursor)){
+                bind_compiler_parameter_shadow(
+                    environment,
+                    defaultable_parameter_name_for_compilation(LT_car(cursor))
+                );
+                cursor = LT_cdr(cursor);
+            }
+            return;
+        }
+
+        if (is_keyword_named_symbol(parameter, "rest")){
+            LT_Value tail = LT_cdr(cursor);
+            if (LT_Pair_p(tail)){
+                bind_compiler_parameter_shadow(environment, LT_car(tail));
+            }
+            return;
+        }
+
+        if (optional_parameters){
+            bind_compiler_parameter_shadow(
+                environment,
+                defaultable_parameter_name_for_compilation(parameter)
+            );
+        } else {
+            bind_compiler_parameter_shadow(environment, parameter);
+        }
+
+        cursor = LT_cdr(cursor);
+    }
+
+    if (LT_Symbol_p(cursor)){
+        bind_compiler_parameter_shadow(environment, cursor);
+    }
+}
+
 static LT_FoldQuasiquoteResult fold_quasiquote_template(
     LT_Value expression,
     LT_Environment* environment,
@@ -319,7 +392,13 @@ static LT_Value expand_special_form_lambda(LT_Value form,
     }
     if (LT_Pair_p(cursor)){
         parameters = LT_car(cursor);
-        body = fold_argument_list(LT_cdr(cursor), environment);
+        LT_Environment* body_environment = LT_Environment_new(
+            environment,
+            LT_NIL,
+            LT_NIL
+        );
+        bind_compiler_parameter_shadows(body_environment, parameters);
+        body = fold_argument_list(LT_cdr(cursor), body_environment);
     }
 
     return LT_cons(

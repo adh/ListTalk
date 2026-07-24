@@ -1399,6 +1399,103 @@ static int test_closure_explicit_documentation_constructor(void){
     return failed;
 }
 
+static int test_closure_compiles_body_at_creation(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value closure = LT_eval(read_one("(lambda () (+ 1 2 3))"), env, NULL);
+    LT_Closure* closure_object;
+    LT_Value compiled_body;
+
+    closure_object = LT_Closure_from_value(closure);
+    compiled_body = LT_Closure_compiled_body(closure_object);
+
+    if (expect(
+        LT_Closure_compilation_epoch_current_p(closure_object),
+        "new closure compilation epoch is current"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Pair_p(compiled_body) && LT_cdr(compiled_body) == LT_NIL,
+        "new closure stores compiled body"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(compiled_body))
+            && LT_SmallInteger_value(LT_car(compiled_body)) == 6,
+        "new closure body is folded at creation"
+    );
+}
+
+static int test_closure_recompiles_when_compilation_epoch_changes(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value symbol = LT_Symbol_new("closure-epoch-constant");
+    LT_Value closure;
+    LT_Closure* closure_object;
+    LT_Value result;
+
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(1),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    closure = LT_eval(read_one("(lambda () closure-epoch-constant)"), env, NULL);
+    closure_object = LT_Closure_from_value(closure);
+
+    if (expect(
+        LT_Closure_compilation_epoch_current_p(closure_object),
+        "closure compiled at current epoch before redefinition"
+    )){
+        return 1;
+    }
+
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(2),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    if (expect(
+        !LT_Closure_compilation_epoch_current_p(closure_object),
+        "constant redefinition makes closure compiled body stale"
+    )){
+        return 1;
+    }
+
+    result = LT_apply(closure, LT_NIL, LT_NIL, LT_NIL, NULL);
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 2,
+        "closure application recompiles stale compiled body"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Closure_compilation_epoch_current_p(closure_object),
+        "closure compilation epoch is current after recompile"
+    );
+}
+
+static int test_closure_compilation_shadows_parameters(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    result = LT_eval(read_one("((lambda (cond length) (list cond length)) 11 22)"), env, NULL);
+    if (expect(
+        LT_Pair_p(result)
+            && LT_Value_is_fixnum(LT_car(result))
+            && LT_SmallInteger_value(LT_car(result)) == 11,
+        "closure compilation does not fold parameter named like special form"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(result)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(result))) == 22,
+        "closure compilation does not fold parameter named like global binding"
+    );
+}
+
 static int test_primitive_arguments_falls_back_to_string(void){
     LT_Value primitive = LT_Primitive_new(
         "bad-arguments",
@@ -2170,6 +2267,22 @@ static int test_compiler_fold_impure_primitive_is_not_constant_folded(void){
     return expect(
         LT_Primitive_p(LT_car(folded)),
         "compiler fold resolves impure operator but does not execute it"
+    );
+}
+
+static int test_compiler_fold_primitive_condition_leaves_application(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded = LT_compiler_fold_expression(read_one("(min 1 1+1i)"), env);
+
+    if (expect(
+        LT_ImmutableList_p(folded),
+        "compiler fold leaves pure primitive application when folding signals"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Primitive_p(LT_car(folded)),
+        "compiler fold keeps operator resolved after folding signal"
     );
 }
 
@@ -3585,6 +3698,9 @@ int main(void){
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
     RUN_TEST(test_closure_documentation_from_docstring);
     RUN_TEST(test_closure_explicit_documentation_constructor);
+    RUN_TEST(test_closure_compiles_body_at_creation);
+    RUN_TEST(test_closure_recompiles_when_compilation_epoch_changes);
+    RUN_TEST(test_closure_compilation_shadows_parameters);
     RUN_TEST(test_primitive_arguments_falls_back_to_string);
     RUN_TEST(test_primitive_documentation_returns_description_string);
     RUN_TEST(test_restart_c_api_and_listtalk_accessors);
@@ -3606,6 +3722,7 @@ int main(void){
     RUN_TEST(test_compiler_macroexpand_preserves_expansion_chain);
     RUN_TEST(test_compiler_fold_pure_primitive_constant_folds);
     RUN_TEST(test_compiler_fold_impure_primitive_is_not_constant_folded);
+    RUN_TEST(test_compiler_fold_primitive_condition_leaves_application);
     RUN_TEST(test_compiler_fold_quasiquote_folds_unquote_expression);
     RUN_TEST(test_compiler_fold_quasiquote_preserves_nested_unquote_depth);
     RUN_TEST(test_macroexpand_special_form);
