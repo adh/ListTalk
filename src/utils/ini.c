@@ -121,8 +121,6 @@ static LT_INISection* ini_get_section(LT_INI* ini, const char* name){
 }
 
 static void ini_put(INIParser* parser, char* key, char* value){
-    void* previous = NULL;
-
     if (parser->section == NULL){
         if ((parser->flags & LT_INI_ALLOW_GLOBAL_KEYS) == 0){
             ini_error(parser, "Key/value pair before section");
@@ -137,7 +135,7 @@ static void ini_put(INIParser* parser, char* key, char* value){
         if (parser->duplicate_policy == LT_INI_DUPLICATE_FIRST_WINS){
             return;
         }
-        (void)LT_StringHash_remove(&parser->section->entries, key, &previous);
+        /* LT_INI_DUPLICATE_LAST_WINS: fall through and overwrite */
     }
     LT_StringHash_at_put(&parser->section->entries, key, value);
 }
