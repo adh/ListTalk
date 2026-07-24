@@ -27,6 +27,8 @@ struct LT_INI {
     LT_INISection* last_section;
 };
 
+static char ini_empty_section_name[] = "";
+
 typedef struct {
     const char* source_name;
     const char* bytes;
@@ -110,7 +112,7 @@ static LT_INISection* ini_get_section(LT_INI* ini, char* name){
         return section;
     }
 
-    section = ini_section_new(name == NULL ? LT_strdup("") : name);
+    section = ini_section_new(name == NULL ? ini_empty_section_name : name);
     if (ini->last_section == NULL){
         ini->sections = section;
     } else {
