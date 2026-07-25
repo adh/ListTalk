@@ -10,7 +10,10 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/thread_state.h>
 
+#include <stdatomic.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -352,6 +355,80 @@ static int test_value_asString_c_api_uses_debug_print(void){
         strcmp(LT_String_value_cstr(string), "#true") == 0,
         "LT_Value_asString uses debug printing"
     );
+}
+
+static int test_eval_runs_pending_signal_closure(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_ThreadState* state = LT_thread_state();
+    LT_Value signal;
+    LT_Value result;
+    LT_Value count;
+    int failed = 0;
+
+    (void)LT_eval(read_one("(define pending-signal-count 0)"), env, NULL);
+    signal = LT_eval(
+        read_one("(lambda () (set! pending-signal-count (+ pending-signal-count 1)))"),
+        env,
+        NULL
+    );
+
+    atomic_store_explicit(
+        &state->pending_signal,
+        signal,
+        memory_order_release
+    );
+
+    result = LT_eval(read_one("42"), env, NULL);
+    count = LT_eval(read_one("pending-signal-count"), env, NULL);
+
+    failed += expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "LT_eval returns original expression result after pending signal"
+    );
+    failed += expect(
+        LT_Value_is_fixnum(count) && LT_SmallInteger_value(count) == 1,
+        "LT_eval runs pending signal closure once"
+    );
+    failed += expect(
+        atomic_load_explicit(&state->pending_signal, memory_order_acquire)
+            == LT_INVALID,
+        "LT_eval clears pending signal before running closure"
+    );
+
+    return failed;
+}
+
+static int test_register_posix_signal_schedules_pending_signal(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value signal;
+    LT_Value result;
+    LT_Value count;
+    int failed = 0;
+
+    (void)LT_eval(read_one("(define posix-signal-count 0)"), env, NULL);
+    signal = LT_eval(
+        read_one("(lambda () (set! posix-signal-count (+ posix-signal-count 1)))"),
+        env,
+        NULL
+    );
+
+    LT_register_posix_signal(SIGUSR1, signal);
+    raise(SIGUSR1);
+
+    result = LT_eval(read_one("42"), env, NULL);
+    count = LT_eval(read_one("posix-signal-count"), env, NULL);
+    LT_unregister_posix_signal(SIGUSR1);
+
+    failed += expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "LT_eval returns original expression result after POSIX signal"
+    );
+    failed += expect(
+        LT_Value_is_fixnum(count) && LT_SmallInteger_value(count) == 1,
+        "registered POSIX signal runs callable at eval checkpoint"
+    );
+
+    return failed;
 }
 
 static int test_send_primitive_uses_direct_method_dictionary(void){
@@ -3437,6 +3514,68 @@ static int test_thread_join_returns_result_to_concurrent_joiners(void){
     return failed;
 }
 
+static int test_thread_signal_returns_queue_status(void){
+    struct blocking_thread_callable_state state = {
+        .mutex = PTHREAD_MUTEX_INITIALIZER,
+        .cond = PTHREAD_COND_INITIALIZER,
+        .started = 0,
+        .release = 0,
+    };
+    LT_Value callable =
+        LT_Primitive_from_static(&primitive_blocking_thread_callable);
+    LT_Value signal_callable = LT_Primitive_new(
+        "thread-signal-test-noop",
+        "()",
+        "Test helper queued as asynchronous thread signal.",
+        primitive_test_noop_impl
+    );
+    LT_Thread* thread;
+    LT_Value thread_value;
+    LT_Value first_signal;
+    LT_Value second_signal;
+    LT_Value joined;
+    int failed = 0;
+
+    blocking_thread_callable_state = &state;
+    thread = LT_Thread_new(callable, "signal-target-thread");
+    thread_value = (LT_Value)(uintptr_t)thread;
+
+    pthread_mutex_lock(&state.mutex);
+    while (!state.started){
+        pthread_cond_wait(&state.cond, &state.mutex);
+    }
+    pthread_mutex_unlock(&state.mutex);
+
+    first_signal = LT_SEND(thread_value, "signal:", signal_callable);
+    second_signal = LT_SEND(thread_value, "signal:", signal_callable);
+    failed += expect(
+        first_signal == LT_TRUE,
+        "Thread>>signal: returns true when signal is queued"
+    );
+    failed += expect(
+        second_signal == LT_FALSE,
+        "Thread>>signal: returns false when signal is already pending"
+    );
+
+    pthread_mutex_lock(&state.mutex);
+    state.release = 1;
+    pthread_cond_broadcast(&state.cond);
+    pthread_mutex_unlock(&state.mutex);
+
+    joined = LT_Thread_join(thread);
+    failed += expect(
+        LT_Value_is_fixnum(joined) && LT_SmallInteger_value(joined) == 1234,
+        "Thread>>signal: test thread still returns normal result"
+    );
+    failed += expect(
+        !LT_Thread_signal(thread, signal_callable),
+        "LT_Thread_signal returns false after target thread finishes"
+    );
+
+    blocking_thread_callable_state = NULL;
+    return failed;
+}
+
 static int test_dynamic_variable_c_api_uses_thread_local_values(void){
     LT_DynamicVariable* variable =
         LT_DynamicVariable_new(LT_SmallInteger_new(10));
@@ -3485,6 +3624,8 @@ int main(void){
     RUN_TEST(test_send_site_macros_c_api);
     RUN_TEST(test_apply_varargs_c_api);
     RUN_TEST(test_value_asString_c_api_uses_debug_print);
+    RUN_TEST(test_eval_runs_pending_signal_closure);
+    RUN_TEST(test_register_posix_signal_schedules_pending_signal);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
@@ -3561,6 +3702,7 @@ int main(void){
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);
     RUN_TEST(test_thread_join_returns_result_to_concurrent_joiners);
+    RUN_TEST(test_thread_signal_returns_queue_status);
     RUN_TEST(test_dynamic_variable_c_api_uses_thread_local_values);
 
 #undef RUN_TEST

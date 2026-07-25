@@ -5,12 +5,16 @@
 
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/Class.h>
+#include <ListTalk/vm/conditions.h>
+#include <ListTalk/vm/thread_state.h>
 
+#include <signal.h>
 #include <stddef.h>
 #include <stdarg.h>
 #include <string.h>
@@ -27,6 +31,10 @@ struct LT_Warning_s {
 
 struct LT_Error_s {
     LT_Condition base;
+};
+
+struct LT_KeyboardInterrupt_s {
+    LT_Error base;
 };
 
 struct LT_SubclassResponsibilityError_s {
@@ -121,6 +129,15 @@ LT_DEFINE_CLASS(LT_Error) {
     .name = "Error",
     .documentation = "Fatal condition reported to handlers.",
     .instance_size = sizeof(LT_Error),
+    .debugPrintOn = Condition_debugPrintOn,
+};
+
+LT_DEFINE_CLASS(LT_KeyboardInterrupt) {
+    .superclass = &LT_Error_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "KeyboardInterrupt",
+    .documentation = "Error signaled when keyboard interrupt is requested.",
+    .instance_size = sizeof(LT_KeyboardInterrupt),
     .debugPrintOn = Condition_debugPrintOn,
 };
 
@@ -244,6 +261,16 @@ LT_Value LT_Error_impl(const char* message, ...){
     return result;
 }
 
+LT_Value LT_KeyboardInterrupt_impl(const char* message, ...){
+    LT_Value result;
+    va_list args;
+
+    va_start(args, message);
+    result = LT_Condition_vnew(&LT_KeyboardInterrupt_class, message, args);
+    va_end(args);
+    return result;
+}
+
 LT_Value LT_SubclassResponsibilityError_impl(const char* message, ...){
     LT_Value result;
     va_list args;
@@ -256,4 +283,32 @@ LT_Value LT_SubclassResponsibilityError_impl(const char* message, ...){
     );
     va_end(args);
     return result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_keyboard_interrupt_signal,
+    "keyboard-interrupt-signal",
+    "()",
+    "Signal KeyboardInterrupt."
+){
+    (void)arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_signal(LT_KeyboardInterrupt("Keyboard interrupt"));
+    return LT_NIL;
+}
+
+void LT_enable_KeyboardInterrupt(void)
+{
+    LT_register_posix_signal(
+        SIGINT,
+        LT_Primitive_from_static(&primitive_keyboard_interrupt_signal)
+    );
+}
+
+void LT_disable_KeyboardInterrupt(void)
+{
+    LT_unregister_posix_signal(SIGINT);
 }
