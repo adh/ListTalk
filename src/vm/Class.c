@@ -19,6 +19,7 @@
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
 
+#include <stdatomic.h>
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdlib.h>
@@ -29,6 +30,12 @@ static LT_Value object_slot_ref(LT_Class_Slot* slot, LT_Value object){
         (uint8_t*)LT_VALUE_POINTER_VALUE(object) + slot->offset
     );
     return *val;
+}
+static LT_Value atomic_object_slot_ref(LT_Class_Slot* slot, LT_Value object){
+    _Atomic(LT_Value)* val = (_Atomic(LT_Value)*)(
+        (uint8_t*)LT_VALUE_POINTER_VALUE(object) + slot->offset
+    );
+    return atomic_load_explicit(val, memory_order_acquire);
 }
 static void object_slot_set(LT_Class_Slot* slot, LT_Value object, LT_Value value){
     LT_Value* val = (LT_Value*)(
@@ -51,6 +58,10 @@ LT_SlotType LT_SlotType_Object = {
 };
 LT_SlotType LT_SlotType_ReadonlyObject = {
     .ref = object_slot_ref,
+    .set = readonly_object_slot_set,
+};
+LT_SlotType LT_SlotType_ReadonlyAtomicObject = {
+    .ref = atomic_object_slot_ref,
     .set = readonly_object_slot_set,
 };
 

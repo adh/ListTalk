@@ -34,7 +34,7 @@ static LT_Slot_Descriptor Closure_slots[] = {
     {"name", offsetof(LT_Closure, name), &LT_SlotType_ReadonlyObject},
     {"parameters", offsetof(LT_Closure, parameters), &LT_SlotType_ReadonlyObject},
     {"body", offsetof(LT_Closure, body), &LT_SlotType_ReadonlyObject},
-    {"compiled-body", offsetof(LT_Closure, compiled_body), &LT_SlotType_ReadonlyObject},
+    {"compiled-body", offsetof(LT_Closure, compiled_body), &LT_SlotType_ReadonlyAtomicObject},
     {"documentation", offsetof(LT_Closure, documentation), &LT_SlotType_ReadonlyObject},
     {"environment", offsetof(LT_Closure, environment), &LT_SlotType_ReadonlyObject},
     LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
