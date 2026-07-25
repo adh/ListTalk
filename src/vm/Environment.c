@@ -195,12 +195,14 @@ void LT_Environment_bind(LT_Environment* environment,
     if (binding == NULL){
         binding = GC_NEW(struct LT_Environment_Binding);
         LT_PointerHash_at_put(&environment->bindings, symbol_key, binding);
-    } else if ((binding->flags & LT_ENV_BINDING_FLAG_CONSTANT) != 0){
-        LT_compilation_epoch_increment();
     }
 
     binding->value = value;
     binding->flags = flags;
+
+    if ((binding->flags & LT_ENV_BINDING_FLAG_CONSTANT) != 0){
+        LT_compilation_epoch_increment();
+    }
 }
 
 int LT_Environment_lookup(LT_Environment* environment,
