@@ -732,11 +732,11 @@ void LT_init_native_class(LT_Class* klass){
     LT_init_native_class(&LT_IdentityDictionary_class);
     klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
-    LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
-    klass->documentation =
-        materialize_documentation(klass, descriptor->documentation);
-    klass->superclasses = make_single_superclass_list(descriptor->superclass);
-    invalidate_inline_caches();
+klass->documentation =
+    materialize_documentation(klass, descriptor->documentation);
+klass->superclasses = make_single_superclass_list(descriptor->superclass);
+invalidate_inline_caches();
+LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
     klass->precedence_list = make_single_inheritance_precedence_list(
         klass,
         descriptor->superclass
