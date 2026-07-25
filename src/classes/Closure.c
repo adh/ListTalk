@@ -24,7 +24,7 @@ struct LT_Closure_s {
     LT_Value name;
     LT_Value parameters;
     LT_Value body;
-    LT_Value compiled_body;
+_Atomic(LT_Value) compiled_body;
     LT_EpochCounter compilation_epoch;
     LT_Value documentation;
     LT_Environment* environment;
