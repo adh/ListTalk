@@ -29,6 +29,15 @@
   (check (equal? [[decoded at: "section"] at: "key"] "first")
          "INIReader supports first-wins duplicate policy"))
 
+(let* ((reader [ListTalk-INI:INIReader new])
+       (decoded #nil))
+  [reader duplicatePolicy: :collect-values]
+  (set! decoded [reader read: "[section]\nkey = first\nkey = second\nother = only\n"])
+  (check (equal? [[decoded at: "section"] at: "key"] (list "first" "second"))
+         "INIReader supports collect-values duplicate policy")
+  (check (equal? [[decoded at: "section"] at: "other"] (list "only"))
+         "INIReader collect-values returns lists for single values"))
+
 (let ((reader [ListTalk-INI:INIReader new]))
   [reader allowEmptyValues?: #false]
   (check-raises "INIReader rejects empty values when disabled"

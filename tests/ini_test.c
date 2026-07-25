@@ -5,6 +5,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Dictionary.h>
+#include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/utils/ini.h>
 
@@ -80,6 +81,47 @@ static int test_duplicate_first_wins(void){
     return expect(strcmp(value, "old") == 0, "first duplicate wins");
 }
 
+static int test_duplicate_collect_values(void){
+    const char* value = NULL;
+    LT_Value values;
+    LT_INI* ini = LT_INI_parseBytes(
+        "test.ini",
+        "[section]\nkey = first\nkey = second\nother = only\n",
+        strlen("[section]\nkey = first\nkey = second\nother = only\n"),
+        0,
+        LT_INI_DUPLICATE_COLLECT_VALUES
+    );
+
+    if (expect(LT_INI_at(ini, "section", "key", &value), "collect lookup")){
+        return 1;
+    }
+    if (expect(strcmp(value, "first") == 0, "collect lookup returns first value")){
+        return 1;
+    }
+
+    values = LT_INI_valuesAt(ini, "section", "key");
+    if (expect(LT_Pair_p(values), "collect values first pair")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(LT_car(values))), "first") == 0,
+        "collect values first value"
+    )){
+        return 1;
+    }
+    values = LT_cdr(values);
+    if (expect(LT_Pair_p(values), "collect values second pair")){
+        return 1;
+    }
+    if (expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(LT_car(values))), "second") == 0,
+        "collect values second value"
+    )){
+        return 1;
+    }
+    return expect(LT_cdr(values) == LT_NIL, "collect values terminates");
+}
+
 static int test_dictionary_conversion(void){
     LT_INI* ini = LT_INI_parseBytes(
         "test.ini",
@@ -119,6 +161,61 @@ static int test_dictionary_conversion(void){
     );
 }
 
+static int test_collect_dictionary_conversion(void){
+    LT_INI* ini = LT_INI_parseBytes(
+        "test.ini",
+        "[section]\nkey = first\nkey = second\nother = only\n",
+        strlen("[section]\nkey = first\nkey = second\nother = only\n"),
+        0,
+        LT_INI_DUPLICATE_COLLECT_VALUES
+    );
+    LT_Dictionary* dictionary = LT_Dictionary_from_value(LT_INI_asDictionary(ini));
+    LT_Value section_value = LT_NIL;
+    LT_Value values = LT_NIL;
+    LT_Value other_values = LT_NIL;
+
+    if (expect(
+        LT_Dictionary_at(
+            dictionary,
+            (LT_Value)(uintptr_t)LT_String_new_cstr("section"),
+            &section_value
+        ),
+        "collect dictionary has section"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Dictionary_at(
+            LT_Dictionary_from_value(section_value),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("key"),
+            &values
+        ),
+        "collect dictionary has key"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Dictionary_at(
+            LT_Dictionary_from_value(section_value),
+            (LT_Value)(uintptr_t)LT_String_new_cstr("other"),
+            &other_values
+        ),
+        "collect dictionary has single key"
+    )){
+        return 1;
+    }
+    if (expect(LT_Pair_p(values), "collected duplicate dictionary value is list")){
+        return 1;
+    }
+    if (expect(LT_Pair_p(other_values), "collected single dictionary value is list")){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(LT_String_from_value(LT_car(other_values))), "only") == 0,
+        "collected single dictionary value content"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -127,7 +224,9 @@ int main(void){
     failures += test_lookup();
     failures += test_duplicate_last_wins();
     failures += test_duplicate_first_wins();
+    failures += test_duplicate_collect_values();
     failures += test_dictionary_conversion();
+    failures += test_collect_dictionary_conversion();
 
     if (failures){
         return 1;

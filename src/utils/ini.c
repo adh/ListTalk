@@ -15,6 +15,18 @@
 #include <string.h>
 
 typedef struct LT_INISection LT_INISection;
+typedef struct LT_INIEntry LT_INIEntry;
+typedef struct LT_INIEntryValue LT_INIEntryValue;
+
+struct LT_INIEntryValue {
+    char* value;
+    LT_INIEntryValue* next;
+};
+
+struct LT_INIEntry {
+    LT_INIEntryValue* values;
+    LT_INIEntryValue* last_value;
+};
 
 struct LT_INISection {
     char* name;
@@ -23,6 +35,7 @@ struct LT_INISection {
 };
 
 struct LT_INI {
+    int duplicate_policy;
     LT_INISection* sections;
     LT_INISection* last_section;
 };
@@ -74,9 +87,36 @@ static const char* trim_right(const char* start, const char* end){
     return end;
 }
 
-static LT_INI* ini_new(void){
+static LT_INIEntryValue* ini_entry_value_new(char* value){
+    LT_INIEntryValue* entry_value = GC_NEW(LT_INIEntryValue);
+
+    entry_value->value = value;
+    entry_value->next = NULL;
+    return entry_value;
+}
+
+static LT_INIEntry* ini_entry_new(char* value){
+    LT_INIEntry* entry = GC_NEW(LT_INIEntry);
+
+    entry->values = ini_entry_value_new(value);
+    entry->last_value = entry->values;
+    return entry;
+}
+
+static void ini_entry_set_value(LT_INIEntry* entry, char* value){
+    entry->values = ini_entry_value_new(value);
+    entry->last_value = entry->values;
+}
+
+static void ini_entry_append_value(LT_INIEntry* entry, char* value){
+    entry->last_value->next = ini_entry_value_new(value);
+    entry->last_value = entry->last_value->next;
+}
+
+static LT_INI* ini_new(int duplicate_policy){
     LT_INI* ini = GC_NEW(LT_INI);
 
+    ini->duplicate_policy = duplicate_policy;
     ini->sections = NULL;
     ini->last_section = NULL;
     return ini;
@@ -123,6 +163,8 @@ static LT_INISection* ini_get_section(LT_INI* ini, char* name){
 }
 
 static void ini_put(INIParser* parser, char* key, char* value){
+    LT_INIEntry* entry;
+
     if (parser->section == NULL){
         if ((parser->flags & LT_INI_ALLOW_GLOBAL_KEYS) == 0){
             ini_error(parser, "Key/value pair before section");
@@ -130,16 +172,22 @@ static void ini_put(INIParser* parser, char* key, char* value){
         parser->section = ini_get_section(parser->ini, NULL);
     }
 
-    if (LT_StringHash_at(&parser->section->entries, key) != NULL){
+    entry = LT_StringHash_at(&parser->section->entries, key);
+    if (entry != NULL){
         if (parser->duplicate_policy == LT_INI_DUPLICATE_ERROR){
             ini_error(parser, "Duplicate INI key");
         }
         if (parser->duplicate_policy == LT_INI_DUPLICATE_FIRST_WINS){
             return;
         }
-        /* LT_INI_DUPLICATE_LAST_WINS: fall through and overwrite */
+        if (parser->duplicate_policy == LT_INI_DUPLICATE_COLLECT_VALUES){
+            ini_entry_append_value(entry, value);
+            return;
+        }
+        ini_entry_set_value(entry, value);
+        return;
     }
-    LT_StringHash_at_put(&parser->section->entries, key, value);
+    LT_StringHash_at_put(&parser->section->entries, key, ini_entry_new(value));
 }
 
 static void ini_parse_section(INIParser* parser, const char* start, const char* end){
@@ -226,7 +274,8 @@ LT_INI* LT_INI_parseBytes(
 
     if (duplicate_policy != LT_INI_DUPLICATE_LAST_WINS
         && duplicate_policy != LT_INI_DUPLICATE_FIRST_WINS
-        && duplicate_policy != LT_INI_DUPLICATE_ERROR){
+        && duplicate_policy != LT_INI_DUPLICATE_ERROR
+        && duplicate_policy != LT_INI_DUPLICATE_COLLECT_VALUES){
         LT_error("Invalid INI duplicate policy");
     }
 
@@ -237,7 +286,7 @@ LT_INI* LT_INI_parseBytes(
     parser.flags = flags;
     parser.duplicate_policy = duplicate_policy;
     parser.line = 1;
-    parser.ini = ini_new();
+    parser.ini = ini_new(duplicate_policy);
     parser.section = NULL;
 
     while (parser.cursor < parser.end){
@@ -323,23 +372,52 @@ int LT_INI_at(
     const char** value_out
 ){
     LT_INISection* section = ini_find_section(ini, section_name);
-    char* value;
+    LT_INIEntry* entry;
 
     if (section == NULL){
         return 0;
     }
 
-    value = LT_StringHash_at(&section->entries, (char*)key);
-    if (value == NULL){
+    entry = LT_StringHash_at(&section->entries, (char*)key);
+    if (entry == NULL){
         return 0;
     }
     if (value_out != NULL){
-        *value_out = value;
+        *value_out = entry->values->value;
     }
     return 1;
 }
 
-static LT_Dictionary* ini_section_as_dictionary(LT_INISection* section){
+static LT_Value ini_entry_value_list(LT_INIEntry* entry){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_INIEntryValue* value = entry->values;
+
+    while (value != NULL){
+        LT_ListBuilder_append(
+            builder,
+            (LT_Value)(uintptr_t)LT_String_new_cstr(value->value)
+        );
+        value = value->next;
+    }
+    return LT_ListBuilder_value(builder);
+}
+
+LT_Value LT_INI_valuesAt(LT_INI* ini, const char* section_name, const char* key){
+    LT_INISection* section = ini_find_section(ini, section_name);
+    LT_INIEntry* entry;
+
+    if (section == NULL){
+        return LT_NIL;
+    }
+
+    entry = LT_StringHash_at(&section->entries, (char*)key);
+    if (entry == NULL){
+        return LT_NIL;
+    }
+    return ini_entry_value_list(entry);
+}
+
+static LT_Dictionary* ini_section_as_dictionary(LT_INI* ini, LT_INISection* section){
     LT_Dictionary* dictionary = LT_Dictionary_new();
     LT_InlineHash* table = &section->entries;
     size_t i;
@@ -349,10 +427,15 @@ static LT_Dictionary* ini_section_as_dictionary(LT_INISection* section){
         LT_InlineHash_Entry* entry = table->vector[i];
 
         while (entry != NULL){
+            LT_INIEntry* ini_entry = entry->value;
+            LT_Value value = ini->duplicate_policy == LT_INI_DUPLICATE_COLLECT_VALUES
+                ? ini_entry_value_list(ini_entry)
+                : (LT_Value)(uintptr_t)LT_String_new_cstr(ini_entry->values->value);
+
             LT_Dictionary_atPut(
                 dictionary,
                 (LT_Value)(uintptr_t)LT_String_new_cstr(entry->key),
-                (LT_Value)(uintptr_t)LT_String_new_cstr(entry->value)
+                value
             );
             entry = entry->next;
         }
@@ -369,7 +452,7 @@ LT_Value LT_INI_asDictionary(LT_INI* ini){
         LT_Dictionary_atPut(
             dictionary,
             (LT_Value)(uintptr_t)LT_String_new_cstr(section->name),
-            (LT_Value)(uintptr_t)ini_section_as_dictionary(section)
+            (LT_Value)(uintptr_t)ini_section_as_dictionary(ini, section)
         );
         section = section->next;
     }
@@ -396,5 +479,5 @@ LT_Value LT_INI_sectionAsDictionary(LT_INI* ini, const char* section_name){
     if (section == NULL){
         return LT_NIL;
     }
-    return (LT_Value)(uintptr_t)ini_section_as_dictionary(section);
+    return (LT_Value)(uintptr_t)ini_section_as_dictionary(ini, section);
 }

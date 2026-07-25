@@ -19,6 +19,7 @@ typedef struct LT_INI LT_INI;
 #define LT_INI_DUPLICATE_LAST_WINS 0
 #define LT_INI_DUPLICATE_FIRST_WINS 1
 #define LT_INI_DUPLICATE_ERROR 2
+#define LT_INI_DUPLICATE_COLLECT_VALUES 3
 
 #define LT_INI_ALLOW_GLOBAL_KEYS 0x01
 #define LT_INI_ALLOW_EMPTY_VALUES 0x02
@@ -50,6 +51,7 @@ int LT_INI_at(
     const char* key,
     const char** value_out
 );
+LT_Value LT_INI_valuesAt(LT_INI* ini, const char* section, const char* key);
 
 LT_Value LT_INI_asDictionary(LT_INI* ini);
 LT_Value LT_INI_sectionNames(LT_INI* ini);

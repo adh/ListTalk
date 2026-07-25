@@ -59,6 +59,9 @@ static int ini_reader_duplicate_policy(LT_INIReader* reader){
     if (ini_keyword_p(reader->duplicate_policy, "error")){
         return LT_INI_DUPLICATE_ERROR;
     }
+    if (ini_keyword_p(reader->duplicate_policy, "collect-values")){
+        return LT_INI_DUPLICATE_COLLECT_VALUES;
+    }
     LT_error("Invalid INI duplicate policy");
     return LT_INI_DUPLICATE_LAST_WINS;
 }
@@ -238,7 +241,7 @@ LT_DEFINE_PRIMITIVE(
     ini_reader_method_duplicate_policy_set,
     "INIReader>>duplicatePolicy:",
     "(self policy)",
-    "Set duplicate key policy to :last-wins, :first-wins, or :error."
+    "Set duplicate key policy to :last-wins, :first-wins, :error, or :collect-values."
 ){
     LT_Value cursor = arguments;
     LT_INIReader* self;
@@ -252,7 +255,8 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
     if (!ini_keyword_p(policy, "last-wins")
         && !ini_keyword_p(policy, "first-wins")
-        && !ini_keyword_p(policy, "error")){
+        && !ini_keyword_p(policy, "error")
+        && !ini_keyword_p(policy, "collect-values")){
         LT_error("Invalid INI duplicate policy");
     }
     self->duplicate_policy = policy;
