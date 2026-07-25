@@ -192,6 +192,9 @@ void LT_Environment_bind(LT_Environment* environment,
     symbol_key = environment_symbol_key(symbol);
     binding = LT_PointerHash_at(&environment->bindings, symbol_key);
 
+    int was_constant = (binding != NULL) &&
+        ((binding->flags & LT_ENV_BINDING_FLAG_CONSTANT) != 0);
+
     if (binding == NULL){
         binding = GC_NEW(struct LT_Environment_Binding);
         LT_PointerHash_at_put(&environment->bindings, symbol_key, binding);
@@ -200,7 +203,7 @@ void LT_Environment_bind(LT_Environment* environment,
     binding->value = value;
     binding->flags = flags;
 
-    if ((binding->flags & LT_ENV_BINDING_FLAG_CONSTANT) != 0){
+    if (was_constant){
         LT_compilation_epoch_increment();
     }
 }
