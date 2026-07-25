@@ -13,6 +13,7 @@
 #include <ListTalk/vm/thread_state.h>
 
 #include <stdatomic.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -392,6 +393,39 @@ static int test_eval_runs_pending_signal_closure(void){
         atomic_load_explicit(&state->pending_signal, memory_order_acquire)
             == LT_INVALID,
         "LT_eval clears pending signal before running closure"
+    );
+
+    return failed;
+}
+
+static int test_register_posix_signal_schedules_pending_signal(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value signal;
+    LT_Value result;
+    LT_Value count;
+    int failed = 0;
+
+    (void)LT_eval(read_one("(define posix-signal-count 0)"), env, NULL);
+    signal = LT_eval(
+        read_one("(lambda () (set! posix-signal-count (+ posix-signal-count 1)))"),
+        env,
+        NULL
+    );
+
+    LT_register_posix_signal(SIGUSR1, signal);
+    raise(SIGUSR1);
+
+    result = LT_eval(read_one("42"), env, NULL);
+    count = LT_eval(read_one("posix-signal-count"), env, NULL);
+    LT_unregister_posix_signal(SIGUSR1);
+
+    failed += expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "LT_eval returns original expression result after POSIX signal"
+    );
+    failed += expect(
+        LT_Value_is_fixnum(count) && LT_SmallInteger_value(count) == 1,
+        "registered POSIX signal runs callable at eval checkpoint"
     );
 
     return failed;
@@ -3529,6 +3563,7 @@ int main(void){
     RUN_TEST(test_apply_varargs_c_api);
     RUN_TEST(test_value_asString_c_api_uses_debug_print);
     RUN_TEST(test_eval_runs_pending_signal_closure);
+    RUN_TEST(test_register_posix_signal_schedules_pending_signal);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);

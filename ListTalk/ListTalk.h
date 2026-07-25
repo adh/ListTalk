@@ -167,6 +167,9 @@ extern LT_Value LT_super_send(
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 
+extern void LT_register_posix_signal(int signal_number, LT_Value callable);
+extern void LT_unregister_posix_signal(int signal_number);
+
 LT__END_DECLS
 
 #endif
