@@ -1,0 +1,58 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(define-class MessageSendCounter (Object) (value))
+
+(define-method [[MessageSendCounter class] startingAt: value]
+  (let ((counter [self alloc]))
+    (slot-set! counter 'value value)
+    counter))
+
+(define-method [MessageSendCounter value]
+  (%self-slot value))
+
+(define-method [MessageSendCounter increment]
+  (set! (%self-slot value) (+ (%self-slot value) 1))
+  (%self-slot value))
+
+(define-method [MessageSendCounter add: amount]
+  (set! (%self-slot value) (+ (%self-slot value) amount))
+  (%self-slot value))
+
+(define-method [MessageSendCounter incrementSelf]
+  (set! (%self-slot value) (+ (%self-slot value) 1))
+  self)
+
+(define (message-send:unary-loop count counter)
+  (let loop ((remaining count)
+             (result 0))
+    (if (= remaining 0)
+        result
+        (loop (- remaining 1) [counter increment]))))
+
+(define (message-send:keyword-loop count counter)
+  (let loop ((remaining count)
+             (result 0))
+    (if (= remaining 0)
+        result
+        (loop (- remaining 1) [counter add: 1]))))
+
+(define (message-send:chained-loop count counter)
+  (let loop ((remaining count))
+    (if (= remaining 0)
+        [counter value]
+        (begin
+          [[[counter incrementSelf] incrementSelf] incrementSelf]
+          (loop (- remaining 1))))))
+
+(benchmark:println "benchmark\titerations\tmicroseconds\tresult")
+(benchmark:run "send-unary-hot" 20
+  (lambda ()
+    (message-send:unary-loop 100000 [MessageSendCounter startingAt: 0])))
+(benchmark:run "send-keyword-hot" 20
+  (lambda ()
+    (message-send:keyword-loop 100000 [MessageSendCounter startingAt: 0])))
+(benchmark:run "send-chained-self" 20
+  (lambda ()
+    (message-send:chained-loop 50000 [MessageSendCounter startingAt: 0])))
