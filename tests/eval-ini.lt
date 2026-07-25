@@ -42,4 +42,14 @@
   [reader allowEmptyValues?: #false]
   (check-raises "INIReader rejects empty values when disabled"
     [reader read: "[section]\nkey = \n"]))
+
+(let ((reader [ListTalk-INI:INIReader new]))
+  [reader allowGlobalKeys?: #false]
+  (check-raises "INIReader rejects global keys when disabled"
+    [reader read: "root = yes\n[section]\nkey = value\n"]))
+
+(let ((reader [ListTalk-INI:INIReader new]))
+  [reader duplicatePolicy: :error]
+  (check-raises "INIReader rejects duplicate keys when policy is :error"
+    [reader read: "[section]\nkey = first\nkey = second\n"]))
 )
