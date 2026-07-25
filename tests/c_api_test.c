@@ -10,6 +10,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/epoch.h>
 #include <ListTalk/vm/thread_state.h>
 
 #include <stdatomic.h>
@@ -669,6 +670,71 @@ static int test_class_add_method_invalidates_method_cache(void){
         LT_Symbol_p(result)
             && strcmp(LT_Symbol_name(LT_Symbol_from_value(result)), "PairOverride") == 0,
         "LT_Class_addMethod invalidates stale method cache entries"
+    );
+}
+
+static int test_class_add_method_increments_ilc_epoch(void){
+    LT_EpochCounter before = 0;
+    LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "epoch-test-method");
+
+    LT_ilc_epoch_copy_acquire_release(&before);
+    LT_Class_addMethod(
+        &LT_Object_class,
+        selector,
+        LT_Primitive_from_static(&primitive_test_object_class_name_method)
+    );
+
+    return expect(
+        !LT_ilc_epoch_equals_acquire(&before),
+        "LT_Class_addMethod increments inline-cache epoch"
+    );
+}
+
+static int test_class_new_increments_ilc_epoch(void){
+    LT_EpochCounter before = 0;
+    LT_Value name = LT_Symbol_new("EpochTestClass");
+    LT_Value superclasses = LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID);
+
+    LT_ilc_epoch_copy_acquire_release(&before);
+    (void)LT_Class_new(name, superclasses, LT_NIL);
+
+    return expect(
+        !LT_ilc_epoch_equals_acquire(&before),
+        "LT_Class_new increments inline-cache epoch for class hierarchy changes"
+    );
+}
+
+static int test_constant_redefinition_increments_compilation_epoch(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value symbol = LT_Symbol_new("epoch-constant");
+    LT_EpochCounter before_define = 0;
+    LT_EpochCounter before_redefine = 0;
+
+    LT_compilation_epoch_copy_acquire_release(&before_define);
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(1),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    if (expect(
+        LT_compilation_epoch_equals_acquire(&before_define),
+        "new constant binding does not increment compilation epoch"
+    )){
+        return 1;
+    }
+
+    LT_compilation_epoch_copy_acquire_release(&before_redefine);
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(2),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+
+    return expect(
+        !LT_compilation_epoch_equals_acquire(&before_redefine),
+        "forced constant binding redefinition increments compilation epoch"
     );
 }
 
@@ -1408,6 +1474,103 @@ static int test_closure_explicit_documentation_constructor(void){
         "explicit Closure constructor preserves body"
     );
     return failed;
+}
+
+static int test_closure_compiles_body_at_creation(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value closure = LT_eval(read_one("(lambda () (+ 1 2 3))"), env, NULL);
+    LT_Closure* closure_object;
+    LT_Value compiled_body;
+
+    closure_object = LT_Closure_from_value(closure);
+    compiled_body = LT_Closure_compiled_body(closure_object);
+
+    if (expect(
+        LT_Closure_compilation_epoch_current_p(closure_object),
+        "new closure compilation epoch is current"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Pair_p(compiled_body) && LT_cdr(compiled_body) == LT_NIL,
+        "new closure stores compiled body"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(compiled_body))
+            && LT_SmallInteger_value(LT_car(compiled_body)) == 6,
+        "new closure body is folded at creation"
+    );
+}
+
+static int test_closure_recompiles_when_compilation_epoch_changes(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value symbol = LT_Symbol_new("closure-epoch-constant");
+    LT_Value closure;
+    LT_Closure* closure_object;
+    LT_Value result;
+
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(1),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    closure = LT_eval(read_one("(lambda () closure-epoch-constant)"), env, NULL);
+    closure_object = LT_Closure_from_value(closure);
+
+    if (expect(
+        LT_Closure_compilation_epoch_current_p(closure_object),
+        "closure compiled at current epoch before redefinition"
+    )){
+        return 1;
+    }
+
+    LT_Environment_bind(
+        env,
+        symbol,
+        LT_SmallInteger_new(2),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    if (expect(
+        !LT_Closure_compilation_epoch_current_p(closure_object),
+        "constant redefinition makes closure compiled body stale"
+    )){
+        return 1;
+    }
+
+    result = LT_apply(closure, LT_NIL, LT_NIL, LT_NIL, NULL);
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 2,
+        "closure application recompiles stale compiled body"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Closure_compilation_epoch_current_p(closure_object),
+        "closure compilation epoch is current after recompile"
+    );
+}
+
+static int test_closure_compilation_shadows_parameters(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value result;
+
+    result = LT_eval(read_one("((lambda (cond length) (list cond length)) 11 22)"), env, NULL);
+    if (expect(
+        LT_Pair_p(result)
+            && LT_Value_is_fixnum(LT_car(result))
+            && LT_SmallInteger_value(LT_car(result)) == 11,
+        "closure compilation does not fold parameter named like special form"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(result)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(result))) == 22,
+        "closure compilation does not fold parameter named like global binding"
+    );
 }
 
 static int test_primitive_arguments_falls_back_to_string(void){
@@ -2181,6 +2344,22 @@ static int test_compiler_fold_impure_primitive_is_not_constant_folded(void){
     return expect(
         LT_Primitive_p(LT_car(folded)),
         "compiler fold resolves impure operator but does not execute it"
+    );
+}
+
+static int test_compiler_fold_primitive_condition_leaves_application(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value folded = LT_compiler_fold_expression(read_one("(min 1 1+1i)"), env);
+
+    if (expect(
+        LT_ImmutableList_p(folded),
+        "compiler fold leaves pure primitive application when folding signals"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Primitive_p(LT_car(folded)),
+        "compiler fold keeps operator resolved after folding signal"
     );
 }
 
@@ -3632,6 +3811,9 @@ int main(void){
     RUN_TEST(test_send_passes_next_precedence_tail_as_invocation_context_data);
     RUN_TEST(test_super_send_c_api_uses_explicit_precedence_list);
     RUN_TEST(test_class_add_method_invalidates_method_cache);
+    RUN_TEST(test_class_add_method_increments_ilc_epoch);
+    RUN_TEST(test_class_new_increments_ilc_epoch);
+    RUN_TEST(test_constant_redefinition_increments_compilation_epoch);
     RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_immutable_list_methods);
     RUN_TEST(test_immutable_list_from_list);
@@ -3657,6 +3839,9 @@ int main(void){
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
     RUN_TEST(test_closure_documentation_from_docstring);
     RUN_TEST(test_closure_explicit_documentation_constructor);
+    RUN_TEST(test_closure_compiles_body_at_creation);
+    RUN_TEST(test_closure_recompiles_when_compilation_epoch_changes);
+    RUN_TEST(test_closure_compilation_shadows_parameters);
     RUN_TEST(test_primitive_arguments_falls_back_to_string);
     RUN_TEST(test_primitive_documentation_returns_description_string);
     RUN_TEST(test_restart_c_api_and_listtalk_accessors);
@@ -3678,6 +3863,7 @@ int main(void){
     RUN_TEST(test_compiler_macroexpand_preserves_expansion_chain);
     RUN_TEST(test_compiler_fold_pure_primitive_constant_folds);
     RUN_TEST(test_compiler_fold_impure_primitive_is_not_constant_folded);
+    RUN_TEST(test_compiler_fold_primitive_condition_leaves_application);
     RUN_TEST(test_compiler_fold_quasiquote_folds_unquote_expression);
     RUN_TEST(test_compiler_fold_quasiquote_preserves_nested_unquote_depth);
     RUN_TEST(test_macroexpand_special_form);

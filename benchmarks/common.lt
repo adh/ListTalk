@@ -1,0 +1,34 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+; Copyright (c) 2023 - 2026 Ales Hakl
+
+(define (benchmark:println text)
+  (display (string-append text "\n")))
+
+(define (benchmark:repeat count thunk)
+  (let loop ((remaining count)
+             (result #nil))
+    (if (= remaining 0)
+        result
+        (loop (- remaining 1) (thunk)))))
+
+(define (benchmark:time-microseconds thunk)
+  (let ((start [Instant now]))
+    (thunk)
+    [[[Instant now] - start] asMicroseconds]))
+
+(define (benchmark:run name iterations thunk)
+  (let ((result #nil))
+    (let ((elapsed
+            (benchmark:time-microseconds
+              (lambda ()
+                (set! result (benchmark:repeat iterations thunk))))))
+      (benchmark:println
+        (string-append name
+                       "\titerations="
+                       (number->string iterations)
+                       "\tmicroseconds="
+                       (number->string elapsed)
+                       "\tresult="
+                       (number->string result)))
+      result)))

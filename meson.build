@@ -63,6 +63,7 @@ vm_lib = library(
                 'src/vm/loader.c',
                 'src/vm/quasiquote.c',
                 'src/vm/compiler.c',
+                'src/vm/epoch.c',
                 'src/vm/value.c',
                 'src/vm/Class.c',
                 'src/vm/Environment.c',

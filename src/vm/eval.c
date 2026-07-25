@@ -611,7 +611,7 @@ static LT_Value apply_closure(LT_Value closure_value,
     );
 
     return LT_eval_sequence(
-        LT_Closure_body(closure),
+        LT_Closure_compiled_body(closure),
         application_environment,
         tail_call_unwind_marker
     );

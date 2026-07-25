@@ -5,6 +5,7 @@
 
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/vm/epoch.h>
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/IdentitySet.h>
 #include <ListTalk/classes/ImmutableList.h>
@@ -18,6 +19,7 @@
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils.h>
 
+#include <stdatomic.h>
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdlib.h>
@@ -28,6 +30,12 @@ static LT_Value object_slot_ref(LT_Class_Slot* slot, LT_Value object){
         (uint8_t*)LT_VALUE_POINTER_VALUE(object) + slot->offset
     );
     return *val;
+}
+static LT_Value atomic_object_slot_ref(LT_Class_Slot* slot, LT_Value object){
+    _Atomic(LT_Value)* val = (_Atomic(LT_Value)*)(
+        (uint8_t*)LT_VALUE_POINTER_VALUE(object) + slot->offset
+    );
+    return atomic_load_explicit(val, memory_order_acquire);
 }
 static void object_slot_set(LT_Class_Slot* slot, LT_Value object, LT_Value value){
     LT_Value* val = (LT_Value*)(
@@ -52,8 +60,14 @@ LT_SlotType LT_SlotType_ReadonlyObject = {
     .ref = object_slot_ref,
     .set = readonly_object_slot_set,
 };
+LT_SlotType LT_SlotType_ReadonlyAtomicObject = {
+    .ref = atomic_object_slot_ref,
+    .set = readonly_object_slot_set,
+};
 
-static uintptr_t LT_Class_method_cache_global_version = 1;
+static void invalidate_inline_caches(void){
+    LT_ilc_epoch_increment();
+}
 
 static size_t Class_default_hash(LT_Value obj){
     return LT_pointer_hash((void*)(uintptr_t)obj);
@@ -301,6 +315,7 @@ static void refresh_native_class_topology(LT_Class* klass){
     if (klass->superclasses != NULL){
         superclass = klass->superclasses[0];
     }
+    invalidate_inline_caches();
     klass->precedence_list = make_single_inheritance_precedence_list(
         klass,
         superclass
@@ -345,6 +360,7 @@ static void finalize_core_class_cycle_if_ready(void){
     }
 
     LT_Object_class.superclasses = make_single_superclass_list(NULL);
+    invalidate_inline_caches();
     LT_Object_class.precedence_list = make_single_inheritance_precedence_list(
         &LT_Object_class,
         NULL
@@ -727,10 +743,11 @@ void LT_init_native_class(LT_Class* klass){
     LT_init_native_class(&LT_IdentityDictionary_class);
     klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
-    klass->cache_version = LT_Class_method_cache_global_version;
     klass->documentation =
         materialize_documentation(klass, descriptor->documentation);
     klass->superclasses = make_single_superclass_list(descriptor->superclass);
+    invalidate_inline_caches();
+    LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
     klass->precedence_list = make_single_inheritance_precedence_list(
         klass,
         descriptor->superclass
@@ -757,7 +774,7 @@ void LT_init_native_class(LT_Class* klass){
         LT_init_native_class(&LT_IdentityDictionary_class);
         metaclass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
         metaclass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
-        metaclass->cache_version = LT_Class_method_cache_global_version;
+        LT_ilc_epoch_copy_acquire_release(&metaclass->method_cache_epoch);
         metaclass->documentation = LT_NIL;
         metaclass->superclasses =
             make_single_superclass_list(descriptor->metaclass_superclass);
@@ -833,7 +850,7 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     }
     metaclass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     metaclass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
-    metaclass->cache_version = LT_Class_method_cache_global_version;
+    LT_ilc_epoch_copy_acquire_release(&metaclass->method_cache_epoch);
     metaclass->name = make_metaclass_name(name);
     metaclass->debugPrintOn = Class_debugPrintOn;
     metaclass->documentation = LT_NIL;
@@ -842,11 +859,12 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     klass = LT_Class_ALLOC(LT_Class);
     klass->base.klass = metaclass;
     klass->superclasses = superclass_array;
+    invalidate_inline_caches();
     klass->precedence_list = make_precedence_list(klass, superclass_array);
     klass->class_flags = LT_CLASS_FLAG_ALLOCATABLE;
     klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
-    klass->cache_version = LT_Class_method_cache_global_version;
+    LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
     klass->name = name;
     klass->debugPrintOn = Class_debugPrintOn;
     if (primary_superclass != NULL){
@@ -1139,7 +1157,7 @@ void LT_Class_addMethod(LT_Class* klass, LT_Value selector, LT_Value method){
     methods = LT_IdentityDictionary_from_value(klass->methods);
     LT_IdentityDictionary_atPut(methods, selector, method);
 
-    LT_Class_method_cache_global_version++;
+    invalidate_inline_caches();
 }
 
 LT_Value LT_Class_lookup_method(LT_Class* klass, LT_Value selector){
@@ -1158,9 +1176,9 @@ LT_Value LT_Class_lookup_method_with_next(LT_Class* klass,
         LT_type_error(selector, &LT_Symbol_class);
     }
 
-    if (klass->cache_version != LT_Class_method_cache_global_version){
+    if (!LT_ilc_epoch_equals_acquire(&klass->method_cache_epoch)){
         klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
-        klass->cache_version = LT_Class_method_cache_global_version;
+        LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
     }
 
     method_cache = LT_IdentityDictionary_from_value(klass->method_cache);

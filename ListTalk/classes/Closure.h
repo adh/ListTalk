@@ -10,6 +10,7 @@
 
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/Environment.h>
+#include <ListTalk/vm/epoch.h>
 #include <ListTalk/macros/decl_macros.h>
 
 LT__BEGIN_DECLS
@@ -36,6 +37,8 @@ LT_Value LT_Closure_invocation_context_of_kind(
 LT_Value LT_Closure_name(LT_Closure* closure);
 LT_Value LT_Closure_parameters(LT_Closure* closure);
 LT_Value LT_Closure_body(LT_Closure* closure);
+LT_Value LT_Closure_compiled_body(LT_Closure* closure);
+int LT_Closure_compilation_epoch_current_p(LT_Closure* closure);
 LT_Value LT_Closure_documentation(LT_Closure* closure);
 LT_Environment* LT_Closure_environment(LT_Closure* closure);
 

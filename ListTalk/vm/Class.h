@@ -9,6 +9,7 @@
 #include <ListTalk/macros/env_macros.h>
 #include <ListTalk/vm/value.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/epoch.h>
 
 LT__BEGIN_DECLS
 
@@ -32,6 +33,7 @@ struct LT_SlotType_s {
 
 extern LT_SlotType LT_SlotType_Object;
 extern LT_SlotType LT_SlotType_ReadonlyObject;
+extern LT_SlotType LT_SlotType_ReadonlyAtomicObject;
 
 #define LT_CLASS_FLAG_FLEXIBLE   1
 #define LT_CLASS_FLAG_SPECIAL    2
@@ -55,7 +57,7 @@ struct LT_Class_s {
     LT_Class_Slot* slots;
     LT_Value methods;
     LT_Value method_cache;
-    uintptr_t cache_version;
+    LT_EpochCounter method_cache_epoch;
     LT_Value name;
     LT_Class_debugPrintOn_Func debugPrintOn;
     LT_Class_hash_Func hash;

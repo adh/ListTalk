@@ -11,8 +11,10 @@
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
+#include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/error.h>
 
+#include <pthread.h>
 #include <string.h>
 
 #define LT_COMPILER_MAX_MACROEXPAND_STEPS 256
@@ -36,6 +38,53 @@ static LT_Value immutable_list_with_rest(
     LT_Value rest,
     LT_Value expression
 );
+static LT_Value folded_application_expression(
+    LT_Value folded_operator,
+    LT_Value folded_arguments,
+    LT_Value expression
+);
+
+static LT_Value constant_fold_error_tag = LT_NIL;
+static pthread_once_t constant_fold_error_tag_once = PTHREAD_ONCE_INIT;
+
+static void constant_fold_error_tag_init(void){
+    constant_fold_error_tag =
+        LT_Symbol_new_uninterned("compiler-constant-fold-error");
+}
+
+static LT_Value constant_fold_error_tag_value(void){
+    pthread_once(
+        &constant_fold_error_tag_once,
+        constant_fold_error_tag_init
+    );
+    return constant_fold_error_tag;
+}
+
+static LT_Value constant_fold_error_handler_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    (void)condition;
+    LT_throw(constant_fold_error_tag_value(), LT_TRUE);
+}
+
+static LT_Primitive constant_fold_error_handler = {
+    .function = constant_fold_error_handler_impl,
+    .flags = 0,
+    .name = "compiler-constant-fold-error-handler",
+    .arguments = "(condition)",
+    .description = "Catch conditions while folding constant primitive calls."
+};
 
 static LT_Value immutable_list_with_rest(
     LT_Value first,
@@ -48,6 +97,21 @@ static LT_Value immutable_list_with_rest(
         2,
         values,
         rest,
+        LT_NIL,
+        LT_NIL,
+        original_expression_value(expression)
+    );
+}
+
+static LT_Value folded_application_expression(
+    LT_Value folded_operator,
+    LT_Value folded_arguments,
+    LT_Value expression
+){
+    return LT_ImmutableList_new_with_trailer(
+        1,
+        &folded_operator,
+        folded_arguments,
         LT_NIL,
         LT_NIL,
         original_expression_value(expression)
@@ -262,13 +326,10 @@ static LT_Value fold_application(LT_Value expression,
                 );
 
                 if (constant_value == LT_INVALID){
-                    return LT_ImmutableList_new_with_trailer(
-                        1,
-                        &folded_operator,
+                    return folded_application_expression(
+                        folded_operator,
                         folded_arguments,
-                        LT_NIL,
-                        LT_NIL,
-                        original_expression_value(expression)
+                        expression
                     );
                 }
                 LT_ListBuilder_append(constant_arguments_builder, constant_value);
@@ -276,13 +337,28 @@ static LT_Value fold_application(LT_Value expression,
             }
 
             if (cursor == LT_NIL){
-                LT_Value constant_result = LT_Primitive_call(
-                    folded_operator,
-                    LT_ListBuilder_value(constant_arguments_builder),
-                    LT_NIL,
-                    LT_NIL,
-                    NULL
-                );
+                LT_Value caught = LT_NIL;
+                LT_Value constant_result = LT_INVALID;
+
+                LT_CATCH(constant_fold_error_tag_value(), caught, {
+                    LT_HANDLER_BIND(
+                    LT_Primitive_from_static(&constant_fold_error_handler), {
+                        constant_result = LT_Primitive_call(
+                            folded_operator,
+                            LT_ListBuilder_value(constant_arguments_builder),
+                            LT_NIL,
+                            LT_NIL,
+                            NULL
+                        );
+                    });
+                });
+                if (caught != LT_NIL){
+                    return folded_application_expression(
+                        folded_operator,
+                        folded_arguments,
+                        expression
+                    );
+                }
                 return constant_value_to_expression(
                     constant_result,
                     expression,
@@ -291,13 +367,10 @@ static LT_Value fold_application(LT_Value expression,
             }
         }
 
-        return LT_ImmutableList_new_with_trailer(
-            1,
-            &folded_operator,
+        return folded_application_expression(
+            folded_operator,
             folded_arguments,
-            LT_NIL,
-            LT_NIL,
-            original_expression_value(expression)
+            expression
         );
     }
 }
