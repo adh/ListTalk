@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 
 static int fail(const char* message){
     fprintf(stderr, "FAIL: %s\n", message);
@@ -694,6 +695,69 @@ static int test_subclass_responsibility_error_builder(void){
     );
 }
 
+static int test_keyboard_interrupt_error_builder(void){
+    LT_Value condition = LT_KeyboardInterrupt("keyboard interrupt");
+    LT_Value message = LT_Object_slot_ref(condition, LT_Symbol_new("message"));
+
+    if (expect(
+            LT_Value_class(condition) == &LT_KeyboardInterrupt_class,
+            "LT_KeyboardInterrupt builds specific condition"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_KeyboardInterrupt_p(condition),
+            "condition predicate recognizes KeyboardInterrupt"
+        )){
+        return 1;
+    }
+    if (expect(
+            value_is_instance_of(condition, &LT_Error_class),
+            "KeyboardInterrupt is an Error"
+        )){
+        return 1;
+    }
+    return expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(message)),
+            "keyboard interrupt"
+        ) == 0,
+        "KeyboardInterrupt stores message"
+    );
+}
+
+static int test_keyboard_interrupt_enable_disable_api(void){
+    LT_enable_KeyboardInterrupt();
+    LT_disable_KeyboardInterrupt();
+    return 0;
+}
+
+static int test_keyboard_interrupt_sigint_signals_condition(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_new(
+        "catch-keyboard-interrupt-handler",
+        "(condition)",
+        "captures KeyboardInterrupt condition",
+        catch_error_handler_impl
+    );
+
+    g_error_test_tag = LT_Symbol_new("keyboard-interrupt-test-tag");
+    LT_enable_KeyboardInterrupt();
+    raise(SIGINT);
+    LT_CATCH(g_error_test_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_eval(read_one_with_source_file("42", "test.lt"), env, NULL);
+        });
+    });
+    LT_disable_KeyboardInterrupt();
+
+    return expect(
+        LT_Value_class(caught) == &LT_KeyboardInterrupt_class,
+        "SIGINT through LT_enable_KeyboardInterrupt emits KeyboardInterrupt"
+    );
+}
+
 static int test_subclass_responsibility_api_signals_specific_error(void){
     LT_Value caught = LT_NIL;
     LT_Value handler = LT_Primitive_new(
@@ -934,6 +998,9 @@ int main(void){
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
     failures += test_subclass_responsibility_error_builder();
+    failures += test_keyboard_interrupt_error_builder();
+    failures += test_keyboard_interrupt_enable_disable_api();
+    failures += test_keyboard_interrupt_sigint_signals_condition();
     failures += test_subclass_responsibility_api_signals_specific_error();
     failures += test_object_subclass_responsibility_signals_specific_error();
     failures += test_complex_number_abstract_methods_signal_specific_error();

@@ -37,6 +37,8 @@ struct LT_ThreadState_s {
 extern _Thread_local LT_ThreadState* LT__thread_state;
 
 LT_ThreadState* LT_thread_state_slow(void);
+void LT_register_posix_signal(int signal_number, LT_Value callable);
+void LT_unregister_posix_signal(int signal_number);
 
 static inline LT_ThreadState* LT_thread_state(void)
 {
