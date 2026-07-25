@@ -18,7 +18,7 @@ typedef uint64_t LT_EpochValue;
 typedef _Atomic(LT_EpochValue) LT_EpochCounter;
 
 extern LT_EpochCounter LT__compilation_epoch;
-extern LT_EpochCounter ilc_epoch;
+extern LT_EpochCounter LT__ilc_epoch;
 
 static inline LT_EpochValue LT_epoch_increment(LT_EpochCounter* epoch){
     return atomic_fetch_add_explicit(epoch, 1, memory_order_acq_rel) + 1;
@@ -29,7 +29,7 @@ static inline LT_EpochValue LT_compilation_epoch_increment(void){
 }
 
 static inline LT_EpochValue LT_ilc_epoch_increment(void){
-    return LT_epoch_increment(&ilc_epoch);
+    return LT_epoch_increment(&LT__ilc_epoch);
 }
 
 static inline bool LT_epoch_equals_acquire(
@@ -47,7 +47,7 @@ static inline bool LT_compilation_epoch_equals_acquire(LT_EpochCounter* epoch){
 }
 
 static inline bool LT_ilc_epoch_equals_acquire(LT_EpochCounter* epoch){
-    return LT_epoch_equals_acquire(&ilc_epoch, epoch);
+    return LT_epoch_equals_acquire(&LT__ilc_epoch, epoch);
 }
 
 static inline void LT_epoch_copy_acquire_release(
@@ -63,7 +63,7 @@ static inline void LT_compilation_epoch_copy_acquire_release(LT_EpochCounter* de
 }
 
 static inline void LT_ilc_epoch_copy_acquire_release(LT_EpochCounter* destination){
-    LT_epoch_copy_acquire_release(destination, &ilc_epoch);
+    LT_epoch_copy_acquire_release(destination, &LT__ilc_epoch);
 }
 
 LT__END_DECLS

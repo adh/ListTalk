@@ -6,4 +6,4 @@
 #include <ListTalk/vm/epoch.h>
 
 LT_EpochCounter LT__compilation_epoch = 0;
-LT_EpochCounter ilc_epoch = 0;
+LT_EpochCounter LT__ilc_epoch = 0;
