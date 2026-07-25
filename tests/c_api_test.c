@@ -3514,6 +3514,68 @@ static int test_thread_join_returns_result_to_concurrent_joiners(void){
     return failed;
 }
 
+static int test_thread_signal_returns_queue_status(void){
+    struct blocking_thread_callable_state state = {
+        .mutex = PTHREAD_MUTEX_INITIALIZER,
+        .cond = PTHREAD_COND_INITIALIZER,
+        .started = 0,
+        .release = 0,
+    };
+    LT_Value callable =
+        LT_Primitive_from_static(&primitive_blocking_thread_callable);
+    LT_Value signal_callable = LT_Primitive_new(
+        "thread-signal-test-noop",
+        "()",
+        "Test helper queued as asynchronous thread signal.",
+        primitive_test_noop_impl
+    );
+    LT_Thread* thread;
+    LT_Value thread_value;
+    LT_Value first_signal;
+    LT_Value second_signal;
+    LT_Value joined;
+    int failed = 0;
+
+    blocking_thread_callable_state = &state;
+    thread = LT_Thread_new(callable, "signal-target-thread");
+    thread_value = (LT_Value)(uintptr_t)thread;
+
+    pthread_mutex_lock(&state.mutex);
+    while (!state.started){
+        pthread_cond_wait(&state.cond, &state.mutex);
+    }
+    pthread_mutex_unlock(&state.mutex);
+
+    first_signal = LT_SEND(thread_value, "signal:", signal_callable);
+    second_signal = LT_SEND(thread_value, "signal:", signal_callable);
+    failed += expect(
+        first_signal == LT_TRUE,
+        "Thread>>signal: returns true when signal is queued"
+    );
+    failed += expect(
+        second_signal == LT_FALSE,
+        "Thread>>signal: returns false when signal is already pending"
+    );
+
+    pthread_mutex_lock(&state.mutex);
+    state.release = 1;
+    pthread_cond_broadcast(&state.cond);
+    pthread_mutex_unlock(&state.mutex);
+
+    joined = LT_Thread_join(thread);
+    failed += expect(
+        LT_Value_is_fixnum(joined) && LT_SmallInteger_value(joined) == 1234,
+        "Thread>>signal: test thread still returns normal result"
+    );
+    failed += expect(
+        !LT_Thread_signal(thread, signal_callable),
+        "LT_Thread_signal returns false after target thread finishes"
+    );
+
+    blocking_thread_callable_state = NULL;
+    return failed;
+}
+
 static int test_dynamic_variable_c_api_uses_thread_local_values(void){
     LT_DynamicVariable* variable =
         LT_DynamicVariable_new(LT_SmallInteger_new(10));
@@ -3640,6 +3702,7 @@ int main(void){
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);
     RUN_TEST(test_thread_join_returns_result_to_concurrent_joiners);
+    RUN_TEST(test_thread_signal_returns_queue_status);
     RUN_TEST(test_dynamic_variable_c_api_uses_thread_local_values);
 
 #undef RUN_TEST
