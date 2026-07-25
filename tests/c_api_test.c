@@ -10,7 +10,9 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
+#include <ListTalk/vm/thread_state.h>
 
+#include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -352,6 +354,47 @@ static int test_value_asString_c_api_uses_debug_print(void){
         strcmp(LT_String_value_cstr(string), "#true") == 0,
         "LT_Value_asString uses debug printing"
     );
+}
+
+static int test_eval_runs_pending_signal_closure(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_ThreadState* state = LT_thread_state();
+    LT_Value signal;
+    LT_Value result;
+    LT_Value count;
+    int failed = 0;
+
+    (void)LT_eval(read_one("(define pending-signal-count 0)"), env, NULL);
+    signal = LT_eval(
+        read_one("(lambda () (set! pending-signal-count (+ pending-signal-count 1)))"),
+        env,
+        NULL
+    );
+
+    atomic_store_explicit(
+        &state->pending_signal,
+        signal,
+        memory_order_release
+    );
+
+    result = LT_eval(read_one("42"), env, NULL);
+    count = LT_eval(read_one("pending-signal-count"), env, NULL);
+
+    failed += expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "LT_eval returns original expression result after pending signal"
+    );
+    failed += expect(
+        LT_Value_is_fixnum(count) && LT_SmallInteger_value(count) == 1,
+        "LT_eval runs pending signal closure once"
+    );
+    failed += expect(
+        atomic_load_explicit(&state->pending_signal, memory_order_acquire)
+            == LT_INVALID,
+        "LT_eval clears pending signal before running closure"
+    );
+
+    return failed;
 }
 
 static int test_send_primitive_uses_direct_method_dictionary(void){
@@ -3485,6 +3528,7 @@ int main(void){
     RUN_TEST(test_send_site_macros_c_api);
     RUN_TEST(test_apply_varargs_c_api);
     RUN_TEST(test_value_asString_c_api_uses_debug_print);
+    RUN_TEST(test_eval_runs_pending_signal_closure);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);

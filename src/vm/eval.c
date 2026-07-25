@@ -17,9 +17,11 @@
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/stack_trace.h>
+#include <ListTalk/vm/thread_state.h>
 
 #include <ctype.h>
 #include <setjmp.h>
+#include <stdatomic.h>
 #include <stdarg.h>
 #include <string.h>
 
@@ -46,6 +48,24 @@ static LT_Value send_does_not_understand(
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 static LT_Value copy_message_arguments(LT_Value arguments);
+
+static void check_pending_signal(void){
+    LT_ThreadState* state = LT__thread_state;
+    LT_Value signal;
+
+    if (state == NULL){
+        return;
+    }
+
+    signal = atomic_exchange_explicit(
+        &state->pending_signal,
+        LT_INVALID,
+        memory_order_acq_rel
+    );
+    if (signal != LT_INVALID){
+        (void)LT_apply(signal, LT_NIL, LT_NIL, LT_NIL, NULL);
+    }
+}
 
 static int keyword_marker_p(LT_Value value, const char* name){
     if (!LT_Symbol_p(value)){
@@ -814,6 +834,8 @@ static LT_Value eval_form(LT_Value expression,
                           LT_Environment* environment,
                           LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_StackFrame stack_frame;
+
+    check_pending_signal();
 
     stack_frame.type = LT_STACK_FRAME_TYPE_EVAL;
     stack_frame.arguments.eval.expression = expression;
