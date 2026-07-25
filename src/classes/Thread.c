@@ -29,6 +29,7 @@
 
 #include <errno.h>
 #include <assert.h>
+#include <stdatomic.h>
 
 struct LT_Thread_s {
     LT_Object base;
@@ -228,6 +229,28 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)LT_String_new_cstr(name);
 }
 
+LT_DEFINE_PRIMITIVE(
+    thread_method_signal,
+    "Thread>>signal:",
+    "(self callable)",
+    "Queue callable as an asynchronous signal for thread."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+
+    return LT_Thread_signal(LT_Thread_from_value(self), callable)
+        ? LT_TRUE
+        : LT_FALSE;
+}
+
 static LT_Method_Descriptor Thread_methods[] = {
     {"join", &thread_method_join},
     {"makeDetached", &thread_method_make_detached},
@@ -237,6 +260,7 @@ static LT_Method_Descriptor Thread_methods[] = {
     {"joined?", &thread_method_joined_p},
     {"result", &thread_method_result},
     {"name", &thread_method_name},
+    {"signal:", &thread_method_signal},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -415,6 +439,32 @@ void LT_Thread_makeDetached(LT_Thread* thread){
     if (errnum != 0){
         LT_system_error("Could not detach thread", errnum);
     }
+}
+
+bool LT_Thread_signal(LT_Thread* thread, LT_Value callable){
+    LT_ThreadState* thread_state;
+    LT_Value expected = LT_INVALID;
+    bool queued;
+
+    if (callable == LT_INVALID){
+        LT_error("Cannot queue LT_INVALID as thread signal");
+    }
+
+    LT_MutexWord_lock(&thread->state_lock);
+    thread_state = thread->thread_state;
+    if (thread_state == NULL){
+        LT_MutexWord_unlock(&thread->state_lock);
+        return false;
+    }
+    queued = atomic_compare_exchange_strong_explicit(
+        &thread_state->pending_signal,
+        &expected,
+        callable,
+        memory_order_acq_rel,
+        memory_order_acquire
+    );
+    LT_MutexWord_unlock(&thread->state_lock);
+    return queued;
 }
 
 bool LT_Thread_finished_p(LT_Thread* thread){

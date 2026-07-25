@@ -20,6 +20,7 @@ LT_Thread* LT_Thread_current(void);
 
 LT_Value LT_Thread_join(LT_Thread* thread);
 void LT_Thread_makeDetached(LT_Thread* thread);
+bool LT_Thread_signal(LT_Thread* thread, LT_Value callable);
 
 char* LT_Thread_name(LT_Thread* thread);
 bool LT_Thread_finished_p(LT_Thread* thread);

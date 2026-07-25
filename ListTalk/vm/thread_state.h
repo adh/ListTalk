@@ -9,6 +9,8 @@
 #include <ListTalk/macros/env_macros.h>
 #include <ListTalk/vm/value.h>
 
+#include <stdatomic.h>
+
 LT__BEGIN_DECLS
 
 typedef struct LT_ConditionHandlerFrame_s LT_ConditionHandlerFrame;
@@ -28,12 +30,15 @@ struct LT_ThreadState_s {
     LT_IdentityDictionary* dynamic_values;
     LT_Package* current_package;
     LT_Thread* current_thread;
+    _Atomic LT_Value pending_signal;
     int current_package_is_set;
 };
 
 extern _Thread_local LT_ThreadState* LT__thread_state;
 
 LT_ThreadState* LT_thread_state_slow(void);
+void LT_register_posix_signal(int signal_number, LT_Value callable);
+void LT_unregister_posix_signal(int signal_number);
 
 static inline LT_ThreadState* LT_thread_state(void)
 {

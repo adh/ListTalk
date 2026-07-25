@@ -754,7 +754,10 @@ int main(int argc, char**argv){
             return 0;
         }
         command_action_ensure_standard_resolvers(&command_action);
-        return eval_repl(repl_handler, file_handler, base_environment);
+        LT_enable_KeyboardInterrupt();
+        eval_status = eval_repl(repl_handler, file_handler, base_environment);
+        LT_disable_KeyboardInterrupt();
+        return eval_status;
     }
     command_action_ensure_standard_resolvers(&command_action);
     command_line_list = LT_cons(
