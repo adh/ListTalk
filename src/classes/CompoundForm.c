@@ -7,6 +7,12 @@
 #include <ListTalk/macros/method_macros.h>
 
 LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
+    compound_form_method_name,
+    "CompoundForm>>name",
+    "Return the compound form name."
+)
+
+LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
     compound_form_method_documentation,
     "CompoundForm>>documentation",
     "Return compound form documentation."
@@ -19,6 +25,7 @@ LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
 )
 
 static LT_Method_Descriptor CompoundForm_methods[] = {
+    {"name", &compound_form_method_name},
     {"documentation", &compound_form_method_documentation},
     {"arguments", &compound_form_method_arguments},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR

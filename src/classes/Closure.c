@@ -179,6 +179,21 @@ static void Closure_debugPrintOn(LT_Value obj, FILE* stream){
 }
 
 LT_DEFINE_PRIMITIVE(
+    closure_method_name,
+    "Closure>>name",
+    "(self)",
+    "Return the closure name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Closure_name(LT_Closure_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
     closure_method_documentation,
     "Closure>>documentation",
     "(self)",
@@ -209,6 +224,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor Closure_methods[] = {
+    {"name", &closure_method_name},
     {"documentation", &closure_method_documentation},
     {"arguments", &closure_method_arguments},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR

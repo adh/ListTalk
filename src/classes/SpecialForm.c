@@ -31,6 +31,23 @@ static LT_Value special_form_string_or_nil(char* string){
 }
 
 LT_DEFINE_PRIMITIVE(
+    special_form_method_name,
+    "SpecialForm>>name",
+    "(self)",
+    "Return the special form name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return special_form_string_or_nil(
+        LT_SpecialForm_name(LT_SpecialForm_from_value(self))
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     special_form_method_documentation,
     "SpecialForm>>documentation",
     "(self)",
@@ -65,6 +82,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor SpecialForm_methods[] = {
+    {"name", &special_form_method_name},
     {"documentation", &special_form_method_documentation},
     {"arguments", &special_form_method_arguments},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR

@@ -30,6 +30,23 @@ static LT_Value primitive_string_or_nil(char* string){
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_method_name,
+    "Primitive>>name",
+    "(self)",
+    "Return the primitive name."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return primitive_string_or_nil(
+        LT_Primitive_name(LT_Primitive_from_value(self))
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_method_documentation,
     "Primitive>>documentation",
     "(self)",
@@ -64,6 +81,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor Primitive_methods[] = {
+    {"name", &primitive_method_name},
     {"documentation", &primitive_method_documentation},
     {"arguments", &primitive_method_arguments},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
