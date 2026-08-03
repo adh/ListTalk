@@ -168,6 +168,34 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    regular_expression_method_substitute_with,
+    "RegularExpression>>substitute:with:",
+    "(self subject replacement)",
+    "Return subject with every match replaced, expanding capture references."
+){
+    LT_Value cursor = arguments;
+    LT_RegularExpression* expression;
+    LT_String* subject;
+    LT_String* replacement;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(
+        cursor,
+        expression,
+        LT_RegularExpression*,
+        LT_RegularExpression_from_value
+    );
+    LT_GENERIC_ARG(cursor, subject, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, replacement, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_RegularExpression_substitute(
+        expression,
+        subject,
+        replacement
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     regular_expression_match_method_expression,
     "RegularExpressionMatch>>regularExpression",
     "(self)",
@@ -319,6 +347,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor RegularExpression_methods[] = {
     {"pattern", &regular_expression_method_pattern},
     {"match:", &regular_expression_method_match},
+    {"substitute:with:", &regular_expression_method_substitute_with},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -462,6 +491,63 @@ LT_Value LT_RegularExpression_match(LT_RegularExpression* expression,
     }
     pcre2_match_data_free(data);
     return (LT_Value)(uintptr_t)match;
+}
+
+LT_String* LT_RegularExpression_substitute(
+    LT_RegularExpression* expression,
+    LT_String* subject,
+    LT_String* replacement
+){
+    PCRE2_SIZE capacity = (PCRE2_SIZE)(
+        LT_String_byte_length(subject)
+        + LT_String_byte_length(replacement)
+        + 1
+    );
+    PCRE2_UCHAR* output;
+    PCRE2_SIZE output_length;
+    int result;
+    uint32_t options = PCRE2_SUBSTITUTE_GLOBAL
+        | PCRE2_SUBSTITUTE_OVERFLOW_LENGTH
+        | PCRE2_SUBSTITUTE_UNSET_EMPTY
+        | PCRE2_NO_UTF_CHECK;
+
+    if (capacity == 0){
+        capacity = 1;
+    }
+    for (;;){
+        output = GC_MALLOC_ATOMIC((size_t)capacity);
+        if (output == NULL){
+            LT_error("Unable to allocate regular expression substitution buffer");
+        }
+        output_length = capacity;
+        result = pcre2_substitute(
+            expression->code,
+            (PCRE2_SPTR)LT_String_value_cstr(subject),
+            (PCRE2_SIZE)LT_String_byte_length(subject),
+            0,
+            options,
+            NULL,
+            NULL,
+            (PCRE2_SPTR)LT_String_value_cstr(replacement),
+            (PCRE2_SIZE)LT_String_byte_length(replacement),
+            output,
+            &output_length
+        );
+        if (result != PCRE2_ERROR_NOMEMORY){
+            break;
+        }
+        if (output_length <= capacity){
+            LT_error("Unable to size regular expression substitution output");
+        }
+        capacity = output_length;
+    }
+    if (result < 0){
+        LT_error(
+            "Regular expression substitution failed with PCRE2 error %d",
+            result
+        );
+    }
+    return LT_String_new((char*)output, (size_t)output_length);
 }
 
 LT_RegularExpression* LT_RegularExpressionMatch_expression(

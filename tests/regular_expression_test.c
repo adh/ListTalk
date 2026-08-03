@@ -124,6 +124,47 @@ static int test_pattern_value_semantics(void){
     return failures;
 }
 
+static int test_substitute(void){
+    LT_RegularExpression* expression = LT_RegularExpression_new(
+        LT_String_new_cstr("(\\p{L}+)-(\\d+)")
+    );
+    LT_String* result = LT_RegularExpression_substitute(
+        expression,
+        LT_String_new_cstr("žluť-42 and kůň-7"),
+        LT_String_new_cstr("$2:$1")
+    );
+    LT_RegularExpression* optional = LT_RegularExpression_new(
+        LT_String_new_cstr("x(y)?")
+    );
+    LT_String* optional_result = LT_RegularExpression_substitute(
+        optional,
+        LT_String_new_cstr("x xy"),
+        LT_String_new_cstr("<$1>")
+    );
+    int failures = 0;
+
+    failures += expect(
+        strcmp(LT_String_value_cstr(result), "42:žluť and 7:kůň") == 0,
+        "substitute replaces every match and expands captures"
+    );
+    failures += expect(
+        strcmp(LT_String_value_cstr(optional_result), "<> <y>") == 0,
+        "substitute expands unmatched optional captures to empty text"
+    );
+    failures += expect(
+        strcmp(
+            LT_String_value_cstr(LT_RegularExpression_substitute(
+                expression,
+                LT_String_new_cstr("unchanged"),
+                LT_String_new_cstr("replacement")
+            )),
+            "unchanged"
+        ) == 0,
+        "substitute preserves a subject with no matches"
+    );
+    return failures;
+}
+
 int main(void){
     int failures = 0;
 
@@ -131,6 +172,7 @@ int main(void){
     failures += test_utf8_match_and_captures();
     failures += test_optional_capture_and_no_match();
     failures += test_pattern_value_semantics();
+    failures += test_substitute();
 
     if (failures == 0){
         puts("regular expression tests passed");

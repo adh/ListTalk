@@ -19,6 +19,11 @@ LT_Value LT_RegularExpression_match(
     LT_RegularExpression* expression,
     LT_String* subject
 );
+LT_String* LT_RegularExpression_substitute(
+    LT_RegularExpression* expression,
+    LT_String* subject,
+    LT_String* replacement
+);
 
 LT__END_DECLS
 

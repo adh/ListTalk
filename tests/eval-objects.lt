@@ -1024,6 +1024,20 @@
 (check (eq? [[RegularExpression fromString: "\\d+"] match: "no digits"]
             #false)
        "RegularExpression>>match: returns false when there is no match")
+
+(let ((expression [RegularExpression fromString: "(\\p{L}+)-(\\d+)"]))
+  (check (equal? [expression substitute: "žluť-42 and kůň-7" with: "$2:$1"]
+                 "42:žluť and 7:kůň")
+         "RegularExpression>>substitute:with: replaces all matches and expands captures")
+  (check (equal? [expression substitute: "unchanged" with: "replacement"]
+                 "unchanged")
+         "RegularExpression>>substitute:with: preserves subjects without matches"))
+
+(check (equal? [[RegularExpression fromString: "x(y)?"]
+                substitute: "x xy"
+                with: "<$1>"]
+               "<> <y>")
+       "RegularExpression>>substitute:with: treats unmatched captures as empty")
 )
 
 (define-test "make-class and make-instance"
