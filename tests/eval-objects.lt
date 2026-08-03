@@ -983,6 +983,49 @@
 (check (equal? ["aλ" asList] '(#\a #\λ)) "String>>asList converts characters")
 )
 
+(define-test "Regular expressions"
+;;; Regular expressions
+
+(check (class? RegularExpression) "RegularExpression class is bound")
+(check (class? RegularExpressionMatch) "RegularExpressionMatch class is bound")
+
+(let ((expression [RegularExpression fromString: "(\\p{L}+)(?:-(\\d+))?"]))
+  (check (eq? [expression class] RegularExpression)
+         "RegularExpression class>>fromString: compiles a pattern")
+  (check (equal? [expression pattern] "(\\p{L}+)(?:-(\\d+))?")
+         "RegularExpression>>pattern returns source pattern")
+  (let ((match [expression match: "🔥 žluť-42"]))
+    (check (eq? [match class] RegularExpressionMatch)
+           "RegularExpression>>match: returns a match object")
+    (check (equal? [match subject] "🔥 žluť-42")
+           "RegularExpressionMatch>>subject returns subject")
+    (check (eq? [match regularExpression] expression)
+           "match retains its regular expression")
+    (check (= [match captureCount] 3)
+           "capture count includes complete match")
+    (check (equal? [match at: 0] "žluť-42")
+           "capture zero is complete match")
+    (check (equal? [match at: 1] "žluť")
+           "Unicode capture is preserved")
+    (check (equal? [match at: 2] "42")
+           "numbered capture is available")
+    (check (= [match from: 0] 2)
+           "match start is a Unicode code-point index")
+    (check (= [match to: 0] 9)
+           "match end is an exclusive Unicode code-point index"))
+  (let ((match [expression match: "žluť"]))
+    (check (eq? [match at: 2] #false)
+           "unmatched optional capture returns false")
+    (check (eq? [match from: 2] #false)
+           "unmatched optional capture has no start")
+    (check (eq? [match to: 2] #false)
+           "unmatched optional capture has no end")))
+
+(check (eq? [[RegularExpression fromString: "\\d+"] match: "no digits"]
+            #false)
+       "RegularExpression>>match: returns false when there is no match")
+)
+
 (define-test "make-class and make-instance"
 ;;; make-class and make-instance
 
