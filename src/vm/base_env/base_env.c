@@ -64,6 +64,8 @@
 #include <ListTalk/classes/DateTime.h>
 #include <ListTalk/classes/UTCDateTime.h>
 #include <ListTalk/classes/UUID.h>
+#include <ListTalk/classes/RegularExpression.h>
+#include <ListTalk/classes/RegularExpressionMatch.h>
 #include <ListTalk/classes/Mutex.h>
 #include <ListTalk/classes/ReadWriteLock.h>
 #include <ListTalk/classes/ConditionVariable.h>
@@ -166,6 +168,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"DateTime", &LT_DateTime_class},
     {"UTCDateTime", &LT_UTCDateTime_class},
     {"UUID", &LT_UUID_class},
+    {"RegularExpression", &LT_RegularExpression_class},
+    {"RegularExpressionMatch", &LT_RegularExpressionMatch_class},
     {"Mutex", &LT_Mutex_class},
     {"ReadWriteLock", &LT_ReadWriteLock_class},
     {"ConditionVariable", &LT_ConditionVariable_class},

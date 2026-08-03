@@ -122,6 +122,7 @@ vm_lib = library(
                 'src/classes/XoshiroRNG.c',
                 'src/classes/AsconRNG.c',
                 'src/classes/UUID.c',
+                'src/classes/RegularExpression.c',
                 'src/classes/Condition.c',
                 'src/classes/Restart.c',
                 'src/classes/SourceLocation.c',
@@ -305,6 +306,13 @@ uuid_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+regular_expression_test_exe = executable(
+        'regular_expression_test',
+        'tests/regular_expression_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc, pcre2_8]
+)
+
 lock_test_exe = executable(
         'lock_test',
         'tests/lock_test.c',
@@ -394,6 +402,11 @@ test(
 test(
         'uuid_test',
         uuid_test_exe
+)
+
+test(
+        'regular_expression_test',
+        regular_expression_test_exe
 )
 
 test(
