@@ -51,6 +51,8 @@
 #include <ListTalk/classes/XoshiroRNG.h>
 #include <ListTalk/classes/AsconRNG.h>
 #include <ListTalk/classes/UUID.h>
+#include <ListTalk/classes/RegularExpression.h>
+#include <ListTalk/classes/RegularExpressionMatch.h>
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Restart.h>
 #include <ListTalk/classes/CompoundForm.h>

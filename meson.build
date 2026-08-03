@@ -5,6 +5,7 @@ project('ListTalk', 'c',
 fs = import('fs')
 pkg = import('pkgconfig')
 bdwgc = dependency('bdw-gc')
+pcre2_8 = dependency('libpcre2-8')
 python3 = find_program('python3')
 cc = meson.get_compiler('c')
 libm = cc.find_library('m', required : false)
@@ -26,7 +27,7 @@ endif
 
 add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 
-listtalk_deps = [bdwgc]
+listtalk_deps = [bdwgc, pcre2_8]
 listtalk_c_args = []
 libedit_dep = dependency('libedit', required : false)
 
@@ -121,6 +122,7 @@ vm_lib = library(
                 'src/classes/XoshiroRNG.c',
                 'src/classes/AsconRNG.c',
                 'src/classes/UUID.c',
+                'src/classes/RegularExpression.c',
                 'src/classes/Condition.c',
                 'src/classes/Restart.c',
                 'src/classes/SourceLocation.c',
@@ -154,7 +156,7 @@ vm_lib = library(
                 'src/classes/MessageQueue.c',
                 'src/classes/Thread.c'
         ], 
-        install : true, dependencies : [bdwgc, libm])
+        install : true, dependencies : [bdwgc, pcre2_8, libm])
 
 pkg.generate(
         vm_lib,
@@ -162,7 +164,7 @@ pkg.generate(
         name : 'ListTalkVM',
         description : 'ListTalk virtual machine library',
         subdirs : '.',
-        requires : [bdwgc],
+        requires : [bdwgc, pcre2_8],
         libraries_private : [libm],
         variables : [
                 'ListTalk_repl=${prefix}/@0@/listtalk'.format(get_option('bindir')),
@@ -304,6 +306,13 @@ uuid_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+regular_expression_test_exe = executable(
+        'regular_expression_test',
+        'tests/regular_expression_test.c',
+        link_with: [vm_lib],
+        dependencies : [bdwgc, pcre2_8]
+)
+
 lock_test_exe = executable(
         'lock_test',
         'tests/lock_test.c',
@@ -393,6 +402,11 @@ test(
 test(
         'uuid_test',
         uuid_test_exe
+)
+
+test(
+        'regular_expression_test',
+        regular_expression_test_exe
 )
 
 test(

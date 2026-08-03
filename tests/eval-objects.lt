@@ -983,6 +983,84 @@
 (check (equal? ["aλ" asList] '(#\a #\λ)) "String>>asList converts characters")
 )
 
+(define-test "Regular expressions"
+;;; Regular expressions
+
+(check (class? RegularExpression) "RegularExpression class is bound")
+(check (class? RegularExpressionMatch) "RegularExpressionMatch class is bound")
+
+(let ((expression [RegularExpression fromString: "(\\p{L}+)(?:-(\\d+))?"]))
+  (check (eq? [expression class] RegularExpression)
+         "RegularExpression class>>fromString: compiles a pattern")
+  (check (equal? [expression pattern] "(\\p{L}+)(?:-(\\d+))?")
+         "RegularExpression>>pattern returns source pattern")
+  (let ((match [expression match: "🔥 žluť-42"]))
+    (check (eq? [match class] RegularExpressionMatch)
+           "RegularExpression>>match: returns a match object")
+    (check (equal? [match subject] "🔥 žluť-42")
+           "RegularExpressionMatch>>subject returns subject")
+    (check (eq? [match regularExpression] expression)
+           "match retains its regular expression")
+    (check (= [match captureCount] 3)
+           "capture count includes complete match")
+    (check (equal? [match at: 0] "žluť-42")
+           "capture zero is complete match")
+    (check (equal? [match at: 1] "žluť")
+           "Unicode capture is preserved")
+    (check (equal? [match at: 2] "42")
+           "numbered capture is available")
+    (check (= [match from: 0] 2)
+           "match start is a Unicode code-point index")
+    (check (= [match to: 0] 9)
+           "match end is an exclusive Unicode code-point index"))
+  (let ((match [expression match: "žluť"]))
+    (check (eq? [match at: 2] #false)
+           "unmatched optional capture returns false")
+    (check (eq? [match from: 2] #false)
+           "unmatched optional capture has no start")
+    (check (eq? [match to: 2] #false)
+           "unmatched optional capture has no end")))
+
+(check (eq? [[RegularExpression fromString: "\\d+"] match: "no digits"]
+            #false)
+       "RegularExpression>>match: returns false when there is no match")
+
+(let ((match ["🔥 žluť-42" match: "(\\p{L}+)-(\\d+)"]))
+  (check (eq? [match class] RegularExpressionMatch)
+         "String>>match: returns a regular expression match object")
+  (check (equal? [match at: 1] "žluť")
+         "String>>match: preserves Unicode captures")
+  (check (= [match from: 0] 2)
+         "String>>match: reports code-point match ranges"))
+(check (eq? ["no digits" match: "\\d+"] #false)
+       "String>>match: returns false when there is no match")
+(check ["abc-123" matches?: "\\p{L}+-\\d+"]
+       "String>>matches?: returns true when pattern matches")
+(check (not ["abc" matches?: "\\d+"])
+       "String>>matches?: returns false when pattern is absent")
+
+(let ((expression [RegularExpression fromString: "(\\p{L}+)-(\\d+)"]))
+  (check (equal? [expression substitute: "žluť-42 and kůň-7" with: "$2:$1"]
+                 "42:žluť and 7:kůň")
+         "RegularExpression>>substitute:with: replaces all matches and expands captures")
+  (check (equal? [expression substitute: "unchanged" with: "replacement"]
+                 "unchanged")
+         "RegularExpression>>substitute:with: preserves subjects without matches"))
+
+(check (equal? ["žluť-42 and kůň-7" substitute: "(\\p{L}+)-(\\d+)" with: "$2:$1"]
+               "42:žluť and 7:kůň")
+       "String>>substitute:with: replaces regex matches and expands captures")
+(check (equal? ["unchanged" substitute: "(\\p{L}+)-(\\d+)" with: "replacement"]
+               "unchanged")
+       "String>>substitute:with: preserves strings without matches")
+
+(check (equal? [[RegularExpression fromString: "x(y)?"]
+                substitute: "x xy"
+                with: "<$1>"]
+               "<> <y>")
+       "RegularExpression>>substitute:with: treats unmatched captures as empty")
+)
+
 (define-test "make-class and make-instance"
 ;;; make-class and make-instance
 

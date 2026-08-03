@@ -23,6 +23,7 @@ treated as unstable.
 - [Meson](https://mesonbuild.com/) and Ninja
 - `python3`
 - Boehm-Demers-Weiser GC (`bdw-gc`)
+- PCRE2's 8-bit library (`libpcre2-8`)
 - `libedit` or compatible readline headers, optional
 
 When `libedit` is available at configure time, the REPL is built with editable
