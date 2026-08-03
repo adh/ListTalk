@@ -495,30 +495,42 @@ int LT_PointerHash_remove(LT_InlineHash* h, void* key, void** value_out){
     return 0;
 }
 
-enum {
-    LT_REGISTERED_CONSTRUCTOR_CAPACITY = 256,
+typedef struct LT_RegisteredConstructor LT_RegisteredConstructor;
+
+struct LT_RegisteredConstructor {
+    void (*ctor)(void);
+    LT_RegisteredConstructor* next;
 };
 
-static void (*LT_registered_constructors[LT_REGISTERED_CONSTRUCTOR_CAPACITY])(void);
-static size_t LT_registered_constructor_count = 0;
-static size_t LT_registered_constructor_run_count = 0;
+static LT_RegisteredConstructor* LT_registered_constructors_head = NULL;
+static LT_RegisteredConstructor* LT_registered_constructors_tail = NULL;
 static int LT_registered_constructors_running = 0;
 static int LT_registered_constructors_ran = 0;
 
 void LT_register_constructor(void (*ctor)(void)){
+    LT_RegisteredConstructor* registered_constructor;
+
     if (LT_registered_constructors_ran &&
         !LT_registered_constructors_running){
         ctor();
         return;
     }
 
-    if (LT_registered_constructor_count >=
-        LT_REGISTERED_CONSTRUCTOR_CAPACITY){
-        fputs("Too many ListTalk native constructors\n", stderr);
+    registered_constructor = malloc(sizeof(LT_RegisteredConstructor));
+    if (registered_constructor == NULL){
+        fputs("Could not allocate ListTalk native constructor registration\n",
+              stderr);
         abort();
     }
+    registered_constructor->ctor = ctor;
+    registered_constructor->next = NULL;
 
-    LT_registered_constructors[LT_registered_constructor_count++] = ctor;
+    if (LT_registered_constructors_tail != NULL){
+        LT_registered_constructors_tail->next = registered_constructor;
+    } else {
+        LT_registered_constructors_head = registered_constructor;
+    }
+    LT_registered_constructors_tail = registered_constructor;
 }
 
 void LT_run_registered_constructors(void){
@@ -527,10 +539,16 @@ void LT_run_registered_constructors(void){
     }
 
     LT_registered_constructors_running = 1;
-    while (LT_registered_constructor_run_count <
-           LT_registered_constructor_count){
-        void (*ctor)(void) =
-            LT_registered_constructors[LT_registered_constructor_run_count++];
+    while (LT_registered_constructors_head != NULL){
+        LT_RegisteredConstructor* registered_constructor =
+            LT_registered_constructors_head;
+        void (*ctor)(void) = registered_constructor->ctor;
+
+        LT_registered_constructors_head = registered_constructor->next;
+        if (LT_registered_constructors_head == NULL){
+            LT_registered_constructors_tail = NULL;
+        }
+        free(registered_constructor);
         ctor();
     }
     LT_registered_constructors_running = 0;
