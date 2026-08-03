@@ -3,11 +3,9 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Macro.h>
-#include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/CompoundForm.h>
-#include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/String.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
 
@@ -39,20 +37,12 @@ LT_DEFINE_PRIMITIVE(
     LT_Value cursor = arguments;
     LT_Value self;
     LT_Value callable;
-    char* name;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
     callable = LT_Macro_callable(LT_Macro_from_value(self));
-    if (LT_Closure_p(callable)){
-        return LT_Closure_name(LT_Closure_from_value(callable));
-    }
-    name = LT_Primitive_name(LT_Primitive_from_value(callable));
-    if (name == NULL){
-        return LT_NIL;
-    }
-    return (LT_Value)(uintptr_t)LT_String_new_cstr(name);
+    return LT_SEND(callable, "name");
 }
 
 static LT_Method_Descriptor Macro_methods[] = {

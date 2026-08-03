@@ -1384,6 +1384,19 @@ static int test_define_function_shorthand_sets_closure_name(void){
     );
 }
 
+static int test_macro_name_uses_wrapped_object_protocol(void){
+    LT_Value named = LT_Symbol_new_uninterned("wrapped-name");
+    LT_Value named_macro = LT_Macro_new(named);
+    LT_Value name = LT_SEND(named_macro, "name");
+
+    return expect(
+        LT_String_p(name)
+            && strcmp(LT_String_value_cstr(LT_String_from_value(name)),
+                      "wrapped-name") == 0,
+        "Macro>>name delegates to an arbitrary wrapped object's name method"
+    );
+}
+
 static int test_closure_debug_print_includes_name(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value value;
@@ -3835,6 +3848,7 @@ int main(void){
     RUN_TEST(test_package_enumeration_c_api);
     RUN_TEST(test_lambda_macro_expands_to_named_nil_closure);
     RUN_TEST(test_define_function_shorthand_sets_closure_name);
+    RUN_TEST(test_macro_name_uses_wrapped_object_protocol);
     RUN_TEST(test_closure_debug_print_includes_name);
     RUN_TEST(test_anonymous_closure_debug_print_includes_address);
     RUN_TEST(test_closure_documentation_from_docstring);
