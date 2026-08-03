@@ -21,6 +21,7 @@
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/RegularExpression.h>
 #include <ListTalk/classes/RealNumber.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/Symbol.h>
@@ -978,6 +979,69 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_match,
+    "String>>match:",
+    "(self pattern)",
+    "Return the first regular expression match, or false when there is no match."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* pattern;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_RegularExpression_match(LT_RegularExpression_new(pattern), self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_matches,
+    "String>>matches?:",
+    "(self pattern)",
+    "Return true when regular expression pattern matches the string."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* pattern;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return LT_RegularExpression_match(LT_RegularExpression_new(pattern), self)
+        == LT_FALSE
+        ? LT_FALSE
+        : LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_substitute,
+    "String>>substitute:with:",
+    "(self pattern replacement)",
+    "Return a new string replacing regular expression matches with replacement."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* pattern;
+    LT_String* replacement;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, replacement, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_RegularExpression_substitute(
+        LT_RegularExpression_new(pattern),
+        self,
+        replacement
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_map_characters,
     "String>>mapCharacters:",
     "(self dictionary)",
@@ -1628,6 +1692,9 @@ static LT_Method_Descriptor String_methods[] = {
     {"append:", &string_method_append},
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
+    {"match:", &string_method_match},
+    {"matches?:", &string_method_matches},
+    {"substitute:with:", &string_method_substitute},
     {"mapCharacters:", &string_method_map_characters},
     {"substrings", &string_method_substrings_whitespace},
     {"substringsDo:", &string_method_substrings_do_whitespace},

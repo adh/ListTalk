@@ -1025,6 +1025,20 @@
             #false)
        "RegularExpression>>match: returns false when there is no match")
 
+(let ((match ["🔥 žluť-42" match: "(\\p{L}+)-(\\d+)"]))
+  (check (eq? [match class] RegularExpressionMatch)
+         "String>>match: returns a regular expression match object")
+  (check (equal? [match at: 1] "žluť")
+         "String>>match: preserves Unicode captures")
+  (check (= [match from: 0] 2)
+         "String>>match: reports code-point match ranges"))
+(check (eq? ["no digits" match: "\\d+"] #false)
+       "String>>match: returns false when there is no match")
+(check ["abc-123" matches?: "\\p{L}+-\\d+"]
+       "String>>matches?: returns true when pattern matches")
+(check (not ["abc" matches?: "\\d+"])
+       "String>>matches?: returns false when pattern is absent")
+
 (let ((expression [RegularExpression fromString: "(\\p{L}+)-(\\d+)"]))
   (check (equal? [expression substitute: "žluť-42 and kůň-7" with: "$2:$1"]
                  "42:žluť and 7:kůň")
@@ -1032,6 +1046,13 @@
   (check (equal? [expression substitute: "unchanged" with: "replacement"]
                  "unchanged")
          "RegularExpression>>substitute:with: preserves subjects without matches"))
+
+(check (equal? ["žluť-42 and kůň-7" substitute: "(\\p{L}+)-(\\d+)" with: "$2:$1"]
+               "42:žluť and 7:kůň")
+       "String>>substitute:with: replaces regex matches and expands captures")
+(check (equal? ["unchanged" substitute: "(\\p{L}+)-(\\d+)" with: "replacement"]
+               "unchanged")
+       "String>>substitute:with: preserves strings without matches")
 
 (check (equal? [[RegularExpression fromString: "x(y)?"]
                 substitute: "x xy"
