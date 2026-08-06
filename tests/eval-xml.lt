@@ -1,0 +1,65 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :xml)
+
+(define (check condition description)
+  (if condition
+      #true
+      (error (string-append "FAIL: " description))))
+
+(define-class RecordingXMLHandler (ListTalk-XML:XMLEventHandler)
+  (events text attribute))
+
+(define-method [RecordingXMLHandler startDocument]
+  (set! (%self-slot events) (cons :start-document (%self-slot events))))
+
+(define-method [RecordingXMLHandler endDocument]
+  (set! (%self-slot events) (cons :end-document (%self-slot events))))
+
+(define-method [RecordingXMLHandler startElement: name attributes: attributes]
+  (set! (%self-slot attribute) [attributes at: "id"])
+  (set! (%self-slot events) (cons (list :start name) (%self-slot events))))
+
+(define-method [RecordingXMLHandler endElement: name]
+  (set! (%self-slot events) (cons (list :end name) (%self-slot events))))
+
+(define-method [RecordingXMLHandler characters: characters]
+  (set! (%self-slot text) (string-append (%self-slot text) characters)))
+
+(define-method [RecordingXMLHandler processingInstruction: target data: data]
+  (set! (%self-slot events)
+        (cons (list :processing-instruction target data) (%self-slot events))))
+
+(define-method [RecordingXMLHandler comment: comment]
+  (set! (%self-slot events) (cons (list :comment comment) (%self-slot events))))
+
+(define-method [RecordingXMLHandler startCDATA]
+  (set! (%self-slot events) (cons :start-cdata (%self-slot events))))
+
+(define-method [RecordingXMLHandler endCDATA]
+  (set! (%self-slot events) (cons :end-cdata (%self-slot events))))
+
+(let ((handler (make-instance RecordingXMLHandler)))
+  (slot-set! handler 'events '())
+  (slot-set! handler 'text "")
+  (check (eq? (ListTalk-XML:parse
+                ["<?go now?><root id=\"42\"><!--note--><![CDATA[x]]>y</root>"
+                 asByteVector]
+                handler)
+              handler)
+         "parse returns its event handler")
+  (check (equal? (slot-ref handler 'attribute) "42")
+         "startElement receives immutable attributes")
+  (check (equal? (slot-ref handler 'text) "xy")
+         "characters receives ordinary and CDATA text")
+  (check (equal? (reverse (slot-ref handler 'events))
+                 '(:start-document
+                   (:processing-instruction "go" "now")
+                   (:start "root")
+                   (:comment "note")
+                   :start-cdata
+                   :end-cdata
+                   (:end "root")
+                   :end-document))
+         "XML events are delivered in document order"))

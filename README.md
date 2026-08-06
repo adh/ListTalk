@@ -256,6 +256,13 @@ dfsch-inspired `gzip-open-for-input`, `gzip-open-for-output`, and
 as `GzipStream` class methods named `openForInput:`, `openForOutput:`, and
 `openForAppend:`.
 
+When Expat is available, the optional `xml.ltm` module is built automatically;
+use `-Dxml=enabled` or `-Dxml=disabled` to override detection. Its one-shot
+`ListTalk-XML:parse` primitive accepts an XML bytevector and an instance of an
+`XMLEventHandler` subclass. The abstract handler supplies no-op methods for
+document, element, character, processing-instruction, comment, and CDATA
+events, so subclasses only need to override events they use.
+
 Additional module search paths can be supplied with `-L` or by passing resolver
 paths to `load!`/`require`.
 

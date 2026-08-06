@@ -9,3 +9,9 @@ option(
         type : 'feature',
         value : 'auto',
         description : 'Build the optional zlib.ltm module (requires zlib)')
+
+option(
+        'xml',
+        type : 'feature',
+        value : 'auto',
+        description : 'Build the optional xml.ltm module (requires Expat)')

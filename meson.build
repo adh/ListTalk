@@ -35,6 +35,8 @@ md4c_dep = dependency('md4c', required : markdown_opt)
 md4c_html_dep = dependency('md4c-html', required : markdown_opt)
 zlib_opt = get_option('zlib')
 zlib_dep = dependency('zlib', required : zlib_opt)
+xml_opt = get_option('xml')
+expat_dep = dependency('expat', required : xml_opt)
 
 if libedit_dep.found()
     if cc.has_header('editline/readline.h', dependencies : libedit_dep)
@@ -290,6 +292,19 @@ if zlib_dep.found()
     )
 endif
 
+if expat_dep.found()
+    xml_module = shared_module(
+            'xml',
+            'src/modules/xml.c',
+            name_prefix : '',
+            name_suffix : 'ltm',
+            link_with : [vm_lib],
+            dependencies : expat_dep,
+            install : true,
+            install_dir : listtalk_native_module_dir
+    )
+endif
+
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -437,6 +452,18 @@ if zlib_dep.found()
                     meson.current_source_dir() / 'tests' / 'eval-zlib.lt'
             ],
             depends : [zlib_module, os_module]
+    )
+endif
+
+if expat_dep.found()
+    test(
+            'eval_xml',
+            listtalk_exe,
+            args : [
+                    '-L', meson.current_build_dir(),
+                    meson.current_source_dir() / 'tests' / 'eval-xml.lt'
+            ],
+            depends : [xml_module]
     )
 endif
 
