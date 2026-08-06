@@ -15,6 +15,7 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/utils.h>
 
 #include <gc.h>
 #include <stddef.h>
@@ -491,6 +492,85 @@ LT_Value LT_RegularExpression_match(LT_RegularExpression* expression,
     }
     pcre2_match_data_free(data);
     return (LT_Value)(uintptr_t)match;
+}
+
+static void RegularExpression_list_callback(LT_String* substring, void* baton){
+    LT_ListBuilder_append((LT_ListBuilder*)baton, (LT_Value)(uintptr_t)substring);
+}
+
+void LT_RegularExpression_splitDo(
+    LT_RegularExpression* expression,
+    LT_String* subject,
+    LT_String_SubstringCallback callback,
+    void* baton
+){
+    const char* bytes = LT_String_value_cstr(subject);
+    PCRE2_SIZE length = (PCRE2_SIZE)LT_String_byte_length(subject);
+    PCRE2_SIZE field_start = 0;
+    PCRE2_SIZE search_start = 0;
+    pcre2_match_data* data = pcre2_match_data_create_from_pattern(
+        expression->code,
+        NULL
+    );
+
+    if (data == NULL){
+        LT_error("Unable to allocate regular expression match data");
+    }
+    while (search_start <= length){
+        int result = pcre2_match(
+            expression->code,
+            (PCRE2_SPTR)bytes,
+            length,
+            search_start,
+            PCRE2_NO_UTF_CHECK,
+            data,
+            NULL
+        );
+        PCRE2_SIZE* ranges;
+        PCRE2_SIZE from;
+        PCRE2_SIZE to;
+
+        if (result == PCRE2_ERROR_NOMATCH){
+            break;
+        }
+        if (result < 0){
+            pcre2_match_data_free(data);
+            LT_error("Regular expression matching failed with PCRE2 error %d", result);
+        }
+        ranges = pcre2_get_ovector_pointer(data);
+        from = ranges[0];
+        to = ranges[1];
+        callback(
+            LT_String_new((char*)bytes + field_start, (size_t)(from - field_start)),
+            baton
+        );
+        field_start = to;
+        if (to > from){
+            search_start = to;
+        } else if (to < length){
+            search_start = (PCRE2_SIZE)(LT_String_utf8_next(bytes + to) - bytes);
+        } else {
+            search_start = length + 1;
+        }
+    }
+    callback(
+        LT_String_new((char*)bytes + field_start, (size_t)(length - field_start)),
+        baton
+    );
+    pcre2_match_data_free(data);
+}
+
+LT_Value LT_RegularExpression_split(LT_RegularExpression* expression,
+                                    LT_String* subject){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    LT_RegularExpression_splitDo(
+        expression,
+        subject,
+        RegularExpression_list_callback,
+        builder
+    );
+    return LT_ListBuilder_value(builder);
 }
 
 LT_String* LT_RegularExpression_substitute(

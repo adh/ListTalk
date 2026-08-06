@@ -841,6 +841,16 @@
 (check (equal? ["a,λ;😀" splitOn: [Set fromList: (list #\, #\;)]]
                '("a" "λ" "😀"))
        "String>>splitOn: splits on any character in Set")
+(check (equal? ["a, λ ; 😀," splitOn:
+                [RegularExpression fromString: "\\s*(?:,|;)\\s*"]]
+               '("a" "λ" "😀" ""))
+       "String>>splitOn: splits on RegularExpression matches")
+(check (let ((seen '()))
+         (and (null? ["a, λ," splitOn:
+                      [RegularExpression fromString: "\\s*,\\s*"] do:
+                      (lambda (each) (set! seen (cons each seen)))])
+              (equal? seen '("" "λ" "a"))))
+       "String>>splitOn:do: splits on RegularExpression matches")
 (check (equal? ["a\r\n\rb\n" splitLines] '("a" "b"))
        "String>>splitLines strips line terminators and surrounding CR bytes")
 (check (equal? ["a\n" splitLines] '("a"))

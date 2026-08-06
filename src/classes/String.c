@@ -362,7 +362,7 @@ static int String_splitOn_delimiter_p(LT_Value delimiters, uint32_t codepoint){
         );
     }
 
-    LT_error("splitOn: expects Character, String, or Set");
+    LT_error("splitOn: expects Character, String, Set, or RegularExpression");
     return 0;
 }
 
@@ -545,6 +545,16 @@ void LT_String_splitOnDo(LT_String* string,
     const char* end = cursor + LT_String_byte_length(string);
     const char* start = cursor;
     size_t codepoint_length = 0;
+
+    if (LT_RegularExpression_p(delimiters)){
+        LT_RegularExpression_splitDo(
+            LT_RegularExpression_from_value(delimiters),
+            string,
+            callback,
+            baton
+        );
+        return;
+    }
 
     while (cursor < end){
         uint32_t codepoint = LT_String_utf8_codepoint_at(cursor);
@@ -1149,7 +1159,7 @@ LT_DEFINE_PRIMITIVE(
     string_method_split_on,
     "String>>splitOn:",
     "(self delimiters)",
-    "Return substrings split on a delimiter character, delimiter string, or set of characters."
+    "Return substrings split on a delimiter character, delimiter string, set of characters, or regular expression."
 ){
     LT_Value cursor = arguments;
     LT_Value self;
@@ -1167,7 +1177,7 @@ LT_DEFINE_PRIMITIVE(
     string_method_split_on_do,
     "String>>splitOn:do:",
     "(self delimiters callable)",
-    "Call callable for substrings split on a delimiter character, delimiter string, or set of characters."
+    "Call callable for substrings split on a delimiter character, delimiter string, set of characters, or regular expression."
 ){
     LT_Value cursor = arguments;
     LT_Value self;

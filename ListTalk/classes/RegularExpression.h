@@ -19,6 +19,16 @@ LT_Value LT_RegularExpression_match(
     LT_RegularExpression* expression,
     LT_String* subject
 );
+void LT_RegularExpression_splitDo(
+    LT_RegularExpression* expression,
+    LT_String* subject,
+    LT_String_SubstringCallback callback,
+    void* baton
+);
+LT_Value LT_RegularExpression_split(
+    LT_RegularExpression* expression,
+    LT_String* subject
+);
 LT_String* LT_RegularExpression_substitute(
     LT_RegularExpression* expression,
     LT_String* subject,

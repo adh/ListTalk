@@ -24,6 +24,23 @@ static int string_equals(LT_Value value, const char* expected){
         ) == 0;
 }
 
+static size_t test_list_length(LT_Value list){
+    size_t length = 0;
+
+    while (LT_Pair_p(list)){
+        length++;
+        list = LT_cdr(list);
+    }
+    return length;
+}
+
+static int expect_list_string_at(LT_Value list,
+                                 size_t index,
+                                 const char* expected,
+                                 const char* message){
+    return expect(string_equals(LT_List_at(list, index), expected), message);
+}
+
 static int test_utf8_match_and_captures(void){
     LT_RegularExpression* expression = LT_RegularExpression_new(
         LT_String_new_cstr("(\\p{L}+)(?:-(\\d+))?")
@@ -165,6 +182,21 @@ static int test_substitute(void){
     return failures;
 }
 
+static int test_split(void){
+    LT_Value pieces = LT_RegularExpression_split(
+        LT_RegularExpression_new(LT_String_new_cstr("\\s*(?:,|;)\\s*")),
+        LT_String_new_cstr("a, λ ; 😀,")
+    );
+    int failures = 0;
+
+    failures += expect(test_list_length(pieces) == 4, "split returns every field");
+    failures += expect_list_string_at(pieces, 0, "a", "split first field");
+    failures += expect_list_string_at(pieces, 1, "λ", "split Unicode field");
+    failures += expect_list_string_at(pieces, 2, "😀", "split emoji field");
+    failures += expect_list_string_at(pieces, 3, "", "split trailing empty field");
+    return failures;
+}
+
 int main(void){
     int failures = 0;
 
@@ -173,6 +205,7 @@ int main(void){
     failures += test_optional_capture_and_no_match();
     failures += test_pattern_value_semantics();
     failures += test_substitute();
+    failures += test_split();
 
     if (failures == 0){
         puts("regular expression tests passed");
