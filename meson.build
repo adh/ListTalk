@@ -56,10 +56,26 @@ runtime_init_embedded = custom_target(
         depend_files : files('tools/embed_file_as_c.py')
 )
 
+runtime_init_once_embedded = custom_target(
+        'runtime_init_once_embedded.c',
+        input : 'runtime/init-once.lt',
+        output : 'runtime_init_once_embedded.c',
+        command : [
+                python3,
+                files('tools/embed_file_as_c.py'),
+                '@INPUT@',
+                'LT_runtime_init_once_source',
+                '-o',
+                '@OUTPUT@'
+        ],
+        depend_files : files('tools/embed_file_as_c.py')
+)
+
 vm_lib = library(
                 'ListTalkVM', 
         [
                 runtime_init_embedded,
+                runtime_init_once_embedded,
                 'src/vm/eval.c',
                 'src/vm/loader.c',
                 'src/vm/quasiquote.c',

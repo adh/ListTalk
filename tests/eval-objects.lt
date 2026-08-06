@@ -261,10 +261,14 @@
        "Environment class>>sharedBase returns environment")
 (check (eq? [Environment sharedBase] [Environment sharedBase])
        "Environment class>>sharedBase returns shared instance")
-(let ((base-environment [Environment newBase]))
-  (check (and (environment? base-environment)
-              [base-environment contains?: '+])
-         "Environment class>>newBase returns initialized base environment"))
+(let ((function-value-method [Function lookupSelector: :value]))
+  (let ((base-environment [Environment newBase]))
+    (check (and (environment? base-environment)
+                [base-environment contains?: '+]
+                [base-environment contains?: 'ListTalk:define])
+           "Environment class>>newBase returns initialized base environment")
+    (check (eq? function-value-method [Function lookupSelector: :value])
+           "Environment class>>newBase does not redefine global methods")))
 
 (check (class? Message) "Message is a class")
 (check (class? CompoundForm) "CompoundForm is a class")

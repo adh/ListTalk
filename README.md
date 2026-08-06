@@ -266,7 +266,8 @@ helper macros. Public class/value headers are installed under `ListTalk/`.
 - `src/classes/` - native class implementations.
 - `src/modules/` - native loadable modules.
 - `src/bin/listtalk/` - command-line executable and REPL.
-- `runtime/init.lt` - ListTalk runtime definitions embedded into the VM.
+- `runtime/init.lt` - per-environment ListTalk runtime definitions embedded into the VM.
+- `runtime/init-once.lt` - one-time ListTalk runtime method definitions and global mutations.
 - `modules/` - source modules installed with the runtime.
 - `ListTalk/` - public C headers.
 - `tests/` - C, CLI, and ListTalk language tests.

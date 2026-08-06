@@ -78,9 +78,25 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <pthread.h>
 
 extern unsigned char LT_runtime_init_source[];
 extern size_t LT_runtime_init_source_length;
+extern unsigned char LT_runtime_init_once_source[];
+extern size_t LT_runtime_init_once_source_length;
+
+static pthread_mutex_t runtime_init_once_mutex = PTHREAD_MUTEX_INITIALIZER;
+static int runtime_init_once_complete = 0;
+
+static void eval_runtime_source(unsigned char* source,
+                                size_t source_length,
+                                LT_Environment* environment){
+    char* source_string = GC_MALLOC_ATOMIC(source_length + 1);
+
+    memcpy(source_string, source, source_length);
+    source_string[source_length] = '\0';
+    LT_eval_sequence_string(source_string, environment);
+}
 
 struct LT_NativeClassBinding {
     const char* name;
@@ -291,7 +307,6 @@ void LT_base_environment_append_module_resolver(LT_Environment* environment,
 
 LT_Environment* LT_new_base_environment(void){
     LT_Environment* environment = LT_Environment_new(NULL, LT_NIL, LT_NIL);
-    char* runtime_init_source;
     LT_Package* previous_package = LT_get_current_package();
 
     LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
@@ -306,10 +321,22 @@ LT_Environment* LT_new_base_environment(void){
         LT_base_env_bind_special_forms(environment);
         LT_base_env_bind_loader(environment);
         LT_base_env_bind_module_variables(environment);
-        runtime_init_source = GC_MALLOC_ATOMIC(LT_runtime_init_source_length + 1);
-        memcpy(runtime_init_source, LT_runtime_init_source, LT_runtime_init_source_length);
-        runtime_init_source[LT_runtime_init_source_length] = '\0';
-        LT_eval_sequence_string(runtime_init_source, environment);
+        eval_runtime_source(
+            LT_runtime_init_source,
+            LT_runtime_init_source_length,
+            environment
+        );
+
+        pthread_mutex_lock(&runtime_init_once_mutex);
+        if (!runtime_init_once_complete){
+            eval_runtime_source(
+                LT_runtime_init_once_source,
+                LT_runtime_init_once_source_length,
+                environment
+            );
+            runtime_init_once_complete = 1;
+        }
+        pthread_mutex_unlock(&runtime_init_once_mutex);
     });
     LT_set_current_package(previous_package);
 
