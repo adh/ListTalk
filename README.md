@@ -232,6 +232,21 @@ It also installs the source module:
 
 - `html-gen`
 
+The optional native Markdown module uses
+[md4c](https://github.com/mity/md4c) to parse Markdown into an S-expression
+AST and to render Markdown as HTML. It is built automatically when the md4c
+and md4c-html dependencies are available. Its detection can also be controlled
+explicitly when configuring the build:
+
+```sh
+meson setup build -Dmarkdown=enabled
+# or: -Dmarkdown=disabled
+```
+
+This builds and installs `markdown.ltm`. Load it with `(require :markdown)`;
+its API is exposed in the `ListTalk-markdown` package, including `parse`,
+`valid?`, `event-count`, and `to-html`.
+
 Additional module search paths can be supplied with `-L` or by passing resolver
 paths to `load!`/`require`.
 

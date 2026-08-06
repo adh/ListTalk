@@ -1,0 +1,40 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :markdown)
+
+(define (check condition description)
+  (if condition
+      #true
+      (error (string-append "FAIL: " description))))
+
+(check (equal? (ListTalk-markdown:to-html "# Hello")
+               "<h1>Hello</h1>\n")
+       "to-html renders heading")
+
+(check (equal? (ListTalk-markdown:to-html "~~gone~~" (list :github) (list :xhtml))
+               "<p><del>gone</del></p>\n")
+       "to-html accepts parser and renderer option lists")
+
+(check (ListTalk-markdown:valid? "# Hello")
+       "valid? returns true on successful parse")
+
+(check (equal? (ListTalk-markdown:parse "# Hello")
+               '(:document () (:heading (:level 1) "Hello")))
+       "parse returns heading AST")
+
+(check (equal? (ListTalk-markdown:parse "A *b*")
+               '(:document () (:paragraph () "A " (:emphasis () "b"))))
+       "parse returns inline span AST")
+
+(check (equal? (ListTalk-markdown:parse "~~gone~~" (list :github))
+               '(:document () (:paragraph () (:delete () "gone"))))
+       "parse accepts parser option lists")
+
+(check (equal? ListTalk-markdown:parser-options
+               ListTalk-markdown:parser-options)
+       "parser option constant is bound")
+
+(check (equal? ListTalk-markdown:html-renderer-options
+               ListTalk-markdown:html-renderer-options)
+       "renderer option constant is bound")
