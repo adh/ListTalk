@@ -1,0 +1,17 @@
+option(
+        'markdown',
+        type : 'feature',
+        value : 'auto',
+        description : 'Build the optional markdown.ltm module (requires md4c and md4c-html)')
+
+option(
+        'zlib',
+        type : 'feature',
+        value : 'auto',
+        description : 'Build the optional zlib.ltm module (requires zlib)')
+
+option(
+        'xml',
+        type : 'feature',
+        value : 'auto',
+        description : 'Build the optional xml.ltm module (requires Expat)')

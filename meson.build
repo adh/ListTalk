@@ -30,6 +30,13 @@ add_project_arguments('-D_POSIX_C_SOURCE=200809L', language : 'c')
 listtalk_deps = [bdwgc, pcre2_8]
 listtalk_c_args = []
 libedit_dep = dependency('libedit', required : false)
+markdown_opt = get_option('markdown')
+md4c_dep = dependency('md4c', required : markdown_opt)
+md4c_html_dep = dependency('md4c-html', required : markdown_opt)
+zlib_opt = get_option('zlib')
+zlib_dep = dependency('zlib', required : zlib_opt)
+xml_opt = get_option('xml')
+expat_dep = dependency('expat', required : xml_opt)
 
 if libedit_dep.found()
     if cc.has_header('editline/readline.h', dependencies : libedit_dep)
@@ -247,6 +254,57 @@ ini_module = shared_module(
         install_dir : listtalk_native_module_dir
 )
 
+if md4c_dep.found() and md4c_html_dep.found()
+    markdown_config = configuration_data()
+    markdown_config.set10(
+            'HAVE_MD_SPAN_A_DETAIL_IS_AUTOLINK',
+            cc.has_member(
+                    'MD_SPAN_A_DETAIL',
+                    'is_autolink',
+                    prefix : '#include <md4c.h>',
+                    dependencies : md4c_dep))
+    configure_file(
+            output : 'markdown-config.h',
+            configuration : markdown_config)
+
+    markdown_module = shared_module(
+            'markdown',
+            'src/modules/markdown.c',
+            name_prefix : '',
+            name_suffix : 'ltm',
+            link_with : [vm_lib],
+            dependencies : [md4c_dep, md4c_html_dep],
+            install : true,
+            install_dir : listtalk_native_module_dir
+    )
+endif
+
+if zlib_dep.found()
+    zlib_module = shared_module(
+            'zlib',
+            'src/modules/zlib.c',
+            name_prefix : '',
+            name_suffix : 'ltm',
+            link_with : [vm_lib],
+            dependencies : zlib_dep,
+            install : true,
+            install_dir : listtalk_native_module_dir
+    )
+endif
+
+if expat_dep.found()
+    xml_module = shared_module(
+            'xml',
+            'src/modules/xml.c',
+            name_prefix : '',
+            name_suffix : 'ltm',
+            link_with : [vm_lib],
+            dependencies : expat_dep,
+            install : true,
+            install_dir : listtalk_native_module_dir
+    )
+endif
+
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -372,6 +430,42 @@ test(
         ],
         depends : [os_module, gc_module, cmdopts_module, json_module, ini_module]
 )
+
+if md4c_dep.found() and md4c_html_dep.found()
+    test(
+            'eval_markdown',
+            listtalk_exe,
+            args : [
+                    '-L', meson.current_build_dir(),
+                    meson.current_source_dir() / 'tests' / 'eval-markdown.lt'
+            ],
+            depends : [markdown_module]
+    )
+endif
+
+if zlib_dep.found()
+    test(
+            'eval_zlib',
+            listtalk_exe,
+            args : [
+                    '-L', meson.current_build_dir(),
+                    meson.current_source_dir() / 'tests' / 'eval-zlib.lt'
+            ],
+            depends : [zlib_module, os_module]
+    )
+endif
+
+if expat_dep.found()
+    test(
+            'eval_xml',
+            listtalk_exe,
+            args : [
+                    '-L', meson.current_build_dir(),
+                    meson.current_source_dir() / 'tests' / 'eval-xml.lt'
+            ],
+            depends : [xml_module]
+    )
+endif
 
 test(
         'listtalk_cli_test',

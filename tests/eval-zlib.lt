@@ -1,0 +1,62 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :zlib)
+(require :os)
+
+(define (check condition description)
+  (if condition
+      #true
+      (error (string-append "FAIL: " description))))
+
+(define input
+  (bytevector 0 1 2 3 4 5 0 255 120 120 120 120 120 120 120 120))
+
+(check (equal? (ListTalk-zlib:uncompress
+                 (ListTalk-zlib:compress input))
+               input)
+       "default compression round trip")
+
+(check (equal? (ListTalk-zlib:uncompress
+                 (ListTalk-zlib:compress input 0))
+               input)
+       "level-zero compression round trip")
+
+(check (equal? (ListTalk-zlib:uncompress
+                 (ListTalk-zlib:compress (bytevector) 9))
+               (bytevector))
+       "empty bytevector round trip")
+
+(check (string? ListTalk-zlib:version)
+       "zlib version is exposed")
+
+(define gzip-path
+  (string-append (ListTalk-OS:getpwd) "/eval-zlib-test.gz"))
+
+(check (primitive? ListTalk-zlib:gzip-open-for-input)
+       "package-level gzip constructors remain available")
+
+(let ((stream [ListTalk-zlib:GzipStream openForOutput: gzip-path]))
+  (check (eq? (type-of stream) ListTalk-zlib:GzipStream)
+         "gzip output is a GzipStream")
+  (check [stream isWritable] "gzip output is writable")
+  [stream writeString: "hello"]
+  [stream writeLn]
+  [stream writeByteVector: (bytevector 0 255)]
+  [stream close]
+  (check [stream isClosed] "closed gzip output reports closed"))
+
+(let ((stream [ListTalk-zlib:GzipStream openForAppend: gzip-path]))
+  [stream writeString: "tail"]
+  [stream close])
+
+(let ((stream [ListTalk-zlib:GzipStream openForInput: gzip-path]))
+  (check [stream isReadable] "gzip input is readable")
+  (check (equal? [stream readLine] "hello")
+         "gzip stream reads text lines")
+  (check (equal? [stream readByteVector]
+                 (bytevector 0 255 116 97 105 108))
+         "gzip stream reads binary data and appended members")
+  [stream close])
+
+(ListTalk-OS:unlink gzip-path)

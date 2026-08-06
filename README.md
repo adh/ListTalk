@@ -232,6 +232,37 @@ It also installs the source module:
 
 - `html-gen`
 
+The optional native Markdown module uses
+[md4c](https://github.com/mity/md4c) to parse Markdown into an S-expression
+AST and to render Markdown as HTML. It is built automatically when the md4c
+and md4c-html dependencies are available. Its detection can also be controlled
+explicitly when configuring the build:
+
+```sh
+meson setup build -Dmarkdown=enabled
+# or: -Dmarkdown=disabled
+```
+
+This builds and installs `markdown.ltm`. Load it with `(require :markdown)`;
+its API is exposed in the `ListTalk-markdown` package, including `parse`,
+`valid?`, `event-count`, and `to-html`.
+
+The optional `zlib.ltm` module is likewise built automatically when zlib is
+available, with `-Dzlib=enabled` and `-Dzlib=disabled` available as explicit
+overrides. Load it with `(require :zlib)`. The `ListTalk-zlib` package provides
+`compress` and `uncompress` for bytevectors, the `version` constant, and the
+dfsch-inspired `gzip-open-for-input`, `gzip-open-for-output`, and
+`gzip-open-for-append` stream constructors. The same constructors are available
+as `GzipStream` class methods named `openForInput:`, `openForOutput:`, and
+`openForAppend:`.
+
+When Expat is available, the optional `xml.ltm` module is built automatically;
+use `-Dxml=enabled` or `-Dxml=disabled` to override detection. Its one-shot
+`ListTalk-XML:parse` primitive accepts an XML bytevector and an instance of an
+`XMLEventHandler` subclass. The abstract handler supplies no-op methods for
+document, element, character, processing-instruction, comment, and CDATA
+events, so subclasses only need to override events they use.
+
 Additional module search paths can be supplied with `-L` or by passing resolver
 paths to `load!`/`require`.
 
