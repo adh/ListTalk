@@ -33,6 +33,8 @@ libedit_dep = dependency('libedit', required : false)
 markdown_opt = get_option('markdown')
 md4c_dep = dependency('md4c', required : markdown_opt)
 md4c_html_dep = dependency('md4c-html', required : markdown_opt)
+zlib_opt = get_option('zlib')
+zlib_dep = dependency('zlib', required : zlib_opt)
 
 if libedit_dep.found()
     if cc.has_header('editline/readline.h', dependencies : libedit_dep)
@@ -275,6 +277,19 @@ if md4c_dep.found() and md4c_html_dep.found()
     )
 endif
 
+if zlib_dep.found()
+    zlib_module = shared_module(
+            'zlib',
+            'src/modules/zlib.c',
+            name_prefix : '',
+            name_suffix : 'ltm',
+            link_with : [vm_lib],
+            dependencies : zlib_dep,
+            install : true,
+            install_dir : listtalk_native_module_dir
+    )
+endif
+
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -410,6 +425,18 @@ if md4c_dep.found() and md4c_html_dep.found()
                     meson.current_source_dir() / 'tests' / 'eval-markdown.lt'
             ],
             depends : [markdown_module]
+    )
+endif
+
+if zlib_dep.found()
+    test(
+            'eval_zlib',
+            listtalk_exe,
+            args : [
+                    '-L', meson.current_build_dir(),
+                    meson.current_source_dir() / 'tests' / 'eval-zlib.lt'
+            ],
+            depends : [zlib_module, os_module]
     )
 endif
 

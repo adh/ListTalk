@@ -247,6 +247,15 @@ This builds and installs `markdown.ltm`. Load it with `(require :markdown)`;
 its API is exposed in the `ListTalk-markdown` package, including `parse`,
 `valid?`, `event-count`, and `to-html`.
 
+The optional `zlib.ltm` module is likewise built automatically when zlib is
+available, with `-Dzlib=enabled` and `-Dzlib=disabled` available as explicit
+overrides. Load it with `(require :zlib)`. The `ListTalk-zlib` package provides
+`compress` and `uncompress` for bytevectors, the `version` constant, and the
+dfsch-inspired `gzip-open-for-input`, `gzip-open-for-output`, and
+`gzip-open-for-append` stream constructors. The same constructors are available
+as `GzipStream` class methods named `openForInput:`, `openForOutput:`, and
+`openForAppend:`.
+
 Additional module search paths can be supplied with `-L` or by passing resolver
 paths to `load!`/`require`.
 
