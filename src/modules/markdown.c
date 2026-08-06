@@ -737,7 +737,7 @@ static LT_String* markdown_to_html(LT_String* markdown,
 LT_DEFINE_PRIMITIVE(
     primitive_markdown_parse,
     "parse",
-    "(markdown parser-options)",
+    "(markdown :optional parser-options)",
     "Parse Markdown with md4c and return an S-expression AST."
 ){
     LT_String* markdown;
