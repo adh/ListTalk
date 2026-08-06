@@ -31,9 +31,8 @@
                '(:document () (:paragraph () (:delete () "gone"))))
        "parse accepts parser option lists")
 
-(check (equal? ListTalk-markdown:parser-options
-               ListTalk-markdown:parser-options)
-       "parser option constant is bound")
+(check (list? ListTalk-markdown:parser-options)
+       "parser option constant is a list")
 
 (check (equal? ListTalk-markdown:html-renderer-options
                ListTalk-markdown:html-renderer-options)
