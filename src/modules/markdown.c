@@ -818,7 +818,7 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_markdown_to_html,
     "to-html",
-    "(markdown parser-options renderer-options)",
+    "(markdown :optional parser-options renderer-options)",
     "Render Markdown to HTML with md4c-html."
 ){
     LT_String* markdown;
