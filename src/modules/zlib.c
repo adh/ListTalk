@@ -259,7 +259,7 @@ static LT_Value zlib_uncompress(LT_ByteVector* input){
 LT_DEFINE_PRIMITIVE(
     primitive_zlib_compress,
     "compress",
-    "(bytes compression-level)",
+    "(bytes :optional compression-level)",
     "Compress a bytevector in zlib format. The optional level is -1 through 9."
 ){
     LT_Value cursor = arguments;
