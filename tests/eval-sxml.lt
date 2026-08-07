@@ -1,0 +1,43 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :sxml)
+
+(define (check condition description)
+  (if condition
+      #true
+      (error (string-append "FAIL: " description))))
+
+(let ((document
+        (ListTalk-sxml:parse-xml
+          "<?go now?><root id=\"42\"><!--note--><![CDATA[x&y]]>z<empty/></root>")))
+  (check
+    (equal? document
+            '(:top
+               (:pi :go "now")
+               (:root
+                 (:@ (:id "42"))
+                 (:comment "note")
+                 "x&yz"
+                 (:empty))))
+    "parse-xml produces canonical SXML")
+  (check
+    (equal? (ListTalk-sxml:as-string document)
+            "<?go now?><root id=\"42\"><!--note-->x&amp;yz<empty/></root>")
+    "as-string serializes parsed SXML"))
+
+(check
+  (equal? (ListTalk-sxml:as-string
+            '(:top (:message :quote "a&b" "<ok>\"'")))
+          "<message quote=\"a&amp;b\">&lt;ok&gt;&quot;&apos;</message>")
+  "as-string supports leading keyword/value attributes and XML escaping")
+
+(check
+  (equal? (ListTalk-sxml:as-string '(:button :type "submit" "foo"))
+          "<button type=\"submit\">foo</button>")
+  "as-string distinguishes leading attributes from element content")
+
+(check
+  (equal? (ListTalk-sxml:parse-xml ["<root>text</root>" asByteVector])
+          '(:top (:root "text")))
+  "parse-xml accepts a ByteVector")

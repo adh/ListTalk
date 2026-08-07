@@ -1,0 +1,154 @@
+;;;;; -*- mode: scheme -*-
+;;;;; SPDX-License-Identifier: MIT
+;;;;; Copyright (c) 2026 Ales Hakl
+
+(provide :sxml)
+(define-package :ListTalk-sxml :ListTalk)
+(in-package :ListTalk-sxml)
+
+(require :xml)
+(require :html-gen)
+
+(define (xml-keyword name)
+  [Symbol keyword: name])
+
+(define-class SXMLHandler (ListTalk-XML:XMLEventHandler)
+  (stack result))
+
+(define (push-node handler node)
+  (let ((stack (slot-ref handler 'stack)))
+    (slot-set! handler 'stack
+               (cons (cons node (car stack)) (cdr stack)))))
+
+(define-method [SXMLHandler startDocument]
+  (set! .stack (list '()))
+  (set! .result '()))
+
+(define-method [SXMLHandler endDocument]
+  (set! .result (cons :top (reverse (car .stack)))))
+
+(define-method [SXMLHandler startElement: name attributes: attributes]
+  (let ((attribute-list '()))
+    [attributes forEach:
+                (lambda (name value)
+                  (set! attribute-list
+                        (cons (list (xml-keyword name) value)
+                              attribute-list)))]
+    (set! .stack
+          (cons (if (null? attribute-list)
+                    (list (xml-keyword name))
+                    (list (cons :@ (reverse attribute-list))
+                          (xml-keyword name)))
+                .stack))))
+
+(define-method [SXMLHandler endElement: name]
+  (let ((node (reverse (car .stack))))
+    (set! .stack (cdr .stack))
+    (push-node self node)))
+
+(define-method [SXMLHandler characters: characters]
+  ;; Expat may split one run of character data into several callbacks.
+  (unless (equal? characters "")
+    (let* ((stack .stack)
+           (frame (car stack)))
+      (set! .stack
+            (cons (if (and (pair? frame) (string? (car frame)))
+                      (cons (string-append (car frame) characters) (cdr frame))
+                      (cons characters frame))
+                  (cdr stack))))))
+
+(define-method [SXMLHandler processingInstruction: target data: data]
+  (push-node self (list :pi (xml-keyword target) data)))
+
+(define-method [SXMLHandler comment: comment]
+  (push-node self (list :comment comment)))
+
+(define (parse-xml xml)
+  "Parse an XML String or ByteVector and return its SXML representation."
+  (let ((handler (make-instance SXMLHandler)))
+    (ListTalk-XML:parse (if (string? xml) [xml asByteVector] xml) handler)
+    (slot-ref handler 'result)))
+
+(define (xml-name value)
+  (if (keyword? value)
+      [value name]
+      (error "SXML names must be keywords")))
+
+(define (attribute-value-as-string value)
+  (if (string? value)
+      value
+      (if (keyword? value)
+          [value name]
+          (error "SXML attribute values must be strings or keywords"))))
+
+(define (attribute-as-string attribute)
+  (if (and (pair? attribute) (pair? (cdr attribute)))
+      (string-append " "
+                     (xml-name (car attribute))
+                     "=\""
+                     (html-gen:escape
+                       (string-join ""
+                                    (map attribute-value-as-string
+                                         (cdr attribute))))
+                     "\"")
+      (error "Malformed SXML attribute")))
+
+(define (split-leading-attributes content attributes)
+  (if (pair? content)
+      (let ((first (car content)))
+        (if (keyword? first)
+            (if (pair? (cdr content))
+                (split-leading-attributes
+                  (cddr content)
+                  (cons (list first (cadr content)) attributes))
+                (error "SXML keyword attribute is missing its value"))
+            (if (and (pair? first) (eq? (car first) :@))
+                (split-leading-attributes
+                  (cdr content)
+                  (append (reverse (cdr first)) attributes))
+                (cons (reverse attributes) content))))
+      (cons (reverse attributes) content)))
+
+(define (node-as-string node)
+  (if (string? node)
+      (html-gen:escape node)
+      (if (pair? node)
+          (let ((name (car node))
+                (content (cdr node)))
+            (cond
+              ((eq? name :top)
+               (string-join "" (map node-as-string content)))
+              ((eq? name :comment)
+               (string-append "<!--" (string-join "" content) "-->"))
+              ((eq? name :pi)
+               (if (null? (cdr content))
+                   (string-append "<?" (xml-name (car content)) "?>")
+                   (string-append "<?"
+                                  (xml-name (car content))
+                                  " "
+                                  (string-join "" (cdr content))
+                                  "?>")))
+              (else
+                (let* ((parts (split-leading-attributes content '()))
+                       (attributes (car parts))
+                       (children (cdr parts))
+                       (tag-name (xml-name name))
+                       (start-tag (string-append
+                                    "<"
+                                    tag-name
+                                    (string-join ""
+                                                 (map attribute-as-string
+                                                      attributes)))))
+                  (if (null? children)
+                      (string-append start-tag "/>")
+                      (string-append start-tag
+                                     ">"
+                                     (string-join "" (map node-as-string children))
+                                     "</"
+                                     tag-name
+                                     ">"))))))
+          (error "SXML content must be a string or a node"))))
+
+(define (as-string sxml)
+  "Serialize an SXML tree as XML."
+  (node-as-string sxml))

@@ -465,6 +465,16 @@ if expat_dep.found()
             ],
             depends : [xml_module]
     )
+    test(
+            'eval_sxml',
+            listtalk_exe,
+            args : [
+                    '-L', meson.current_build_dir(),
+                    '-L', meson.current_source_dir() / 'modules',
+                    meson.current_source_dir() / 'tests' / 'eval-sxml.lt'
+            ],
+            depends : [xml_module]
+    )
 endif
 
 test(
@@ -541,5 +551,6 @@ install_subdir(
 
 install_data(
         'modules/html-gen.lt',
+        'modules/sxml.lt',
         install_dir : listtalk_source_module_dir
 )

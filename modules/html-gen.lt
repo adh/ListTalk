@@ -2,8 +2,9 @@
 ;;;;; SPDX-License-Identifier: MIT
 ;;;;; Copyright (c) 2026 Ales Hakl
 
+(provide :html-gen)
+(define-package :html-gen :ListTalk)
 (in-package :html-gen)
-(ListTalk:use-package :ListTalk)
 
 (define-class Markup (Object) 
   (content))
@@ -20,12 +21,10 @@
                             #\' "&apos;")])
 
 (define-method [[Markup class] fromString: string]
-    (Markup new: (escape string)))
+    [Markup new: (escape string)])
 
 (define-method [Markup content]
   .content)
 
 (define-method [Markup asString]
   .content)
-
-
