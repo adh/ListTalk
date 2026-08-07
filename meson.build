@@ -273,7 +273,7 @@ if md4c_dep.found() and md4c_html_dep.found()
             name_prefix : '',
             name_suffix : 'ltm',
             link_with : [vm_lib],
-            dependencies : [md4c_dep, md4c_html_dep],
+            dependencies : [md4c_dep, md4c_html_dep, listtalk_deps],
             install : true,
             install_dir : listtalk_native_module_dir
     )
@@ -286,7 +286,7 @@ if zlib_dep.found()
             name_prefix : '',
             name_suffix : 'ltm',
             link_with : [vm_lib],
-            dependencies : zlib_dep,
+            dependencies : [zlib_dep, listtalk_deps],
             install : true,
             install_dir : listtalk_native_module_dir
     )
@@ -299,7 +299,7 @@ if expat_dep.found()
             name_prefix : '',
             name_suffix : 'ltm',
             link_with : [vm_lib],
-            dependencies : expat_dep,
+            dependencies : [expat_dep, listtalk_deps],
             install : true,
             install_dir : listtalk_native_module_dir
     )
