@@ -13,7 +13,7 @@
   [Symbol keyword: name])
 
 (define-class SXMLHandler (ListTalk-XML:XMLEventHandler)
-  (stack result))
+  (stack result comments processing-instructions))
 
 (define (push-node handler node)
   (let ((stack (slot-ref handler 'stack)))
@@ -25,7 +25,7 @@
   (set! .result '()))
 
 (define-method [SXMLHandler endDocument]
-  (set! .result (cons :top (reverse (car .stack)))))
+  (set! .result (cons :*top* (reverse (car .stack)))))
 
 (define-method [SXMLHandler startElement: name attributes: attributes]
   (let ((attribute-list '()))
@@ -58,14 +58,18 @@
                   (cdr stack))))))
 
 (define-method [SXMLHandler processingInstruction: target data: data]
-  (push-node self (list :pi (xml-keyword target) data)))
+  (when .processing-instructions
+    (push-node self (list :*pi* (xml-keyword target) data))))
 
 (define-method [SXMLHandler comment: comment]
-  (push-node self (list :comment comment)))
+  (when .comments
+    (push-node self (list :*comment* comment))))
 
-(define (parse-xml xml)
-  "Parse an XML String or ByteVector and return its SXML representation."
+(define (parse-xml xml :key (comments #false) (processing-instructions #false))
+  "Parse XML as SXML, optionally retaining comments and processing instructions."
   (let ((handler (make-instance SXMLHandler)))
+    (slot-set! handler 'comments comments)
+    (slot-set! handler 'processing-instructions processing-instructions)
     (ListTalk-XML:parse (if (string? xml) [xml asByteVector] xml) handler)
     (slot-ref handler 'result)))
 
@@ -116,11 +120,11 @@
           (let ((name (car node))
                 (content (cdr node)))
             (cond
-              ((eq? name :top)
+              ((eq? name :*top*)
                (string-join "" (map node-as-string content)))
-              ((eq? name :comment)
+              ((eq? name :*comment*)
                (string-append "<!--" (string-join "" content) "-->"))
-              ((eq? name :pi)
+              ((eq? name :*pi*)
                (if (null? (cdr content))
                    (string-append "<?" (xml-name (car content)) "?>")
                    (string-append "<?"
