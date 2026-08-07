@@ -32,6 +32,7 @@
 #include <ListTalk/classes/MethodDescriptor.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/Builder.h>
 #include <ListTalk/classes/MessageDigest.h>
 #include <ListTalk/classes/DigestSHA256.h>
 #include <ListTalk/classes/RandomNumberGenerator.h>
@@ -137,6 +138,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"VectorIterator", &LT_VectorIterator_class},
     {"ByteVector", &LT_ByteVector_class},
     {"ByteVectorIterator", &LT_ByteVectorIterator_class},
+    {"StringBuilder", &LT_StringBuilderObject_class},
+    {"ByteVectorBuilder", &LT_ByteVectorBuilder_class},
     {"MessageDigest", &LT_MessageDigest_class},
     {"DigestSHA256", &LT_DigestSHA256_class},
     {"RandomNumberGenerator", &LT_RandomNumberGenerator_class},

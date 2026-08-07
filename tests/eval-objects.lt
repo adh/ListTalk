@@ -1028,6 +1028,56 @@
     [bv LEU32at: 0 put: 0])
   (check (equal? bv (bytevector 1 2 3))
          "ByteVector fixed-width writers validate before mutation"))
+(let ((builder [StringBuilder new]))
+  (check (eq? [builder class] StringBuilder)
+         "StringBuilder class>>new returns a StringBuilder")
+  (check (equal? [builder value] "") "Empty StringBuilder>>value")
+  (check (eq? [builder append: "a"] builder)
+         "StringBuilder>>append: returns the receiver")
+  [builder append: #\λ]
+  [builder append: "b"]
+  (check (equal? [builder value] "aλb")
+         "StringBuilder accumulates Strings and UTF-8 Characters")
+  (let ((first [builder value]))
+    [builder append: "c"]
+    (check (equal? first "aλb")
+           "StringBuilder values are independent snapshots")
+    (check (equal? [builder value] "aλbc")
+           "StringBuilder remains appendable after value")))
+(check-error-message "StringBuilder append: expects a String or Character"
+                     "StringBuilder>>append: rejects other values"
+  [[StringBuilder new] append: 1])
+(let ((builder [ByteVectorBuilder new])
+      (source (bytevector 1 2)))
+  (check (eq? [builder class] ByteVectorBuilder)
+         "ByteVectorBuilder class>>new returns a ByteVectorBuilder")
+  (check (equal? [builder value] (bytevector))
+         "Empty ByteVectorBuilder>>value")
+  (check (eq? [builder append: source] builder)
+         "ByteVectorBuilder>>append: returns the receiver")
+  [source at: 0 put: 9]
+  [builder append: 255]
+  [builder append: #\λ]
+  (check (equal? [builder value] (bytevector 1 2 255 #xce #xbb))
+         "ByteVectorBuilder copies ByteVectors, bytes, and UTF-8 Characters")
+  (let ((first [builder value]))
+    [first at: 0 put: 7]
+    (check (equal? [builder value] (bytevector 1 2 255 #xce #xbb))
+           "ByteVectorBuilder>>value returns a fresh ByteVector")))
+(let ((builder [ByteVectorBuilder new])
+      (large (make-bytevector 100 7)))
+  [builder append: large]
+  (check (= [[builder value] length] 100)
+         "ByteVectorBuilder grows its internal buffer")
+  (check (equal? [builder value] large)
+         "ByteVectorBuilder preserves bytes while growing"))
+(check-error-message "ByteVectorBuilder byte value out of range"
+                     "ByteVectorBuilder>>append: rejects oversized bytes"
+  [[ByteVectorBuilder new] append: 256])
+(check-error-message
+  "ByteVectorBuilder append: expects a ByteVector, Character, or byte"
+  "ByteVectorBuilder>>append: rejects other values"
+  [[ByteVectorBuilder new] append: "bytes"])
 (check (equal? [(bytevector 65 66) append: (bytevector 67)] (bytevector 65 66 67))
        "ByteVector>>append: concatenates")
 (check (equal? [(bytevector 10 20 30 40) from: 1 to: 3] (bytevector 20 30))
