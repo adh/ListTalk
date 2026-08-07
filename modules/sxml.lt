@@ -130,10 +130,13 @@
                    (error "SXML comment content must not contain \"--\" or end with \"-\""))
                  (string-append "<!--" text "-->")))
               ((eq? name :*pi*)
-               (if (null? (cdr content))
-                   (string-append "<?" (xml-name (car content)) "?>")
-                   (string-append "<?"
-                                  (xml-name (car content))
+               (let ((target (xml-name (car content))))
+                 (if (null? (cdr content))
+                     (string-append "<?" target "?>")
+                     (let ((data (string-join "" (cdr content))))
+                       (when [data contains?: "?>"]
+                         (error "SXML processing-instruction data must not contain \"?>\""))
+                       (string-append "<?" target " " data "?>")))))
                                   " "
                                   (string-join "" (cdr content))
                                   "?>")))
