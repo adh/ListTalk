@@ -922,6 +922,112 @@
 (let ((bv (bytevector 1 2 3)))
   [bv at: 1 put: 255]
   (check (= [bv at: 1] 255) "ByteVector>>at:put: mutates bytes"))
+(let ((bv (bytevector 1 2 3 4 5))
+      (replacement (bytevector 8 9)))
+  (check (eq? [bv at: 2 put: replacement] replacement)
+         "ByteVector>>at:put: returns the inserted ByteVector")
+  (check (equal? bv (bytevector 1 2 8 9 5))
+         "ByteVector>>at:put: copies a ByteVector at the index"))
+(let ((bv (bytevector 1 2 3)))
+  (check-error-message "ByteVector index out of bounds"
+                       "ByteVector>>at:put: rejects a ByteVector that does not fit"
+    [bv at: 2 put: (bytevector 4 5)])
+  (check (equal? bv (bytevector 1 2 3))
+         "ByteVector>>at:put: does not partially copy an oversized ByteVector"))
+(let ((bv (bytevector 1 2 3 4 5 6)))
+  (check (eq? [bv copyFrom: 0 length: 4 to: 2] bv)
+         "ByteVector>>copyFrom:length:to: returns the receiver")
+  (check (equal? bv (bytevector 1 2 1 2 3 4))
+         "ByteVector>>copyFrom:length:to: copies across forward overlap"))
+(let ((bv (bytevector 1 2 3 4 5 6)))
+  [bv copyFrom: 2 length: 4 to: 0]
+  (check (equal? bv (bytevector 3 4 5 6 5 6))
+         "ByteVector>>copyFrom:length:to: copies across backward overlap"))
+(let ((bv (bytevector 1 2 3)))
+  (check-error-message "ByteVector index out of bounds"
+                       "ByteVector>>copyFrom:length:to: validates both ranges"
+    [bv copyFrom: 1 length: 2 to: 2])
+  (check (equal? bv (bytevector 1 2 3))
+         "ByteVector>>copyFrom:length:to: validates before mutation"))
+(let ((be (bytevector #x01 #x02 #x03 #x04 #x05 #x06 #x07 #x08))
+      (le (bytevector #x08 #x07 #x06 #x05 #x04 #x03 #x02 #x01)))
+  (check (= [be BEU16at: 0] #x0102) "ByteVector>>BEU16at:")
+  (check (= [be BEU32at: 0] #x01020304) "ByteVector>>BEU32at:")
+  (check (= [be BEU64at: 0] #x0102030405060708) "ByteVector>>BEU64at:")
+  (check (= [le LEU16at: 6] #x0102) "ByteVector>>LEU16at:")
+  (check (= [le LEU32at: 4] #x01020304) "ByteVector>>LEU32at:")
+  (check (= [le LEU64at: 0] #x0102030405060708) "ByteVector>>LEU64at:"))
+(check (= [(bytevector #xff #xfe) BES16at: 0] -2) "ByteVector>>BES16at:")
+(check (= [(bytevector #xff #xff #xff #xfe) BES32at: 0] -2)
+       "ByteVector>>BES32at:")
+(check (= [(bytevector #xff #xff #xff #xff #xff #xff #xff #xfe) BES64at: 0] -2)
+       "ByteVector>>BES64at:")
+(check (= [(bytevector #x80 0 0 0 0 0 0 0) BES64at: 0] -9223372036854775808)
+       "ByteVector>>BES64at: decodes the minimum signed value")
+(check (= [(bytevector #xff #xff #xff #xff #xff #xff #xff #xff) BEU64at: 0]
+          #xffffffffffffffff)
+       "ByteVector>>BEU64at: decodes the maximum unsigned value")
+(check (= [(bytevector #xfe #xff) LES16at: 0] -2) "ByteVector>>LES16at:")
+(check (= [(bytevector #xfe #xff #xff #xff) LES32at: 0] -2)
+       "ByteVector>>LES32at:")
+(check (= [(bytevector #xfe #xff #xff #xff #xff #xff #xff #xff) LES64at: 0] -2)
+       "ByteVector>>LES64at:")
+(let ((bv (make-bytevector 28))
+      (u64 #xFEDCBA9876543210))
+  [bv BEU16at: 0 put: #x1234]
+  [bv LEU16at: 2 put: #x1234]
+  [bv BEU32at: 4 put: #x89ABCDEF]
+  [bv LEU32at: 8 put: #x89ABCDEF]
+  (check (eq? [bv BEU64at: 12 put: u64] u64)
+         "ByteVector fixed-width writers return the value")
+  [bv LEU64at: 20 put: u64]
+  (check (equal? bv
+                 (bytevector #x12 #x34 #x34 #x12
+                             #x89 #xab #xcd #xef #xef #xcd #xab #x89
+                             #xfe #xdc #xba #x98 #x76 #x54 #x32 #x10
+                             #x10 #x32 #x54 #x76 #x98 #xba #xdc #xfe))
+         "ByteVector unsigned fixed-width writers honor byte order and width"))
+(let ((bv (make-bytevector 28)))
+  [bv BES16at: 0 put: -2]
+  [bv LES16at: 2 put: -2]
+  [bv BES32at: 4 put: -2]
+  [bv LES32at: 8 put: -2]
+  [bv BES64at: 12 put: -2]
+  [bv LES64at: 20 put: -2]
+  (check (equal? bv
+                 (bytevector #xff #xfe #xfe #xff
+                             #xff #xff #xff #xfe #xfe #xff #xff #xff
+                             #xff #xff #xff #xff #xff #xff #xff #xfe
+                             #xfe #xff #xff #xff #xff #xff #xff #xff))
+         "ByteVector signed fixed-width writers use two's complement"))
+(let ((bv (make-bytevector 16)))
+  [bv BEU64at: 0 put: #xffffffffffffffff]
+  [bv LES64at: 8 put: -9223372036854775808]
+  (check (equal? bv
+                 (bytevector #xff #xff #xff #xff #xff #xff #xff #xff
+                             0 0 0 0 0 0 0 #x80))
+         "ByteVector 64-bit writers accept their full numeric ranges"))
+(check-error-message "Integer does not fit requested byte width"
+                     "ByteVector unsigned writers reject negative values"
+  [(make-bytevector 2) BEU16at: 0 put: -1])
+(check-error-message "Integer does not fit requested byte width"
+                     "ByteVector unsigned writers reject oversized values"
+  [(make-bytevector 8) LEU64at: 0 put: #x10000000000000000])
+(check-error-message "Integer does not fit requested byte width"
+                     "ByteVector signed writers reject oversized values"
+  [(make-bytevector 2) BES16at: 0 put: 32768])
+(check-error-message "Integer does not fit requested byte width"
+                     "ByteVector signed writers reject undersized values"
+  [(make-bytevector 2) LES16at: 0 put: -32769])
+(let ((bv (bytevector 1 2 3)))
+  (check-error-message "ByteVector index out of bounds"
+                       "ByteVector fixed-width readers validate their range"
+    [bv BEU32at: 0])
+  (check-error-message "ByteVector index out of bounds"
+                       "ByteVector fixed-width writers validate their range"
+    [bv LEU32at: 0 put: 0])
+  (check (equal? bv (bytevector 1 2 3))
+         "ByteVector fixed-width writers validate before mutation"))
 (check (equal? [(bytevector 65 66) append: (bytevector 67)] (bytevector 65 66 67))
        "ByteVector>>append: concatenates")
 (check (equal? [(bytevector 10 20 30 40) from: 1 to: 3] (bytevector 20 30))
