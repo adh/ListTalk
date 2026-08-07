@@ -137,9 +137,6 @@
                        (when [data contains?: "?>"]
                          (error "SXML processing-instruction data must not contain \"?>\""))
                        (string-append "<?" target " " data "?>")))))
-                                  " "
-                                  (string-join "" (cdr content))
-                                  "?>")))
               (else
                 (let* ((parts (split-leading-attributes content '()))
                        (attributes (car parts))
