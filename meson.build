@@ -139,6 +139,7 @@ vm_lib = library(
                 'src/classes/String.c',
                 'src/classes/Vector.c',
                 'src/classes/ByteVector.c',
+                'src/classes/RandomAccessFile.c',
                 'src/classes/Builder.c',
                 'src/classes/MessageDigest.c',
                 'src/classes/DigestSHA256.c',

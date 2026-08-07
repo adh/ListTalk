@@ -60,7 +60,8 @@
        (soft (string-append root "/soft.txt"))
        (string-file (string-append root "/string.txt"))
        (data-file (string-append root "/data.lt"))
-       (bytevector-file (string-append root "/bytes.bin")))
+       (bytevector-file (string-append root "/bytes.bin"))
+       (random-access-file (string-append root "/random-access.bin")))
   (ListTalk-OS:mkdir root)
   (check (ListTalk-OS:access root) "mkdir creates directory")
   (let ((root-stat [ListTalk-OS:Stat file: root]))
@@ -124,6 +125,57 @@
   (check (equal? [ByteVector fromFile: bytevector-file]
                  (bytevector 0 65 255 10))
          "ByteVector class>>fromFile: reads file written by ByteVector>>writeToFile:")
+  (let ((file [RandomAccessFile forWriting: random-access-file]))
+    (check (eq? [file class] RandomAccessFile)
+           "RandomAccessFile class>>forWriting: returns RandomAccessFile")
+    (check (= [file length] 0) "New RandomAccessFile is empty")
+    (check (= [file at: 5 put: #xaa] #xaa)
+           "RandomAccessFile>>at:put: returns a byte")
+    (check (= [file length] 6)
+           "RandomAccessFile byte writes extend past end")
+    (check (equal? [file from: 0 to: 6] (bytevector 0 0 0 0 0 #xaa))
+           "RandomAccessFile writes past end leave a zero-filled gap")
+    (let ((bytes (bytevector 1 2 3)))
+      (check (eq? [file at: 1 put: bytes] bytes)
+             "RandomAccessFile bulk writes return the ByteVector"))
+    [file BEU16at: 6 put: #xabcd]
+    [file LES32at: 8 put: -2]
+    (check (= [file BEU16at: 6] #xabcd)
+           "RandomAccessFile reads and writes big-endian unsigned integers")
+    (check (= [file LES32at: 8] -2)
+           "RandomAccessFile reads and writes little-endian signed integers")
+    (check (= [file length] 12)
+           "RandomAccessFile fixed-width writes extend past end")
+    (check-error-message "RandomAccessFile index out of bounds"
+                         "RandomAccessFile reads remain bounds-checked"
+      [file at: 12])
+    [file truncateTo: 0]
+    [file at: 0 put: (bytevector 1 2 3 4 5 6)]
+    [file copyFrom: 0 length: 4 to: 2]
+    (check (equal? [file from: 0 to: 6] (bytevector 1 2 1 2 3 4))
+           "RandomAccessFile in-place copy handles overlap")
+    [file copyFrom: 2 length: 4 to: 8]
+    (check (equal? [file from: 0 to: 12]
+                   (bytevector 1 2 1 2 3 4 0 0 1 2 3 4))
+           "RandomAccessFile in-place copy can extend the file")
+    (check (eq? [file truncateTo: 4] file)
+           "RandomAccessFile>>truncateTo: returns the receiver")
+    (check (= [file length] 4) "RandomAccessFile>>truncateTo: shrinks the file")
+    (check (eq? [file close!] file) "RandomAccessFile>>close! returns receiver")
+    [file close!]
+    (check-error-message "RandomAccessFile is closed"
+                         "RandomAccessFile rejects access after close"
+      [file length]))
+  (let ((file [RandomAccessFile forReading: random-access-file]))
+    (check (equal? [file from: 0 to: 4] (bytevector 1 2 1 2))
+           "RandomAccessFile class>>forReading: supports positional reads")
+    (check-error-message "RandomAccessFile is not writable"
+                         "Read-only RandomAccessFile rejects writes"
+      [file at: 0 put: 9])
+    (check-error-message "RandomAccessFile is not writable"
+                         "Read-only RandomAccessFile rejects truncation"
+      [file truncateTo: 0])
+    [file close!])
   (ListTalk-OS:move original moved)
   (check (ListTalk-OS:access moved) "move renames file")
   (check (not (ListTalk-OS:access original)) "move removes old path")
@@ -140,6 +192,7 @@
   (ListTalk-OS:unlink soft)
   (ListTalk-OS:unlink string-file)
   (ListTalk-OS:unlink bytevector-file)
+  (ListTalk-OS:unlink random-access-file)
   (ListTalk-OS:unlink moved))
 )
 
