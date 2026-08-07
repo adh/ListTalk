@@ -871,6 +871,25 @@ bool LT_Integer_to_int64(LT_Value value, int64_t* result){
     return true;
 }
 
+bool LT_Integer_to_uint64(LT_Value value, uint64_t* result){
+    LT_IntegerRef ref;
+    integer_ref_init(&ref, value);
+
+    if (ref.negative || ref.limb_count > 2){
+        return false;
+    }
+    if (ref.limb_count == 0){
+        *result = 0;
+        return true;
+    }
+
+    *result = ref.limbs[0];
+    if (ref.limb_count == 2){
+        *result |= (uint64_t)ref.limbs[1] << 32;
+    }
+    return true;
+}
+
 bool LT_Integer_to_uint32(LT_Value value, uint32_t* result){
     LT_IntegerRef ref;
     integer_ref_init(&ref, value);

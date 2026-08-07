@@ -5,6 +5,7 @@
 
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Iterator.h>
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/String.h>
@@ -24,6 +25,8 @@
 #include <string.h>
 #include <sys/random.h>
 #include <unistd.h>
+
+#include "BigInteger_internal.h"
 
 struct LT_ByteVector_s {
     LT_Object base;
@@ -554,6 +557,187 @@ LT_DEFINE_PRIMITIVE(
     return self;
 }
 
+static void bytevector_check_range(LT_ByteVector* bytevector,
+                                   size_t index,
+                                   size_t width){
+    size_t length = LT_ByteVector_length(bytevector);
+
+    if (index > length || width > length - index){
+        LT_error("ByteVector index out of bounds");
+    }
+}
+
+static uint64_t bytevector_read_integer(const uint8_t* bytes,
+                                        size_t width,
+                                        int big_endian){
+    uint64_t result = 0;
+    size_t i;
+
+    for (i = 0; i < width; i++){
+        size_t index = big_endian ? i : width - i - 1;
+
+        result = (result << 8) | (uint64_t)bytes[index];
+    }
+    return result;
+}
+
+static int64_t bytevector_signed_integer(uint64_t value, size_t width){
+    unsigned int bits = (unsigned int)(width * 8);
+    uint64_t sign_bit = UINT64_C(1) << (bits - 1);
+
+    if ((value & sign_bit) == 0){
+        return (int64_t)value;
+    }
+    if (width == sizeof(uint64_t)){
+        uint64_t magnitude = (~value) + 1;
+
+        return magnitude == (uint64_t)INT64_MAX + 1
+            ? INT64_MIN
+            : -(int64_t)magnitude;
+    }
+    return -(int64_t)((UINT64_C(1) << bits) - value);
+}
+
+static void bytevector_write_integer(uint8_t* bytes,
+                                     size_t width,
+                                     int big_endian,
+                                     uint64_t value){
+    size_t i;
+
+    for (i = 0; i < width; i++){
+        size_t index = big_endian ? width - i - 1 : i;
+
+        bytes[index] = (uint8_t)value;
+        value >>= 8;
+    }
+}
+
+static LT_Value bytevector_integer_at_impl(LT_Value arguments,
+                                           size_t width,
+                                           int big_endian,
+                                           int signed_p){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    LT_Value index;
+    size_t index_value;
+    uint64_t result;
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_OBJECT_ARG(cursor, index);
+    LT_ARG_END(cursor);
+
+    index_value = LT_Number_nonnegative_size_from_integer(
+        index,
+        "ByteVector index out of bounds",
+        "ByteVector index out of bounds"
+    );
+    bytevector_check_range(bytevector, index_value, width);
+    result = bytevector_read_integer(
+        bytevector->bytes + index_value,
+        width,
+        big_endian
+    );
+    return signed_p
+        ? LT_Integer_from_intmax(bytevector_signed_integer(result, width))
+        : LT_Integer_from_uintmax(result);
+}
+
+static LT_Value bytevector_integer_at_put_impl(LT_Value arguments,
+                                               size_t width,
+                                               int big_endian,
+                                               int signed_p){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    LT_Value index;
+    LT_Value value;
+    size_t index_value;
+    uint64_t encoded;
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_OBJECT_ARG(cursor, index);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+
+    index_value = LT_Number_nonnegative_size_from_integer(
+        index,
+        "ByteVector index out of bounds",
+        "ByteVector index out of bounds"
+    );
+    bytevector_check_range(bytevector, index_value, width);
+    if (!LT_Integer_value_p(value)){
+        LT_type_error(value, &LT_Integer_class);
+    }
+    if (signed_p){
+        int64_t signed_value;
+        int64_t min_value = width == sizeof(int64_t)
+            ? INT64_MIN
+            : -(INT64_C(1) << (width * 8 - 1));
+        int64_t max_value = width == sizeof(int64_t)
+            ? INT64_MAX
+            : (INT64_C(1) << (width * 8 - 1)) - 1;
+
+        if (!LT_Integer_to_int64(value, &signed_value)
+                || signed_value < min_value || signed_value > max_value){
+            LT_error("Integer does not fit requested byte width");
+        }
+        encoded = (uint64_t)signed_value;
+    } else {
+        uint64_t max_value = width == sizeof(uint64_t)
+            ? UINT64_MAX
+            : (UINT64_C(1) << (width * 8)) - 1;
+
+        if (!LT_Integer_to_uint64(value, &encoded) || encoded > max_value){
+            LT_error("Integer does not fit requested byte width");
+        }
+    }
+    bytevector_write_integer(
+        bytevector->bytes + index_value,
+        width,
+        big_endian,
+        encoded
+    );
+    return value;
+}
+
+#define LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(                             \
+    c_name, selector, width, big_endian, signed_p                           \
+)                                                                          \
+LT_DEFINE_PRIMITIVE(                                                        \
+    bytevector_method_##c_name##_at,                                        \
+    "ByteVector>>" selector "at:",                                        \
+    "(self index)",                                                        \
+    "Read a fixed-width integer at index."                                 \
+){                                                                         \
+    (void)tail_call_unwind_marker;                                          \
+    return bytevector_integer_at_impl(                                      \
+        arguments, width, big_endian, signed_p                              \
+    );                                                                      \
+}                                                                          \
+LT_DEFINE_PRIMITIVE(                                                        \
+    bytevector_method_##c_name##_at_put,                                    \
+    "ByteVector>>" selector "at:put:",                                   \
+    "(self index value)",                                                  \
+    "Write a fixed-width integer at index and return it."                  \
+){                                                                         \
+    (void)tail_call_unwind_marker;                                          \
+    return bytevector_integer_at_put_impl(                                  \
+        arguments, width, big_endian, signed_p                              \
+    );                                                                      \
+}
+
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(beu16, "BEU16", 2, 1, 0)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(beu32, "BEU32", 4, 1, 0)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(beu64, "BEU64", 8, 1, 0)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(bes16, "BES16", 2, 1, 1)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(bes32, "BES32", 4, 1, 1)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(bes64, "BES64", 8, 1, 1)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(leu16, "LEU16", 2, 0, 0)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(leu32, "LEU32", 4, 0, 0)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(leu64, "LEU64", 8, 0, 0)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(les16, "LES16", 2, 0, 1)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(les32, "LES32", 4, 0, 1)
+LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS(les64, "LES64", 8, 0, 1)
+
+#undef LT_DEFINE_BYTEVECTOR_INTEGER_ACCESSORS
+
 LT_DEFINE_PRIMITIVE(
     bytevector_method_append,
     "ByteVector>>append:",
@@ -925,6 +1109,30 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"at:", &bytevector_method_at},
     {"at:put:", &bytevector_method_at_put},
     {"copyFrom:length:to:", &bytevector_method_copy_from_length_to},
+    {"BEU16at:", &bytevector_method_beu16_at},
+    {"BEU16at:put:", &bytevector_method_beu16_at_put},
+    {"BEU32at:", &bytevector_method_beu32_at},
+    {"BEU32at:put:", &bytevector_method_beu32_at_put},
+    {"BEU64at:", &bytevector_method_beu64_at},
+    {"BEU64at:put:", &bytevector_method_beu64_at_put},
+    {"BES16at:", &bytevector_method_bes16_at},
+    {"BES16at:put:", &bytevector_method_bes16_at_put},
+    {"BES32at:", &bytevector_method_bes32_at},
+    {"BES32at:put:", &bytevector_method_bes32_at_put},
+    {"BES64at:", &bytevector_method_bes64_at},
+    {"BES64at:put:", &bytevector_method_bes64_at_put},
+    {"LEU16at:", &bytevector_method_leu16_at},
+    {"LEU16at:put:", &bytevector_method_leu16_at_put},
+    {"LEU32at:", &bytevector_method_leu32_at},
+    {"LEU32at:put:", &bytevector_method_leu32_at_put},
+    {"LEU64at:", &bytevector_method_leu64_at},
+    {"LEU64at:put:", &bytevector_method_leu64_at_put},
+    {"LES16at:", &bytevector_method_les16_at},
+    {"LES16at:put:", &bytevector_method_les16_at_put},
+    {"LES32at:", &bytevector_method_les32_at},
+    {"LES32at:put:", &bytevector_method_les32_at_put},
+    {"LES64at:", &bytevector_method_les64_at},
+    {"LES64at:put:", &bytevector_method_les64_at_put},
     {"append:", &bytevector_method_append},
     {"from:to:", &bytevector_method_from_to},
     {"compareWith:", &bytevector_method_compare_with},

@@ -40,6 +40,7 @@ void LT_Integer_divmod(
 );
 LT_Value LT_Integer_gcd(LT_Value left, LT_Value right);
 bool LT_Integer_to_int64(LT_Value value, int64_t* result);
+bool LT_Integer_to_uint64(LT_Value value, uint64_t* result);
 bool LT_Integer_to_uint32(LT_Value value, uint32_t* result);
 double LT_Integer_to_double(LT_Value value);
 
