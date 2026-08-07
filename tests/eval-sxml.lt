@@ -1,0 +1,57 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :sxml)
+
+(define (check condition description)
+  (if condition
+      #true
+      (error (string-append "FAIL: " description))))
+
+(let ((document
+        (ListTalk-sxml:parse-xml
+          "<?go now?><root id=\"42\"><!--note--><![CDATA[x&y]]>z<empty/></root>")))
+  (check
+    (equal? document
+            '(:*top*
+               (:root
+                 (:@ (:id "42"))
+                 "x&yz"
+                 (:empty))))
+    "parse-xml ignores comments and processing instructions by default")
+  (check
+    (equal? (ListTalk-sxml:as-string document)
+            "<root id=\"42\">x&amp;yz<empty/></root>")
+    "as-string serializes parsed SXML"))
+
+(check
+  (equal?
+    (ListTalk-sxml:parse-xml
+      "<?go now?><root><!--note-->text</root>"
+      :comments #true
+      :processing-instructions #true)
+    '(:*top*
+       (:*pi* :go "now")
+       (:root (:*comment* "note") "text")))
+  "parse-xml optionally retains comments and processing instructions")
+
+(check
+  (equal? (ListTalk-sxml:as-string
+            '(:*top* (:message :quote "a&b" "<ok>\"'")))
+          "<message quote=\"a&amp;b\">&lt;ok&gt;&quot;&apos;</message>")
+  "as-string supports leading keyword/value attributes and XML escaping")
+
+(check
+  (equal? (ListTalk-sxml:as-string '(:button :type "submit" "foo"))
+          "<button type=\"submit\">foo</button>")
+  "as-string distinguishes leading attributes from element content")
+
+(check
+  (equal? (ListTalk-sxml:parse-xml ["<root>text</root>" asByteVector])
+          '(:*top* (:root "text")))
+  "parse-xml accepts a ByteVector")
+
+(check
+  (equal? (ListTalk-sxml:as-string '(:comment "ordinary element"))
+          "<comment>ordinary element</comment>")
+  "earmuffed pseudonodes do not conflict with ordinary elements")

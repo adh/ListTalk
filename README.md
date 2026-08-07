@@ -228,9 +228,13 @@ The build currently provides native modules for:
 - `gc`
 - `cmdopts`
 
-It also installs the source module:
+It also installs the source modules:
 
 - `html-gen`
+- `sxml` (requires the native XML module), providing
+  `ListTalk-sxml:parse-xml` and `ListTalk-sxml:as-string`. Parsing retains
+  comments and processing instructions when enabled with `:comments #true`
+  and `:processing-instructions #true`, respectively.
 
 The optional native Markdown module uses
 [md4c](https://github.com/mity/md4c) to parse Markdown into an S-expression
