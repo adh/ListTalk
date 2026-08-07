@@ -922,6 +922,33 @@
 (let ((bv (bytevector 1 2 3)))
   [bv at: 1 put: 255]
   (check (= [bv at: 1] 255) "ByteVector>>at:put: mutates bytes"))
+(let ((bv (bytevector 1 2 3 4 5))
+      (replacement (bytevector 8 9)))
+  (check (eq? [bv at: 2 put: replacement] replacement)
+         "ByteVector>>at:put: returns the inserted ByteVector")
+  (check (equal? bv (bytevector 1 2 8 9 5))
+         "ByteVector>>at:put: copies a ByteVector at the index"))
+(let ((bv (bytevector 1 2 3)))
+  (check-error-message "ByteVector index out of bounds"
+                       "ByteVector>>at:put: rejects a ByteVector that does not fit"
+    [bv at: 2 put: (bytevector 4 5)])
+  (check (equal? bv (bytevector 1 2 3))
+         "ByteVector>>at:put: does not partially copy an oversized ByteVector"))
+(let ((bv (bytevector 1 2 3 4 5 6)))
+  (check (eq? [bv copyFrom: 0 length: 4 to: 2] bv)
+         "ByteVector>>copyFrom:length:to: returns the receiver")
+  (check (equal? bv (bytevector 1 2 1 2 3 4))
+         "ByteVector>>copyFrom:length:to: copies across forward overlap"))
+(let ((bv (bytevector 1 2 3 4 5 6)))
+  [bv copyFrom: 2 length: 4 to: 0]
+  (check (equal? bv (bytevector 3 4 5 6 5 6))
+         "ByteVector>>copyFrom:length:to: copies across backward overlap"))
+(let ((bv (bytevector 1 2 3)))
+  (check-error-message "ByteVector index out of bounds"
+                       "ByteVector>>copyFrom:length:to: validates both ranges"
+    [bv copyFrom: 1 length: 2 to: 2])
+  (check (equal? bv (bytevector 1 2 3))
+         "ByteVector>>copyFrom:length:to: validates before mutation"))
 (check (equal? [(bytevector 65 66) append: (bytevector 67)] (bytevector 65 66 67))
        "ByteVector>>append: concatenates")
 (check (equal? [(bytevector 10 20 30 40) from: 1 to: 3] (bytevector 20 30))

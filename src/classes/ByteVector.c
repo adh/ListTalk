@@ -447,32 +447,111 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     bytevector_method_at_put,
     "ByteVector>>at:put:",
-    "(self index byte)",
-    "Set byte at index and return byte as an unsigned fixnum."
+    "(self index value)",
+    "Set byte at index, or copy a bytevector there, and return value."
 ){
     LT_Value cursor = arguments;
     LT_Value self;
     LT_Value index;
-    LT_Value byte;
+    LT_Value value;
+    LT_ByteVector* bytevector;
+    size_t index_value;
     uint8_t byte_value;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
     LT_OBJECT_ARG(cursor, index);
-    LT_OBJECT_ARG(cursor, byte);
+    LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
 
-    byte_value = LT_Number_uint8_from_integer(byte, "Byte value out of range");
+    bytevector = LT_ByteVector_from_value(self);
+    index_value = LT_Number_nonnegative_size_from_integer(
+        index,
+        "ByteVector index out of bounds",
+        "ByteVector index out of bounds"
+    );
+    if (LT_ByteVector_p(value)){
+        LT_ByteVector* source = LT_ByteVector_from_value(value);
+        size_t source_length = LT_ByteVector_length(source);
+        size_t length = LT_ByteVector_length(bytevector);
+
+        if (index_value > length || source_length > length - index_value){
+            LT_error("ByteVector index out of bounds");
+        }
+        if (source == bytevector){
+            return value;
+        }
+        memcpy(
+            bytevector->bytes + index_value,
+            LT_ByteVector_bytes(source),
+            source_length
+        );
+        return value;
+    }
+
+    byte_value = LT_Number_uint8_from_integer(value, "Byte value out of range");
     LT_ByteVector_atPut(
-        LT_ByteVector_from_value(self),
-        LT_Number_nonnegative_size_from_integer(
-            index,
-            "ByteVector index out of bounds",
-            "ByteVector index out of bounds"
-        ),
+        bytevector,
+        index_value,
         byte_value
     );
     return LT_SmallInteger_new((int64_t)byte_value);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_copy_from_length_to,
+    "ByteVector>>copyFrom:length:to:",
+    "(self from length to)",
+    "Copy bytes within the receiver and return the receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value from;
+    LT_Value length;
+    LT_Value to;
+    LT_ByteVector* bytevector;
+    size_t from_value;
+    size_t length_value;
+    size_t to_value;
+    size_t bytevector_length;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, from);
+    LT_OBJECT_ARG(cursor, length);
+    LT_OBJECT_ARG(cursor, to);
+    LT_ARG_END(cursor);
+
+    bytevector = LT_ByteVector_from_value(self);
+    from_value = LT_Number_nonnegative_size_from_integer(
+        from,
+        "ByteVector index out of bounds",
+        "ByteVector index out of bounds"
+    );
+    length_value = LT_Number_nonnegative_size_from_integer(
+        length,
+        "ByteVector index out of bounds",
+        "ByteVector index out of bounds"
+    );
+    to_value = LT_Number_nonnegative_size_from_integer(
+        to,
+        "ByteVector index out of bounds",
+        "ByteVector index out of bounds"
+    );
+    bytevector_length = LT_ByteVector_length(bytevector);
+    if (from_value > bytevector_length
+            || length_value > bytevector_length - from_value
+            || to_value > bytevector_length
+            || length_value > bytevector_length - to_value){
+        LT_error("ByteVector index out of bounds");
+    }
+
+    memmove(
+        bytevector->bytes + to_value,
+        bytevector->bytes + from_value,
+        length_value
+    );
+    return self;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -845,6 +924,7 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"length", &bytevector_method_length},
     {"at:", &bytevector_method_at},
     {"at:put:", &bytevector_method_at_put},
+    {"copyFrom:length:to:", &bytevector_method_copy_from_length_to},
     {"append:", &bytevector_method_append},
     {"from:to:", &bytevector_method_from_to},
     {"compareWith:", &bytevector_method_compare_with},
