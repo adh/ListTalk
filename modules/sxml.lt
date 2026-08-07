@@ -123,7 +123,12 @@
               ((eq? name :*top*)
                (string-join "" (map node-as-string content)))
               ((eq? name :*comment*)
-               (string-append "<!--" (string-join "" content) "-->"))
+               (let ((text (string-join "" content)))
+                 (when (or [text contains?: "--"]
+                           (and (> [text length] 0)
+                                (eq? [text at: (- [text length] 1)] #\-)))
+                   (error "SXML comment content must not contain \"--\" or end with \"-\""))
+                 (string-append "<!--" text "-->")))
               ((eq? name :*pi*)
                (if (null? (cdr content))
                    (string-append "<?" (xml-name (car content)) "?>")
