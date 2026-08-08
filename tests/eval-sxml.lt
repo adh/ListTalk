@@ -8,17 +8,22 @@
       #true
       (error (string-append "FAIL: " description))))
 
+(define (raises? thunk)
+  (catch :raises-check
+    (handler-bind (lambda (condition) (throw :raises-check condition))
+      (thunk)
+      #false)))
+
 (let ((document
         (ListTalk-sxml:parse-xml
           "<?go now?><root id=\"42\"><!--note--><![CDATA[x&y]]>z<empty/></root>")))
   (check
     (equal? document
-            '(:*top*
-               (:root
-                 (:@ (:id "42"))
-                 "x&yz"
-                 (:empty))))
-    "parse-xml ignores comments and processing instructions by default")
+            '(:root
+               (:@ (:id "42"))
+               "x&yz"
+               (:empty)))
+    "parse-xml returns the root and ignores comments and PIs by default")
   (check
     (equal? (ListTalk-sxml:as-string document)
             "<root id=\"42\">x&amp;yz<empty/></root>")
@@ -28,12 +33,30 @@
   (equal?
     (ListTalk-sxml:parse-xml
       "<?go now?><root><!--note-->text</root>"
+      :top #true
       :comments #true
       :processing-instructions #true)
     '(:*top*
        (:*pi* :go "now")
        (:root (:*comment* "note") "text")))
   "parse-xml optionally retains comments and processing instructions")
+
+(check
+  (equal? (ListTalk-sxml:parse-xml "<root/>" :top #true)
+          '(:*top* (:root)))
+  "parse-xml optionally retains the top pseudonode")
+
+(check
+  (raises? (lambda ()
+             (ListTalk-sxml:parse-xml "<root/>" :comments #true)))
+  "parse-xml requires :top when comments are requested")
+
+(check
+  (raises? (lambda ()
+             (ListTalk-sxml:parse-xml
+               "<root/>"
+               :processing-instructions #true)))
+  "parse-xml requires :top when processing instructions are requested")
 
 (check
   (equal? (ListTalk-sxml:as-string
@@ -48,7 +71,7 @@
 
 (check
   (equal? (ListTalk-sxml:parse-xml ["<root>text</root>" asByteVector])
-          '(:*top* (:root "text")))
+          '(:root "text"))
   "parse-xml accepts a ByteVector")
 
 (check

@@ -13,7 +13,7 @@
   [Symbol keyword: name])
 
 (define-class SXMLHandler (ListTalk-XML:XMLEventHandler)
-  (stack result comments processing-instructions))
+  (stack result top comments processing-instructions))
 
 (define (push-node handler node)
   (let ((stack (slot-ref handler 'stack)))
@@ -25,7 +25,8 @@
   (set! .result '()))
 
 (define-method [SXMLHandler endDocument]
-  (set! .result (cons :*top* (reverse (car .stack)))))
+  (let ((nodes (reverse (car .stack))))
+    (set! .result (if .top (cons :*top* nodes) (car nodes)))))
 
 (define-method [SXMLHandler startElement: name attributes: attributes]
   (let ((attribute-list '()))
@@ -65,9 +66,16 @@
   (when .comments
     (push-node self (list :*comment* comment))))
 
-(define (parse-xml xml :key (comments #false) (processing-instructions #false))
-  "Parse XML as SXML, optionally retaining comments and processing instructions."
+(define (parse-xml xml
+                   :key
+                   (top #false)
+                   (comments #false)
+                   (processing-instructions #false))
+  "Parse XML as SXML, optionally retaining the document-level pseudonode."
+  (when (and (or comments processing-instructions) (not top))
+    (error "SXML comments and processing instructions require :top #true"))
   (let ((handler (make-instance SXMLHandler)))
+    (slot-set! handler 'top top)
     (slot-set! handler 'comments comments)
     (slot-set! handler 'processing-instructions processing-instructions)
     (ListTalk-XML:parse (if (string? xml) [xml asByteVector] xml) handler)
