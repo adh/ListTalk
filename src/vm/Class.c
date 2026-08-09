@@ -591,12 +591,20 @@ static LT_Class** materialize_superclass_array(LT_Value superclasses_value,
 static LT_Class** materialize_metaclass_superclass_array(LT_Class** superclasses,
                                                          size_t count){
     LT_Class** metaclass_superclasses;
-    (void)superclasses;
-    (void)count;
+    size_t i;
 
-    metaclass_superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
-    metaclass_superclasses[0] = &LT_Class_class;
-    metaclass_superclasses[1] = NULL;
+    if (count == 0){
+        metaclass_superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
+        metaclass_superclasses[0] = &LT_Class_class;
+        metaclass_superclasses[1] = NULL;
+        return metaclass_superclasses;
+    }
+
+    metaclass_superclasses = GC_MALLOC(sizeof(LT_Class*) * (count + 1));
+    for (i = 0; i < count; i++){
+        metaclass_superclasses[i] = superclasses[i]->base.klass;
+    }
+    metaclass_superclasses[count] = NULL;
     return metaclass_superclasses;
 }
 
@@ -635,9 +643,56 @@ static LT_Value make_precedence_list(LT_Class* self, LT_Class** direct_superclas
     return precedence_list_storage(precedence_list);
 }
 
+static int class_in_precedence_list(LT_Class* klass, LT_Class* candidate){
+    LT_Value cursor = LT_Class_precedence_list(klass);
+
+    while (cursor != LT_NIL){
+        if (LT_ImmutableList_car(cursor) == (LT_Value)(uintptr_t)candidate){
+            return 1;
+        }
+        cursor = LT_ImmutableList_cdr(cursor);
+    }
+    return 0;
+}
+
+static LT_Class* native_slot_layout_class(LT_Class* klass){
+    LT_Value cursor = LT_Class_precedence_list(klass);
+
+    while (cursor != LT_NIL){
+        LT_Class* candidate = (LT_Class*)(uintptr_t)LT_ImmutableList_car(cursor);
+
+        if ((candidate->class_flags & LT_CLASS_FLAG_ALLOCATABLE) == 0
+            && (candidate->slot_count != 0
+                || candidate->instance_size > sizeof(LT_Object))){
+            return candidate;
+        }
+        cursor = LT_ImmutableList_cdr(cursor);
+    }
+    return NULL;
+}
+
+static size_t align_offset(size_t offset, size_t alignment){
+    size_t remainder = offset % alignment;
+    return (remainder == 0) ? offset : offset + alignment - remainder;
+}
+
+static int slot_name_present(LT_Class_Slot* slots,
+                             size_t slot_count,
+                             LT_Value name){
+    size_t i;
+
+    for (i = 0; i < slot_count; i++){
+        if (slots[i].name == name){
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void materialize_dynamic_slots(LT_Class* klass,
-                                      LT_Class* primary_superclass,
+                                      LT_Class** superclasses,
                                       LT_Value slot_names){
+    LT_Class* native_layout = NULL;
     size_t inherited_slot_count = 0;
     size_t slot_name_count = 0;
     LT_Value cursor = slot_names;
@@ -646,8 +701,19 @@ static void materialize_dynamic_slots(LT_Class* klass,
     size_t i;
     size_t next_offset;
 
-    if (primary_superclass != NULL){
-        inherited_slot_count = primary_superclass->slot_count;
+    for (i = 0; superclasses[i] != NULL; i++){
+        LT_Class* candidate = native_slot_layout_class(superclasses[i]);
+
+        inherited_slot_count += superclasses[i]->slot_count;
+        if (candidate == NULL || candidate == native_layout){
+            continue;
+        }
+        if (native_layout == NULL
+            || class_in_precedence_list(candidate, native_layout)){
+            native_layout = candidate;
+        } else if (!class_in_precedence_list(native_layout, candidate)){
+            LT_error("Multiple inheritance with unrelated native slots is not supported");
+        }
     }
 
     while (cursor != LT_NIL){
@@ -661,41 +727,49 @@ static void materialize_dynamic_slots(LT_Class* klass,
         cursor = LT_cdr(cursor);
     }
 
-    if (inherited_slot_count + slot_name_count == 0){
+    if (inherited_slot_count + slot_name_count == 0 && native_layout == NULL){
         klass->slot_count = 0;
         klass->slots = NULL;
-        klass->instance_size = (primary_superclass != NULL)
-            ? primary_superclass->instance_size
-            : sizeof(LT_Object);
+        klass->instance_size = sizeof(LT_Object);
         return;
     }
 
     slots = GC_MALLOC(sizeof(LT_Class_Slot) * (inherited_slot_count + slot_name_count));
-    if (inherited_slot_count != 0){
+    if (native_layout != NULL && native_layout->slot_count != 0){
         memcpy(
             slots,
-            primary_superclass->slots,
-            sizeof(LT_Class_Slot) * inherited_slot_count
+            native_layout->slots,
+            sizeof(LT_Class_Slot) * native_layout->slot_count
         );
-        slot_count = inherited_slot_count;
+        slot_count = native_layout->slot_count;
     }
 
-    next_offset = (primary_superclass != NULL)
-        ? primary_superclass->instance_size
+    next_offset = (native_layout != NULL)
+        ? native_layout->instance_size
         : sizeof(LT_Object);
+    next_offset = align_offset(next_offset, _Alignof(LT_Value));
+
+    for (i = 0; superclasses[i] != NULL; i++){
+        size_t j;
+
+        for (j = 0; j < superclasses[i]->slot_count; j++){
+            LT_Class_Slot inherited_slot = superclasses[i]->slots[j];
+
+            if (slot_name_present(slots, slot_count, inherited_slot.name)){
+                continue;
+            }
+            slots[slot_count] = inherited_slot;
+            slots[slot_count].offset = next_offset;
+            slot_count++;
+            next_offset += sizeof(LT_Value);
+        }
+    }
+
     cursor = slot_names;
     while (cursor != LT_NIL){
         LT_Value slot_name = LT_car(cursor);
-        int duplicate = 0;
 
-        for (i = 0; i < slot_count; i++){
-            if (slots[i].name == slot_name){
-                duplicate = 1;
-                break;
-            }
-        }
-
-        if (!duplicate){
+        if (!slot_name_present(slots, slot_count, slot_name)){
             slots[slot_count].name = slot_name;
             slots[slot_count].offset = next_offset;
             slots[slot_count].type = &LT_SlotType_Object;
@@ -841,7 +915,6 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     LT_Class** superclass_array;
     LT_Class** metaclass_superclass_array;
     size_t superclass_count;
-    size_t i;
     LT_Class* primary_superclass = NULL;
     LT_Class* primary_metaclass_superclass;
 
@@ -852,11 +925,6 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     superclass_array = materialize_superclass_array(superclasses, &superclass_count);
     if (superclass_count != 0){
         primary_superclass = superclass_array[0];
-        for (i = 1; i < superclass_count; i++){
-            if (superclass_array[i]->slot_count != 0){
-                LT_error("Multiple inheritance with slots is not supported");
-            }
-        }
     }
     metaclass_superclass_array = materialize_metaclass_superclass_array(
         superclass_array,
@@ -910,7 +978,7 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     }
     klass->documentation = LT_NIL;
     klass->native_descriptor = NULL;
-    materialize_dynamic_slots(klass, primary_superclass, slot_names);
+    materialize_dynamic_slots(klass, superclass_array, slot_names);
 
     return (LT_Value)(uintptr_t)klass;
 }

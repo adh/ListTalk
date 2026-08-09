@@ -730,6 +730,111 @@ static int test_class_new_increments_ilc_epoch(void){
     );
 }
 
+static int test_class_new_repacks_multiple_inherited_slots(void){
+    LT_Value slot_a = LT_Symbol_new("mi-a");
+    LT_Value slot_shared = LT_Symbol_new("mi-shared");
+    LT_Value slot_b = LT_Symbol_new("mi-b");
+    LT_Value slot_c = LT_Symbol_new("mi-c");
+    LT_Class* left = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MILeft"),
+        LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID),
+        LT_list(slot_a, slot_shared, LT_INVALID)
+    ));
+    LT_Class* right = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MIRight"),
+        LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID),
+        LT_list(slot_shared, slot_b, LT_INVALID)
+    ));
+    LT_Class* combined = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MICombined"),
+        LT_list(
+            (LT_Value)(uintptr_t)left,
+            (LT_Value)(uintptr_t)right,
+            LT_INVALID
+        ),
+        LT_list(slot_c, LT_INVALID)
+    ));
+    LT_Value instance = LT_Class_make_instance(combined);
+    LT_Class_Slot* a = LT_Class_lookup_slot(combined, slot_a);
+    LT_Class_Slot* shared = LT_Class_lookup_slot(combined, slot_shared);
+    LT_Class_Slot* b = LT_Class_lookup_slot(combined, slot_b);
+    LT_Class_Slot* c = LT_Class_lookup_slot(combined, slot_c);
+
+    if (expect(
+        combined->slot_count == 4 && a != NULL && shared != NULL
+            && b != NULL && c != NULL,
+        "multiple inheritance coalesces same-named user slots"
+    )){
+        return 1;
+    }
+    if (expect(
+        combined->base.klass->superclasses[0] == left->base.klass
+            && combined->base.klass->superclasses[1] == right->base.klass
+            && combined->base.klass->superclasses[2] == NULL,
+        "dynamic metaclass inherits each superclass metaclass"
+    )){
+        return 1;
+    }
+    if (expect(
+        a->offset != shared->offset && a->offset != b->offset
+            && a->offset != c->offset && shared->offset != b->offset
+            && shared->offset != c->offset && b->offset != c->offset,
+        "multiple inheritance relocates user slots without conflicts"
+    )){
+        return 1;
+    }
+
+    LT_Object_slot_set(instance, slot_a, LT_SmallInteger_new(11));
+    LT_Object_slot_set(instance, slot_shared, LT_SmallInteger_new(22));
+    LT_Object_slot_set(instance, slot_b, LT_SmallInteger_new(33));
+    LT_Object_slot_set(instance, slot_c, LT_SmallInteger_new(44));
+    return expect(
+        LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_a)) == 11
+            && LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_shared)) == 22
+            && LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_b)) == 33
+            && LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_c)) == 44,
+        "relocated inherited slots retain independent values"
+    );
+}
+
+static int test_class_new_preserves_native_slot_offsets(void){
+    LT_Value user_slot_name = LT_Symbol_new("mi-user-slot");
+    LT_Class* user_parent = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MIUserParent"),
+        LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID),
+        LT_list(user_slot_name, LT_INVALID)
+    ));
+    LT_Class* combined = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MINativeCombined"),
+        LT_list(
+            LT_STATIC_CLASS(LT_Symbol),
+            (LT_Value)(uintptr_t)user_parent,
+            LT_INVALID
+        ),
+        LT_NIL
+    ));
+    size_t i;
+
+    for (i = 0; i < LT_Symbol_class.slot_count; i++){
+        LT_Class_Slot* inherited = LT_Class_lookup_slot(
+            combined,
+            LT_Symbol_class.slots[i].name
+        );
+        if (expect(
+            inherited != NULL
+                && inherited->offset == LT_Symbol_class.slots[i].offset,
+            "multiple inheritance preserves native slot offsets"
+        )){
+            return 1;
+        }
+    }
+    return expect(
+        LT_Class_lookup_slot(combined, user_slot_name)->offset
+            >= LT_Symbol_class.instance_size,
+        "user slots are placed after the native instance layout"
+    );
+}
+
 static int test_constant_redefinition_increments_compilation_epoch(void){
     LT_Environment* env = LT_new_base_environment();
     LT_Value symbol = LT_Symbol_new("epoch-constant");
@@ -3905,6 +4010,8 @@ int main(void){
     RUN_TEST(test_class_add_method_invalidates_method_cache);
     RUN_TEST(test_class_add_method_increments_ilc_epoch);
     RUN_TEST(test_class_new_increments_ilc_epoch);
+    RUN_TEST(test_class_new_repacks_multiple_inherited_slots);
+    RUN_TEST(test_class_new_preserves_native_slot_offsets);
     RUN_TEST(test_constant_redefinition_increments_compilation_epoch);
     RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_immutable_list_methods);
