@@ -81,4 +81,8 @@ Current limitations / TODO
 - `package` is not yet copied into runtime class objects.
 - `slots`, `methods`, and `class_methods` are not yet materialized.
 - Metaclass superclass handling assumes one direct superclass.
-- MRO / precedence-list construction is not yet implemented here.
+- MRO / precedence-list construction is implemented via `make_precedence_list`
+  (used for both native and dynamic classes); the algorithm walks each direct
+  superclass's precedence list left-to-right, deduplicating with a hash set,
+  but does not implement C3 linearisation, so method resolution order in
+  complex diamond hierarchies may differ from Python/CLOS semantics.
