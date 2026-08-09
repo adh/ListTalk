@@ -242,6 +242,30 @@ static LT_Class** make_single_superclass_list(LT_Class* superclass){
     return superclasses;
 }
 
+static LT_Class** make_native_superclass_list(LT_Class_Descriptor* descriptor){
+    size_t mixin_count = 0;
+    size_t i;
+    LT_Class** superclasses;
+
+    if (descriptor->mixins != NULL){
+        while (descriptor->mixins[mixin_count] != NULL){
+            mixin_count++;
+        }
+    }
+
+    superclasses = GC_MALLOC(
+        sizeof(LT_Class*) * (mixin_count + (descriptor->superclass != NULL) + 1)
+    );
+    for (i = 0; i < mixin_count; i++){
+        superclasses[i] = descriptor->mixins[i];
+    }
+    if (descriptor->superclass != NULL){
+        superclasses[mixin_count++] = descriptor->superclass;
+    }
+    superclasses[mixin_count] = NULL;
+    return superclasses;
+}
+
 static LT_Value precedence_list_storage(LT_Value precedence_list){
     return (LT_Value)(uintptr_t)LT_VALUE_POINTER_VALUE(precedence_list);
 }
@@ -274,6 +298,8 @@ static LT_Value make_single_inheritance_precedence_list(LT_Class* klass,
     precedence_list = LT_ImmutableList_new(superclass_length + 1, values);
     return precedence_list_storage(precedence_list);
 }
+
+static LT_Value make_precedence_list(LT_Class* self);
 
 #define LT_EARLY_NATIVE_CLASS_CAPACITY 64
 
@@ -308,18 +334,11 @@ static void record_early_native_class(LT_Class* klass){
 }
 
 static void refresh_native_class_topology(LT_Class* klass){
-    LT_Class* superclass = NULL;
     LT_Class* metaclass;
     LT_Class* metaclass_superclass = NULL;
 
-    if (klass->superclasses != NULL){
-        superclass = klass->superclasses[0];
-    }
     invalidate_inline_caches();
-    klass->precedence_list = make_single_inheritance_precedence_list(
-        klass,
-        superclass
-    );
+    klass->precedence_list = make_precedence_list(klass);
 
     metaclass = klass->base.klass;
     if (metaclass == NULL){
@@ -468,7 +487,9 @@ static int compare_slots_by_name(const void* left, const void* right){
     return 0;
 }
 
-static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_slots){
+static void materialize_slots(LT_Class* klass,
+                              LT_Class* structural_superclass,
+                              LT_Slot_Descriptor* descriptor_slots){
     size_t superclass_slot_count = 0;
     size_t descriptor_slot_count;
     size_t max_slot_count;
@@ -476,8 +497,8 @@ static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_sl
     LT_Class_Slot* slots;
     size_t i;
 
-    if (klass->superclasses != NULL && klass->superclasses[0] != NULL){
-        superclass_slot_count = klass->superclasses[0]->slot_count;
+    if (structural_superclass != NULL){
+        superclass_slot_count = structural_superclass->slot_count;
     }
     descriptor_slot_count = count_slot_descriptors(descriptor_slots);
     max_slot_count = superclass_slot_count + descriptor_slot_count;
@@ -492,7 +513,7 @@ static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_sl
     if (superclass_slot_count != 0){
         memcpy(
             slots,
-            klass->superclasses[0]->slots,
+            structural_superclass->slots,
             sizeof(LT_Class_Slot) * superclass_slot_count
         );
         slot_count = superclass_slot_count;
@@ -571,53 +592,213 @@ static LT_Class** materialize_superclass_array(LT_Value superclasses_value,
 static LT_Class** materialize_metaclass_superclass_array(LT_Class** superclasses,
                                                          size_t count){
     LT_Class** metaclass_superclasses;
-    (void)superclasses;
-    (void)count;
+    size_t i;
 
-    metaclass_superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
-    metaclass_superclasses[0] = &LT_Class_class;
-    metaclass_superclasses[1] = NULL;
+    if (count == 0){
+        metaclass_superclasses = GC_MALLOC(sizeof(LT_Class*) * 2);
+        metaclass_superclasses[0] = &LT_Class_class;
+        metaclass_superclasses[1] = NULL;
+        return metaclass_superclasses;
+    }
+
+    metaclass_superclasses = GC_MALLOC(sizeof(LT_Class*) * (count + 1));
+    for (i = 0; i < count; i++){
+        metaclass_superclasses[i] = superclasses[i]->base.klass;
+    }
+    metaclass_superclasses[count] = NULL;
     return metaclass_superclasses;
 }
 
-static LT_Value make_precedence_list(LT_Class* self, LT_Class** direct_superclasses){
-    LT_ListBuilder* builder = LT_ListBuilder_new();
-    LT_InlineHash seen;
-    LT_Value self_value = (LT_Value)(uintptr_t)self;
-    LT_Value precedence_list;
-    LT_Value cursor;
+static size_t count_reachable_classes(LT_Class* klass, LT_InlineHash* seen){
+    size_t count = 1;
     size_t i;
 
+    LT_PointerHash_at_put(seen, klass, (void*)1);
+    if (klass->superclasses == NULL){
+        return count;
+    }
+    for (i = 0; klass->superclasses[i] != NULL; i++){
+        LT_Class* superclass = klass->superclasses[i];
+
+        if (!LT_PointerHash_at(seen, superclass)){
+            count += count_reachable_classes(superclass, seen);
+        }
+    }
+    return count;
+}
+
+static size_t class_array_index(LT_Class** classes,
+                                size_t count,
+                                LT_Class* klass){
+    size_t i;
+
+    for (i = 0; i < count; i++){
+        if (classes[i] == klass){
+            return i;
+        }
+    }
+    LT_error("Class missing from precedence graph");
+}
+
+static void add_precedence_edge(unsigned char* edges,
+                                size_t* indegrees,
+                                size_t class_count,
+                                size_t before,
+                                size_t after){
+    size_t edge_index = before * class_count + after;
+
+    if (!edges[edge_index]){
+        edges[edge_index] = 1;
+        indegrees[after]++;
+    }
+}
+
+static LT_Value make_precedence_list(LT_Class* self){
+    LT_InlineHash seen;
+    size_t class_count;
+    LT_Class** classes;
+    unsigned char* edges;
+    size_t* indegrees;
+    unsigned char* emitted;
+    LT_Value* values;
+    size_t discovered = 1;
+    size_t i;
+    size_t output_index;
+
     LT_InlineHash_init(&seen);
-    LT_PointerHash_at_put(&seen, (void*)(uintptr_t)self_value, (void*)1);
-    LT_ListBuilder_append(builder, self_value);
+    class_count = count_reachable_classes(self, &seen);
+    classes = GC_MALLOC(sizeof(LT_Class*) * class_count);
+    classes[0] = self;
 
-    for (i = 0; direct_superclasses[i] != NULL; i++){
-        LT_Class* superclass = direct_superclasses[i];
-        LT_Value superclass_precedence = LT_Class_precedence_list(superclass);
+    LT_InlineHash_init(&seen);
+    LT_PointerHash_at_put(&seen, self, (void*)1);
+    for (i = 0; i < discovered; i++){
+        size_t j;
 
-        if (superclass_precedence == LT_NIL){
+        if (classes[i]->superclasses == NULL){
             continue;
         }
+        for (j = 0; classes[i]->superclasses[j] != NULL; j++){
+            LT_Class* superclass = classes[i]->superclasses[j];
 
-        while (superclass_precedence != LT_NIL){
-            LT_Value klass_value = LT_ImmutableList_car(superclass_precedence);
-            if (!LT_PointerHash_at(&seen, (void*)(uintptr_t)klass_value)){
-                LT_PointerHash_at_put(&seen, (void*)(uintptr_t)klass_value, (void*)1);
-                LT_ListBuilder_append(builder, klass_value);
+            if (!LT_PointerHash_at(&seen, superclass)){
+                LT_PointerHash_at_put(&seen, superclass, (void*)1);
+                classes[discovered++] = superclass;
             }
-            superclass_precedence = LT_ImmutableList_cdr(superclass_precedence);
         }
     }
 
-    cursor = LT_ListBuilder_value(builder);
-    precedence_list = LT_ImmutableList_fromList(cursor);
-    return precedence_list_storage(precedence_list);
+    edges = GC_MALLOC_ATOMIC(class_count * class_count);
+    indegrees = GC_MALLOC_ATOMIC(sizeof(size_t) * class_count);
+    emitted = GC_MALLOC_ATOMIC(class_count);
+    memset(edges, 0, class_count * class_count);
+    memset(indegrees, 0, sizeof(size_t) * class_count);
+    memset(emitted, 0, class_count);
+
+    for (i = 0; i < class_count; i++){
+        LT_Class** superclasses = classes[i]->superclasses;
+        size_t j;
+
+        if (superclasses == NULL){
+            continue;
+        }
+        for (j = 0; superclasses[j] != NULL; j++){
+            add_precedence_edge(
+                edges,
+                indegrees,
+                class_count,
+                i,
+                class_array_index(classes, class_count, superclasses[j])
+            );
+            if (superclasses[j + 1] != NULL){
+                add_precedence_edge(
+                    edges,
+                    indegrees,
+                    class_count,
+                    class_array_index(classes, class_count, superclasses[j]),
+                    class_array_index(classes, class_count, superclasses[j + 1])
+                );
+            }
+        }
+    }
+
+    values = GC_MALLOC(sizeof(LT_Value) * class_count);
+    for (output_index = 0; output_index < class_count; output_index++){
+        size_t selected = class_count;
+        size_t j;
+
+        for (i = 0; i < class_count; i++){
+            if (!emitted[i] && indegrees[i] == 0){
+                selected = i;
+                break;
+            }
+        }
+        if (selected == class_count){
+            LT_error("Inconsistent class precedence graph");
+        }
+
+        emitted[selected] = 1;
+        values[output_index] = (LT_Value)(uintptr_t)classes[selected];
+        for (j = 0; j < class_count; j++){
+            if (edges[selected * class_count + j]){
+                indegrees[j]--;
+            }
+        }
+    }
+
+    return precedence_list_storage(LT_ImmutableList_new(class_count, values));
+}
+
+static int class_in_precedence_list(LT_Class* klass, LT_Class* candidate){
+    LT_Value cursor = LT_Class_precedence_list(klass);
+
+    while (cursor != LT_NIL){
+        if (LT_ImmutableList_car(cursor) == (LT_Value)(uintptr_t)candidate){
+            return 1;
+        }
+        cursor = LT_ImmutableList_cdr(cursor);
+    }
+    return 0;
+}
+
+static LT_Class* native_slot_layout_class(LT_Class* klass){
+    LT_Value cursor = LT_Class_precedence_list(klass);
+
+    while (cursor != LT_NIL){
+        LT_Class* candidate = (LT_Class*)(uintptr_t)LT_ImmutableList_car(cursor);
+
+        if ((candidate->class_flags & LT_CLASS_FLAG_ALLOCATABLE) == 0
+            && (candidate->slot_count != 0
+                || candidate->instance_size > sizeof(LT_Object))){
+            return candidate;
+        }
+        cursor = LT_ImmutableList_cdr(cursor);
+    }
+    return NULL;
+}
+
+static size_t align_offset(size_t offset, size_t alignment){
+    size_t remainder = offset % alignment;
+    return (remainder == 0) ? offset : offset + alignment - remainder;
+}
+
+static int slot_name_present(LT_Class_Slot* slots,
+                             size_t slot_count,
+                             LT_Value name){
+    size_t i;
+
+    for (i = 0; i < slot_count; i++){
+        if (slots[i].name == name){
+            return 1;
+        }
+    }
+    return 0;
 }
 
 static void materialize_dynamic_slots(LT_Class* klass,
-                                      LT_Class* primary_superclass,
+                                      LT_Class** superclasses,
                                       LT_Value slot_names){
+    LT_Class* native_layout = NULL;
     size_t inherited_slot_count = 0;
     size_t slot_name_count = 0;
     LT_Value cursor = slot_names;
@@ -626,8 +807,19 @@ static void materialize_dynamic_slots(LT_Class* klass,
     size_t i;
     size_t next_offset;
 
-    if (primary_superclass != NULL){
-        inherited_slot_count = primary_superclass->slot_count;
+    for (i = 0; superclasses[i] != NULL; i++){
+        LT_Class* candidate = native_slot_layout_class(superclasses[i]);
+
+        inherited_slot_count += superclasses[i]->slot_count;
+        if (candidate == NULL || candidate == native_layout){
+            continue;
+        }
+        if (native_layout == NULL
+            || class_in_precedence_list(candidate, native_layout)){
+            native_layout = candidate;
+        } else if (!class_in_precedence_list(native_layout, candidate)){
+            LT_error("Multiple inheritance with unrelated native slots is not supported");
+        }
     }
 
     while (cursor != LT_NIL){
@@ -641,41 +833,49 @@ static void materialize_dynamic_slots(LT_Class* klass,
         cursor = LT_cdr(cursor);
     }
 
-    if (inherited_slot_count + slot_name_count == 0){
+    if (inherited_slot_count + slot_name_count == 0 && native_layout == NULL){
         klass->slot_count = 0;
         klass->slots = NULL;
-        klass->instance_size = (primary_superclass != NULL)
-            ? primary_superclass->instance_size
-            : sizeof(LT_Object);
+        klass->instance_size = sizeof(LT_Object);
         return;
     }
 
     slots = GC_MALLOC(sizeof(LT_Class_Slot) * (inherited_slot_count + slot_name_count));
-    if (inherited_slot_count != 0){
+    if (native_layout != NULL && native_layout->slot_count != 0){
         memcpy(
             slots,
-            primary_superclass->slots,
-            sizeof(LT_Class_Slot) * inherited_slot_count
+            native_layout->slots,
+            sizeof(LT_Class_Slot) * native_layout->slot_count
         );
-        slot_count = inherited_slot_count;
+        slot_count = native_layout->slot_count;
     }
 
-    next_offset = (primary_superclass != NULL)
-        ? primary_superclass->instance_size
+    next_offset = (native_layout != NULL)
+        ? native_layout->instance_size
         : sizeof(LT_Object);
+    next_offset = align_offset(next_offset, _Alignof(LT_Value));
+
+    for (i = 0; superclasses[i] != NULL; i++){
+        size_t j;
+
+        for (j = 0; j < superclasses[i]->slot_count; j++){
+            LT_Class_Slot inherited_slot = superclasses[i]->slots[j];
+
+            if (slot_name_present(slots, slot_count, inherited_slot.name)){
+                continue;
+            }
+            slots[slot_count] = inherited_slot;
+            slots[slot_count].offset = next_offset;
+            slot_count++;
+            next_offset += sizeof(LT_Value);
+        }
+    }
+
     cursor = slot_names;
     while (cursor != LT_NIL){
         LT_Value slot_name = LT_car(cursor);
-        int duplicate = 0;
 
-        for (i = 0; i < slot_count; i++){
-            if (slots[i].name == slot_name){
-                duplicate = 1;
-                break;
-            }
-        }
-
-        if (!duplicate){
+        if (!slot_name_present(slots, slot_count, slot_name)){
             slots[slot_count].name = slot_name;
             slots[slot_count].offset = next_offset;
             slots[slot_count].type = &LT_SlotType_Object;
@@ -701,6 +901,7 @@ static void materialize_dynamic_slots(LT_Class* klass,
 void LT_init_native_class(LT_Class* klass){
     LT_Class_Descriptor* descriptor = klass->native_descriptor;
     LT_Class* metaclass;
+    size_t i;
 
     if (descriptor == NULL){
         return;
@@ -711,6 +912,22 @@ void LT_init_native_class(LT_Class* klass){
 
     if (descriptor->superclass != NULL){
         LT_init_native_class(descriptor->superclass);
+    }
+    if (descriptor->mixins != NULL){
+        for (i = 0; descriptor->mixins[i] != NULL; i++){
+            LT_Class* mixin = descriptor->mixins[i];
+
+            LT_init_native_class(mixin);
+            if ((mixin->class_flags & LT_CLASS_FLAG_ABSTRACT) == 0){
+                LT_error("Native class mixin must be abstract");
+            }
+            if (mixin->instance_size != 0){
+                LT_error("Native class mixin must be zero-sized");
+            }
+            if ((mixin->class_flags & LT_CLASS_FLAG_FLEXIBLE) != 0){
+                LT_error("Native class mixin must not be flexible");
+            }
+        }
     }
     if (descriptor->metaclass_superclass != NULL){
         LT_init_native_class(descriptor->metaclass_superclass);
@@ -745,14 +962,11 @@ void LT_init_native_class(LT_Class* klass){
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->documentation =
         materialize_documentation(klass, descriptor->documentation);
-    klass->superclasses = make_single_superclass_list(descriptor->superclass);
+    klass->superclasses = make_native_superclass_list(descriptor);
     invalidate_inline_caches();
     LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
-    klass->precedence_list = make_single_inheritance_precedence_list(
-        klass,
-        descriptor->superclass
-    );
-    materialize_slots(klass, descriptor->slots);
+    klass->precedence_list = make_precedence_list(klass);
+    materialize_slots(klass, descriptor->superclass, descriptor->slots);
     materialize_direct_methods(klass, descriptor->methods);
 
     if (metaclass != NULL){
@@ -807,7 +1021,6 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     LT_Class** superclass_array;
     LT_Class** metaclass_superclass_array;
     size_t superclass_count;
-    size_t i;
     LT_Class* primary_superclass = NULL;
     LT_Class* primary_metaclass_superclass;
 
@@ -818,11 +1031,6 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     superclass_array = materialize_superclass_array(superclasses, &superclass_count);
     if (superclass_count != 0){
         primary_superclass = superclass_array[0];
-        for (i = 1; i < superclass_count; i++){
-            if (superclass_array[i]->slot_count != 0){
-                LT_error("Multiple inheritance with slots is not supported");
-            }
-        }
     }
     metaclass_superclass_array = materialize_metaclass_superclass_array(
         superclass_array,
@@ -834,7 +1042,7 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     metaclass = LT_Class_ALLOC(LT_Class);
     metaclass->base.klass = &LT_Class_class_class;
     metaclass->superclasses = metaclass_superclass_array;
-    metaclass->precedence_list = make_precedence_list(metaclass, metaclass_superclass_array);
+    metaclass->precedence_list = make_precedence_list(metaclass);
     metaclass->instance_size = sizeof(LT_Class);
     metaclass->class_flags = 0;
     if (primary_metaclass_superclass != NULL){
@@ -860,7 +1068,7 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     klass->base.klass = metaclass;
     klass->superclasses = superclass_array;
     invalidate_inline_caches();
-    klass->precedence_list = make_precedence_list(klass, superclass_array);
+    klass->precedence_list = make_precedence_list(klass);
     klass->class_flags = LT_CLASS_FLAG_ALLOCATABLE;
     klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
@@ -876,7 +1084,7 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     }
     klass->documentation = LT_NIL;
     klass->native_descriptor = NULL;
-    materialize_dynamic_slots(klass, primary_superclass, slot_names);
+    materialize_dynamic_slots(klass, superclass_array, slot_names);
 
     return (LT_Value)(uintptr_t)klass;
 }

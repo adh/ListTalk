@@ -59,6 +59,54 @@ static const char* condition_message_cstr(LT_Value condition){
     return LT_String_value_cstr(LT_String_from_value(message));
 }
 
+LT_DEFINE_CLASS(LT_TestNativeMixinA) {
+    .name = "TestNativeMixinA",
+    .instance_size = 0,
+    .class_flags = LT_CLASS_FLAG_ABSTRACT,
+};
+
+LT_DEFINE_CLASS(LT_TestNativeMixinB) {
+    .name = "TestNativeMixinB",
+    .instance_size = 0,
+    .class_flags = LT_CLASS_FLAG_ABSTRACT,
+};
+
+typedef struct LT_TestNativeStructuralInstance_s {
+    LT_Object base;
+    LT_Value inherited_slot;
+} LT_TestNativeStructuralInstance;
+
+static LT_Slot_Descriptor test_native_structural_slots[] = {
+    {
+        "test-native-inherited-slot",
+        offsetof(LT_TestNativeStructuralInstance, inherited_slot),
+        &LT_SlotType_Object,
+    },
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_TestNativeStructural) {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "TestNativeStructural",
+    .instance_size = sizeof(LT_TestNativeStructuralInstance),
+    .slots = test_native_structural_slots,
+};
+
+static LT_Class* test_native_mixins[] = {
+    &LT_TestNativeMixinA_class,
+    &LT_TestNativeMixinB_class,
+    NULL,
+};
+
+LT_DEFINE_CLASS(LT_TestNativeMixedClass) {
+    .superclass = &LT_TestNativeStructural_class,
+    .mixins = test_native_mixins,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "TestNativeMixedClass",
+    .instance_size = sizeof(LT_TestNativeStructuralInstance),
+};
+
 LT_DEFINE_PRIMITIVE(
     primitive_test_pair_sum_method,
     "test-pair-sum-method",
@@ -701,6 +749,142 @@ static int test_class_new_increments_ilc_epoch(void){
     return expect(
         !LT_ilc_epoch_equals_acquire(&before),
         "LT_Class_new increments inline-cache epoch for class hierarchy changes"
+    );
+}
+
+static int test_class_new_repacks_multiple_inherited_slots(void){
+    LT_Value slot_a = LT_Symbol_new("mi-a");
+    LT_Value slot_shared = LT_Symbol_new("mi-shared");
+    LT_Value slot_b = LT_Symbol_new("mi-b");
+    LT_Value slot_c = LT_Symbol_new("mi-c");
+    LT_Class* left = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MILeft"),
+        LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID),
+        LT_list(slot_a, slot_shared, LT_INVALID)
+    ));
+    LT_Class* right = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MIRight"),
+        LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID),
+        LT_list(slot_shared, slot_b, LT_INVALID)
+    ));
+    LT_Class* combined = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MICombined"),
+        LT_list(
+            (LT_Value)(uintptr_t)left,
+            (LT_Value)(uintptr_t)right,
+            LT_INVALID
+        ),
+        LT_list(slot_c, LT_INVALID)
+    ));
+    LT_Value instance = LT_Class_make_instance(combined);
+    LT_Class_Slot* a = LT_Class_lookup_slot(combined, slot_a);
+    LT_Class_Slot* shared = LT_Class_lookup_slot(combined, slot_shared);
+    LT_Class_Slot* b = LT_Class_lookup_slot(combined, slot_b);
+    LT_Class_Slot* c = LT_Class_lookup_slot(combined, slot_c);
+
+    if (expect(
+        combined->slot_count == 4 && a != NULL && shared != NULL
+            && b != NULL && c != NULL,
+        "multiple inheritance coalesces same-named user slots"
+    )){
+        return 1;
+    }
+    if (expect(
+        combined->base.klass->superclasses[0] == left->base.klass
+            && combined->base.klass->superclasses[1] == right->base.klass
+            && combined->base.klass->superclasses[2] == NULL,
+        "dynamic metaclass inherits each superclass metaclass"
+    )){
+        return 1;
+    }
+    {
+        LT_Value precedence = LT_Class_precedence_list(combined);
+
+        if (expect(
+            LT_ImmutableList_car(precedence) == (LT_Value)(uintptr_t)combined,
+            "topological precedence starts with the derived class"
+        )){
+            return 1;
+        }
+        precedence = LT_ImmutableList_cdr(precedence);
+        if (expect(
+            LT_ImmutableList_car(precedence) == (LT_Value)(uintptr_t)left,
+            "topological precedence retains first direct parent"
+        )){
+            return 1;
+        }
+        precedence = LT_ImmutableList_cdr(precedence);
+        if (expect(
+            LT_ImmutableList_car(precedence) == (LT_Value)(uintptr_t)right,
+            "topological precedence places second parent before shared ancestor"
+        )){
+            return 1;
+        }
+        precedence = LT_ImmutableList_cdr(precedence);
+        if (expect(
+            LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_Object),
+            "topological precedence places shared ancestor after direct parents"
+        )){
+            return 1;
+        }
+    }
+    if (expect(
+        a->offset != shared->offset && a->offset != b->offset
+            && a->offset != c->offset && shared->offset != b->offset
+            && shared->offset != c->offset && b->offset != c->offset,
+        "multiple inheritance relocates user slots without conflicts"
+    )){
+        return 1;
+    }
+
+    LT_Object_slot_set(instance, slot_a, LT_SmallInteger_new(11));
+    LT_Object_slot_set(instance, slot_shared, LT_SmallInteger_new(22));
+    LT_Object_slot_set(instance, slot_b, LT_SmallInteger_new(33));
+    LT_Object_slot_set(instance, slot_c, LT_SmallInteger_new(44));
+    return expect(
+        LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_a)) == 11
+            && LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_shared)) == 22
+            && LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_b)) == 33
+            && LT_SmallInteger_value(LT_Object_slot_ref(instance, slot_c)) == 44,
+        "relocated inherited slots retain independent values"
+    );
+}
+
+static int test_class_new_preserves_native_slot_offsets(void){
+    LT_Value user_slot_name = LT_Symbol_new("mi-user-slot");
+    LT_Class* user_parent = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MIUserParent"),
+        LT_list(LT_STATIC_CLASS(LT_Object), LT_INVALID),
+        LT_list(user_slot_name, LT_INVALID)
+    ));
+    LT_Class* combined = LT_Class_from_object(LT_Class_new(
+        LT_Symbol_new("MINativeCombined"),
+        LT_list(
+            LT_STATIC_CLASS(LT_Symbol),
+            (LT_Value)(uintptr_t)user_parent,
+            LT_INVALID
+        ),
+        LT_NIL
+    ));
+    size_t i;
+
+    for (i = 0; i < LT_Symbol_class.slot_count; i++){
+        LT_Class_Slot* inherited = LT_Class_lookup_slot(
+            combined,
+            LT_Symbol_class.slots[i].name
+        );
+        if (expect(
+            inherited != NULL
+                && inherited->offset == LT_Symbol_class.slots[i].offset,
+            "multiple inheritance preserves native slot offsets"
+        )){
+            return 1;
+        }
+    }
+    return expect(
+        LT_Class_lookup_slot(combined, user_slot_name)->offset
+            >= LT_Symbol_class.instance_size,
+        "user slots are placed after the native instance layout"
     );
 }
 
@@ -2622,6 +2806,80 @@ static int test_symbol_class_inherits_object(void){
     );
 }
 
+static int test_native_class_mixins_precede_superclass(void){
+    LT_Value precedence = LT_Class_precedence_list(&LT_TestNativeMixedClass_class);
+    LT_Value inherited_slot_name = LT_Symbol_new("test-native-inherited-slot");
+    LT_Class_Slot* inherited_slot;
+
+    if (expect(
+        LT_TestNativeMixedClass_class.superclasses[0]
+            == &LT_TestNativeMixinA_class,
+        "first native mixin precedes superclass"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_TestNativeMixedClass_class.superclasses[1]
+            == &LT_TestNativeMixinB_class,
+        "native mixins retain descriptor order"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_TestNativeMixedClass_class.superclasses[2]
+            == &LT_TestNativeStructural_class
+            && LT_TestNativeMixedClass_class.superclasses[3] == NULL,
+        "structural superclass follows native mixins"
+    )){
+        return 1;
+    }
+    inherited_slot = LT_Class_lookup_slot(
+        &LT_TestNativeMixedClass_class,
+        inherited_slot_name
+    );
+    if (expect(
+        inherited_slot != NULL
+            && inherited_slot->offset
+                == offsetof(LT_TestNativeStructuralInstance, inherited_slot),
+        "native slots come from the structural superclass"
+    )){
+        return 1;
+    }
+
+    if (expect(
+        LT_ImmutableList_car(precedence)
+            == LT_STATIC_CLASS(LT_TestNativeMixedClass),
+        "mixed native precedence starts with the class"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    if (expect(
+        LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_TestNativeMixinA),
+        "first native mixin precedes later parents"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    if (expect(
+        LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_TestNativeMixinB),
+        "second native mixin follows first mixin"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    if (expect(
+        LT_ImmutableList_car(precedence)
+            == LT_STATIC_CLASS(LT_TestNativeStructural),
+        "native structural superclass follows mixins in precedence"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    return expect(LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_Object),
+                  "structural superclass ancestry remains in precedence");
+}
+
 static int test_symbol_package_slot_is_readonly(void){
     LT_Value slot_value = eval_one("(slot-ref 'alpha 'package)");
     LT_Value readonly_error = eval_one(
@@ -3826,6 +4084,8 @@ int main(void){
     RUN_TEST(test_class_add_method_invalidates_method_cache);
     RUN_TEST(test_class_add_method_increments_ilc_epoch);
     RUN_TEST(test_class_new_increments_ilc_epoch);
+    RUN_TEST(test_class_new_repacks_multiple_inherited_slots);
+    RUN_TEST(test_class_new_preserves_native_slot_offsets);
     RUN_TEST(test_constant_redefinition_increments_compilation_epoch);
     RUN_TEST(test_immutable_list_interops_with_pairs);
     RUN_TEST(test_immutable_list_methods);
@@ -3884,6 +4144,7 @@ int main(void){
     RUN_TEST(test_fold_expression_special_form);
     RUN_TEST(test_get_current_environment_special_form);
     RUN_TEST(test_symbol_class_inherits_object);
+    RUN_TEST(test_native_class_mixins_precede_superclass);
     RUN_TEST(test_symbol_package_slot_is_readonly);
     RUN_TEST(test_precedence_list_initialized);
     RUN_TEST(test_value_is_instance_of_uses_precedence_list);

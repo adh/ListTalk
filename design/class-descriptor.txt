@@ -29,6 +29,8 @@ Descriptor fields
 -----------------
 Current descriptor structure (`ListTalk/vm/Class.h`):
 - `superclass`: class-side direct superclass
+- `mixins`: NULL-terminated class-side mixins, prepended to `superclass`; every
+  mixin must be abstract, zero-sized, and not flexible
 - `metaclass_superclass`: metaclass-side direct superclass
 - `package`, `name`: symbolic metadata (package is not yet materialized by init)
 - `documentation`: class documentation text copied to `klass->documentation`
@@ -46,7 +48,7 @@ Initialization contract (`LT_init_native_class`)
      - non-native classes
 
 2. Recursively initialize descriptor references:
-   - `descriptor->superclass`
+   - `descriptor->superclass` and every entry in `descriptor->mixins`
    - `descriptor->metaclass_superclass`
 
 3. Materialize class-side fields from descriptor:
@@ -54,8 +56,8 @@ Initialization contract (`LT_init_native_class`)
    - `klass->class_flags`
    - `klass->debugPrintOn`
    - `klass->documentation`
-   - `klass->superclasses` as a NULL-terminated list containing only
-     `descriptor->superclass` (or `NULL` if not set)
+   - `klass->superclasses` as a NULL-terminated list containing the mixins,
+     followed by `descriptor->superclass` when set
 
 4. Materialize metaclass-side topology:
    - `klass->base.klass->base.klass = &LT_Class_class_class`
@@ -72,11 +74,3 @@ Important properties
 - Re-entrant/idempotent behavior is driven by `native_descriptor == NULL`.
 - Cycles in superclass descriptors are invalid and will recurse indefinitely.
 - The current implementation intentionally ignores multithreading concerns.
-
-
-Current limitations / TODO
---------------------------
-- `package` is not yet copied into runtime class objects.
-- `slots`, `methods`, and `class_methods` are not yet materialized.
-- Superclass handling currently assumes one direct superclass per side.
-- MRO / precedence-list construction is not yet implemented here.
