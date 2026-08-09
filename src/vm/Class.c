@@ -488,7 +488,9 @@ static int compare_slots_by_name(const void* left, const void* right){
     return 0;
 }
 
-static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_slots){
+static void materialize_slots(LT_Class* klass,
+                              LT_Class* structural_superclass,
+                              LT_Slot_Descriptor* descriptor_slots){
     size_t superclass_slot_count = 0;
     size_t descriptor_slot_count;
     size_t max_slot_count;
@@ -496,8 +498,8 @@ static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_sl
     LT_Class_Slot* slots;
     size_t i;
 
-    if (klass->superclasses != NULL && klass->superclasses[0] != NULL){
-        superclass_slot_count = klass->superclasses[0]->slot_count;
+    if (structural_superclass != NULL){
+        superclass_slot_count = structural_superclass->slot_count;
     }
     descriptor_slot_count = count_slot_descriptors(descriptor_slots);
     max_slot_count = superclass_slot_count + descriptor_slot_count;
@@ -512,7 +514,7 @@ static void materialize_slots(LT_Class* klass, LT_Slot_Descriptor* descriptor_sl
     if (superclass_slot_count != 0){
         memcpy(
             slots,
-            klass->superclasses[0]->slots,
+            structural_superclass->slots,
             sizeof(LT_Class_Slot) * superclass_slot_count
         );
         slot_count = superclass_slot_count;
@@ -860,7 +862,7 @@ void LT_init_native_class(LT_Class* klass){
     invalidate_inline_caches();
     LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
     klass->precedence_list = make_precedence_list(klass, klass->superclasses);
-    materialize_slots(klass, descriptor->slots);
+    materialize_slots(klass, descriptor->superclass, descriptor->slots);
     materialize_direct_methods(klass, descriptor->methods);
 
     if (metaclass != NULL){

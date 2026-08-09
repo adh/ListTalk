@@ -71,6 +71,28 @@ LT_DEFINE_CLASS(LT_TestNativeMixinB) {
     .class_flags = LT_CLASS_FLAG_ABSTRACT,
 };
 
+typedef struct LT_TestNativeStructuralInstance_s {
+    LT_Object base;
+    LT_Value inherited_slot;
+} LT_TestNativeStructuralInstance;
+
+static LT_Slot_Descriptor test_native_structural_slots[] = {
+    {
+        "test-native-inherited-slot",
+        offsetof(LT_TestNativeStructuralInstance, inherited_slot),
+        &LT_SlotType_Object,
+    },
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_TestNativeStructural) {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "TestNativeStructural",
+    .instance_size = sizeof(LT_TestNativeStructuralInstance),
+    .slots = test_native_structural_slots,
+};
+
 static LT_Class* test_native_mixins[] = {
     &LT_TestNativeMixinA_class,
     &LT_TestNativeMixinB_class,
@@ -78,11 +100,11 @@ static LT_Class* test_native_mixins[] = {
 };
 
 LT_DEFINE_CLASS(LT_TestNativeMixedClass) {
-    .superclass = &LT_Object_class,
+    .superclass = &LT_TestNativeStructural_class,
     .mixins = test_native_mixins,
     .metaclass_superclass = &LT_Class_class,
     .name = "TestNativeMixedClass",
-    .instance_size = sizeof(LT_Object),
+    .instance_size = sizeof(LT_TestNativeStructuralInstance),
 };
 
 LT_DEFINE_PRIMITIVE(
@@ -2755,6 +2777,8 @@ static int test_symbol_class_inherits_object(void){
 
 static int test_native_class_mixins_precede_superclass(void){
     LT_Value precedence = LT_Class_precedence_list(&LT_TestNativeMixedClass_class);
+    LT_Value inherited_slot_name = LT_Symbol_new("test-native-inherited-slot");
+    LT_Class_Slot* inherited_slot;
 
     if (expect(
         LT_TestNativeMixedClass_class.superclasses[0]
@@ -2771,9 +2795,22 @@ static int test_native_class_mixins_precede_superclass(void){
         return 1;
     }
     if (expect(
-        LT_TestNativeMixedClass_class.superclasses[2] == &LT_Object_class
+        LT_TestNativeMixedClass_class.superclasses[2]
+            == &LT_TestNativeStructural_class
             && LT_TestNativeMixedClass_class.superclasses[3] == NULL,
-        "concrete superclass follows native mixins"
+        "structural superclass follows native mixins"
+    )){
+        return 1;
+    }
+    inherited_slot = LT_Class_lookup_slot(
+        &LT_TestNativeMixedClass_class,
+        inherited_slot_name
+    );
+    if (expect(
+        inherited_slot != NULL
+            && inherited_slot->offset
+                == offsetof(LT_TestNativeStructuralInstance, inherited_slot),
+        "native slots come from the structural superclass"
     )){
         return 1;
     }
@@ -2800,10 +2837,16 @@ static int test_native_class_mixins_precede_superclass(void){
         return 1;
     }
     precedence = LT_ImmutableList_cdr(precedence);
-    return expect(
-        LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_Object),
-        "native superclass follows mixins in precedence"
-    );
+    if (expect(
+        LT_ImmutableList_car(precedence)
+            == LT_STATIC_CLASS(LT_TestNativeStructural),
+        "native structural superclass follows mixins in precedence"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    return expect(LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_Object),
+                  "structural superclass ancestry remains in precedence");
 }
 
 static int test_symbol_package_slot_is_readonly(void){
