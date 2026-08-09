@@ -797,6 +797,37 @@ static int test_class_new_repacks_multiple_inherited_slots(void){
     )){
         return 1;
     }
+    {
+        LT_Value precedence = LT_Class_precedence_list(combined);
+
+        if (expect(
+            LT_ImmutableList_car(precedence) == (LT_Value)(uintptr_t)combined,
+            "topological precedence starts with the derived class"
+        )){
+            return 1;
+        }
+        precedence = LT_ImmutableList_cdr(precedence);
+        if (expect(
+            LT_ImmutableList_car(precedence) == (LT_Value)(uintptr_t)left,
+            "topological precedence retains first direct parent"
+        )){
+            return 1;
+        }
+        precedence = LT_ImmutableList_cdr(precedence);
+        if (expect(
+            LT_ImmutableList_car(precedence) == (LT_Value)(uintptr_t)right,
+            "topological precedence places second parent before shared ancestor"
+        )){
+            return 1;
+        }
+        precedence = LT_ImmutableList_cdr(precedence);
+        if (expect(
+            LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_Object),
+            "topological precedence places shared ancestor after direct parents"
+        )){
+            return 1;
+        }
+    }
     if (expect(
         a->offset != shared->offset && a->offset != b->offset
             && a->offset != c->offset && shared->offset != b->offset
