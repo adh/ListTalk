@@ -242,6 +242,30 @@ static LT_Class** make_single_superclass_list(LT_Class* superclass){
     return superclasses;
 }
 
+static LT_Class** make_native_superclass_list(LT_Class_Descriptor* descriptor){
+    size_t mixin_count = 0;
+    size_t i;
+    LT_Class** superclasses;
+
+    if (descriptor->mixins != NULL){
+        while (descriptor->mixins[mixin_count] != NULL){
+            mixin_count++;
+        }
+    }
+
+    superclasses = GC_MALLOC(
+        sizeof(LT_Class*) * (mixin_count + (descriptor->superclass != NULL) + 1)
+    );
+    for (i = 0; i < mixin_count; i++){
+        superclasses[i] = descriptor->mixins[i];
+    }
+    if (descriptor->superclass != NULL){
+        superclasses[mixin_count++] = descriptor->superclass;
+    }
+    superclasses[mixin_count] = NULL;
+    return superclasses;
+}
+
 static LT_Value precedence_list_storage(LT_Value precedence_list){
     return (LT_Value)(uintptr_t)LT_VALUE_POINTER_VALUE(precedence_list);
 }
@@ -274,6 +298,9 @@ static LT_Value make_single_inheritance_precedence_list(LT_Class* klass,
     precedence_list = LT_ImmutableList_new(superclass_length + 1, values);
     return precedence_list_storage(precedence_list);
 }
+
+static LT_Value make_precedence_list(LT_Class* self,
+                                     LT_Class** direct_superclasses);
 
 #define LT_EARLY_NATIVE_CLASS_CAPACITY 64
 
@@ -308,18 +335,11 @@ static void record_early_native_class(LT_Class* klass){
 }
 
 static void refresh_native_class_topology(LT_Class* klass){
-    LT_Class* superclass = NULL;
     LT_Class* metaclass;
     LT_Class* metaclass_superclass = NULL;
 
-    if (klass->superclasses != NULL){
-        superclass = klass->superclasses[0];
-    }
     invalidate_inline_caches();
-    klass->precedence_list = make_single_inheritance_precedence_list(
-        klass,
-        superclass
-    );
+    klass->precedence_list = make_precedence_list(klass, klass->superclasses);
 
     metaclass = klass->base.klass;
     if (metaclass == NULL){
@@ -701,6 +721,7 @@ static void materialize_dynamic_slots(LT_Class* klass,
 void LT_init_native_class(LT_Class* klass){
     LT_Class_Descriptor* descriptor = klass->native_descriptor;
     LT_Class* metaclass;
+    size_t i;
 
     if (descriptor == NULL){
         return;
@@ -711,6 +732,22 @@ void LT_init_native_class(LT_Class* klass){
 
     if (descriptor->superclass != NULL){
         LT_init_native_class(descriptor->superclass);
+    }
+    if (descriptor->mixins != NULL){
+        for (i = 0; descriptor->mixins[i] != NULL; i++){
+            LT_Class* mixin = descriptor->mixins[i];
+
+            LT_init_native_class(mixin);
+            if ((mixin->class_flags & LT_CLASS_FLAG_ABSTRACT) == 0){
+                LT_error("Native class mixin must be abstract");
+            }
+            if (mixin->instance_size != 0){
+                LT_error("Native class mixin must be zero-sized");
+            }
+            if ((mixin->class_flags & LT_CLASS_FLAG_FLEXIBLE) != 0){
+                LT_error("Native class mixin must not be flexible");
+            }
+        }
     }
     if (descriptor->metaclass_superclass != NULL){
         LT_init_native_class(descriptor->metaclass_superclass);
@@ -745,13 +782,10 @@ void LT_init_native_class(LT_Class* klass){
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->documentation =
         materialize_documentation(klass, descriptor->documentation);
-    klass->superclasses = make_single_superclass_list(descriptor->superclass);
+    klass->superclasses = make_native_superclass_list(descriptor);
     invalidate_inline_caches();
     LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
-    klass->precedence_list = make_single_inheritance_precedence_list(
-        klass,
-        descriptor->superclass
-    );
+    klass->precedence_list = make_precedence_list(klass, klass->superclasses);
     materialize_slots(klass, descriptor->slots);
     materialize_direct_methods(klass, descriptor->methods);
 

@@ -127,6 +127,7 @@ typedef struct LT_Method_Descriptor {
 #define LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR {NULL, NULL}
 struct LT_Class_Descriptor_s {
     LT_Class* superclass;
+    LT_Class** mixins; /* NULL terminated; precede superclass */
     LT_Class* metaclass_superclass;
     char* package;
     char* name;

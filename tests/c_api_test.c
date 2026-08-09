@@ -59,6 +59,32 @@ static const char* condition_message_cstr(LT_Value condition){
     return LT_String_value_cstr(LT_String_from_value(message));
 }
 
+LT_DEFINE_CLASS(LT_TestNativeMixinA) {
+    .name = "TestNativeMixinA",
+    .instance_size = 0,
+    .class_flags = LT_CLASS_FLAG_ABSTRACT,
+};
+
+LT_DEFINE_CLASS(LT_TestNativeMixinB) {
+    .name = "TestNativeMixinB",
+    .instance_size = 0,
+    .class_flags = LT_CLASS_FLAG_ABSTRACT,
+};
+
+static LT_Class* test_native_mixins[] = {
+    &LT_TestNativeMixinA_class,
+    &LT_TestNativeMixinB_class,
+    NULL,
+};
+
+LT_DEFINE_CLASS(LT_TestNativeMixedClass) {
+    .superclass = &LT_Object_class,
+    .mixins = test_native_mixins,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "TestNativeMixedClass",
+    .instance_size = sizeof(LT_Object),
+};
+
 LT_DEFINE_PRIMITIVE(
     primitive_test_pair_sum_method,
     "test-pair-sum-method",
@@ -2622,6 +2648,59 @@ static int test_symbol_class_inherits_object(void){
     );
 }
 
+static int test_native_class_mixins_precede_superclass(void){
+    LT_Value precedence = LT_Class_precedence_list(&LT_TestNativeMixedClass_class);
+
+    if (expect(
+        LT_TestNativeMixedClass_class.superclasses[0]
+            == &LT_TestNativeMixinA_class,
+        "first native mixin precedes superclass"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_TestNativeMixedClass_class.superclasses[1]
+            == &LT_TestNativeMixinB_class,
+        "native mixins retain descriptor order"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_TestNativeMixedClass_class.superclasses[2] == &LT_Object_class
+            && LT_TestNativeMixedClass_class.superclasses[3] == NULL,
+        "concrete superclass follows native mixins"
+    )){
+        return 1;
+    }
+
+    if (expect(
+        LT_ImmutableList_car(precedence)
+            == LT_STATIC_CLASS(LT_TestNativeMixedClass),
+        "mixed native precedence starts with the class"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    if (expect(
+        LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_TestNativeMixinA),
+        "first native mixin precedes later parents"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    if (expect(
+        LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_TestNativeMixinB),
+        "second native mixin follows first mixin"
+    )){
+        return 1;
+    }
+    precedence = LT_ImmutableList_cdr(precedence);
+    return expect(
+        LT_ImmutableList_car(precedence) == LT_STATIC_CLASS(LT_Object),
+        "native superclass follows mixins in precedence"
+    );
+}
+
 static int test_symbol_package_slot_is_readonly(void){
     LT_Value slot_value = eval_one("(slot-ref 'alpha 'package)");
     LT_Value readonly_error = eval_one(
@@ -3884,6 +3963,7 @@ int main(void){
     RUN_TEST(test_fold_expression_special_form);
     RUN_TEST(test_get_current_environment_special_form);
     RUN_TEST(test_symbol_class_inherits_object);
+    RUN_TEST(test_native_class_mixins_precede_superclass);
     RUN_TEST(test_symbol_package_slot_is_readonly);
     RUN_TEST(test_precedence_list_initialized);
     RUN_TEST(test_value_is_instance_of_uses_precedence_list);
