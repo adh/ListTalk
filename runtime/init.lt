@@ -33,6 +33,10 @@
 
 (ListTalk:define-constant ListTalk:λ ListTalk:lambda)
 
+(ListTalk:define-macro (ListTalk:delay expression)
+  "Create a promise for expression without evaluating it."
+  `(ListTalk:send ListTalk:Promise :delay: (ListTalk:lambda () ,expression)))
+
 (ListTalk:define-macro (ListTalk:let bindings-or-name . body)
   "Evaluate body with lexical bindings, or create and call a named local function."
   (if (symbol? bindings-or-name)
@@ -84,6 +88,10 @@
           `(%define ,(cadr target) [DynamicVariable new: ,(car body)])
           `(%define-constant ,(car target) (%lambda ',(car target) ,(cdr target) ,@body)))
       `(%define ,target ,(car body))))
+
+(ListTalk:define (ListTalk:force future)
+  "Force future and return its value."
+  [future force!])
 
 (ListTalk:define-macro (%closure . forms)
   "Construct an anonymous closure from curly-brace reader syntax."

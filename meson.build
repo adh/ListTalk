@@ -179,7 +179,9 @@ vm_lib = library(
                 'src/classes/ReadWriteLock.c',
                 'src/classes/ConditionVariable.c',
                 'src/classes/MessageQueue.c',
-                'src/classes/Thread.c'
+                'src/classes/Thread.c',
+                'src/classes/Future.c',
+                'src/classes/Promise.c'
         ], 
         install : true, dependencies : [bdwgc, pcre2_8, libm])
 
