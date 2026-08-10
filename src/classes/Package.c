@@ -964,6 +964,7 @@ void LT_Package_export_symbol(LT_Package* package, LT_Value symbol){
         );
         LT_MutexWord_unlock(&table->lock);
     }
+}
 
 void LT_Package_unexport_symbol(LT_Package* package, LT_Value symbol){
     LT_InlineHash* table;
