@@ -161,3 +161,5 @@
 (define (as-string sxml)
   "Serialize an SXML tree as XML."
   (node-as-string sxml))
+
+(export 'parse-xml 'as-string)
