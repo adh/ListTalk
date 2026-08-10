@@ -552,6 +552,35 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     return LT_Number_expt(first, second);
 }
 
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_succ,
+    "1+",
+    "(x)",
+    "Return successor of an integer.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_add2(LT_SmallInteger_new(1), value);
+}
+LT_DEFINE_PRIMITIVE_FLAGS(
+    primitive_pred,
+    "1-",
+    "(x)",
+    "Return predecessor of an integer.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Number_subtract2(value, LT_SmallInteger_new(1));
+}
+
 void LT_base_env_bind_numbers(LT_Environment* environment){
     LT_Environment_bind(
         environment,
@@ -588,4 +617,6 @@ void LT_base_env_bind_numbers(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_tan);
     LT_base_env_bind_static_primitive(environment, &primitive_log);
     LT_base_env_bind_static_primitive(environment, &primitive_expt);
+    LT_base_env_bind_static_primitive(environment, &primitive_succ);
+    LT_base_env_bind_static_primitive(environment, &primitive_pred);
 }
