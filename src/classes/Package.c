@@ -939,19 +939,31 @@ void LT_Package_export_symbol(LT_Package* package, LT_Value symbol){
 
     table = package_ensure_exported_symbols_table(package, 0);
     symbol_object = LT_Symbol_from_value(symbol);
-    exported_symbol = LT_StringHash_at(table, LT_Symbol_name(symbol_object));
-    if (exported_symbol != NULL){
-        if (exported_symbol != (LT_Symbol*)LT_VALUE_POINTER_VALUE(symbol)){
-            LT_error("Exported symbol name already bound to different symbol");
+    {
+        char* key = LT_Symbol_name(symbol_object);
+        size_t hash = LT_fnv_hash(key);
+
+        LT_MutexWord_lock(&table->lock);
+        exported_symbol = (LT_Symbol*)package_string_table_at_locked(
+            table,
+            key,
+            hash
+        );
+        if (exported_symbol != NULL){
+            LT_MutexWord_unlock(&table->lock);
+            if (exported_symbol != (LT_Symbol*)LT_VALUE_POINTER_VALUE(symbol)){
+                LT_error("Exported symbol name already bound to different symbol");
+            }
+            return;
         }
-        return;
+        package_string_table_at_put_locked(
+            table,
+            key,
+            hash,
+            (void*)LT_VALUE_POINTER_VALUE(symbol)
+        );
+        LT_MutexWord_unlock(&table->lock);
     }
-    LT_StringHash_at_put(
-        table,
-        LT_Symbol_name(symbol_object),
-        (void*)LT_VALUE_POINTER_VALUE(symbol)
-    );
-}
 
 void LT_Package_unexport_symbol(LT_Package* package, LT_Value symbol){
     LT_InlineHash* table;
