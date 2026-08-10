@@ -22,11 +22,16 @@ char* LT_Package_name(LT_Package* package);
 LT_Value LT_Package_used_packages(LT_Package* package);
 void LT_Package_symbols_do(LT_Package* package, LT_Value callable);
 LT_Value LT_Package_symbols_asList(LT_Package* package);
+LT_Value LT_Package_exported_symbols_asList(LT_Package* package);
 void LT_Package_packages_do(LT_Value callable);
 LT_Value LT_Package_packages_asList(void);
 LT_Value LT_Package_intern_symbol(LT_Package* package, char* name);
 LT_Value LT_Package_intern_local_symbol(LT_Package* package, char* name);
 LT_Value LT_Package_lookup_local_symbol(LT_Package* package, char* name);
+LT_Value LT_Package_lookup_exported_symbol(LT_Package* package, char* name);
+int LT_Package_symbol_exported_p(LT_Package* package, LT_Value symbol);
+void LT_Package_export_symbol(LT_Package* package, LT_Value symbol);
+void LT_Package_unexport_symbol(LT_Package* package, LT_Value symbol);
 int LT_Package_uses_package(LT_Package* package, LT_Package* used_package);
 void LT_Package_use_package(LT_Package* package,
                             LT_Package* used_package,

@@ -1466,6 +1466,143 @@ static int test_use_package_with_nickname(void){
     return failed;
 }
 
+static int test_package_explicit_exports_c_api(void){
+    LT_Package* source = LT_Package_new("CApiExportSource");
+    LT_Package* export_first_source = LT_Package_new("CApiExportFirstSource");
+    LT_Package* export_first_user = LT_Package_new("CApiExportFirstUser");
+    LT_Package* user = LT_Package_new("CApiExportUser");
+    LT_Package* user_after_export = LT_Package_new("CApiExportUserAfterExport");
+    LT_Package* user_after_new_symbol = LT_Package_new("CApiExportUserAfterNewSymbol");
+    LT_Value explicitly_visible = LT_Package_intern_local_symbol(
+        export_first_source,
+        "explicitly-visible"
+    );
+    LT_Value implicitly_hidden = LT_Package_intern_local_symbol(
+        export_first_source,
+        "implicitly-hidden"
+    );
+    LT_Value visible = LT_Package_intern_local_symbol(source, "visible");
+    LT_Value hidden = LT_Package_intern_local_symbol(source, "hidden");
+    LT_Value future;
+    LT_Value resolved;
+
+    LT_Package_use_package(user, source, NULL);
+    if (expect(
+        LT_Package_intern_symbol(user, "visible") == visible,
+        "default package exports make local symbols visible"
+    )){
+        return 1;
+    }
+
+    LT_Package_export_symbol(export_first_source, explicitly_visible);
+    LT_Package_use_package(export_first_user, export_first_source, NULL);
+    if (expect(
+        LT_Package_intern_symbol(export_first_user, "explicitly-visible")
+            == explicitly_visible,
+        "first export starts explicit set with exported symbol"
+    )){
+        return 1;
+    }
+    resolved = LT_Package_intern_symbol(export_first_user, "implicitly-hidden");
+    if (expect(
+        resolved != implicitly_hidden
+            && LT_Symbol_package(LT_Symbol_from_value(resolved))
+                == export_first_user,
+        "first export makes unmarked local symbols private"
+    )){
+        return 1;
+    }
+
+    LT_Package_unexport_symbol(source, hidden);
+    resolved = LT_Package_intern_symbol(user, "hidden");
+    if (expect(
+        resolved != hidden
+            && LT_Symbol_package(LT_Symbol_from_value(resolved)) == user,
+        "unexport hides symbol from used-package lookup"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Package_intern_symbol(user, "visible") == visible,
+        "unexport materializes current local exports"
+    )){
+        return 1;
+    }
+
+    LT_Package_export_symbol(source, hidden);
+    LT_Package_use_package(user_after_export, source, NULL);
+    if (expect(
+        LT_Package_intern_symbol(user_after_export, "hidden") == hidden,
+        "export restores used-package visibility"
+    )){
+        return 1;
+    }
+
+    future = LT_Package_intern_local_symbol(source, "future");
+    LT_Package_use_package(user_after_new_symbol, source, NULL);
+    resolved = LT_Package_intern_symbol(user_after_new_symbol, "future");
+    return expect(
+        resolved != future
+            && LT_Symbol_package(LT_Symbol_from_value(resolved))
+                == user_after_new_symbol,
+        "new local symbols are private after explicit export set exists"
+    );
+}
+
+static int test_package_exports_arbitrary_symbols_c_api(void){
+    LT_Package* bridge = LT_Package_new("CApiExportBridge");
+    LT_Package* foreign = LT_Package_new("CApiExportForeign");
+    LT_Package* user = LT_Package_new("CApiExportBridgeUser");
+    LT_Value borrowed = LT_Package_intern_local_symbol(foreign, "borrowed");
+
+    LT_Package_export_symbol(bridge, borrowed);
+    LT_Package_use_package(user, bridge, NULL);
+    return expect(
+        LT_Package_intern_symbol(user, "borrowed") == borrowed,
+        "package export set can expose symbols from arbitrary packages"
+    );
+}
+
+static int test_qualified_symbol_ignores_exports_c_api(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value value = LT_NIL;
+    int failed = 0;
+
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
+        (void)LT_eval_sequence_string(
+            "(define-package \"QualifiedExportSource\") "
+            "(in-package \"QualifiedExportSource\") "
+            "(define private-value 123) "
+            "(unexport 'private-value) "
+            "(in-package \"ListTalk\") "
+            "(define-package \"QualifiedExportUser\") "
+            "(in-package \"QualifiedExportUser\") "
+            "(use-package \"QualifiedExportSource\")",
+            env
+        );
+        value = LT_eval(read_one("QualifiedExportSource:private-value"), env, NULL);
+        if (expect(
+            LT_Value_is_fixnum(value) && LT_SmallInteger_value(value) == 123,
+            "qualified symbol resolves even when unexported"
+        )){
+            failed = 1;
+        }
+        value = read_one("QualifiedExportSource:not-yet-present");
+        if (expect(
+            LT_Symbol_p(value)
+                && strcmp(LT_Symbol_name(LT_Symbol_from_value(value)),
+                    "not-yet-present") == 0
+                && LT_Symbol_package(LT_Symbol_from_value(value))
+                    == LT_Package_find("QualifiedExportSource"),
+            "qualified symbol interns in package even when not previously present"
+        )){
+            failed = 1;
+        }
+    });
+
+    return failed;
+}
+
 static int list_contains_identity(LT_Value list, LT_Value value){
     LT_Value cursor = list;
 
@@ -4105,6 +4242,9 @@ int main(void){
     RUN_TEST(test_in_package_special_form);
     RUN_TEST(test_use_package_special_form);
     RUN_TEST(test_use_package_with_nickname);
+    RUN_TEST(test_package_explicit_exports_c_api);
+    RUN_TEST(test_package_exports_arbitrary_symbols_c_api);
+    RUN_TEST(test_qualified_symbol_ignores_exports_c_api);
     RUN_TEST(test_package_enumeration_c_api);
     RUN_TEST(test_lambda_macro_expands_to_named_nil_closure);
     RUN_TEST(test_define_function_shorthand_sets_closure_name);

@@ -22,6 +22,7 @@ struct LT_Package_s {
     LT_Object base;
     char* name;
     LT_InlineHash symbol_table;
+    LT_InlineHash* exported_symbols;
     LT_Value used_packages;
     LT_InlineHash used_package_nicknames;
 };
@@ -231,6 +232,37 @@ LT_Value LT_Package_symbols_asList(LT_Package* package){
     return LT_ListBuilder_value(builder);
 }
 
+LT_Value LT_Package_exported_symbols_asList(LT_Package* package){
+    LT_ListBuilder* builder;
+    LT_InlineHash* table;
+    size_t i;
+
+    ensure_predefined_packages_initialized();
+    if (package == NULL){
+        LT_error("Package exportedSymbolsAsList expects non-NULL package");
+    }
+    table = package->exported_symbols;
+    if (table == NULL){
+        return LT_Package_symbols_asList(package);
+    }
+
+    builder = LT_ListBuilder_new();
+    LT_MutexWord_lock(&table->lock);
+    for (i = 0; i < table->mask + 1; i++){
+        LT_InlineHash_Entry* entry = table->vector[i];
+
+        while (entry != NULL){
+            LT_ListBuilder_append(
+                builder,
+                ((LT_Value)(uintptr_t)entry->value) | LT_VALUE_POINTER_TAG_SYMBOL
+            );
+            entry = entry->next;
+        }
+    }
+    LT_MutexWord_unlock(&table->lock);
+    return LT_ListBuilder_value(builder);
+}
+
 void LT_Package_packages_do(LT_Value callable){
     LT_Value packages = LT_Package_packages_asList();
 
@@ -297,6 +329,57 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
     return LT_Package_symbols_asList(LT_Package_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_exported_symbols_as_list,
+    "Package>>exportedSymbolsAsList",
+    "(self)",
+    "Return exported symbols as a list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Package_exported_symbols_asList(LT_Package_from_value(self));
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_export,
+    "Package>>export:",
+    "(self symbol)",
+    "Mark symbol as exported from package."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value symbol;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, symbol);
+    LT_ARG_END(cursor);
+    LT_Package_export_symbol(LT_Package_from_value(self), symbol);
+    return symbol;
+}
+
+LT_DEFINE_PRIMITIVE(
+    package_method_unexport,
+    "Package>>unexport:",
+    "(self symbol)",
+    "Mark symbol as not exported from package."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value symbol;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, symbol);
+    LT_ARG_END(cursor);
+    LT_Package_unexport_symbol(LT_Package_from_value(self), symbol);
+    return symbol;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -456,6 +539,9 @@ static LT_Method_Descriptor Package_methods[] = {
     {"name", &package_method_name},
     {"symbolsDo:", &package_method_symbols_do},
     {"symbolsAsList", &package_method_symbols_as_list},
+    {"exportedSymbolsAsList", &package_method_exported_symbols_as_list},
+    {"export:", &package_method_export},
+    {"unexport:", &package_method_unexport},
     {"compareWith:", &package_method_compare_with},
     {"<", &package_method_less_than},
     {">", &package_method_greater_than},
@@ -513,6 +599,7 @@ static void package_init(LT_Package* package, char* name){
     package->base.klass = &LT_Package_class;
     package->name = LT_strdup(name);
     LT_InlineHash_init(&package->symbol_table);
+    package->exported_symbols = NULL;
     package->used_packages = LT_NIL;
     LT_InlineHash_init(&package->used_package_nicknames);
 }
@@ -749,6 +836,149 @@ LT_Value LT_Package_lookup_local_symbol(LT_Package* package, char* name){
     return ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
 }
 
+static LT_InlineHash* package_ensure_exported_symbols_table(
+    LT_Package* package,
+    int include_current_symbols
+){
+    if (package->exported_symbols == NULL){
+        LT_InlineHash* table = GC_NEW(LT_InlineHash);
+
+        LT_InlineHash_init(table);
+        package->exported_symbols = table;
+        if (include_current_symbols){
+            LT_Value cursor = LT_Package_symbols_asList(package);
+
+            while (LT_Pair_p(cursor)){
+                LT_Value symbol = LT_car(cursor);
+                LT_Symbol* symbol_object = LT_Symbol_from_value(symbol);
+
+                LT_StringHash_at_put(
+                    table,
+                    LT_Symbol_name(symbol_object),
+                    (void*)LT_VALUE_POINTER_VALUE(symbol)
+                );
+                cursor = LT_cdr(cursor);
+            }
+            if (cursor != LT_NIL){
+                LT_error("Package symbols must be proper list");
+            }
+        }
+    }
+    return package->exported_symbols;
+}
+
+int LT_Package_symbol_exported_p(LT_Package* package, LT_Value symbol){
+    LT_Symbol* symbol_object;
+    LT_Value local_symbol;
+    LT_Symbol* exported_symbol;
+
+    ensure_predefined_packages_initialized();
+    if (package == NULL){
+        LT_error("Package symbol export check expects non-NULL package");
+    }
+    if (!LT_Symbol_p(symbol)){
+        LT_type_error(symbol, &LT_Symbol_class);
+    }
+
+    symbol_object = LT_Symbol_from_value(symbol);
+    if (package->exported_symbols != NULL){
+        exported_symbol = LT_StringHash_at(
+            package->exported_symbols,
+            LT_Symbol_name(symbol_object)
+        );
+        return exported_symbol == (LT_Symbol*)LT_VALUE_POINTER_VALUE(symbol);
+    }
+
+    if (LT_Symbol_package(symbol_object) != package){
+        return 0;
+    }
+    local_symbol = LT_Package_lookup_local_symbol(
+        package,
+        LT_Symbol_name(symbol_object)
+    );
+    return local_symbol == symbol;
+}
+
+LT_Value LT_Package_lookup_exported_symbol(LT_Package* package, char* name){
+    LT_Value found = LT_INVALID;
+
+    ensure_predefined_packages_initialized();
+    if (package == NULL){
+        LT_error("Package exported lookup expects non-NULL package");
+    }
+    if (name == NULL){
+        LT_error("Symbol name must not be NULL");
+    }
+
+    if (package->exported_symbols == NULL){
+        return LT_Package_lookup_local_symbol(package, name);
+    }
+
+    {
+        LT_Symbol* symbol = LT_StringHash_at(package->exported_symbols, name);
+
+        if (symbol != NULL){
+            found = ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
+        }
+    }
+    return found;
+}
+
+void LT_Package_export_symbol(LT_Package* package, LT_Value symbol){
+    LT_InlineHash* table;
+    LT_Symbol* symbol_object;
+    LT_Symbol* exported_symbol;
+
+    ensure_predefined_packages_initialized();
+    if (package == NULL){
+        LT_error("Package export expects non-NULL package");
+    }
+    if (!LT_Symbol_p(symbol)){
+        LT_type_error(symbol, &LT_Symbol_class);
+    }
+
+    table = package_ensure_exported_symbols_table(package, 0);
+    symbol_object = LT_Symbol_from_value(symbol);
+    exported_symbol = LT_StringHash_at(table, LT_Symbol_name(symbol_object));
+    if (exported_symbol != NULL){
+        if (exported_symbol != (LT_Symbol*)LT_VALUE_POINTER_VALUE(symbol)){
+            LT_error("Exported symbol name already bound to different symbol");
+        }
+        return;
+    }
+    LT_StringHash_at_put(
+        table,
+        LT_Symbol_name(symbol_object),
+        (void*)LT_VALUE_POINTER_VALUE(symbol)
+    );
+}
+
+void LT_Package_unexport_symbol(LT_Package* package, LT_Value symbol){
+    LT_InlineHash* table;
+    LT_Symbol* symbol_object;
+    void* removed;
+
+    ensure_predefined_packages_initialized();
+    if (package == NULL){
+        LT_error("Package unexport expects non-NULL package");
+    }
+    if (!LT_Symbol_p(symbol)){
+        LT_type_error(symbol, &LT_Symbol_class);
+    }
+
+    table = package_ensure_exported_symbols_table(package, 1);
+    symbol_object = LT_Symbol_from_value(symbol);
+    if (LT_StringHash_at(table, LT_Symbol_name(symbol_object))
+        != (LT_Symbol*)LT_VALUE_POINTER_VALUE(symbol)){
+        return;
+    }
+    (void)LT_StringHash_remove(
+        table,
+        LT_Symbol_name(symbol_object),
+        &removed
+    );
+}
+
 LT_Value LT_Package_intern_symbol(LT_Package* package, char* name){
     LT_Symbol* symbol;
     LT_Value cursor;
@@ -771,9 +1001,8 @@ LT_Value LT_Package_intern_symbol(LT_Package* package, char* name){
     while (LT_Pair_p(cursor)){
         LT_Package* used_package = (LT_Package*)LT_VALUE_POINTER_VALUE(LT_car(cursor));
 
-        symbol = LT_StringHash_at(&used_package->symbol_table, name);
-        if (symbol != NULL){
-            LT_Value used_value = ((LT_Value)(uintptr_t)symbol) | LT_VALUE_POINTER_TAG_SYMBOL;
+        LT_Value used_value = LT_Package_lookup_exported_symbol(used_package, name);
+        if (used_value != LT_INVALID){
             if (found != LT_INVALID && found != used_value){
                 LT_error("Ambiguous symbol in used packages");
             }

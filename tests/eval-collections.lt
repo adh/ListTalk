@@ -60,7 +60,10 @@
   [s put: 1]
   (check [s contains?: 1] "Set>>contains?: finds inserted item")
   (check (not [s contains?: 3]) "Set>>contains?: rejects absent item")
-  (check (= [[s asList] reduce: +] 3) "Set>>asList returns unique elements"))
+  (check [s remove: 1] "Set>>remove: reports removed item")
+  (check (not [s contains?: 1]) "Set>>remove: removes inserted item")
+  (check (not [s remove: 3]) "Set>>remove: rejects missing item")
+  (check (= [[s asList] reduce: +] 2) "Set>>asList returns unique elements"))
 (let ((s [Set fromList: '(5)]))
   (let ((iterator [s asIterator]))
     (check (eq? [iterator class] SetIterator) "Set>>asIterator returns SetIterator")
