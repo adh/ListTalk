@@ -83,6 +83,8 @@
 #include <ListTalk/classes/ConditionVariable.h>
 #include <ListTalk/classes/MessageQueue.h>
 #include <ListTalk/classes/Thread.h>
+#include <ListTalk/classes/Future.h>
+#include <ListTalk/classes/Promise.h>
 
 LT__BEGIN_DECLS
 
