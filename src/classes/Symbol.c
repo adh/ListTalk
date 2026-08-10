@@ -82,6 +82,7 @@ static void Symbol_debugPrintOn(LT_Value obj, FILE* stream){
     } else if (current_package != NULL
         && package != NULL
         && LT_Package_uses_package(current_package, package)
+        && LT_Package_symbol_exported_p(package, obj)
         && LT_Package_lookup_local_symbol(current_package, name) == LT_INVALID){
         omit_prefix = 1;
     }

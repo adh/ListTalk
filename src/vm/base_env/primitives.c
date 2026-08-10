@@ -949,6 +949,62 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)current_package;
 }
 
+LT_DEFINE_PRIMITIVE(
+    primitive_export,
+    "export",
+    "(:rest symbol)",
+    "Mark symbols as exported from current package."
+){
+    LT_Value cursor = arguments;
+    LT_Package* current_package;
+    LT_Value last_symbol = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    current_package = LT_get_current_package();
+    if (current_package == NULL){
+        LT_error("export requires current package");
+    }
+    while (LT_Pair_p(cursor)){
+        LT_Value symbol = LT_car(cursor);
+        if (!LT_Symbol_p(symbol)){
+            LT_type_error(symbol, &LT_Symbol_class);
+        }
+        LT_Package_export_symbol(current_package, symbol);
+        last_symbol = symbol;
+        cursor = LT_cdr(cursor);
+    }
+    LT_ARG_END(cursor);
+    return last_symbol;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_unexport,
+    "unexport",
+    "(:rest symbol)",
+    "Mark symbols as not exported from current package."
+){
+    LT_Value cursor = arguments;
+    LT_Package* current_package;
+    LT_Value last_symbol = LT_NIL;
+    (void)tail_call_unwind_marker;
+
+    current_package = LT_get_current_package();
+    if (current_package == NULL){
+        LT_error("unexport requires current package");
+    }
+    while (LT_Pair_p(cursor)){
+        LT_Value symbol = LT_car(cursor);
+        if (!LT_Symbol_p(symbol)){
+            LT_type_error(symbol, &LT_Symbol_class);
+        }
+        LT_Package_unexport_symbol(current_package, symbol);
+        last_symbol = symbol;
+        cursor = LT_cdr(cursor);
+    }
+    LT_ARG_END(cursor);
+    return last_symbol;
+}
+
 void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_numeric_equal);
     LT_base_env_bind_static_primitive(environment, &primitive_eq_p);
@@ -997,4 +1053,6 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_define_package);
     LT_base_env_bind_static_primitive(environment, &primitive_in_package);
     LT_base_env_bind_static_primitive(environment, &primitive_use_package);
+    LT_base_env_bind_static_primitive(environment, &primitive_export);
+    LT_base_env_bind_static_primitive(environment, &primitive_unexport);
 }

@@ -201,6 +201,32 @@
            "Package class>>packagesDo: visits created package")))
 )
 
+(define-test "package exports"
+(let* ((source [Package named: "EvalExportSource"])
+       (visible [Symbol intern: "visible" in: source])
+       (hidden [Symbol intern: "hidden" in: source]))
+  [source export: visible]
+  (check (not (memq hidden [source exportedSymbolsAsList]))
+         "first export creates explicit export set")
+  [source unexport: hidden]
+  (check (not (memq hidden [source exportedSymbolsAsList]))
+         "Package>>unexport: removes symbol from explicit export set")
+  [source export: hidden]
+  (check (memq hidden [source exportedSymbolsAsList])
+         "Package>>export: adds symbol to explicit export set"))
+(let* ((source [Package named: "EvalUnexportSource"])
+       (visible [Symbol intern: "visible" in: source])
+       (hidden [Symbol intern: "hidden" in: source]))
+  [source unexport: hidden]
+  (check (memq visible [source exportedSymbolsAsList])
+         "first unexport materializes existing local symbols as exported"))
+(let* ((bridge [Package named: "EvalExportBridge"])
+       (foreign [Package named: "EvalExportForeign"])
+       (borrowed [Symbol intern: "borrowed" in: foreign]))
+  [bridge export: borrowed]
+  (check (memq borrowed [bridge exportedSymbolsAsList])
+         "export set can contain symbol from arbitrary package")))
+
 (define-test "with-gensyms"
 ;;; with-gensyms
 

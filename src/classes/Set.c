@@ -351,6 +351,31 @@ int LT_Set_contains(LT_Set* set, LT_Value value){
     return contains;
 }
 
+int LT_Set_remove(LT_Set* set, LT_Value value){
+    LT_InlineHash* table = &set->table;
+    size_t hash = set_value_hash(set, value);
+    LT_InlineHash_Entry** entry_slot;
+
+    LT_MutexWord_lock(&table->lock);
+    entry_slot = &table->vector[hash & table->mask];
+    while (*entry_slot != NULL){
+        LT_InlineHash_Entry* entry = *entry_slot;
+        LT_Value entry_value;
+
+        if (entry->hash == hash
+            && set_entry_value(set, entry, &entry_value)
+            && set_value_equal_p(set, entry_value, value)){
+            *entry_slot = entry->next;
+            table->count--;
+            LT_MutexWord_unlock(&table->lock);
+            return 1;
+        }
+        entry_slot = &entry->next;
+    }
+    LT_MutexWord_unlock(&table->lock);
+    return 0;
+}
+
 LT_Value LT_Set_asList(LT_Set* set){
     LT_InlineHash* table = &set->table;
     LT_Value list = LT_NIL;
@@ -600,6 +625,23 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    set_method_remove,
+    "Set>>remove:",
+    "(self value)",
+    "Remove value from set and return true when it was present."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    return LT_Set_remove(set_from_value(self), value) ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     set_method_as_list,
     "Set>>asList",
     "(self)",
@@ -774,6 +816,7 @@ LT_DEFINE_PRIMITIVE(
 static LT_Method_Descriptor Set_methods[] = {
     {"put:", &set_method_put},
     {"contains?:", &set_method_contains},
+    {"remove:", &set_method_remove},
     {"asList", &set_method_as_list},
     {"asIterator", &set_method_as_iterator},
     {"forEach:", &set_method_for_each},

@@ -23,6 +23,7 @@ LT_Set* LT_Set_fromList(LT_Value list);
 size_t LT_Set_size(LT_Set* set);
 int LT_Set_put(LT_Set* set, LT_Value value);
 int LT_Set_contains(LT_Set* set, LT_Value value);
+int LT_Set_remove(LT_Set* set, LT_Value value);
 LT_Value LT_Set_asList(LT_Set* set);
 void LT_Set_for_each(LT_Set* set, LT_Value callable);
 LT_Value LT_Set_any(LT_Set* set, LT_Value callable);
