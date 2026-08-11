@@ -455,6 +455,7 @@ static LT_Method_Descriptor Stat_class_methods[] = {
 LT_DEFINE_CLASS(LT_OS_Stat) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk:OS",
     .name = "Stat",
     .documentation = "Filesystem metadata returned by stat operations.",
     .instance_size = sizeof(LT_OS_Stat),
@@ -833,7 +834,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 void ListTalk_os_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-OS");
+    LT_Package* package = LT_Package_new("ListTalk:OS");
 
     LT_init_native_class(&LT_OS_Stat_class);
     LT_Environment_bind(

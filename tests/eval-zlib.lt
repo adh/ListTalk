@@ -12,32 +12,35 @@
 (define input
   (bytevector 0 1 2 3 4 5 0 255 120 120 120 120 120 120 120 120))
 
-(check (equal? (ListTalk-zlib:uncompress
-                 (ListTalk-zlib:compress input))
+(check (equal? (ListTalk:zlib:uncompress
+                 (ListTalk:zlib:compress input))
                input)
        "default compression round trip")
 
-(check (equal? (ListTalk-zlib:uncompress
-                 (ListTalk-zlib:compress input 0))
+(check (equal? (ListTalk:zlib:uncompress
+                 (ListTalk:zlib:compress input 0))
                input)
        "level-zero compression round trip")
 
-(check (equal? (ListTalk-zlib:uncompress
-                 (ListTalk-zlib:compress (bytevector) 9))
+(check (equal? (ListTalk:zlib:uncompress
+                 (ListTalk:zlib:compress (bytevector) 9))
                (bytevector))
        "empty bytevector round trip")
 
-(check (string? ListTalk-zlib:version)
+(check (string? ListTalk:zlib:version)
        "zlib version is exposed")
+(check (eq? [(slot-ref ListTalk:zlib:GzipStream 'name) package]
+            [Package named: "ListTalk:zlib"])
+       "GzipStream name is interned in module package")
 
 (define gzip-path
-  (string-append (ListTalk-OS:getpwd) "/eval-zlib-test.gz"))
+  (string-append (ListTalk:OS:getpwd) "/eval-zlib-test.gz"))
 
-(check (primitive? ListTalk-zlib:gzip-open-for-input)
+(check (primitive? ListTalk:zlib:gzip-open-for-input)
        "package-level gzip constructors remain available")
 
-(let ((stream [ListTalk-zlib:GzipStream openForOutput: gzip-path]))
-  (check (eq? (type-of stream) ListTalk-zlib:GzipStream)
+(let ((stream [ListTalk:zlib:GzipStream openForOutput: gzip-path]))
+  (check (eq? (type-of stream) ListTalk:zlib:GzipStream)
          "gzip output is a GzipStream")
   (check [stream isWritable] "gzip output is writable")
   [stream writeString: "hello"]
@@ -46,11 +49,11 @@
   [stream close]
   (check [stream isClosed] "closed gzip output reports closed"))
 
-(let ((stream [ListTalk-zlib:GzipStream openForAppend: gzip-path]))
+(let ((stream [ListTalk:zlib:GzipStream openForAppend: gzip-path]))
   [stream writeString: "tail"]
   [stream close])
 
-(let ((stream [ListTalk-zlib:GzipStream openForInput: gzip-path]))
+(let ((stream [ListTalk:zlib:GzipStream openForInput: gzip-path]))
   (check [stream isReadable] "gzip input is readable")
   (check (equal? [stream readLine] "hello")
          "gzip stream reads text lines")
@@ -59,4 +62,4 @@
          "gzip stream reads binary data and appended members")
   [stream close])
 
-(ListTalk-OS:unlink gzip-path)
+(ListTalk:OS:unlink gzip-path)

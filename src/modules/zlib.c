@@ -750,6 +750,7 @@ static LT_Method_Descriptor GzipStream_class_methods[] = {
 LT_DEFINE_CLASS(LT_GzipStream) {
     .superclass = &LT_Stream_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk:zlib",
     .name = "GzipStream",
     .documentation = "Stream backed by a gzip-compressed file.",
     .instance_size = sizeof(LT_GzipStream),
@@ -759,7 +760,7 @@ LT_DEFINE_CLASS(LT_GzipStream) {
 };
 
 void ListTalk_zlib_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-zlib");
+    LT_Package* package = LT_Package_new("ListTalk:zlib");
 
     bind_zlib_constant(
         environment,

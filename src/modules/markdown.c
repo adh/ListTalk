@@ -842,7 +842,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 void ListTalk_markdown_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-markdown");
+    LT_Package* package = LT_Package_new("ListTalk:markdown");
 
     bind_markdown_constant(
         environment,

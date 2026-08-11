@@ -556,7 +556,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_succ,
     "1+",
     "(x)",
-    "Return successor of an integer.",
+    "Return argument increased by one",
     LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
@@ -570,7 +570,7 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_pred,
     "1-",
     "(x)",
-    "Return predecessor of an integer.",
+    "Return argument decreased by one",
     LT_PRIMITIVE_FLAG_PURE
 ){
     LT_Value cursor = arguments;
