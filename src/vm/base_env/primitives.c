@@ -77,6 +77,29 @@ static const char* package_nickname_from_designator(LT_Value designator){
     return name;
 }
 
+static int keyword_named_p(LT_Value value, const char* name){
+    LT_Symbol* symbol;
+
+    if (!LT_Symbol_p(value)){
+        return 0;
+    }
+    symbol = LT_Symbol_from_value(value);
+    return LT_Symbol_package(symbol) == LT_PACKAGE_KEYWORD
+        && strcmp(LT_Symbol_name(symbol), name) == 0;
+}
+
+static const char* package_default_nickname(LT_Package* package){
+    const char* package_name = LT_Package_name(package);
+    const char* last_colon = strrchr(package_name, ':');
+
+    if (last_colon == NULL
+        || last_colon == package_name
+        || last_colon[1] == '\0'){
+        LT_error("Package name does not have multiple colon-delimited elements");
+    }
+    return last_colon + 1;
+}
+
 LT_DEFINE_PRIMITIVE_FLAGS(
     primitive_numeric_equal,
     "=",
@@ -925,26 +948,40 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_use_package,
     "use-package",
-    "(used-package-designator :optional nickname-designator)",
+    "(used-package-designator :key as)",
     "Use package in current package, optionally by nickname only."
 ){
     LT_Value cursor = arguments;
     LT_Value used_designator;
-    LT_Value nickname_designator = LT_NIL;
+    LT_Value keyword;
+    LT_Value nickname_designator = LT_INVALID;
     LT_Package* current_package;
+    LT_Package* used_package;
+    const char* nickname = NULL;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, used_designator);
-    LT_OBJECT_ARG_OPT(cursor, nickname_designator, LT_NIL);
-    LT_ARG_END(cursor);
+    used_package = package_from_designator(used_designator, 0);
+
+    if (cursor != LT_NIL){
+        LT_OBJECT_ARG(cursor, keyword);
+        if (!keyword_named_p(keyword, "as")){
+            LT_error("use-package expects :as keyword");
+        }
+        if (cursor == LT_NIL){
+            nickname = package_default_nickname(used_package);
+        } else {
+            LT_OBJECT_ARG(cursor, nickname_designator);
+            LT_ARG_END(cursor);
+            nickname = package_nickname_from_designator(nickname_designator);
+        }
+    }
 
     current_package = LT_get_current_package();
     LT_Package_use_package(
         current_package,
-        package_from_designator(used_designator, 0),
-        (nickname_designator == LT_NIL)
-            ? NULL
-            : (char*)package_nickname_from_designator(nickname_designator)
+        used_package,
+        (char*)nickname
     );
     return (LT_Value)(uintptr_t)current_package;
 }

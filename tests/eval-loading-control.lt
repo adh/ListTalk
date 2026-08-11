@@ -27,6 +27,12 @@
          "native OS class name is interned in module package")
   (check (eq? [parser-name package] [Package named: "ListTalk:cmdopts"])
          "native cmdopts class name is interned in module package"))
+(check-error-message "use-package expects :as keyword"
+                     "use-package rejects positional nickname"
+                     (use-package "ListTalk:OS" "OS-alias"))
+(check-error-message "Package name does not have multiple colon-delimited elements"
+                     "use-package :as requires package name suffix"
+                     (use-package "ListTalk" :as))
 
 (let ((parser [ListTalk:cmdopts:Parser newWithFlags: '(:strict-order)])
       (verbose 0)

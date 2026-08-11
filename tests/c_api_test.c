@@ -1412,17 +1412,23 @@ static int test_use_package_special_form(void){
 static int test_use_package_with_nickname(void){
     LT_Environment* env = NULL;
     char source_name[64];
+    char auto_source_name[64];
+    char auto_nickname[32];
     char user_name[64];
     char nickname[32];
-    char source_buffer[480];
+    char source_buffer[800];
     static unsigned int package_counter = 0;
     unsigned int suffix = ++package_counter;
     LT_Package* source_package;
+    LT_Package* auto_source_package;
     LT_Package* user_package;
     LT_Package* resolved_package;
+    LT_Package* auto_resolved_package;
     int failed = 0;
 
     snprintf(source_name, sizeof(source_name), "NickSource%u", suffix);
+    snprintf(auto_source_name, sizeof(auto_source_name), "NickAuto:Source%u", suffix);
+    snprintf(auto_nickname, sizeof(auto_nickname), "Source%u", suffix);
     snprintf(user_name, sizeof(user_name), "NickUser%u", suffix);
     snprintf(nickname, sizeof(nickname), "ns%u", suffix);
     snprintf(
@@ -1431,25 +1437,37 @@ static int test_use_package_with_nickname(void){
         "(define-package \"%s\") "
         "(in-package \"%s\") "
         "(define value 99) "
+        "(define-package \"%s\") "
         "(in-package \"ListTalk\") "
         "(define-package \"%s\") "
         "(in-package \"%s\") "
-        "(use-package \"%s\" \"%s\")",
+        "(use-package \"%s\" :as \"%s\") "
+        "(use-package \"%s\" :as)",
         source_name,
         source_name,
+        auto_source_name,
         user_name,
         user_name,
         source_name,
-        nickname
+        nickname,
+        auto_source_name
     );
 
     LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK, {
         env = LT_new_base_environment();
         (void)LT_eval_sequence_string(source_buffer, env);
         source_package = LT_Package_find(source_name);
+        auto_source_package = LT_Package_find(auto_source_name);
         user_package = LT_Package_find(user_name);
         resolved_package = LT_Package_resolve_used_package(user_package, nickname);
+        auto_resolved_package = LT_Package_resolve_used_package(
+            user_package,
+            auto_nickname
+        );
         if (expect(source_package != NULL, "source package exists")){
+            failed = 1;
+        }
+        if (expect(auto_source_package != NULL, "auto source package exists")){
             failed = 1;
         }
         if (expect(user_package != NULL, "user package exists")){
@@ -1458,6 +1476,12 @@ static int test_use_package_with_nickname(void){
         if (expect(
             resolved_package == source_package,
             "use-package nickname resolves package-prefixed symbols"
+        )){
+            failed = 1;
+        }
+        if (expect(
+            auto_resolved_package == auto_source_package,
+            "use-package :as derives nickname from package suffix"
         )){
             failed = 1;
         }
