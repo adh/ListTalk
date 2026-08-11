@@ -48,9 +48,7 @@ static LT_Value sodium_size_value(size_t value){
 }
 
 static LT_ByteVector* sodium_bytevector_of_size(size_t length){
-    uint8_t* bytes = GC_MALLOC_ATOMIC(length == 0 ? 1 : length);
-
-    return LT_ByteVector_new(bytes, length);
+    return LT_ByteVector_new_filled(length, 0);
 }
 
 static uint8_t* sodium_output_bytes(size_t length){
