@@ -11,6 +11,12 @@ option(
         description : 'Build the optional zlib.ltm module (requires zlib)')
 
 option(
+        'crypto-sodium',
+        type : 'feature',
+        value : 'auto',
+        description : 'Build the optional crypto-sodium.ltm module (requires libsodium)')
+
+option(
         'xml',
         type : 'feature',
         value : 'auto',

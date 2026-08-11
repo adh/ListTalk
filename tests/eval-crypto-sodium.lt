@@ -1,0 +1,123 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :crypto-sodium)
+
+(define (check condition description)
+  (if condition
+      #true
+      (error (string-append "FAIL: " description))))
+
+(define message (string->bytevector "hello sodium"))
+
+(check (string? ListTalk-crypto-sodium:version)
+       "libsodium version is exposed")
+
+(check (= [(ListTalk-crypto-sodium:randombytes 16) length] 16)
+       "randombytes returns requested length")
+
+(check (ListTalk-crypto-sodium:memcmp message message)
+       "memcmp accepts identical bytevectors")
+(check (not (ListTalk-crypto-sodium:memcmp message (string->bytevector "other")))
+       "memcmp rejects different bytevectors")
+
+(let ((bytes (bytevector 1 2 3)))
+  (ListTalk-crypto-sodium:memzero! bytes)
+  (check (equal? bytes (bytevector 0 0 0))
+         "memzero! clears a bytevector"))
+
+(check (= [(ListTalk-crypto-sodium:generichash message) length]
+          ListTalk-crypto-sodium:generichash-bytes)
+       "generichash uses default length")
+(check (= [(ListTalk-crypto-sodium:generichash message 24) length] 24)
+       "generichash accepts output length")
+(let* ((key (ListTalk-crypto-sodium:generichash-keygen))
+       (digest (ListTalk-crypto-sodium:generichash message key 32)))
+  (check (= [key length] ListTalk-crypto-sodium:generichash-keybytes)
+         "generichash-keygen returns key")
+  (check (= [digest length] 32)
+         "keyed generichash accepts output length"))
+
+(let* ((key (ListTalk-crypto-sodium:shorthash-keygen))
+       (digest (ListTalk-crypto-sodium:shorthash message key)))
+  (check (= [key length] ListTalk-crypto-sodium:shorthash-keybytes)
+         "shorthash-keygen returns key")
+  (check (= [digest length] ListTalk-crypto-sodium:shorthash-bytes)
+         "shorthash returns digest"))
+
+(let* ((key (ListTalk-crypto-sodium:auth-keygen))
+       (mac (ListTalk-crypto-sodium:auth message key)))
+  (check (= [key length] ListTalk-crypto-sodium:auth-keybytes)
+         "auth-keygen returns key")
+  (check (ListTalk-crypto-sodium:auth-verify mac message key)
+         "auth-verify accepts valid MAC")
+  (check (not (ListTalk-crypto-sodium:auth-verify mac
+                                                   (string->bytevector "tampered")
+                                                   key))
+         "auth-verify rejects tampered message"))
+
+(let* ((key (ListTalk-crypto-sodium:secretbox-keygen))
+       (nonce (ListTalk-crypto-sodium:secretbox-nonce))
+       (ciphertext (ListTalk-crypto-sodium:secretbox-easy message nonce key)))
+  (check (= [key length] ListTalk-crypto-sodium:secretbox-keybytes)
+         "secretbox-keygen returns key")
+  (check (= [nonce length] ListTalk-crypto-sodium:secretbox-noncebytes)
+         "secretbox-nonce returns nonce")
+  (check (equal? (ListTalk-crypto-sodium:secretbox-open-easy ciphertext nonce key)
+                 message)
+         "secretbox round trip")
+  (check (not (ListTalk-crypto-sodium:secretbox-open-easy
+                (bytevector 1 2 3)
+                nonce
+                key))
+         "secretbox-open-easy rejects short ciphertext"))
+
+(let* ((alice (ListTalk-crypto-sodium:box-keypair))
+       (bob (ListTalk-crypto-sodium:box-keypair))
+       (alice-public (car alice))
+       (alice-secret (car (cdr alice)))
+       (bob-public (car bob))
+       (bob-secret (car (cdr bob)))
+       (nonce (ListTalk-crypto-sodium:box-nonce))
+       (ciphertext (ListTalk-crypto-sodium:box-easy message
+                                                    nonce
+                                                    bob-public
+                                                    alice-secret)))
+  (check (= [alice-public length] ListTalk-crypto-sodium:box-publickeybytes)
+         "box-keypair returns public key")
+  (check (= [alice-secret length] ListTalk-crypto-sodium:box-secretkeybytes)
+         "box-keypair returns secret key")
+  (check (equal? (ListTalk-crypto-sodium:box-open-easy ciphertext
+                                                       nonce
+                                                       alice-public
+                                                       bob-secret)
+                 message)
+         "box round trip")
+  (let ((sealed (ListTalk-crypto-sodium:box-seal message bob-public)))
+    (check (equal? (ListTalk-crypto-sodium:box-seal-open sealed
+                                                       bob-public
+                                                       bob-secret)
+                   message)
+           "sealed box round trip")))
+
+(let* ((keypair (ListTalk-crypto-sodium:sign-keypair))
+       (public-key (car keypair))
+       (secret-key (car (cdr keypair)))
+       (signature (ListTalk-crypto-sodium:sign-detached message secret-key))
+       (signed (ListTalk-crypto-sodium:sign message secret-key)))
+  (check (= [public-key length] ListTalk-crypto-sodium:sign-publickeybytes)
+         "sign-keypair returns public key")
+  (check (= [secret-key length] ListTalk-crypto-sodium:sign-secretkeybytes)
+         "sign-keypair returns secret key")
+  (check (ListTalk-crypto-sodium:sign-verify-detached signature
+                                                      message
+                                                      public-key)
+         "detached signature verifies")
+  (check (not (ListTalk-crypto-sodium:sign-verify-detached
+                signature
+                (string->bytevector "tampered")
+                public-key))
+         "detached signature rejects tampering")
+  (check (equal? (ListTalk-crypto-sodium:sign-open signed public-key)
+                 message)
+         "signed message opens"))
