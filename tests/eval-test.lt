@@ -20,5 +20,5 @@
 (load! :eval-ini)
 
 (if (> (run-tests) 0)
-    (ListTalk-OS:exit 1)
+    (ListTalk:OS:exit 1)
     #true)

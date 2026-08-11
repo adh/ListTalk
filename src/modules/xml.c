@@ -250,6 +250,7 @@ static LT_Method_Descriptor XMLEventHandler_methods[] = {
 LT_DEFINE_CLASS(LT_XMLEventHandler) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk:XML",
     .name = "XMLEventHandler",
     .documentation = "Abstract no-op handler for XML parsing events.",
     .instance_size = sizeof(LT_XMLEventHandler),
@@ -326,7 +327,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 void ListTalk_xml_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-XML");
+    LT_Package* package = LT_Package_new("ListTalk:XML");
 
     LT_Environment_bind(
         environment,

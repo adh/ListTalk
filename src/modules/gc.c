@@ -153,7 +153,7 @@ LT_DEFINE_PRIMITIVE(
 }
 
 void ListTalk_gc_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-GC");
+    LT_Package* package = LT_Package_new("ListTalk:GC");
 
     bind_gc_primitive(environment, package, &primitive_gc_collect_bang);
     bind_gc_primitive(environment, package, &primitive_gc_heap_size);
