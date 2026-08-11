@@ -485,10 +485,9 @@ static LT_Value native_class_name_symbol(LT_Class_Descriptor* descriptor){
     if (descriptor->name == NULL){
         return LT_NIL;
     }
-    if (descriptor->package == NULL){
-        return LT_Symbol_new(descriptor->name);
-    }
-    package = LT_Package_new(descriptor->package);
+    package = descriptor->package == NULL
+        ? LT_PACKAGE_LISTTALK
+        : LT_Package_new(descriptor->package);
     return LT_Symbol_new_in(package, descriptor->name);
 }
 

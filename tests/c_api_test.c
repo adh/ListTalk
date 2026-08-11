@@ -107,6 +107,23 @@ LT_DEFINE_CLASS(LT_TestNativeMixedClass) {
     .instance_size = sizeof(LT_TestNativeStructuralInstance),
 };
 
+static LT_Class_Descriptor test_native_null_package_name_descriptor = {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "TestNativeNullPackageName",
+    .instance_size = sizeof(LT_Object),
+};
+
+static LT_Class LT_TestNativeNullPackageName_class_class = {
+    .base = {.klass = &LT_Class_class_class},
+    .instance_size = sizeof(LT_Class),
+};
+
+static LT_Class LT_TestNativeNullPackageName_class = {
+    .base = {.klass = &LT_TestNativeNullPackageName_class_class},
+    .native_descriptor = &test_native_null_package_name_descriptor,
+};
+
 LT_DEFINE_PRIMITIVE(
     primitive_test_pair_sum_method,
     "test-pair-sum-method",
@@ -3041,6 +3058,37 @@ static int test_native_class_mixins_precede_superclass(void){
                   "structural superclass ancestry remains in precedence");
 }
 
+static int test_native_class_null_package_defaults_to_listtalk(void){
+    LT_Package* current_package = LT_Package_new("NativeClassNameCurrentPackage");
+    LT_Value class_name;
+    LT_Value metaclass_name;
+
+    LT_WITH_PACKAGE(current_package, {
+        LT_init_native_class(&LT_TestNativeNullPackageName_class);
+    });
+
+    class_name = LT_TestNativeNullPackageName_class.name;
+    metaclass_name = LT_TestNativeNullPackageName_class_class.name;
+    if (expect(LT_Symbol_p(class_name), "native class name is symbol")){
+        return 1;
+    }
+    if (expect(
+        LT_Symbol_package(LT_Symbol_from_value(class_name))
+            == LT_PACKAGE_LISTTALK,
+        "native class NULL package name defaults to ListTalk"
+    )){
+        return 1;
+    }
+    if (expect(LT_Symbol_p(metaclass_name), "native metaclass name is symbol")){
+        return 1;
+    }
+    return expect(
+        LT_Symbol_package(LT_Symbol_from_value(metaclass_name))
+            == LT_PACKAGE_LISTTALK,
+        "native metaclass name follows ListTalk class name package"
+    );
+}
+
 static int test_symbol_package_slot_is_readonly(void){
     LT_Value slot_value = eval_one("(slot-ref 'alpha 'package)");
     LT_Value readonly_error = eval_one(
@@ -4309,6 +4357,7 @@ int main(void){
     RUN_TEST(test_get_current_environment_special_form);
     RUN_TEST(test_symbol_class_inherits_object);
     RUN_TEST(test_native_class_mixins_precede_superclass);
+    RUN_TEST(test_native_class_null_package_defaults_to_listtalk);
     RUN_TEST(test_symbol_package_slot_is_readonly);
     RUN_TEST(test_precedence_list_initialized);
     RUN_TEST(test_value_is_instance_of_uses_precedence_list);
