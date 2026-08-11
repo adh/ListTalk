@@ -12,6 +12,7 @@
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/MethodDescriptor.h>
+#include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Set.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -461,17 +462,34 @@ static LT_Value make_metaclass_name(LT_Value class_name){
     char* name;
     size_t length;
     char* metaclass_name;
+    LT_Package* package;
 
     if (!LT_Symbol_p(class_name)){
         return LT_NIL;
     }
 
     name = LT_Symbol_name(LT_Symbol_from_value(class_name));
+    package = LT_Symbol_package(LT_Symbol_from_value(class_name));
     length = strlen(name);
     metaclass_name = GC_MALLOC_ATOMIC(length + strlen(" class") + 1);
     memcpy(metaclass_name, name, length);
     memcpy(metaclass_name + length, " class", strlen(" class") + 1);
-    return LT_Symbol_new(metaclass_name);
+    return package == NULL
+        ? LT_Symbol_new(metaclass_name)
+        : LT_Symbol_new_in(package, metaclass_name);
+}
+
+static LT_Value native_class_name_symbol(LT_Class_Descriptor* descriptor){
+    LT_Package* package;
+
+    if (descriptor->name == NULL){
+        return LT_NIL;
+    }
+    if (descriptor->package == NULL){
+        return LT_Symbol_new(descriptor->name);
+    }
+    package = LT_Package_new(descriptor->package);
+    return LT_Symbol_new_in(package, descriptor->name);
 }
 
 static int compare_slots_by_name(const void* left, const void* right){
@@ -952,11 +970,7 @@ void LT_init_native_class(LT_Class* klass){
     } else {
         klass->equal_p = Class_default_equal_p;
     }
-    if (descriptor->name == NULL){
-        klass->name = LT_NIL;
-    } else {
-        klass->name = LT_Symbol_new(descriptor->name);
-    }
+    klass->name = native_class_name_symbol(descriptor);
     LT_init_native_class(&LT_IdentityDictionary_class);
     klass->methods = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();

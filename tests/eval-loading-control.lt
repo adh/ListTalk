@@ -21,6 +21,12 @@
 (check (pair? (memq :os ListTalk:%modules)) "native module records provided module")
 (check (primitive? ListTalk-GC:collect!) "load! loads gc native module primitive")
 (check (class? ListTalk-cmdopts:Parser) "load! loads cmdopts Parser class")
+(let ((stat-name (slot-ref ListTalk-OS:Stat 'name))
+      (parser-name (slot-ref ListTalk-cmdopts:Parser 'name)))
+  (check (eq? [stat-name package] [Package named: "ListTalk-OS"])
+         "native OS class name is interned in module package")
+  (check (eq? [parser-name package] [Package named: "ListTalk-cmdopts"])
+         "native cmdopts class name is interned in module package"))
 
 (let ((parser [ListTalk-cmdopts:Parser newWithFlags: '(:strict-order)])
       (verbose 0)

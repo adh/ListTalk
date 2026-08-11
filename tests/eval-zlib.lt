@@ -29,6 +29,9 @@
 
 (check (string? ListTalk-zlib:version)
        "zlib version is exposed")
+(check (eq? [(slot-ref ListTalk-zlib:GzipStream 'name) package]
+            [Package named: "ListTalk-zlib"])
+       "GzipStream name is interned in module package")
 
 (define gzip-path
   (string-append (ListTalk-OS:getpwd) "/eval-zlib-test.gz"))

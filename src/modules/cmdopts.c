@@ -448,6 +448,7 @@ static LT_Method_Descriptor CmdOpts_Parser_class_methods[] = {
 LT_DEFINE_CLASS(LT_CmdOpts_Parser) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk-cmdopts",
     .name = "Parser",
     .documentation = "Callback-based command line option parser.",
     .instance_size = sizeof(LT_CmdOpts_Parser),

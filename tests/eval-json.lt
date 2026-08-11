@@ -13,6 +13,12 @@
 (check (eq? (type-of [ListTalk-JSON:JSONEncoder new])
             ListTalk-JSON:JSONEncoder)
        "JSONEncoder class>>new returns encoder")
+(check (eq? [(slot-ref ListTalk-JSON:JSONDecoder 'name) package]
+            [Package named: "ListTalk-JSON"])
+       "JSONDecoder name is interned in module package")
+(check (eq? [(slot-ref ListTalk-JSON:JSONEncoder 'name) package]
+            [Package named: "ListTalk-JSON"])
+       "JSONEncoder name is interned in module package")
 
 (let ((decoded [[ListTalk-JSON:JSONDecoder new]
                  decode: "{\"a\":[1,true,null],\"b\":2}"]))

@@ -1096,6 +1096,7 @@ static LT_Method_Descriptor JSONDecoder_class_methods[] = {
 LT_DEFINE_CLASS(LT_JSONDecoder) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk-JSON",
     .name = "JSONDecoder",
     .documentation = "Configuration object for decoding JSON values.",
     .instance_size = sizeof(LT_JSONDecoder),
@@ -1134,6 +1135,7 @@ static LT_Method_Descriptor JSONEncoder_class_methods[] = {
 LT_DEFINE_CLASS(LT_JSONEncoder) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk-JSON",
     .name = "JSONEncoder",
     .documentation = "Configuration object for encoding JSON values.",
     .instance_size = sizeof(LT_JSONEncoder),

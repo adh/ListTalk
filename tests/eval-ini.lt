@@ -10,6 +10,9 @@
 (check (eq? (type-of [ListTalk-INI:INIReader new])
             ListTalk-INI:INIReader)
        "INIReader class>>new returns reader")
+(check (eq? [(slot-ref ListTalk-INI:INIReader 'name) package]
+            [Package named: "ListTalk-INI"])
+       "INIReader name is interned in module package")
 
 (let* ((decoded [ListTalk-INI:INIReader
                  read: "root = yes\n[database]\nhost = localhost\nport: 5432\n"])

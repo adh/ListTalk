@@ -750,6 +750,7 @@ static LT_Method_Descriptor GzipStream_class_methods[] = {
 LT_DEFINE_CLASS(LT_GzipStream) {
     .superclass = &LT_Stream_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk-zlib",
     .name = "GzipStream",
     .documentation = "Stream backed by a gzip-compressed file.",
     .instance_size = sizeof(LT_GzipStream),

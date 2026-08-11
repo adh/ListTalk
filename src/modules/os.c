@@ -455,6 +455,7 @@ static LT_Method_Descriptor Stat_class_methods[] = {
 LT_DEFINE_CLASS(LT_OS_Stat) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
+    .package = "ListTalk-OS",
     .name = "Stat",
     .documentation = "Filesystem metadata returned by stat operations.",
     .instance_size = sizeof(LT_OS_Stat),
