@@ -541,6 +541,7 @@ LT_DEFINE_CLASS(LT_Ristretto255Element) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
     .name = "Ristretto255Element",
+    .package = "ListTalk:crypto-sodium",
     .documentation = "Immutable Ristretto255 group element.",
     .instance_size = sizeof(LT_Ristretto255Element),
     .class_flags = LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
@@ -1449,7 +1450,7 @@ static LT_Primitive* sodium_primitives[] = {
 };
 
 void ListTalk_crypto_sodium_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-crypto-sodium");
+    LT_Package* package = LT_Package_new("ListTalk:crypto-sodium");
     size_t i;
 
     if (sodium_init() < 0){
