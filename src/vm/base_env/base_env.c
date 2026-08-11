@@ -73,6 +73,8 @@
 #include <ListTalk/classes/ConditionVariable.h>
 #include <ListTalk/classes/MessageQueue.h>
 #include <ListTalk/classes/Thread.h>
+#include <ListTalk/classes/Future.h>
+#include <ListTalk/classes/Promise.h>
 #include <ListTalk/vm/Class.h>
 #include <ListTalk/vm/Environment.h>
 #include <ListTalk/utils.h>
@@ -196,6 +198,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"ConditionVariable", &LT_ConditionVariable_class},
     {"MessageQueue", &LT_MessageQueue_class},
     {"Thread", &LT_Thread_class},
+    {"Future", &LT_Future_class},
+    {"Promise", &LT_Promise_class},
 };
 
 static LT_Value modules_symbol(void){
