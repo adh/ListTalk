@@ -448,7 +448,7 @@ static LT_Method_Descriptor CmdOpts_Parser_class_methods[] = {
 LT_DEFINE_CLASS(LT_CmdOpts_Parser) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
-    .package = "ListTalk-cmdopts",
+    .package = "ListTalk:cmdopts",
     .name = "Parser",
     .documentation = "Callback-based command line option parser.",
     .instance_size = sizeof(LT_CmdOpts_Parser),
@@ -459,7 +459,7 @@ LT_DEFINE_CLASS(LT_CmdOpts_Parser) {
 };
 
 void ListTalk_cmdopts_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-cmdopts");
+    LT_Package* package = LT_Package_new("ListTalk:cmdopts");
 
     LT_init_native_class(&LT_CmdOpts_Parser_class);
     LT_Environment_bind(

@@ -8,7 +8,7 @@
       #true
       (error (string-append "FAIL: " description))))
 
-(define-class RecordingXMLHandler (ListTalk-XML:XMLEventHandler)
+(define-class RecordingXMLHandler (ListTalk:XML:XMLEventHandler)
   (events text attribute))
 
 (define-method [RecordingXMLHandler startDocument]
@@ -40,14 +40,14 @@
 (define-method [RecordingXMLHandler endCDATA]
   (set! (%self-slot events) (cons :end-cdata (%self-slot events))))
 
-(check (eq? [(slot-ref ListTalk-XML:XMLEventHandler 'name) package]
-            [Package named: "ListTalk-XML"])
+(check (eq? [(slot-ref ListTalk:XML:XMLEventHandler 'name) package]
+            [Package named: "ListTalk:XML"])
        "XMLEventHandler name is interned in module package")
 
 (let ((handler (make-instance RecordingXMLHandler)))
   (slot-set! handler 'events '())
   (slot-set! handler 'text "")
-  (check (eq? (ListTalk-XML:parse
+  (check (eq? (ListTalk:XML:parse
                 ["<?go now?><root id=\"42\"><!--note--><![CDATA[x]]>y</root>"
                  asByteVector]
                 handler)

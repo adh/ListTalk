@@ -232,7 +232,7 @@ It also installs the source modules:
 
 - `html-gen`
 - `sxml` (requires the native XML module), providing
-  `ListTalk-sxml:parse-xml` and `ListTalk-sxml:as-string`. Parsing retains
+  `ListTalk:sxml:parse-xml` and `ListTalk:sxml:as-string`. Parsing retains
   comments and processing instructions when enabled with `:comments #true`
   and `:processing-instructions #true`, respectively.
 
@@ -248,12 +248,12 @@ meson setup build -Dmarkdown=enabled
 ```
 
 This builds and installs `markdown.ltm`. Load it with `(require :markdown)`;
-its API is exposed in the `ListTalk-markdown` package, including `parse`,
+its API is exposed in the `ListTalk:markdown` package, including `parse`,
 `valid?`, `event-count`, and `to-html`.
 
 The optional `zlib.ltm` module is likewise built automatically when zlib is
 available, with `-Dzlib=enabled` and `-Dzlib=disabled` available as explicit
-overrides. Load it with `(require :zlib)`. The `ListTalk-zlib` package provides
+overrides. Load it with `(require :zlib)`. The `ListTalk:zlib` package provides
 `compress` and `uncompress` for bytevectors, the `version` constant, and the
 dfsch-inspired `gzip-open-for-input`, `gzip-open-for-output`, and
 `gzip-open-for-append` stream constructors. The same constructors are available
@@ -262,7 +262,7 @@ as `GzipStream` class methods named `openForInput:`, `openForOutput:`, and
 
 When Expat is available, the optional `xml.ltm` module is built automatically;
 use `-Dxml=enabled` or `-Dxml=disabled` to override detection. Its one-shot
-`ListTalk-XML:parse` primitive accepts an XML bytevector and an instance of an
+`ListTalk:XML:parse` primitive accepts an XML bytevector and an instance of an
 `XMLEventHandler` subclass. The abstract handler supplies no-op methods for
 document, element, character, processing-instruction, comment, and CDATA
 events, so subclasses only need to override events they use.

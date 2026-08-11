@@ -366,7 +366,7 @@ static LT_Method_Descriptor INIReader_class_methods[] = {
 LT_DEFINE_CLASS(LT_INIReader) {
     .superclass = &LT_Object_class,
     .metaclass_superclass = &LT_Class_class,
-    .package = "ListTalk-INI",
+    .package = "ListTalk:INI",
     .name = "INIReader",
     .documentation = "Configuration object for reading INI files.",
     .instance_size = sizeof(LT_INIReader),
@@ -378,7 +378,7 @@ LT_DEFINE_CLASS(LT_INIReader) {
 };
 
 void ListTalk_ini_load(LT_Environment* environment){
-    LT_Package* package = LT_Package_new("ListTalk-INI");
+    LT_Package* package = LT_Package_new("ListTalk:INI");
 
     LT_init_native_class(&LT_INIReader_class);
     LT_Environment_bind(

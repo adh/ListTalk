@@ -3,8 +3,8 @@
 ;;;;; Copyright (c) 2026 Ales Hakl
 
 (provide :sxml)
-(define-package :ListTalk-sxml :ListTalk)
-(in-package :ListTalk-sxml)
+(define-package :ListTalk:sxml :ListTalk)
+(in-package :ListTalk:sxml)
 
 (require :xml)
 (require :html-gen)
@@ -12,7 +12,7 @@
 (define (xml-keyword name)
   [Symbol keyword: name])
 
-(define-class SXMLHandler (ListTalk-XML:XMLEventHandler)
+(define-class SXMLHandler (ListTalk:XML:XMLEventHandler)
   (stack result comments processing-instructions))
 
 (define (push-node handler node)
@@ -70,7 +70,7 @@
   (let ((handler (make-instance SXMLHandler)))
     (slot-set! handler 'comments comments)
     (slot-set! handler 'processing-instructions processing-instructions)
-    (ListTalk-XML:parse (if (string? xml) [xml asByteVector] xml) handler)
+    (ListTalk:XML:parse (if (string? xml) [xml asByteVector] xml) handler)
     (slot-ref handler 'result)))
 
 (define (xml-name value)
