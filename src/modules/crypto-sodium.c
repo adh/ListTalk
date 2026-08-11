@@ -7,6 +7,15 @@
 
 #include <sodium.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+LT_DECLARE_CLASS(LT_Ristretto255Element);
+
+struct LT_Ristretto255Element_s {
+    LT_Object base;
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+};
 
 static void bind_sodium_primitive(LT_Environment* environment,
                                   LT_Package* package,
@@ -80,6 +89,467 @@ static size_t output_length_from_value(LT_Value value,
     }
     return length;
 }
+
+static LT_Ristretto255Element* ristretto255_element_new(const uint8_t* bytes){
+    LT_Ristretto255Element* element = LT_Class_ALLOC(LT_Ristretto255Element);
+
+    memcpy(element->bytes, bytes, crypto_core_ristretto255_BYTES);
+    return element;
+}
+
+static LT_Ristretto255Element* ristretto255_element_from_bytevector(
+    LT_ByteVector* bytevector
+){
+    if (LT_ByteVector_length(bytevector) != crypto_core_ristretto255_BYTES){
+        LT_error("Ristretto255 element bytevector must be exactly 32 bytes");
+    }
+    if (crypto_core_ristretto255_is_valid_point(
+            LT_ByteVector_bytes(bytevector)
+        ) != 1){
+        LT_error("Invalid Ristretto255 element encoding");
+    }
+    return ristretto255_element_new(LT_ByteVector_bytes(bytevector));
+}
+
+static void expect_ristretto255_hash(LT_ByteVector* hash){
+    expect_bytevector_length(
+        hash,
+        crypto_core_ristretto255_HASHBYTES,
+        "Ristretto255 hash input must be exactly 64 bytes"
+    );
+}
+
+static void expect_ristretto255_scalar(LT_ByteVector* scalar){
+    expect_bytevector_length(
+        scalar,
+        crypto_core_ristretto255_SCALARBYTES,
+        "Ristretto255 scalar must be exactly 32 bytes"
+    );
+}
+
+static size_t ristretto255_element_hash(LT_Value value){
+    LT_Ristretto255Element* element = LT_Ristretto255Element_from_value(value);
+    uint32_t hash = UINT32_C(0x811c9dc5);
+    size_t i;
+
+    for (i = 0; i < crypto_core_ristretto255_BYTES; i++){
+        hash += (uint32_t)element->bytes[i];
+        hash *= UINT32_C(0x01000193);
+    }
+    return (size_t)hash;
+}
+
+static int ristretto255_element_equal_p(LT_Value left, LT_Value right){
+    LT_Ristretto255Element* left_element;
+    LT_Ristretto255Element* right_element;
+
+    if (!LT_Ristretto255Element_p(right)){
+        return 0;
+    }
+    left_element = LT_Ristretto255Element_from_value(left);
+    right_element = LT_Ristretto255Element_from_value(right);
+    return sodium_memcmp(
+        left_element->bytes,
+        right_element->bytes,
+        crypto_core_ristretto255_BYTES
+    ) == 0;
+}
+
+static void ristretto255_element_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_Ristretto255Element* element = LT_Ristretto255Element_from_value(obj);
+    char hex[crypto_core_ristretto255_BYTES * 2 + 1];
+
+    sodium_bin2hex(
+        hex,
+        sizeof(hex),
+        element->bytes,
+        crypto_core_ristretto255_BYTES
+    );
+    fprintf(stream, "#<Ristretto255Element %s>", hex);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_class_method_random,
+    "Ristretto255Element class>>random",
+    "(self)",
+    "Return a random Ristretto255 element."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    if (self != LT_STATIC_CLASS(LT_Ristretto255Element)){
+        LT_error("random class method is only supported on Ristretto255Element");
+    }
+    crypto_core_ristretto255_random(bytes);
+    return (LT_Value)(uintptr_t)ristretto255_element_new(bytes);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_class_method_from_hash,
+    "Ristretto255Element class>>fromHash:",
+    "(self hash)",
+    "Return a Ristretto255 element mapped from a 64-byte hash."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ByteVector* hash;
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, hash, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    if (self != LT_STATIC_CLASS(LT_Ristretto255Element)){
+        LT_error("fromHash: class method is only supported on Ristretto255Element");
+    }
+    expect_ristretto255_hash(hash);
+    crypto_core_ristretto255_from_hash(bytes, LT_ByteVector_bytes(hash));
+    return (LT_Value)(uintptr_t)ristretto255_element_new(bytes);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_class_method_from_bytevector,
+    "Ristretto255Element class>>fromByteVector:",
+    "(self bytevector)",
+    "Return a Ristretto255 element from canonical bytes."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ByteVector* bytevector;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    if (self != LT_STATIC_CLASS(LT_Ristretto255Element)){
+        LT_error("fromByteVector: class method is only supported on Ristretto255Element");
+    }
+    return (LT_Value)(uintptr_t)ristretto255_element_from_bytevector(bytevector);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_class_method_valid_bytevector_p,
+    "Ristretto255Element class>>validByteVector?:",
+    "(self bytevector)",
+    "Return true when bytevector is a canonical Ristretto255 element encoding."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ByteVector* bytevector;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    if (self != LT_STATIC_CLASS(LT_Ristretto255Element)){
+        LT_error("validByteVector?: class method is only supported on Ristretto255Element");
+    }
+    if (LT_ByteVector_length(bytevector) != crypto_core_ristretto255_BYTES){
+        return LT_FALSE;
+    }
+    return crypto_core_ristretto255_is_valid_point(
+        LT_ByteVector_bytes(bytevector)
+    ) == 1 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_class_method_from_base_scalar,
+    "Ristretto255Element class>>fromBaseScalar:",
+    "(self scalar)",
+    "Return scalar times the Ristretto255 base point."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ByteVector* scalar;
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, scalar, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    if (self != LT_STATIC_CLASS(LT_Ristretto255Element)){
+        LT_error("fromBaseScalar: class method is only supported on Ristretto255Element");
+    }
+    expect_ristretto255_scalar(scalar);
+    crypto_scalarmult_ristretto255_base(bytes, LT_ByteVector_bytes(scalar));
+    return (LT_Value)(uintptr_t)ristretto255_element_new(bytes);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_method_as_bytevector,
+    "Ristretto255Element>>asByteVector",
+    "(self)",
+    "Return receiver canonical bytes as a bytevector."
+){
+    LT_Value cursor = arguments;
+    LT_Ristretto255Element* self;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(
+        self->bytes,
+        crypto_core_ristretto255_BYTES
+    );
+}
+
+static LT_Value ristretto255_element_add2(LT_Ristretto255Element* left,
+                                          LT_Ristretto255Element* right){
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+
+    if (crypto_core_ristretto255_add(bytes, left->bytes, right->bytes) != 0){
+        LT_error("Ristretto255 addition failed");
+    }
+    return (LT_Value)(uintptr_t)ristretto255_element_new(bytes);
+}
+
+static LT_Value ristretto255_element_subtract2(LT_Ristretto255Element* left,
+                                               LT_Ristretto255Element* right){
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+
+    if (crypto_core_ristretto255_sub(bytes, left->bytes, right->bytes) != 0){
+        LT_error("Ristretto255 subtraction failed");
+    }
+    return (LT_Value)(uintptr_t)ristretto255_element_new(bytes);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_method_add,
+    "Ristretto255Element>>add:",
+    "(self other)",
+    "Return the sum of two Ristretto255 elements."
+){
+    LT_Value cursor = arguments;
+    LT_Ristretto255Element* self;
+    LT_Ristretto255Element* other;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_ARG_END(cursor);
+    return ristretto255_element_add2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_method_plus,
+    "Ristretto255Element>>+",
+    "(self other)",
+    "Return the sum of two Ristretto255 elements."
+){
+    LT_Value cursor = arguments;
+    LT_Ristretto255Element* self;
+    LT_Ristretto255Element* other;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_ARG_END(cursor);
+    return ristretto255_element_add2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_method_subtract,
+    "Ristretto255Element>>subtract:",
+    "(self other)",
+    "Return the difference of two Ristretto255 elements."
+){
+    LT_Value cursor = arguments;
+    LT_Ristretto255Element* self;
+    LT_Ristretto255Element* other;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_ARG_END(cursor);
+    return ristretto255_element_subtract2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_method_minus,
+    "Ristretto255Element>>-",
+    "(self other)",
+    "Return the difference of two Ristretto255 elements."
+){
+    LT_Value cursor = arguments;
+    LT_Ristretto255Element* self;
+    LT_Ristretto255Element* other;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_GENERIC_ARG(cursor, other, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_ARG_END(cursor);
+    return ristretto255_element_subtract2(self, other);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_method_negate,
+    "Ristretto255Element>>negate",
+    "(self)",
+    "Return the additive inverse of a Ristretto255 element."
+){
+    LT_Value cursor = arguments;
+    LT_Ristretto255Element* self;
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+    static const uint8_t identity[crypto_core_ristretto255_BYTES] = {0};
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_ARG_END(cursor);
+    if (crypto_core_ristretto255_sub(bytes, identity, self->bytes) != 0){
+        LT_error("Ristretto255 negation failed");
+    }
+    return (LT_Value)(uintptr_t)ristretto255_element_new(bytes);
+}
+
+LT_DEFINE_PRIMITIVE(
+    ristretto255_element_method_scalar_multiply_by,
+    "Ristretto255Element>>scalarMultiplyBy:",
+    "(self scalar)",
+    "Return scalar times receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Ristretto255Element* self;
+    LT_ByteVector* scalar;
+    uint8_t bytes[crypto_core_ristretto255_BYTES];
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, self, LT_Ristretto255Element*, LT_Ristretto255Element_from_value);
+    LT_GENERIC_ARG(cursor, scalar, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    expect_ristretto255_scalar(scalar);
+    if (crypto_scalarmult_ristretto255(
+            bytes,
+            LT_ByteVector_bytes(scalar),
+            self->bytes
+        ) != 0){
+        LT_error("Ristretto255 scalar multiplication failed");
+    }
+    return (LT_Value)(uintptr_t)ristretto255_element_new(bytes);
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_sodium_ristretto255_scalar_random,
+    "ristretto255-scalar-random",
+    "()",
+    "Return a random Ristretto255 scalar."
+){
+    uint8_t* scalar;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_ARG_END(arguments);
+    scalar = sodium_output_bytes(crypto_core_ristretto255_SCALARBYTES);
+    crypto_core_ristretto255_scalar_random(scalar);
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(
+        scalar,
+        crypto_core_ristretto255_SCALARBYTES
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_sodium_ristretto255_scalar_reduce,
+    "ristretto255-scalar-reduce",
+    "(bytes)",
+    "Reduce 64 bytes to a canonical Ristretto255 scalar."
+){
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytes;
+    uint8_t* scalar;
+
+    (void)tail_call_unwind_marker;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+
+    LT_GENERIC_ARG(cursor, bytes, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    expect_bytevector_length(
+        bytes,
+        crypto_core_ristretto255_NONREDUCEDSCALARBYTES,
+        "Ristretto255 non-reduced scalar must be exactly 64 bytes"
+    );
+    scalar = sodium_output_bytes(crypto_core_ristretto255_SCALARBYTES);
+    crypto_core_ristretto255_scalar_reduce(scalar, LT_ByteVector_bytes(bytes));
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(
+        scalar,
+        crypto_core_ristretto255_SCALARBYTES
+    );
+}
+
+static LT_Method_Descriptor Ristretto255Element_methods[] = {
+    {"asByteVector", &ristretto255_element_method_as_bytevector},
+    {"add:", &ristretto255_element_method_add},
+    {"+", &ristretto255_element_method_plus},
+    {"subtract:", &ristretto255_element_method_subtract},
+    {"-", &ristretto255_element_method_minus},
+    {"negate", &ristretto255_element_method_negate},
+    {"scalarMultiplyBy:", &ristretto255_element_method_scalar_multiply_by},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor Ristretto255Element_class_methods[] = {
+    {"random", &ristretto255_element_class_method_random},
+    {"fromHash:", &ristretto255_element_class_method_from_hash},
+    {"fromByteVector:", &ristretto255_element_class_method_from_bytevector},
+    {"validByteVector?:", &ristretto255_element_class_method_valid_bytevector_p},
+    {"fromBaseScalar:", &ristretto255_element_class_method_from_base_scalar},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_Ristretto255Element) {
+    .superclass = &LT_Object_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "Ristretto255Element",
+    .documentation = "Immutable Ristretto255 group element.",
+    .instance_size = sizeof(LT_Ristretto255Element),
+    .class_flags = LT_CLASS_FLAG_IMMUTABLE | LT_CLASS_FLAG_SCALAR,
+    .hash = ristretto255_element_hash,
+    .equal_p = ristretto255_element_equal_p,
+    .debugPrintOn = ristretto255_element_debugPrintOn,
+    .methods = Ristretto255Element_methods,
+    .class_methods = Ristretto255Element_class_methods,
+};
 
 LT_DEFINE_PRIMITIVE(
     primitive_sodium_randombytes,
@@ -973,6 +1443,8 @@ static LT_Primitive* sodium_primitives[] = {
     &primitive_sodium_sign_verify_detached,
     &primitive_sodium_sign,
     &primitive_sodium_sign_open,
+    &primitive_sodium_ristretto255_scalar_random,
+    &primitive_sodium_ristretto255_scalar_reduce,
     NULL
 };
 
@@ -1009,9 +1481,19 @@ void ListTalk_crypto_sodium_load(LT_Environment* environment){
     bind_sodium_constant(environment, package, "sign-secretkeybytes", sodium_size_value(crypto_sign_SECRETKEYBYTES));
     bind_sodium_constant(environment, package, "sign-seedbytes", sodium_size_value(crypto_sign_SEEDBYTES));
     bind_sodium_constant(environment, package, "sign-bytes", sodium_size_value(crypto_sign_BYTES));
+    bind_sodium_constant(environment, package, "ristretto255-element-bytes", sodium_size_value(crypto_core_ristretto255_BYTES));
+    bind_sodium_constant(environment, package, "ristretto255-hashbytes", sodium_size_value(crypto_core_ristretto255_HASHBYTES));
+    bind_sodium_constant(environment, package, "ristretto255-scalarbytes", sodium_size_value(crypto_core_ristretto255_SCALARBYTES));
+    bind_sodium_constant(environment, package, "ristretto255-nonreduced-scalarbytes", sodium_size_value(crypto_core_ristretto255_NONREDUCEDSCALARBYTES));
 
     for (i = 0; sodium_primitives[i] != NULL; i++){
         bind_sodium_primitive(environment, package, sodium_primitives[i]);
     }
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new_in(package, "Ristretto255Element"),
+        LT_STATIC_CLASS(LT_Ristretto255Element),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
     LT_loader_provide(environment, "crypto-sodium");
 }

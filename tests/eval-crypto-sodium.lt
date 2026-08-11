@@ -121,3 +121,59 @@
   (check (equal? (ListTalk-crypto-sodium:sign-open signed public-key)
                  message)
          "signed message opens"))
+
+(check (class? ListTalk-crypto-sodium:Ristretto255Element)
+       "Ristretto255Element class is bound")
+(check (= ListTalk-crypto-sodium:ristretto255-element-bytes 32)
+       "Ristretto255 element size is exposed")
+(check (= ListTalk-crypto-sodium:ristretto255-hashbytes 64)
+       "Ristretto255 hash size is exposed")
+(check (= [(ListTalk-crypto-sodium:ristretto255-scalar-random) length]
+          ListTalk-crypto-sodium:ristretto255-scalarbytes)
+       "ristretto255-scalar-random returns scalar")
+(check (= [(ListTalk-crypto-sodium:ristretto255-scalar-reduce
+             (ListTalk-crypto-sodium:randombytes
+               ListTalk-crypto-sodium:ristretto255-nonreduced-scalarbytes))
+           length]
+          ListTalk-crypto-sodium:ristretto255-scalarbytes)
+       "ristretto255-scalar-reduce returns scalar")
+
+(let* ((hash (ListTalk-crypto-sodium:randombytes
+               ListTalk-crypto-sodium:ristretto255-hashbytes))
+       (element [ListTalk-crypto-sodium:Ristretto255Element fromHash: hash])
+       (bytes [element asByteVector])
+       (round-trip [ListTalk-crypto-sodium:Ristretto255Element fromByteVector: bytes])
+       (random [ListTalk-crypto-sodium:Ristretto255Element random])
+       (scalar (ListTalk-crypto-sodium:ristretto255-scalar-random))
+       (base [ListTalk-crypto-sodium:Ristretto255Element fromBaseScalar: scalar])
+       (scaled [element scalarMultiplyBy: scalar])
+       (identity-bytes (make-bytevector
+                         ListTalk-crypto-sodium:ristretto255-element-bytes
+                         0))
+       (identity [ListTalk-crypto-sodium:Ristretto255Element
+                   fromByteVector: identity-bytes]))
+  (check (eq? (type-of element) ListTalk-crypto-sodium:Ristretto255Element)
+         "fromHash: returns Ristretto255Element")
+  (check (= [bytes length] ListTalk-crypto-sodium:ristretto255-element-bytes)
+         "asByteVector returns canonical bytes")
+  (check [ListTalk-crypto-sodium:Ristretto255Element validByteVector?: bytes]
+         "validByteVector?: accepts canonical bytes")
+  (check (equal? element round-trip)
+         "fromByteVector: round trips canonical bytes")
+  (check (eq? (type-of random) ListTalk-crypto-sodium:Ristretto255Element)
+         "random returns Ristretto255Element")
+  (check (eq? (type-of base) ListTalk-crypto-sodium:Ristretto255Element)
+         "fromBaseScalar: returns Ristretto255Element")
+  (check (eq? (type-of scaled) ListTalk-crypto-sodium:Ristretto255Element)
+         "scalarMultiplyBy: returns Ristretto255Element")
+  (check (equal? [element add: identity] element)
+         "add: preserves identity")
+  (check (equal? [element + identity] element)
+         "operator + preserves identity")
+  (check (equal? [element subtract: identity] element)
+         "subtract: preserves identity")
+  (check (equal? [element - identity] element)
+         "operator - preserves identity")
+  (check (equal? [[element add: [element negate]] asByteVector]
+                 identity-bytes)
+         "negate produces additive inverse"))
