@@ -632,7 +632,7 @@ LT_Value LT_apply(LT_Value callable,
         tail_call_unwind_marker->invocation_context_kind = invocation_context_kind;
         tail_call_unwind_marker->invocation_context_data = invocation_context_data;
         LT_stack_trace_restore(tail_call_unwind_marker->stack_trace_top);
-        longjmp(tail_call_unwind_marker->jump_buffer, 1);
+        siglongjmp(tail_call_unwind_marker->jump_buffer, 1);
     }
 
     stack_frame.type = LT_STACK_FRAME_TYPE_APPLY;
@@ -647,7 +647,7 @@ LT_Value LT_apply(LT_Value callable,
     local_tail_call_unwind_marker.stack_trace_top = &stack_frame;
 
     while (1){
-        jump_value = setjmp(local_tail_call_unwind_marker.jump_buffer);
+        jump_value = sigsetjmp(local_tail_call_unwind_marker.jump_buffer, 0);
         (void)jump_value;
 
         callable = local_tail_call_unwind_marker.callable;

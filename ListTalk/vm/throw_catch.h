@@ -41,7 +41,7 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value);
         LT__throw_catch_frame.stack_trace_top = LT_stack_trace_top(); \
         LT__throw_catch_frame.previous = LT__throw_catch_stack; \
         LT__throw_catch_stack = &LT__throw_catch_frame; \
-        LT__throw_catch_jump_value = setjmp(LT__throw_catch_frame.jump_buffer); \
+        LT__throw_catch_jump_value = sigsetjmp(LT__throw_catch_frame.jump_buffer, 0); \
         if (LT__throw_catch_jump_value == 0) { \
             BODY \
         } else { \
@@ -65,7 +65,7 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value);
         LT__throw_catch_frame.stack_trace_top = LT_stack_trace_top(); \
         LT__throw_catch_frame.previous = LT__throw_catch_stack; \
         LT__throw_catch_stack = &LT__throw_catch_frame; \
-        LT__throw_catch_jump_value = setjmp(LT__throw_catch_frame.jump_buffer); \
+        LT__throw_catch_jump_value = sigsetjmp(LT__throw_catch_frame.jump_buffer, 0); \
         if (LT__throw_catch_jump_value == 0) { \
             PROTECTED \
         } else { \

@@ -33,7 +33,7 @@ _Noreturn void LT_throw(LT_Value tag, LT_Value value){
             frame->thrown_tag = tag;
             frame->thrown_value = value;
             LT_stack_trace_restore(frame->stack_trace_top);
-            longjmp(frame->jump_buffer, 1);
+            siglongjmp(frame->jump_buffer, 1);
         }
         frame = frame->previous;
     }
