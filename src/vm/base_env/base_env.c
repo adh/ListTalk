@@ -49,7 +49,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/Package.h>
-#include <ListTalk/classes/Reader.h>
+#include <ListTalk/vm/reader.h>
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Dictionary.h>
@@ -75,8 +75,8 @@
 #include <ListTalk/classes/Thread.h>
 #include <ListTalk/classes/Future.h>
 #include <ListTalk/classes/Promise.h>
-#include <ListTalk/vm/Class.h>
-#include <ListTalk/vm/Environment.h>
+#include <ListTalk/classes/Class.h>
+#include <ListTalk/classes/Environment.h>
 #include <ListTalk/utils.h>
 
 #include <stddef.h>

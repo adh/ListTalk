@@ -9,7 +9,7 @@
 #include <ListTalk/macros/env_macros.h>
 
 #include <ListTalk/vm/value.h>
-#include <ListTalk/vm/Environment.h>
+#include <ListTalk/classes/Environment.h>
 
 LT__BEGIN_DECLS
 

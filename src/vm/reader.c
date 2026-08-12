@@ -3,7 +3,7 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
-#include <ListTalk/classes/reader.h>
+#include <ListTalk/vm/reader.h>
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/BigInteger.h>
 #include <ListTalk/classes/ExactComplexNumber.h>

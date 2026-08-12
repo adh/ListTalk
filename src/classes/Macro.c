@@ -7,7 +7,7 @@
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/CompoundForm.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 #include <stddef.h>
 

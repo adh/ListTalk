@@ -7,7 +7,7 @@
 #define H__ListTalk__Object__
 
 #include <ListTalk/macros/env_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 LT__BEGIN_DECLS
 

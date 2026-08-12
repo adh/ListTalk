@@ -3,8 +3,8 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
-#ifndef H__ListTalk__VM_Class__
-#define H__ListTalk__VM_Class__
+#ifndef H__ListTalk__Class__
+#define H__ListTalk__Class__
 
 #include <ListTalk/macros/env_macros.h>
 #include <ListTalk/vm/value.h>

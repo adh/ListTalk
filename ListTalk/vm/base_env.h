@@ -7,7 +7,7 @@
 #define H__ListTalk__base_env__
 
 #include <ListTalk/macros/env_macros.h>
-#include <ListTalk/vm/Environment.h>
+#include <ListTalk/classes/Environment.h>
 
 LT__BEGIN_DECLS
 

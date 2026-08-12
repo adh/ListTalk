@@ -5,7 +5,7 @@
 
 #include <ListTalk/classes/InvocationContextKind.h>
 
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 #include <inttypes.h>
 

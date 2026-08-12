@@ -10,7 +10,7 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/method_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/compiler.h>
 #include <ListTalk/vm/epoch.h>
 #include <ListTalk/vm/error.h>

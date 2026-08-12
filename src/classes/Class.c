@@ -3,7 +3,7 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/vm/epoch.h>
 #include <ListTalk/classes/Closure.h>

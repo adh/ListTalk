@@ -7,7 +7,7 @@
 
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Printer.h>
-#include <ListTalk/classes/Reader.h>
+#include <ListTalk/vm/reader.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Float.h>
@@ -21,8 +21,8 @@
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Object.h>
 #include <ListTalk/classes/ImmutableList.h>
-#include <ListTalk/vm/Class.h>
-#include <ListTalk/vm/Environment.h>
+#include <ListTalk/classes/Class.h>
+#include <ListTalk/classes/Environment.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/compiler.h>

@@ -11,7 +11,7 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/Symbol.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/method_macros.h>

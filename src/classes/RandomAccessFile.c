@@ -13,7 +13,7 @@
 #include <ListTalk/classes/Object.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/error.h>
 
 #include <errno.h>

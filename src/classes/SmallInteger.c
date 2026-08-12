@@ -7,7 +7,7 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/macros/decl_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 struct LT_SmallInteger_s {
     LT_Object base;

@@ -8,7 +8,7 @@
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 static size_t Nil_hash(LT_Value obj){
     (void)obj;

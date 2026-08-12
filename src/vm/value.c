@@ -4,7 +4,7 @@
  */
 
 #include <ListTalk/vm/value.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Nil.h>
 #include <ListTalk/classes/Character.h>

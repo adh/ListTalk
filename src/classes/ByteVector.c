@@ -14,7 +14,7 @@
 #include <ListTalk/utils.h>
 #include <ListTalk/utils/base64.h>
 #include <ListTalk/utils/hex.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/macros/arg_macros.h>
 

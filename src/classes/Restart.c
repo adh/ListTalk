@@ -7,12 +7,12 @@
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/Reader.h>
+#include <ListTalk/vm/reader.h>
 #include <ListTalk/classes/Restart.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 #include <stddef.h>
 #include <stdint.h>

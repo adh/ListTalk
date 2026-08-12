@@ -13,7 +13,7 @@
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/String.h>
-#include <ListTalk/classes/Reader.h>
+#include <ListTalk/vm/reader.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/stack_trace.h>

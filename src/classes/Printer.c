@@ -4,7 +4,7 @@
  */
 
 #include <ListTalk/classes/Printer.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <stdio.h>
 
 struct LT_Printer_s {

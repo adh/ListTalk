@@ -7,7 +7,7 @@
 #define H__ListTalk__loader__
 
 #include <ListTalk/macros/env_macros.h>
-#include <ListTalk/vm/Environment.h>
+#include <ListTalk/classes/Environment.h>
 #include <ListTalk/vm/value.h>
 
 LT__BEGIN_DECLS

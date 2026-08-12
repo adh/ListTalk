@@ -10,7 +10,7 @@
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/thread_state.h>
 

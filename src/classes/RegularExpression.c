@@ -13,7 +13,7 @@
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/utils.h>
 

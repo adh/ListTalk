@@ -4,7 +4,7 @@
  */
 
 #include <ListTalk/classes/StackFrame.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 #include <stddef.h>
 

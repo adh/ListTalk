@@ -7,7 +7,7 @@
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/weak.h>
 

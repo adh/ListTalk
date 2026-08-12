@@ -27,7 +27,7 @@ initializer block after `LT_DEFINE_CLASS(Foo)`.
 
 Descriptor fields
 -----------------
-Current descriptor structure (`ListTalk/vm/Class.h`):
+Current descriptor structure (`ListTalk/classes/Class.h`):
 - `superclass`: class-side direct superclass
 - `mixins`: NULL-terminated class-side mixins, prepended to `superclass`; every
   mixin must be abstract, zero-sized, and not flexible

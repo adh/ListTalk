@@ -12,7 +12,7 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/weak.h>
 #include <ListTalk/utils.h>

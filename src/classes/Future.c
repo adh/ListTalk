@@ -7,7 +7,7 @@
 #include <ListTalk/classes/Object.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/macros/method_macros.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 struct LT_Future_s {
     LT_Object base;

@@ -8,7 +8,7 @@
 
 #include <ListTalk/macros/env_macros.h>
 #include <ListTalk/vm/value.h>
-#include <ListTalk/vm/Class.h>
+#include <ListTalk/classes/Class.h>
 
 #include <stddef.h>
 

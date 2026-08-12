@@ -8,7 +8,7 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Printer.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/Reader.h>
+#include <ListTalk/vm/reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/cmdopts.h>

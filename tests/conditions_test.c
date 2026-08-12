@@ -6,7 +6,7 @@
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Condition.h>
 #include <ListTalk/classes/Primitive.h>
-#include <ListTalk/classes/Reader.h>
+#include <ListTalk/vm/reader.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
