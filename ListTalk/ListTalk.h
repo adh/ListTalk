@@ -18,6 +18,7 @@
 #include <ListTalk/vm/init.h>
 #include <ListTalk/vm/base_env.h>
 #include <ListTalk/vm/conditions.h>
+#include <ListTalk/vm/signal.h>
 #include <ListTalk/classes/Object.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/Nil.h>
