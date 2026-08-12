@@ -233,6 +233,60 @@ static void bind_compiler_parameter_shadows(LT_Environment* environment,
     }
 }
 
+static void bind_compiler_let_binding_shadows(LT_Environment* environment,
+                                              LT_Value bindings){
+    LT_Value cursor = bindings;
+
+    while (LT_Pair_p(cursor)){
+        LT_Value binding = LT_car(cursor);
+        if (LT_Pair_p(binding)){
+            bind_compiler_parameter_shadow(environment, LT_car(binding));
+        }
+        cursor = LT_cdr(cursor);
+    }
+}
+
+static LT_Value fold_let_binding_list(LT_Value bindings,
+                                      LT_Environment* environment){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value cursor = bindings;
+
+    while (LT_Pair_p(cursor)){
+        LT_Value binding = LT_car(cursor);
+
+        if (LT_Pair_p(binding) && LT_Pair_p(LT_cdr(binding))){
+            LT_Value symbol = LT_car(binding);
+            LT_Value value_expression = LT_car(LT_cdr(binding));
+            LT_Value rest = LT_cdr(LT_cdr(binding));
+            LT_Value folded_value = LT_compiler_fold_expression(
+                value_expression,
+                environment
+            );
+
+            LT_ListBuilder_append(
+                builder,
+                LT_cons(
+                    symbol,
+                    LT_cons(
+                        folded_value,
+                        fold_argument_list(rest, environment)
+                    )
+                )
+            );
+        } else {
+            LT_ListBuilder_append(builder, binding);
+        }
+
+        cursor = LT_cdr(cursor);
+    }
+
+    if (cursor == LT_NIL){
+        return LT_ListBuilder_value(builder);
+    }
+
+    return LT_ListBuilder_valueWithRest(builder, cursor);
+}
+
 static LT_FoldQuasiquoteResult fold_quasiquote_template(
     LT_Value expression,
     LT_Environment* environment,
@@ -458,6 +512,72 @@ static LT_Value expand_special_form_set_bang(LT_Value form,
     return LT_cons(
         LT_SpecialForm_from_static(special_form),
         LT_cons(symbol, value_and_rest)
+    );
+}
+
+static LT_Value expand_special_form_let(LT_Value form,
+                                        LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+    LT_Value arguments = LT_cdr(form);
+    LT_Value bindings = LT_NIL;
+    LT_Value folded_bindings = LT_NIL;
+    LT_Value body = LT_NIL;
+    LT_Environment* body_environment;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+
+    if (LT_Pair_p(arguments)){
+        bindings = LT_car(arguments);
+        folded_bindings = fold_let_binding_list(bindings, environment);
+
+        body_environment = LT_Environment_new(environment, LT_NIL, LT_NIL);
+        bind_compiler_let_binding_shadows(body_environment, bindings);
+        body = fold_argument_list(LT_cdr(arguments), body_environment);
+    }
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        LT_cons(folded_bindings, body)
+    );
+}
+
+static LT_Value expand_special_form_letrec(LT_Value form,
+                                           LT_Environment* environment){
+    LT_Value special_form_value = fold_operator_special_form_value(
+        form,
+        environment
+    );
+    LT_SpecialForm* special_form;
+    LT_Value arguments = LT_cdr(form);
+    LT_Value bindings = LT_NIL;
+    LT_Value folded_bindings = LT_NIL;
+    LT_Value body = LT_NIL;
+    LT_Environment* body_environment;
+
+    if (special_form_value == LT_INVALID){
+        return LT_INVALID;
+    }
+    special_form = LT_SpecialForm_from_value(special_form_value);
+
+    if (LT_Pair_p(arguments)){
+        bindings = LT_car(arguments);
+        body_environment = LT_Environment_new(environment, LT_NIL, LT_NIL);
+        bind_compiler_let_binding_shadows(body_environment, bindings);
+
+        folded_bindings = fold_let_binding_list(bindings, body_environment);
+        body = fold_argument_list(LT_cdr(arguments), body_environment);
+    }
+
+    return LT_cons(
+        LT_SpecialForm_from_static(special_form),
+        LT_cons(folded_bindings, body)
     );
 }
 
@@ -1265,7 +1385,7 @@ static LT_SpecialForm begin_special_form = {
 
 static LT_SpecialForm let_special_form = {
     .function = special_form_let,
-    .expand_function = expand_special_form_default,
+    .expand_function = expand_special_form_let,
     .name = "%let",
     .arguments = "((:rest (symbol value-expression)) :rest body)",
     .description = "Evaluate body in lexical scope with local bindings."
@@ -1273,7 +1393,7 @@ static LT_SpecialForm let_special_form = {
 
 static LT_SpecialForm letrec_special_form = {
     .function = special_form_letrec,
-    .expand_function = expand_special_form_default,
+    .expand_function = expand_special_form_letrec,
     .name = "letrec",
     .arguments = "((:rest (symbol value-expression)) :rest body)",
     .description = "Evaluate body in lexical scope with mutually recursive bindings."

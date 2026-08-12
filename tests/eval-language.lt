@@ -69,6 +69,14 @@
        "let evaluates binding expressions in outer environment")
 (check (= (let ((x 99)) x) 99) "let local binding shadows outer")
 (check (= outer-x 10) "let local binding does not leak to outer environment")
+(define-constant let-shadowed-constant 17)
+(check (= (let ((let-shadowed-constant 23)) let-shadowed-constant) 23)
+       "let local binding shadows constant in body")
+(check (= (let ((let-shadowed-constant 23)
+                (x let-shadowed-constant))
+            x)
+          17)
+       "let binding expressions see outer constant before local shadow")
 (check (= (let loop ((n 5) (acc 1))
             (if (= n 0)
                 acc
@@ -104,6 +112,11 @@
                 0))
           1)
        "letrec supports mutually recursive bindings")
+(define-constant letrec-shadowed-constant 31)
+(check (= (letrec ((letrec-shadowed-constant 37))
+            letrec-shadowed-constant)
+          37)
+       "letrec local binding shadows constant in body")
 )
 
 (define-test "define"
