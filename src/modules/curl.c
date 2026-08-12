@@ -11,6 +11,7 @@
 #include <ListTalk/classes/String.h>
 
 #include <curl/curl.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -19,8 +20,11 @@ LT_DECLARE_CLASS(LT_CURLResponse);
 
 struct LT_CURL_s {
     LT_Object base;
-    CURL* handle;
     LT_String* url;
+    LT_String* username;
+    LT_String* password;
+    LT_String* method;
+    LT_Dictionary* headers;
     int follow_redirects;
 };
 
@@ -36,9 +40,32 @@ struct CURLTransfer {
     LT_ImmutableDictionary* headers;
 };
 
+static LT_String* header_name(LT_String* name){
+    const char* input = LT_String_value_cstr(name);
+    size_t length = LT_String_byte_length(name);
+    char* normalized = GC_MALLOC_ATOMIC(length == 0 ? 1 : length);
+    size_t i;
+
+    for (i = 0; i < length; i++){
+        normalized[i] = (char)tolower((unsigned char)input[i]);
+    }
+    return LT_String_new(normalized, length);
+}
+
 static void curl_check(CURLcode result, const char* operation){
     if (result != CURLE_OK){
         LT_error(LT_sprintf("curl %s failed: %s", operation, curl_easy_strerror(result)));
+    }
+}
+
+static void curl_configure(CURLcode result,
+                           CURL* handle,
+                           struct curl_slist* headers,
+                           const char* operation){
+    if (result != CURLE_OK){
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(handle);
+        curl_check(result, operation);
     }
 }
 
@@ -82,33 +109,94 @@ static size_t response_header_callback(char* data, size_t size, size_t count, vo
     }
     LT_Dictionary_atPut(
         (LT_Dictionary*)transfer->headers,
-        (LT_Value)(uintptr_t)LT_String_new(data, (size_t)(colon - data)),
+        (LT_Value)(uintptr_t)header_name(
+            LT_String_new(data, (size_t)(colon - data))
+        ),
         (LT_Value)(uintptr_t)LT_String_new(value, (size_t)(end - value))
     );
     return length;
 }
 
-static void curl_finalizer(void* object, void* data){
-    LT_CURL* request = object;
-
-    (void)data;
-    if (request->handle != NULL){
-        curl_easy_cleanup(request->handle);
-        request->handle = NULL;
-    }
-}
-
 static LT_CURL* curl_new(LT_String* url){
     LT_CURL* request = LT_Class_ALLOC(LT_CURL);
 
-    request->handle = curl_easy_init();
-    if (request->handle == NULL){
-        LT_error("Could not create CURL handle");
-    }
     request->url = url;
+    request->username = NULL;
+    request->password = NULL;
+    request->method = NULL;
+    request->headers = LT_Dictionary_new();
     request->follow_redirects = 1;
-    GC_register_finalizer(request, curl_finalizer, NULL, NULL, NULL);
     return request;
+}
+
+LT_DEFINE_PRIMITIVE(
+    curl_method_headers_at_put,
+    "CURL>>headersAt:put:",
+    "(self name value)",
+    "Set a request header. Header names are case-insensitive."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_CURL* request;
+    LT_String* name;
+    LT_String* value;
+
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, self);
+    request = LT_CURL_from_value(self);
+    LT_GENERIC_ARG(cursor, name, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, value, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    LT_Dictionary_atPut(
+        request->headers,
+        (LT_Value)(uintptr_t)header_name(name),
+        (LT_Value)(uintptr_t)value
+    );
+    return self;
+}
+
+#define CURL_STRING_SETTER(c_name, selector, field, description)            \
+    LT_DEFINE_PRIMITIVE(c_name, "CURL>>" selector, "(self value)", description){ \
+        LT_Value cursor = arguments;                                        \
+        LT_Value self;                                                      \
+        LT_CURL* request;                                                   \
+        LT_String* value;                                                   \
+        (void)tail_call_unwind_marker;                                      \
+        LT_OBJECT_ARG(cursor, self);                                        \
+        request = LT_CURL_from_value(self);                                 \
+        LT_GENERIC_ARG(cursor, value, LT_String*, LT_String_from_value);     \
+        LT_ARG_END(cursor);                                                 \
+        request->field = value;                                             \
+        return self;                                                        \
+    }
+
+CURL_STRING_SETTER(curl_method_username, "username:", username,
+                   "Set the username used for authentication.")
+CURL_STRING_SETTER(curl_method_password, "password:", password,
+                   "Set the password used for authentication.")
+CURL_STRING_SETTER(curl_method_method, "method:", method,
+                   "Set the request method.")
+
+static struct curl_slist* curl_request_headers(LT_CURL* request){
+    LT_Value entries = LT_Dictionary_asAList(request->headers);
+    struct curl_slist* headers = NULL;
+
+    while (entries != LT_NIL){
+        LT_Value entry = LT_car(entries);
+        LT_String* name = LT_String_from_value(LT_car(entry));
+        LT_String* value = LT_String_from_value(LT_cdr(entry));
+        char* line = LT_sprintf("%s: %s", LT_String_value_cstr(name),
+                                LT_String_value_cstr(value));
+        struct curl_slist* appended = curl_slist_append(headers, line);
+
+        if (appended == NULL){
+            curl_slist_free_all(headers);
+            LT_error("Could not allocate CURL request headers");
+        }
+        headers = appended;
+        entries = LT_cdr(entries);
+    }
+    return headers;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -165,6 +253,9 @@ LT_DEFINE_PRIMITIVE(
     LT_CURL* request;
     LT_CURLResponse* response;
     struct CURLTransfer transfer;
+    struct curl_slist* request_headers;
+    CURL* handle;
+    CURLcode result;
     long status;
 
     (void)tail_call_unwind_marker;
@@ -174,22 +265,54 @@ LT_DEFINE_PRIMITIVE(
 
     transfer.content = LT_StringBuilder_new();
     transfer.headers = LT_ImmutableDictionary_new();
-    curl_easy_reset(request->handle);
-    curl_check(curl_easy_setopt(request->handle, CURLOPT_URL,
-                               LT_String_value_cstr(request->url)), "setting URL");
-    curl_check(curl_easy_setopt(request->handle, CURLOPT_FOLLOWLOCATION,
-                               request->follow_redirects ? 1L : 0L), "setting redirects");
-    curl_check(curl_easy_setopt(request->handle, CURLOPT_WRITEFUNCTION,
-                               response_body_callback), "setting body callback");
-    curl_check(curl_easy_setopt(request->handle, CURLOPT_WRITEDATA,
-                               &transfer), "setting body callback data");
-    curl_check(curl_easy_setopt(request->handle, CURLOPT_HEADERFUNCTION,
-                               response_header_callback), "setting header callback");
-    curl_check(curl_easy_setopt(request->handle, CURLOPT_HEADERDATA,
-                               &transfer), "setting header callback data");
-    curl_check(curl_easy_perform(request->handle), "request");
-    curl_check(curl_easy_getinfo(request->handle, CURLINFO_RESPONSE_CODE, &status),
-               "reading response status");
+    request_headers = curl_request_headers(request);
+    handle = curl_easy_init();
+    if (handle == NULL){
+        curl_slist_free_all(request_headers);
+        LT_error("Could not create CURL handle");
+    }
+    curl_configure(curl_easy_setopt(handle, CURLOPT_URL,
+                                    LT_String_value_cstr(request->url)),
+                   handle, request_headers, "setting URL");
+    curl_configure(curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION,
+                                    request->follow_redirects ? 1L : 0L),
+                   handle, request_headers, "setting redirects");
+    if (request->username != NULL){
+        curl_configure(curl_easy_setopt(handle, CURLOPT_USERNAME,
+                                        LT_String_value_cstr(request->username)),
+                       handle, request_headers, "setting username");
+    }
+    if (request->password != NULL){
+        curl_configure(curl_easy_setopt(handle, CURLOPT_PASSWORD,
+                                        LT_String_value_cstr(request->password)),
+                       handle, request_headers, "setting password");
+    }
+    if (request->method != NULL){
+        curl_configure(curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST,
+                                        LT_String_value_cstr(request->method)),
+                       handle, request_headers, "setting method");
+    }
+    curl_configure(curl_easy_setopt(handle, CURLOPT_HTTPHEADER, request_headers),
+                   handle, request_headers, "setting request headers");
+    curl_configure(curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION,
+                                    response_body_callback),
+                   handle, request_headers, "setting body callback");
+    curl_configure(curl_easy_setopt(handle, CURLOPT_WRITEDATA, &transfer),
+                   handle, request_headers, "setting body callback data");
+    curl_configure(curl_easy_setopt(handle, CURLOPT_HEADERFUNCTION,
+                                    response_header_callback),
+                   handle, request_headers, "setting header callback");
+    curl_configure(curl_easy_setopt(handle, CURLOPT_HEADERDATA, &transfer),
+                   handle, request_headers, "setting header callback data");
+    result = curl_easy_perform(handle);
+    curl_slist_free_all(request_headers);
+    if (result != CURLE_OK){
+        curl_easy_cleanup(handle);
+        curl_check(result, "request");
+    }
+    result = curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &status);
+    curl_easy_cleanup(handle);
+    curl_check(result, "reading response status");
 
     response = LT_Class_ALLOC(LT_CURLResponse);
     response->content = LT_ByteVector_new(
@@ -221,8 +344,36 @@ RESPONSE_ACCESSOR(response_method_status, "status", status,
 RESPONSE_ACCESSOR(response_method_headers, "headers", headers,
                   "Return the response headers as a dictionary.")
 
+LT_DEFINE_PRIMITIVE(
+    response_method_header_at,
+    "Response>>headerAt:",
+    "(self name)",
+    "Return a response header value, or nil when it is absent."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_CURLResponse* response;
+    LT_String* name;
+    LT_Value value;
+
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, self);
+    response = LT_CURLResponse_from_value(self);
+    LT_GENERIC_ARG(cursor, name, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    if (!LT_Dictionary_at((LT_Dictionary*)response->headers,
+                          (LT_Value)(uintptr_t)header_name(name), &value)){
+        return LT_NIL;
+    }
+    return value;
+}
+
 static LT_Method_Descriptor CURL_methods[] = {
     {"followRedirects:", &curl_method_follow_redirects},
+    {"headersAt:put:", &curl_method_headers_at_put},
+    {"username:", &curl_method_username},
+    {"password:", &curl_method_password},
+    {"method:", &curl_method_method},
     {"perform!", &curl_method_perform},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
@@ -236,6 +387,7 @@ static LT_Method_Descriptor Response_methods[] = {
     {"content", &response_method_content},
     {"status", &response_method_status},
     {"headers", &response_method_headers},
+    {"headerAt:", &response_method_header_at},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
