@@ -19,6 +19,7 @@ LT_DECLARE_CLASS(LT_Package);
 LT_Package* LT_Package_new(char* name);
 LT_Package* LT_Package_find(char* name);
 char* LT_Package_name(LT_Package* package);
+LT_Package* LT_Package_for_designator(LT_Value designator, bool create_missing);
 LT_Value LT_Package_used_packages(LT_Package* package);
 void LT_Package_symbols_do(LT_Package* package, LT_Value callable);
 LT_Value LT_Package_symbols_asList(LT_Package* package);

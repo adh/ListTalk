@@ -880,6 +880,22 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_package,
+    "package",
+    "(package-designator)",
+    "Return package object for designator."
+){
+    LT_Value cursor = arguments;
+    LT_Value package_designator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, package_designator);
+    LT_ARG_END(cursor);
+
+    return (LT_Value)(uintptr_t)LT_Package_for_designator(package_designator, 0);
+}    
+
+LT_DEFINE_PRIMITIVE(
     primitive_define_package,
     "define-package",
     "(package-designator :rest (:either used-package (used-package nickname)))",
@@ -1087,6 +1103,7 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_eval);
     LT_base_env_bind_static_primitive(environment, &primitive_apply);
     LT_base_env_bind_static_primitive(environment, &primitive_fold_expression);
+    LT_base_env_bind_static_primitive(environment, &primitive_package);
     LT_base_env_bind_static_primitive(environment, &primitive_define_package);
     LT_base_env_bind_static_primitive(environment, &primitive_in_package);
     LT_base_env_bind_static_primitive(environment, &primitive_use_package);

@@ -191,6 +191,20 @@ LT_DEFINE_PRIMITIVE(
     );
 }
 
+LT_Package* LT_Package_for_designator(LT_Value designator, bool create_missing){
+    if (LT_Package_p(designator)){
+        return LT_Package_from_value(designator);
+    }
+
+    char* name = package_name_designator(designator);
+    LT_Package* package = LT_Package_find(name);
+
+    if (package == NULL && create_missing){
+        package = LT_Package_new(name);
+    }
+    return package;
+}
+
 void LT_Package_symbols_do(LT_Package* package, LT_Value callable){
     LT_Value symbols = LT_Package_symbols_asList(package);
 
