@@ -189,6 +189,12 @@ LT_DEFINE_PRIMITIVE(
     LT_GENERIC_ARG(cursor, name, LT_String*, LT_String_from_value);
     LT_GENERIC_ARG(cursor, value, LT_String*, LT_String_from_value);
     LT_ARG_END(cursor);
+
+    if (strpbrk(LT_String_value_cstr(name), ":\r\n") != NULL
+        || strpbrk(LT_String_value_cstr(value), "\r\n") != NULL){
+        LT_error("Invalid header name/value (must not contain ':' or newlines)");
+    }
+
     LT_Dictionary_atPut(
         request->headers,
         (LT_Value)(uintptr_t)header_name(name),
