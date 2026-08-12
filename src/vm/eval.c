@@ -791,7 +791,7 @@ static LT_Value apply_form(LT_Value expression,
     }
 
     if (LT_SpecialForm_p(evaluated_operator)){
-        return LT_SpecialForm_apply(
+        return LT_SpecialForm_apply( /* inline this? */
             evaluated_operator,
             argument_expressions,
             environment,

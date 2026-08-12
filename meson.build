@@ -1,6 +1,10 @@
 project('ListTalk', 'c',
         version : '0.1.0',
-        default_options : ['c_std=c11'])
+        default_options : [
+                'c_std=c11',
+                'buildtype=debugoptimized',
+                'warning_level=2',
+        ])
 
 fs = import('fs')
 pkg = import('pkgconfig')
