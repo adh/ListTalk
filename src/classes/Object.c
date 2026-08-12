@@ -143,6 +143,37 @@ LT_DEFINE_PRIMITIVE(
     LT_error("Message not understood");
 }
 
+LT_DEFINE_PRIMITIVE(
+    object_method_perform,
+    "Object>>perform:",
+    "(self selector)",
+    "Send message to receiver"
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value selector;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, selector);
+    LT_ARG_END(cursor);
+
+    if (LT_Message_p(selector)){
+        return LT_Message_send(
+            LT_Message_from_value(selector),
+            self,
+            tail_call_unwind_marker
+        );
+    }
+
+    return LT_send(
+        self,
+        selector,
+        LT_NIL,
+        tail_call_unwind_marker
+    );
+}
+
 static LT_Method_Descriptor Object_methods[] = {
     {"class", &object_method_class},
     {"slot:", &object_method_slot},
@@ -152,6 +183,7 @@ static LT_Method_Descriptor Object_methods[] = {
     {"=",  &object_method_equal},
     {"subclassResponsibility", &object_method_subclass_responsibility},
     {"doesNotUnderstand:", &object_method_does_not_understand},
+    {"perform:", &object_method_perform},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

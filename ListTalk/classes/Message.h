@@ -10,6 +10,7 @@
 
 #include <ListTalk/vm/value.h>
 #include <ListTalk/macros/decl_macros.h>
+#include <ListTalk/ListTalk.h>
 
 LT__BEGIN_DECLS
 
@@ -23,6 +24,12 @@ LT_Value LT_Message_new(
 LT_Value LT_Message_selector(LT_Message* message);
 LT_Value LT_Message_receiver(LT_Message* message);
 LT_Value LT_Message_arguments(LT_Message* message);
+
+LT_Value LT_Message_send(
+    LT_Message* message, 
+    LT_Value receiver,  
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+);
 
 LT__END_DECLS
 

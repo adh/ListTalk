@@ -83,10 +83,32 @@ LT_DEFINE_PRIMITIVE(
     return LT_Message_arguments(LT_Message_from_value(self));
 }
 
+LT_DEFINE_PRIMITIVE(
+    message_method_send_to,
+    "Message>>sendTo:",
+    "(self receiver)",
+    "Send message to receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value receiver;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, receiver);
+    LT_ARG_END(cursor);
+    return LT_Message_send(
+        LT_Message_from_value(self),
+        receiver,
+        tail_call_unwind_marker
+    );
+}
+
 static LT_Method_Descriptor Message_methods[] = {
     {"selector", &message_method_selector},
     {"receiver", &message_method_receiver},
     {"arguments", &message_method_arguments},
+    {"sendTo:", &message_method_send_to},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -123,4 +145,17 @@ LT_Value LT_Message_receiver(LT_Message* message){
 
 LT_Value LT_Message_arguments(LT_Message* message){
     return message->arguments;
+}
+
+LT_Value LT_Message_send(
+    LT_Message* message, 
+    LT_Value receiver, 
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    return LT_send(
+        receiver,
+        message->selector,
+        message->arguments,
+        tail_call_unwind_marker
+    );
 }
