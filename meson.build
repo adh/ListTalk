@@ -43,6 +43,8 @@ crypto_sodium_opt = get_option('crypto-sodium')
 libsodium_dep = dependency('libsodium', required : crypto_sodium_opt)
 xml_opt = get_option('xml')
 expat_dep = dependency('expat', required : xml_opt)
+curl_opt = get_option('curl')
+curl_dep = dependency('libcurl', required : curl_opt)
 
 if libedit_dep.found()
     if cc.has_header('editline/readline.h', dependencies : libedit_dep)
@@ -328,6 +330,23 @@ if expat_dep.found()
     )
 endif
 
+if curl_dep.found()
+    configure_file(
+            input : 'tests/fixtures/curl-response.txt',
+            output : 'curl-response.txt',
+            copy : true)
+    curl_module = shared_module(
+            'curl',
+            'src/modules/curl.c',
+            name_prefix : '',
+            name_suffix : 'ltm',
+            link_with : [vm_lib],
+            dependencies : [curl_dep, listtalk_deps],
+            install : true,
+            install_dir : listtalk_native_module_dir
+    )
+endif
+
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
@@ -509,6 +528,19 @@ if expat_dep.found()
                     meson.current_source_dir() / 'tests' / 'eval-sxml.lt'
             ],
             depends : [xml_module]
+    )
+endif
+
+
+if curl_dep.found()
+    test(
+            'eval_curl',
+            listtalk_exe,
+            args : [
+                    '-L', meson.current_build_dir(),
+                    meson.current_source_dir() / 'tests' / 'eval-curl.lt'
+            ],
+            depends : [curl_module, os_module]
     )
 endif
 

@@ -21,3 +21,9 @@ option(
         type : 'feature',
         value : 'auto',
         description : 'Build the optional xml.ltm module (requires Expat)')
+
+option(
+        'curl',
+        type : 'feature',
+        value : 'auto',
+        description : 'Build the optional curl.ltm module (requires libcurl)')
