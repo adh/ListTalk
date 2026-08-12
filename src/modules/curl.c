@@ -25,6 +25,8 @@ struct LT_CURL_s {
     LT_String* password;
     LT_String* method;
     LT_Dictionary* headers;
+    LT_Value post_data;
+    LT_Value upload_data;
     int follow_redirects;
 };
 
@@ -38,7 +40,27 @@ struct LT_CURLResponse_s {
 struct CURLTransfer {
     LT_StringBuilder* content;
     LT_ImmutableDictionary* headers;
+    const uint8_t* upload_data;
+    size_t upload_length;
+    size_t upload_offset;
 };
+
+static const uint8_t* curl_data_bytes(LT_Value value, size_t* length_out){
+    if (LT_ByteVector_p(value)){
+        LT_ByteVector* bytes = LT_ByteVector_from_value(value);
+
+        *length_out = LT_ByteVector_length(bytes);
+        return LT_ByteVector_bytes(bytes);
+    }
+    if (LT_String_p(value)){
+        LT_String* string = LT_String_from_value(value);
+
+        *length_out = LT_String_byte_length(string);
+        return (const uint8_t*)LT_String_value_cstr(string);
+    }
+    LT_error("CURL data must be a ByteVector or String");
+    return NULL;
+}
 
 static LT_String* header_name(LT_String* name){
     const char* input = LT_String_value_cstr(name);
@@ -117,6 +139,24 @@ static size_t response_header_callback(char* data, size_t size, size_t count, vo
     return length;
 }
 
+static size_t request_body_callback(char* data, size_t size, size_t count, void* user_data){
+    struct CURLTransfer* transfer = user_data;
+    size_t capacity = size * count;
+    size_t remaining;
+    size_t length;
+
+    if (size != 0 && capacity / size != count){
+        return CURL_READFUNC_ABORT;
+    }
+    remaining = transfer->upload_length - transfer->upload_offset;
+    length = remaining < capacity ? remaining : capacity;
+    if (length > 0){
+        memcpy(data, transfer->upload_data + transfer->upload_offset, length);
+        transfer->upload_offset += length;
+    }
+    return length;
+}
+
 static LT_CURL* curl_new(LT_String* url){
     LT_CURL* request = LT_Class_ALLOC(LT_CURL);
 
@@ -125,6 +165,8 @@ static LT_CURL* curl_new(LT_String* url){
     request->password = NULL;
     request->method = NULL;
     request->headers = LT_Dictionary_new();
+    request->post_data = LT_NIL;
+    request->upload_data = LT_NIL;
     request->follow_redirects = 1;
     return request;
 }
@@ -176,6 +218,52 @@ CURL_STRING_SETTER(curl_method_password, "password:", password,
                    "Set the password used for authentication.")
 CURL_STRING_SETTER(curl_method_method, "method:", method,
                    "Set the request method.")
+
+LT_DEFINE_PRIMITIVE(
+    curl_method_post_data,
+    "CURL>>postData:",
+    "(self data)",
+    "Set String or ByteVector data to send in a POST request."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value data;
+    LT_CURL* request;
+    size_t ignored;
+
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, self);
+    request = LT_CURL_from_value(self);
+    LT_OBJECT_ARG(cursor, data);
+    LT_ARG_END(cursor);
+    (void)curl_data_bytes(data, &ignored);
+    request->post_data = data;
+    request->upload_data = LT_NIL;
+    return self;
+}
+
+LT_DEFINE_PRIMITIVE(
+    curl_method_upload_data,
+    "CURL>>uploadData:",
+    "(self data)",
+    "Set String or ByteVector data to upload."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value data;
+    LT_CURL* request;
+    size_t ignored;
+
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, self);
+    request = LT_CURL_from_value(self);
+    LT_OBJECT_ARG(cursor, data);
+    LT_ARG_END(cursor);
+    (void)curl_data_bytes(data, &ignored);
+    request->upload_data = data;
+    request->post_data = LT_NIL;
+    return self;
+}
 
 static struct curl_slist* curl_request_headers(LT_CURL* request){
     LT_Value entries = LT_Dictionary_asAList(request->headers);
@@ -265,6 +353,9 @@ LT_DEFINE_PRIMITIVE(
 
     transfer.content = LT_StringBuilder_new();
     transfer.headers = LT_ImmutableDictionary_new();
+    transfer.upload_data = NULL;
+    transfer.upload_length = 0;
+    transfer.upload_offset = 0;
     request_headers = curl_request_headers(request);
     handle = curl_easy_init();
     if (handle == NULL){
@@ -291,6 +382,31 @@ LT_DEFINE_PRIMITIVE(
         curl_configure(curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST,
                                         LT_String_value_cstr(request->method)),
                        handle, request_headers, "setting method");
+    }
+    if (request->post_data != LT_NIL){
+        size_t length;
+        const uint8_t* data = curl_data_bytes(request->post_data, &length);
+
+        curl_configure(curl_easy_setopt(handle, CURLOPT_POST, 1L),
+                       handle, request_headers, "enabling POST");
+        curl_configure(curl_easy_setopt(handle, CURLOPT_POSTFIELDS, data),
+                       handle, request_headers, "setting POST data");
+        curl_configure(curl_easy_setopt(handle, CURLOPT_POSTFIELDSIZE_LARGE,
+                                        (curl_off_t)length),
+                       handle, request_headers, "setting POST data length");
+    } else if (request->upload_data != LT_NIL){
+        transfer.upload_data = curl_data_bytes(request->upload_data,
+                                               &transfer.upload_length);
+        curl_configure(curl_easy_setopt(handle, CURLOPT_UPLOAD, 1L),
+                       handle, request_headers, "enabling upload");
+        curl_configure(curl_easy_setopt(handle, CURLOPT_READFUNCTION,
+                                        request_body_callback),
+                       handle, request_headers, "setting upload callback");
+        curl_configure(curl_easy_setopt(handle, CURLOPT_READDATA, &transfer),
+                       handle, request_headers, "setting upload callback data");
+        curl_configure(curl_easy_setopt(handle, CURLOPT_INFILESIZE_LARGE,
+                                        (curl_off_t)transfer.upload_length),
+                       handle, request_headers, "setting upload data length");
     }
     curl_configure(curl_easy_setopt(handle, CURLOPT_HTTPHEADER, request_headers),
                    handle, request_headers, "setting request headers");
@@ -374,6 +490,8 @@ static LT_Method_Descriptor CURL_methods[] = {
     {"username:", &curl_method_username},
     {"password:", &curl_method_password},
     {"method:", &curl_method_method},
+    {"postData:", &curl_method_post_data},
+    {"uploadData:", &curl_method_upload_data},
     {"perform!", &curl_method_perform},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
