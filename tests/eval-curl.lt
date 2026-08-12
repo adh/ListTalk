@@ -1,0 +1,26 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :curl)
+(require :os)
+
+(define (check condition description)
+  (if condition
+      #true
+      (error (string-append "FAIL: " description))))
+
+(let* ((url (string-append "file://" (ListTalk:OS:getpwd) "/curl-response.txt"))
+       (request [ListTalk:curl:CURL new: url])
+       (response [request perform!]))
+  (check (eq? (type-of request) ListTalk:curl:CURL)
+         "new: returns a CURL")
+  (check (eq? (type-of response) ListTalk:curl:Response)
+         "perform! returns a Response")
+  (check (equal? [response content] ["hello curl\n" asByteVector])
+         "Response content contains transferred bytes")
+  (check (= [response status] 0)
+         "non-HTTP responses have status zero")
+  (check (eq? (type-of [response headers]) ImmutableDictionary)
+         "Response headers is a dictionary")
+  (check (eq? [request followRedirects: #false] request)
+         "followRedirects: returns the receiver"))
