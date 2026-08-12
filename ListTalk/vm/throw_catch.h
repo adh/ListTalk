@@ -17,7 +17,7 @@
 LT__BEGIN_DECLS
 
 typedef struct LT_ThrowCatchFrame_s {
-    jmp_buf jump_buffer;
+    sigjmp_buf jump_buffer;
     LT_Value tag;
     LT_Value thrown_tag;
     LT_Value thrown_value;

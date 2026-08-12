@@ -26,7 +26,7 @@
 #include <string.h>
 
 struct LT_TailCallUnwindMarker_s {
-    jmp_buf jump_buffer;
+    sigjmp_buf jump_buffer;
     LT_Value callable;
     LT_Value arguments;
     LT_Value invocation_context_kind;
