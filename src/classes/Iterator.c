@@ -73,11 +73,45 @@ LT_DEFINE_PRIMITIVE(
     return LT_ListBuilder_value(builder);
 }
 
+LT_DEFINE_PRIMITIVE(
+    iterator_method_as_iterator,
+    "Iterator>>asIterator",
+    "(self)",
+    "Return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return self;
+}
+
+LT_DEFINE_PRIMITIVE(
+    iterator_method_map,
+    "Iterator>>map:",
+    "(self callable)",
+    "Return a lazy iterator mapping callable over receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_MapIterator_new(self, callable);
+}
+
 static LT_Method_Descriptor Iterator_methods[] = {
     {"this", &iterator_method_this},
     {"hasThis?", &iterator_method_has_this},
     {"next!", &iterator_method_next},
     {"asList", &iterator_method_as_list},
+    {"asIterator", &iterator_method_as_iterator},
+    {"map:", &iterator_method_map},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

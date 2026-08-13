@@ -25,6 +25,14 @@
 (check (not (list? '(1 . 2))) "list? false for dotted pair")
 (check (equal? ['(1 2 3) map: (lambda (x) (+ x 2))] '(3 4 5))
        "List>>map: maps callable across receiver")
+(check (equal? ['(1 2 3 4) filter: (lambda (x) (> x 2))] '(3 4))
+       "List>>filter: keeps matching elements in order")
+(check (equal? ['(1 2 3) filter: (lambda (x) x)] '(1 2 3))
+       "List>>filter: uses normal truthiness")
+(check (null? ['() filter: (lambda (x) #true)])
+       "List>>filter: handles an empty list")
+(check-raises "List>>filter: rejects improper lists"
+  ['(1 . 2) filter: (lambda (x) #true)])
 (check (let ((seen '()))
          (and (null? ['(1 2 3) forEach: (lambda (x) (set! seen (cons x seen)))])
               (equal? seen '(3 2 1))))
@@ -48,6 +56,11 @@
 (check (= ['(1 2 3) reduce: +] 6) "List>>reduce: reduces receiver from the left")
 (check (= ['(1 2 3) inject: 10 into: +] 16)
        "List>>inject:into: folds receiver from the left")
+(check (equal? ['(1 2 3) asVector] #(1 2 3))
+       "List>>asVector converts elements")
+(check (= [['() asVector] length] 0)
+       "List>>asVector handles an empty list")
+(check-raises "List>>asVector rejects improper lists" ['(1 . 2) asVector])
 )
 
 (define-test "Set"
@@ -55,9 +68,13 @@
 
 (check (eq? (type-of [Set new]) Set) "Set>>new returns set")
 (let ((s [Set new]))
+  (check (= [s size] 0) "Set>>size returns zero for an empty set")
+  (check [s empty?] "Set>>empty? returns true for an empty set")
   [s put: 1]
   [s put: 2]
   [s put: 1]
+  (check (= [s size] 2) "Set>>size counts unique elements")
+  (check (not [s empty?]) "Set>>empty? returns false for a non-empty set")
   (check [s contains?: 1] "Set>>contains?: finds inserted item")
   (check (not [s contains?: 3]) "Set>>contains?: rejects absent item")
   (check [s remove: 1] "Set>>remove: reports removed item")
@@ -104,6 +121,7 @@
     [s put: a]
     [s put: b]
     [s put: a]
+    (check (= [s size] 2) "IdentitySet inherits Set>>size")
     (check (eq? (type-of s) IdentitySet) "IdentitySet>>new returns identity set")
     (check [s contains?: a] "IdentitySet>>contains?: finds identical item")
     (check [s contains?: b] "IdentitySet>>contains?: preserves distinct equal item")
@@ -287,6 +305,17 @@
                              with: (lambda (x) (+ x 10))] asList]
                '(11 12 13))
        "MapIterator maps wrapped iterator lazily")
+(let ((iterator [#(1 2 3) asIterator]))
+  (check (eq? [iterator asIterator] iterator)
+         "Iterator>>asIterator returns receiver"))
+(check (equal? [[[#(1 2 3) asIterator] map: (lambda (x) (+ x 10))] asList]
+               '(11 12 13))
+       "Iterator>>map: returns a lazy mapped iterator")
+(let ((v (vector 1))
+      (iterator #false))
+  (set! iterator [[v asIterator] map: (lambda (x) (+ x 1))])
+  [v at: 0 put: 41]
+  (check (= [iterator this] 42) "Iterator>>map: maps lazily"))
 (let ((v (vector 1)))
   (let ((iterator [MapIterator map: [v asIterator] with: (lambda (x) (+ x 1))]))
     [v at: 0 put: 41]

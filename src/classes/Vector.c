@@ -347,6 +347,21 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    vector_method_as_vector,
+    "Vector>>asVector",
+    "(self)",
+    "Return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return self;
+}
+
+LT_DEFINE_PRIMITIVE(
     vector_method_as_iterator,
     "Vector>>asIterator",
     "(self)",
@@ -383,6 +398,7 @@ static LT_Method_Descriptor Vector_methods[] = {
     {"sort", &vector_method_sort},
     {"sortUsing:", &vector_method_sort_using},
     {"asList", &vector_method_as_list},
+    {"asVector", &vector_method_as_vector},
     {"asIterator", &vector_method_as_iterator},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };

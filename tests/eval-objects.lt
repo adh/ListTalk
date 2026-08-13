@@ -922,6 +922,8 @@
 (check (eq? [#(1 2 3) at: 1] 2) "Vector>>at: dispatches correctly")
 (check (equal? ['(1 2 3) asList] '(1 2 3)) "List>>asList returns receiver")
 (check (equal? [#(1 2 3) asList] '(1 2 3)) "Vector>>asList converts elements")
+(let ((vector #(1 2 3)))
+  (check (eq? [vector asVector] vector) "Vector>>asVector returns receiver"))
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
   (check (eq? [v at: 1] 9) "Vector>>at:put: mutates element"))

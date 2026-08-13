@@ -11,6 +11,7 @@
 #include <ListTalk/classes/Pair.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/Symbol.h>
+#include <ListTalk/classes/Vector.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
@@ -229,6 +230,30 @@ LT_Value LT_List_map_many(LT_Value callable,
 
 LT_Value LT_List_map(LT_Value callable, LT_Value list){
     return LT_List_map_many(callable, 1, &list);
+}
+
+LT_Value LT_List_filter(LT_Value callable, LT_Value list){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+
+    while (LT_Pair_p(list)){
+        LT_Value value = LT_car(list);
+        LT_Value result = LT_apply(
+            callable,
+            LT_cons(value, LT_NIL),
+            LT_NIL,
+            LT_NIL,
+            NULL
+        );
+
+        if (LT_Value_truthy_p(result)){
+            LT_ListBuilder_append(builder, value);
+        }
+        list = LT_cdr(list);
+    }
+    if (list != LT_NIL){
+        LT_error("filter expects proper list");
+    }
+    return LT_ListBuilder_value(builder);
 }
 
 static LT_Value* list_cursors_new(size_t list_count, const LT_Value* lists){
@@ -721,6 +746,23 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    list_method_filter,
+    "List>>filter:",
+    "(self callable)",
+    "Return elements for which callable returns truthy."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return LT_List_filter(callable, self);
+}
+
+LT_DEFINE_PRIMITIVE(
     list_method_any,
     "List>>any:",
     "(self callable)",
@@ -852,10 +894,36 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)LT_ListIterator_new(self);
 }
 
+LT_DEFINE_PRIMITIVE(
+    list_method_as_vector,
+    "List>>asVector",
+    "(self)",
+    "Return list elements as a vector."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Vector* vector;
+    size_t length;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+
+    length = list_length(self);
+    vector = LT_Vector_new(length);
+    for (i = 0; i < length; i++){
+        LT_Vector_atPut(vector, i, LT_car(self));
+        self = LT_cdr(self);
+    }
+    return (LT_Value)(uintptr_t)vector;
+}
+
 static LT_Method_Descriptor List_methods[] = {
     {"length", &list_method_length},
     {"at:", &list_method_at},
     {"map:", &list_method_map},
+    {"filter:", &list_method_filter},
     {"forEach:", &list_method_for_each},
     {"any:", &list_method_any},
     {"every:", &list_method_every},
@@ -864,6 +932,7 @@ static LT_Method_Descriptor List_methods[] = {
     {"sort", &list_method_sort},
     {"sortUsing:", &list_method_sort_using},
     {"asList", &list_method_as_list},
+    {"asVector", &list_method_as_vector},
     {"asIterator", &list_method_as_iterator},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
