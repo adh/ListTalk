@@ -135,6 +135,7 @@ ListTalk also supports bracket syntax for message sends:
 ```scheme
 [object selector]
 [object selector: argument anotherSelector: value]
+[Class new : initialize]
 ```
 
 These forms expand to `send` calls:
@@ -142,7 +143,12 @@ These forms expand to `send` calls:
 ```scheme
 (send object :selector)
 (send object :selector:anotherSelector: argument value)
+(send (send Class :new) :initialize)
 ```
+
+Within a bracket send, `:` switches the receiver to the result of the send so
+far. It can be a whitespace-delimited token (`: initialize`) or the first
+character of the next selector component (`:initialize`).
 
 Slot shorthand is available in method bodies. A token beginning with `.` reads
 or writes a slot on `ListTalk:self`:
