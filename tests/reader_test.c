@@ -1690,6 +1690,60 @@ static int test_bracket_keyword_send_syntax(void){
     return expect(LT_cdr(args) == LT_NIL, "keyword argument list end");
 }
 
+static int test_bracket_receiver_switch_syntax(void){
+    static const struct {
+        const char* source;
+        const char* expected;
+        const char* message;
+    } cases[] = {
+        {
+            "[Foo new : bar]",
+            "(send (send Foo :new) :bar)",
+            "whitespace-delimited colon switches to the previous result"
+        },
+        {
+            "[Foo new :bar]",
+            "(send (send Foo :new) :bar)",
+            "selector-leading colon switches to the previous result"
+        },
+        {
+            "[Foo at: 1 :yourself]",
+            "(send (send Foo :at: 1) :yourself)",
+            "receiver switch follows a keyword send"
+        },
+        {
+            "[Foo new :at: 1]",
+            "(send (send Foo :new) :at: 1)",
+            "selector-leading colon switches to a keyword send"
+        },
+        {
+            "[Foo new : + 1 :print]",
+            "(send (send (send Foo :new) :+ 1) :print)",
+            "receiver switches can chain binary and unary sends"
+        },
+        {
+            "[Foo at: :ready :yourself]",
+            "(send (send Foo :at: :ready) :yourself)",
+            "colon-prefixed keyword argument remains an argument"
+        }
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(cases) / sizeof(cases[0]); i++){
+        char* printed = debug_string_for_value(read_one(cases[i].source));
+
+        if (printed == NULL){
+            return 1;
+        }
+        if (expect(strcmp(printed, cases[i].expected) == 0, cases[i].message)){
+            free(printed);
+            return 1;
+        }
+        free(printed);
+    }
+    return 0;
+}
+
 static int test_bracket_binary_send_syntax(void){
     LT_Value value = read_one("[obj + other]");
     LT_Value tail;
@@ -2328,6 +2382,7 @@ int main(void){
     failures += test_keyword_prefix_symbol();
     failures += test_bracket_unary_send_syntax();
     failures += test_bracket_keyword_send_syntax();
+    failures += test_bracket_receiver_switch_syntax();
     failures += test_bracket_binary_send_syntax();
     failures += test_bracket_binary_send_multi_char_selector();
     failures += test_bracket_binary_send_too_many_args_signals_error();

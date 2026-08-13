@@ -1853,12 +1853,80 @@ static int token_is_binary_selector(const char* token){
     return 1;
 }
 
+static LT_Value make_bracket_send(
+    LT_Reader* reader,
+    LT_Value source_location,
+    LT_Value receiver,
+    const char* selector,
+    LT_ListBuilder* arguments
+){
+    size_t argument_count = arguments == NULL
+        ? 0
+        : LT_ListBuilder_length(arguments);
+    LT_Value* values = GC_MALLOC(sizeof(LT_Value) * (argument_count + 3));
+    LT_Value cursor = arguments == NULL ? LT_NIL : LT_ListBuilder_value(arguments);
+    size_t i = 0;
+
+    values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send");
+    values[1] = receiver;
+    values[2] = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, (char*)selector);
+    while (cursor != LT_NIL){
+        values[i + 3] = LT_car(cursor);
+        i++;
+        cursor = LT_cdr(cursor);
+    }
+    return reader_immutable_list(
+        reader,
+        source_location,
+        argument_count + 3,
+        values,
+        LT_NIL
+    );
+}
+
+static char* read_bracket_receiver_switch(
+    LT_Reader* reader,
+    LT_ReaderStream* stream,
+    int first,
+    int* next
+){
+    char* token;
+    int ch;
+
+    if (is_delimiter(first)){
+        return NULL;
+    }
+    token = read_token_string(reader, first, stream);
+    if (token[0] != ':'){
+        return NULL;
+    }
+
+    if (token[1] != '\0'){
+        *next = read_non_space_char(reader, stream);
+        return token + 1;
+    }
+
+    ch = read_non_space_char(reader, stream);
+    if (ch == EOF){
+        reader_incomplete_input(reader, "Receiver switch expects message");
+    }
+    if (ch == ']' || is_delimiter(ch)){
+        reader_error(reader, "Receiver switch expects token message");
+    }
+
+    token = read_token_string(reader, ch, stream);
+    if (token[0] == ':'){
+        reader_error(reader, "Receiver switch expects token message");
+    }
+    *next = read_non_space_char(reader, stream);
+    return token;
+}
+
 static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     int ch = read_non_space_char(reader, stream);
     LT_Value receiver;
     LT_ListBuilder* arguments;
     LT_StringBuilder* selector;
-    LT_Value selector_symbol;
     LT_Value source_location = reader_source_location(reader);
     char* message_token;
 
@@ -1882,114 +1950,152 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
     }
 
     message_token = read_token_string(reader, ch, stream);
+    if (message_token[0] == ':'){
+        reader_error(reader, "Receiver switch expects previous result");
+    }
     ch = read_non_space_char(reader, stream);
 
-    if (ch == ']'){
-        LT_Value values[3];
-
-        values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send");
-        values[1] = receiver;
-        values[2] = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token);
-        return reader_immutable_list(reader, source_location, 3, values, LT_NIL);
-    }
-
-    if (token_is_binary_selector(message_token)){
-        LT_Value argument;
-
+    while (1){
+        if (ch == ']'){
+            return make_bracket_send(
+                reader,
+                source_location,
+                receiver,
+                message_token,
+                NULL
+            );
+        }
         if (ch == EOF){
             reader_incomplete_input(reader, "Unterminated bracket form");
         }
 
-        argument = read_object_from_first(reader, stream, ch);
-        ch = read_non_space_char(reader, stream);
+        if (token_is_binary_selector(message_token)){
+            LT_Value result;
+            char* next_message_token;
 
-        if (ch != ']'){
+            arguments = LT_ListBuilder_new();
+            LT_ListBuilder_append(
+                arguments,
+                read_object_from_first(reader, stream, ch)
+            );
+            result = make_bracket_send(
+                reader,
+                source_location,
+                receiver,
+                message_token,
+                arguments
+            );
+            ch = read_non_space_char(reader, stream);
+            if (ch == ']'){
+                return result;
+            }
             if (ch == EOF){
                 reader_incomplete_input(reader, "Unterminated bracket form");
             }
-            reader_error(reader, "Binary bracket send expects exactly one argument");
-        }
-
-        LT_Value values[4];
-
-        values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send");
-        values[1] = receiver;
-        values[2] = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, message_token);
-        values[3] = argument;
-        return reader_immutable_list(reader, source_location, 4, values, LT_NIL);
-    }
-
-    if (!token_ends_with_colon(message_token)){
-        reader_error(
-            reader,
-            "Keyword bracket send expects selector parts ending with ':'"
-        );
-    }
-
-    selector = LT_StringBuilder_new();
-    arguments = LT_ListBuilder_new();
-    LT_StringBuilder_append_str(selector, message_token);
-
-    while (1){
-        LT_Value argument;
-        char* next_selector_token;
-
-        if (ch == EOF){
-            reader_incomplete_input(reader, "Unterminated bracket form");
-        }
-
-        argument = read_object_from_first(reader, stream, ch);
-        LT_ListBuilder_append(arguments, argument);
-
-        ch = read_non_space_char(reader, stream);
-        if (ch == EOF){
-            reader_incomplete_input(reader, "Unterminated bracket form");
-        }
-        if (ch == ']'){
-            break;
-        }
-        if (is_delimiter(ch)){
-            reader_error(reader, "Keyword bracket send expects token selector parts");
-        }
-
-        next_selector_token = read_token_string(reader, ch, stream);
-        if (!token_ends_with_colon(next_selector_token)){
-            reader_error(
+            next_message_token = read_bracket_receiver_switch(
                 reader,
-                "Keyword bracket send expects selector parts ending with ':'"
+                stream,
+                ch,
+                &ch
             );
+            if (next_message_token == NULL){
+                reader_error(reader, "Binary bracket send expects exactly one argument");
+            }
+            receiver = result;
+            message_token = next_message_token;
+            continue;
         }
-        LT_StringBuilder_append_str(selector, next_selector_token);
 
-        ch = read_non_space_char(reader, stream);
-    }
+        if (!token_ends_with_colon(message_token)){
+            LT_Value result = make_bracket_send(
+                reader,
+                source_location,
+                receiver,
+                message_token,
+                NULL
+            );
+            char* next_message_token = read_bracket_receiver_switch(
+                reader,
+                stream,
+                ch,
+                &ch
+            );
 
-    selector_symbol = LT_Symbol_new_in(
-        LT_PACKAGE_KEYWORD,
-        LT_StringBuilder_value(selector)
-    );
-
-    {
-        size_t argument_count = LT_ListBuilder_length(arguments);
-        LT_Value* values = GC_MALLOC(sizeof(LT_Value) * (argument_count + 3));
-        LT_Value cursor = LT_ListBuilder_value(arguments);
-        size_t i = 0;
-
-        values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "send");
-        values[1] = receiver;
-        values[2] = selector_symbol;
-        while (cursor != LT_NIL){
-            values[i + 3] = LT_car(cursor);
-            i++;
-            cursor = LT_cdr(cursor);
+            if (next_message_token == NULL){
+                reader_error(reader, "Unary bracket send expects ']' or receiver switch ':'");
+            }
+            receiver = result;
+            message_token = next_message_token;
+            continue;
         }
-        return reader_immutable_list(
-            reader,
-            source_location,
-            argument_count + 3,
-            values,
-            LT_NIL
-        );
+
+        selector = LT_StringBuilder_new();
+        arguments = LT_ListBuilder_new();
+        LT_StringBuilder_append_str(selector, message_token);
+
+        while (1){
+            LT_Value result;
+            char* next_selector_token;
+
+            LT_ListBuilder_append(
+                arguments,
+                read_object_from_first(reader, stream, ch)
+            );
+            ch = read_non_space_char(reader, stream);
+            if (ch == EOF){
+                reader_incomplete_input(reader, "Unterminated bracket form");
+            }
+            if (ch == ']'){
+                return make_bracket_send(
+                    reader,
+                    source_location,
+                    receiver,
+                    LT_StringBuilder_value(selector),
+                    arguments
+                );
+            }
+            if (is_delimiter(ch)){
+                reader_error(reader, "Keyword bracket send expects token selector parts");
+            }
+
+            next_selector_token = read_token_string(reader, ch, stream);
+            if (next_selector_token[0] == ':'){
+                result = make_bracket_send(
+                    reader,
+                    source_location,
+                    receiver,
+                    LT_StringBuilder_value(selector),
+                    arguments
+                );
+                if (next_selector_token[1] == '\0'){
+                    ch = read_non_space_char(reader, stream);
+                    if (ch == EOF){
+                        reader_incomplete_input(reader, "Receiver switch expects message");
+                    }
+                    if (ch == ']' || is_delimiter(ch)){
+                        reader_error(reader, "Receiver switch expects token message");
+                    }
+                    next_selector_token = read_token_string(reader, ch, stream);
+                    if (next_selector_token[0] == ':'){
+                        reader_error(reader, "Receiver switch expects token message");
+                    }
+                } else {
+                    next_selector_token++;
+                }
+                receiver = result;
+                message_token = next_selector_token;
+                ch = read_non_space_char(reader, stream);
+                break;
+            }
+            if (!token_ends_with_colon(next_selector_token)){
+                reader_error(
+                    reader,
+                    "Keyword bracket send expects selector parts ending with ':'"
+                );
+            }
+            LT_StringBuilder_append_str(selector, next_selector_token);
+            ch = read_non_space_char(reader, stream);
+        }
     }
 }
 
