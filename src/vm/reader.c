@@ -2022,10 +2022,7 @@ static LT_Value read_bracket_form(LT_Reader* reader, LT_ReaderStream* stream){
             );
 
             if (next_message_token == NULL){
-                reader_error(
-                    reader,
-                    "Keyword bracket send expects selector parts ending with ':'"
-                );
+                reader_error(reader, "Unary bracket send expects ']' or receiver switch ':'");
             }
             receiver = result;
             message_token = next_message_token;
