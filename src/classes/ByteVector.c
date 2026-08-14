@@ -1049,6 +1049,119 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)LT_String_new(encoded, encoded_length);
 }
 
+static int ByteVector_portable_filename_byte_p(unsigned char byte){
+    return (byte >= 'A' && byte <= 'Z')
+        || (byte >= 'a' && byte <= 'z')
+        || (byte >= '0' && byte <= '9')
+        || byte == '.'
+        || byte == '-';
+}
+
+static int ByteVector_hex_digit_value(unsigned char digit){
+    if (digit >= '0' && digit <= '9'){
+        return (int)(digit - '0');
+    }
+    if (digit >= 'A' && digit <= 'F'){
+        return (int)(digit - 'A') + 10;
+    }
+    if (digit >= 'a' && digit <= 'f'){
+        return (int)(digit - 'a') + 10;
+    }
+    return -1;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_method_as_portable_filename,
+    "ByteVector>>asPortableFilename",
+    "(self)",
+    "Encode the receiver bytes as a POSIX portable filename string."
+){
+    static const char hex[] = "0123456789ABCDEF";
+    LT_Value cursor = arguments;
+    LT_ByteVector* bytevector;
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    const uint8_t* bytes;
+    size_t length;
+    size_t index;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+
+    bytes = LT_ByteVector_bytes(bytevector);
+    length = LT_ByteVector_length(bytevector);
+    for (index = 0; index < length; index++){
+        unsigned char byte = bytes[index];
+
+        if (ByteVector_portable_filename_byte_p(byte)){
+            LT_StringBuilder_append_char(builder, (char)byte);
+        } else if (byte == '_'){
+            LT_StringBuilder_append_bytes(builder, "__", 2);
+        } else {
+            char encoded[3] = {'_', hex[byte >> 4], hex[byte & 0x0f]};
+
+            LT_StringBuilder_append_bytes(builder, encoded, sizeof(encoded));
+        }
+    }
+
+    return (LT_Value)(uintptr_t)LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    bytevector_class_method_from_portable_filename,
+    "ByteVector class>>fromPortableFilename:",
+    "(self filename)",
+    "Decode a portable filename string into its original bytes."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* filename;
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    const unsigned char* bytes;
+    size_t length;
+    size_t index = 0;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    (void)self;
+
+    bytes = (const unsigned char*)LT_String_value_cstr(filename);
+    length = LT_String_byte_length(filename);
+    while (index < length){
+        unsigned char byte = bytes[index];
+
+        if (ByteVector_portable_filename_byte_p(byte)){
+            LT_StringBuilder_append_char(builder, (char)byte);
+            index++;
+        } else if (byte == '_' && index + 1 < length
+                   && bytes[index + 1] == '_'){
+            LT_StringBuilder_append_char(builder, '_');
+            index += 2;
+        } else if (byte == '_' && index + 2 < length){
+            int high = ByteVector_hex_digit_value(bytes[index + 1]);
+            int low = ByteVector_hex_digit_value(bytes[index + 2]);
+
+            if (high < 0 || low < 0){
+                LT_error("Invalid portable filename");
+            }
+            LT_StringBuilder_append_char(builder, (char)((high << 4) | low));
+            index += 3;
+        } else {
+            LT_error("Invalid portable filename");
+        }
+    }
+
+    return (LT_Value)(uintptr_t)LT_ByteVector_new(
+        (const uint8_t*)LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
+}
+
 LT_DEFINE_PRIMITIVE(
     bytevector_method_as_list,
     "ByteVector>>asList",
@@ -1147,6 +1260,7 @@ static LT_Method_Descriptor ByteVector_methods[] = {
     {"asBase64URIWithPadding:", &bytevector_method_as_base64_uri_with_padding},
     {"hex", &bytevector_method_hex},
     {"asBase16", &bytevector_method_as_base16},
+    {"asPortableFilename", &bytevector_method_as_portable_filename},
     {"asList", &bytevector_method_as_list},
     {"asIterator", &bytevector_method_as_iterator},
     {"writeToFile:", &bytevector_method_write_to_file},
@@ -1166,6 +1280,7 @@ LT_DEFINE_CLASS(LT_ByteVectorIterator) {
 
 static LT_Method_Descriptor ByteVector_class_methods[] = {
     {"fromFile:", &bytevector_class_method_from_file},
+    {"fromPortableFilename:", &bytevector_class_method_from_portable_filename},
     {"random:", &bytevector_class_method_random},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };

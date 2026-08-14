@@ -1149,6 +1149,20 @@
        "ByteVector>>hex encodes lowercase hexadecimal")
 (check (equal? [(bytevector 0 1 10 16 255) asBase16] "00010A10FF")
        "ByteVector>>asBase16 encodes uppercase hexadecimal")
+(check (equal? [(bytevector 65 122 48 57 46 45 95 0 255) asPortableFilename]
+               "Az09.-___00_FF")
+       "ByteVector>>asPortableFilename returns a portable String")
+(check (equal? [ByteVector fromPortableFilename: "Az09.-___00_FF"]
+               (bytevector 65 122 48 57 46 45 95 0 255))
+       "ByteVector class>>fromPortableFilename: preserves arbitrary bytes")
+(check (equal? [ByteVector fromPortableFilename:
+                           [(bytevector 128 191 192 255) asPortableFilename]]
+               (bytevector 128 191 192 255))
+       "portable filenames round-trip invalid UTF-8 bytes")
+(check-error-message
+  "Invalid portable filename"
+  "ByteVector class>>fromPortableFilename: rejects malformed escapes"
+  [ByteVector fromPortableFilename: "bad_"])
 (check (equal? ["" asHexByteVector] (bytevector))
        "String>>asHexByteVector decodes empty input")
 (check (equal? ["00010A10ff" asHexByteVector] (bytevector 0 1 10 16 255))
