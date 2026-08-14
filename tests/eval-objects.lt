@@ -890,6 +890,22 @@
        "String>>join: uses receiver as delimiter")
 (check (equal? [", " join: '()] "")
        "String>>join: returns empty string for empty list")
+(check (equal? ["Az09.-" asPortableFilename] "Az09.-")
+       "String>>asPortableFilename preserves portable characters")
+(check (equal? ["a_b c" asPortableFilename] "a__b_20c")
+       "String>>asPortableFilename escapes underscore and non-portable bytes")
+(check (equal? ["λ😀" asPortableFilename] "_CE_BB_F0_9F_98_80")
+       "String>>asPortableFilename encodes UTF-8 bytes")
+(check (equal? [String fromPortableFilename: "a__b_20c"] "a_b c")
+       "String class>>fromPortableFilename: decodes escapes")
+(check (equal? [String fromPortableFilename: "_ce_bb_F0_9f_98_80"] "λ😀")
+       "String class>>fromPortableFilename: accepts mixed-case hexadecimal")
+(check (equal? [String fromPortableFilename: ["a_λ-😀" asPortableFilename]]
+               "a_λ-😀")
+       "portable filenames round-trip Unicode strings")
+(check-error-message "Invalid portable filename"
+                     "String class>>fromPortableFilename: rejects malformed escapes"
+                     [String fromPortableFilename: "bad_xx"])
 (check (equal? (format "a=~a s=~s~~~%" 42 "x") "a=42 s=\"x\"~\n")
        "format supports ~a, ~s, ~~, and ~%")
 (check (equal? (format "~{[~a]~}" '(1 2 3)) "[1][2][3]")
