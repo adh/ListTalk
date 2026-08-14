@@ -1074,7 +1074,7 @@ LT_DEFINE_PRIMITIVE(
     bytevector_method_as_portable_filename,
     "ByteVector>>asPortableFilename",
     "(self)",
-    "Encode the receiver bytes as a POSIX portable filename string."
+    "Encode the receiver bytes into a POSIX portable filename string (A–Z, a–z, 0–9, '.', '-', '_'), escaping '_' as '__' and other bytes as _HH."
 ){
     static const char hex[] = "0123456789ABCDEF";
     LT_Value cursor = arguments;
