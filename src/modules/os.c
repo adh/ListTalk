@@ -3,6 +3,10 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Instant.h>
@@ -16,6 +20,8 @@
 
 #include <dirent.h>
 #include <errno.h>
+#include <fnmatch.h>
+#include <glob.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -177,6 +183,91 @@ static void bind_os_primitive(LT_Environment* environment,
 
 #define OS_STAT_ARG(cursor, name) \
     LT_GENERIC_ARG(cursor, name, LT_OS_Stat*, LT_OS_Stat_from_value)
+
+struct OS_Flag {
+    const char* name;
+    int value;
+};
+
+static int os_flags_from_keywords(const struct OS_Flag* available,
+                                  size_t available_count,
+                                  LT_Value keywords,
+                                  const char* operation){
+    int flags = 0;
+
+    while (keywords != LT_NIL){
+        LT_Value keyword;
+        LT_Symbol* symbol;
+        size_t index;
+
+        if (!LT_Pair_p(keywords)){
+            LT_error(LT_sprintf("%s flags must be a proper list", operation));
+        }
+        keyword = LT_car(keywords);
+        symbol = LT_Symbol_from_value(keyword);
+        if (LT_Symbol_package(symbol) != LT_PACKAGE_KEYWORD){
+            LT_error(LT_sprintf("%s flags must be keywords", operation));
+        }
+        for (index = 0; index < available_count; index++){
+            if (strcmp(LT_Symbol_name(symbol), available[index].name) == 0){
+                flags |= available[index].value;
+                break;
+            }
+        }
+        if (index == available_count){
+            LT_error(LT_sprintf(
+                "Unknown %s flag: %s",
+                operation,
+                LT_Symbol_name(symbol)
+            ));
+        }
+        keywords = LT_cdr(keywords);
+    }
+    return flags;
+}
+
+static const struct OS_Flag fnmatch_flags[] = {
+    {"pathname", FNM_PATHNAME},
+    {"noescape", FNM_NOESCAPE},
+    {"period", FNM_PERIOD},
+#ifdef FNM_LEADING_DIR
+    {"leading-dir", FNM_LEADING_DIR},
+#endif
+#ifdef FNM_CASEFOLD
+    {"casefold", FNM_CASEFOLD},
+#endif
+#ifdef FNM_EXTMATCH
+    {"extmatch", FNM_EXTMATCH},
+#endif
+};
+
+static const struct OS_Flag glob_flags[] = {
+    {"append", GLOB_APPEND},
+    {"dooffs", GLOB_DOOFFS},
+    {"err", GLOB_ERR},
+    {"mark", GLOB_MARK},
+    {"nocheck", GLOB_NOCHECK},
+    {"noescape", GLOB_NOESCAPE},
+    {"nosort", GLOB_NOSORT},
+#ifdef GLOB_PERIOD
+    {"period", GLOB_PERIOD},
+#endif
+#ifdef GLOB_BRACE
+    {"brace", GLOB_BRACE},
+#endif
+#ifdef GLOB_NOMAGIC
+    {"nomagic", GLOB_NOMAGIC},
+#endif
+#ifdef GLOB_TILDE
+    {"tilde", GLOB_TILDE},
+#endif
+#ifdef GLOB_TILDE_CHECK
+    {"tilde-check", GLOB_TILDE_CHECK},
+#endif
+#ifdef GLOB_ONLYDIR
+    {"onlydir", GLOB_ONLYDIR},
+#endif
+};
 
 #define DEFINE_OS_STAT_PREDICATE_METHOD(c_name, selector, predicate, description) \
     LT_DEFINE_PRIMITIVE(                                                          \
@@ -788,6 +879,71 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_os_fnmatch_p,
+    "fnmatch?",
+    "(pattern string :rest flag)",
+    "Return true when string matches a POSIX filename pattern with keyword flags."
+){
+    LT_Value cursor = arguments;
+    LT_String* pattern;
+    LT_String* string;
+    LT_Value flag_keywords;
+    int flags;
+
+    OS_STRING_ARG(cursor, pattern);
+    OS_STRING_ARG(cursor, string);
+    LT_ARG_REST(cursor, flag_keywords);
+    flags = os_flags_from_keywords(
+        fnmatch_flags,
+        sizeof(fnmatch_flags) / sizeof(fnmatch_flags[0]),
+        flag_keywords,
+        "fnmatch"
+    );
+    return fnmatch(
+        LT_String_value_cstr(pattern),
+        LT_String_value_cstr(string),
+        flags
+    ) == 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    primitive_os_glob,
+    "glob",
+    "(pattern :rest flag)",
+    "Return paths matching a POSIX glob pattern; glob errors produce an empty list."
+){
+    LT_Value cursor = arguments;
+    LT_String* pattern;
+    LT_Value flag_keywords;
+    glob_t matches = {0};
+    LT_ListBuilder* builder;
+    size_t index;
+    int flags;
+    int result;
+
+    OS_STRING_ARG(cursor, pattern);
+    LT_ARG_REST(cursor, flag_keywords);
+    flags = os_flags_from_keywords(
+        glob_flags,
+        sizeof(glob_flags) / sizeof(glob_flags[0]),
+        flag_keywords,
+        "glob"
+    );
+    result = glob(LT_String_value_cstr(pattern), flags, NULL, &matches);
+    builder = LT_ListBuilder_new();
+    if (result == 0){
+        for (index = 0; index < matches.gl_pathc; index++){
+            LT_ListBuilder_append(
+                builder,
+                (LT_Value)(uintptr_t)LT_String_new_cstr(matches.gl_pathv[index])
+            );
+        }
+    }
+    globfree(&matches);
+    return LT_ListBuilder_value(builder);
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_os_list_directory,
     "list-directory",
     "(path)",
@@ -862,6 +1018,8 @@ void ListTalk_os_load(LT_Environment* environment){
     bind_os_primitive(environment, package, &primitive_os_readlink);
     bind_os_primitive(environment, package, &primitive_os_symlink);
     bind_os_primitive(environment, package, &primitive_os_getentropy);
+    bind_os_primitive(environment, package, &primitive_os_fnmatch_p);
+    bind_os_primitive(environment, package, &primitive_os_glob);
     bind_os_primitive(environment, package, &primitive_os_list_directory);
     LT_loader_provide(environment, "os");
 }

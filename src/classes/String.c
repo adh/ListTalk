@@ -36,6 +36,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <fnmatch.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -989,6 +990,50 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_fn_match,
+    "String>>fnMatch?:",
+    "(self pattern)",
+    "Return true when the string matches a POSIX filename pattern."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* pattern;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return fnmatch(
+        LT_String_value_cstr(pattern),
+        LT_String_value_cstr(self),
+        0
+    ) == 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_fn_match_pathname,
+    "String>>fnMatchPathname?:",
+    "(self pattern)",
+    "Return true when the string matches a POSIX filename pattern without wildcards matching slashes."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* pattern;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return fnmatch(
+        LT_String_value_cstr(pattern),
+        LT_String_value_cstr(self),
+        FNM_PATHNAME
+    ) == 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_match,
     "String>>match:",
     "(self pattern)",
@@ -1702,6 +1747,8 @@ static LT_Method_Descriptor String_methods[] = {
     {"append:", &string_method_append},
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
+    {"fnMatch?:", &string_method_fn_match},
+    {"fnMatchPathname?:", &string_method_fn_match_pathname},
     {"match:", &string_method_match},
     {"matches?:", &string_method_matches},
     {"substitute:with:", &string_method_substitute},
