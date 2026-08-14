@@ -89,6 +89,30 @@ static int boolean_from_value(LT_Value value, const char* message){
     return LT_Value_boolean_value(value);
 }
 
+static LT_Value string_fnmatch_result(LT_String* string,
+                                      LT_String* pattern,
+                                      int flags){
+    int result;
+
+    errno = 0;
+    result = fnmatch(
+        LT_String_value_cstr(pattern),
+        LT_String_value_cstr(string),
+        flags
+    );
+    if (result == 0){
+        return LT_TRUE;
+    }
+    if (result == FNM_NOMATCH){
+        return LT_FALSE;
+    }
+    if (errno != 0){
+        LT_system_error("Could not match filename pattern", errno);
+    }
+    LT_error(LT_sprintf("Could not match filename pattern (fnmatch returned %d)", result));
+    return LT_FALSE;
+}
+
 static size_t String_byte_offset_for_codepoint_index(LT_String* string,
                                                      size_t index){
     const char* cursor = string->str;
@@ -1004,11 +1028,7 @@ LT_DEFINE_PRIMITIVE(
     LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
     LT_ARG_END(cursor);
 
-    return fnmatch(
-        LT_String_value_cstr(pattern),
-        LT_String_value_cstr(self),
-        0
-    ) == 0 ? LT_TRUE : LT_FALSE;
+    return string_fnmatch_result(self, pattern, 0);
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -1026,11 +1046,7 @@ LT_DEFINE_PRIMITIVE(
     LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
     LT_ARG_END(cursor);
 
-    return fnmatch(
-        LT_String_value_cstr(pattern),
-        LT_String_value_cstr(self),
-        FNM_PATHNAME
-    ) == 0 ? LT_TRUE : LT_FALSE;
+    return string_fnmatch_result(self, pattern, FNM_PATHNAME);
 }
 
 LT_DEFINE_PRIMITIVE(

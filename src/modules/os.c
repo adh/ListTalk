@@ -242,8 +242,6 @@ static const struct OS_Flag fnmatch_flags[] = {
 };
 
 static const struct OS_Flag glob_flags[] = {
-    {"append", GLOB_APPEND},
-    {"dooffs", GLOB_DOOFFS},
     {"err", GLOB_ERR},
     {"mark", GLOB_MARK},
     {"nocheck", GLOB_NOCHECK},
@@ -268,6 +266,26 @@ static const struct OS_Flag glob_flags[] = {
     {"onlydir", GLOB_ONLYDIR},
 #endif
 };
+
+static LT_Value os_fnmatch_result(const char* pattern,
+                                  const char* string,
+                                  int flags){
+    int result;
+
+    errno = 0;
+    result = fnmatch(pattern, string, flags);
+    if (result == 0){
+        return LT_TRUE;
+    }
+    if (result == FNM_NOMATCH){
+        return LT_FALSE;
+    }
+    if (errno != 0){
+        LT_system_error("Could not match filename pattern", errno);
+    }
+    LT_error(LT_sprintf("Could not match filename pattern (fnmatch returned %d)", result));
+    return LT_FALSE;
+}
 
 #define DEFINE_OS_STAT_PREDICATE_METHOD(c_name, selector, predicate, description) \
     LT_DEFINE_PRIMITIVE(                                                          \
@@ -899,11 +917,11 @@ LT_DEFINE_PRIMITIVE(
         flag_keywords,
         "fnmatch"
     );
-    return fnmatch(
+    return os_fnmatch_result(
         LT_String_value_cstr(pattern),
         LT_String_value_cstr(string),
         flags
-    ) == 0 ? LT_TRUE : LT_FALSE;
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
