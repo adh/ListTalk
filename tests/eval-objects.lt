@@ -799,6 +799,16 @@
 (check (= ['() length] 0) "Nil as empty List>>length")
 (check (= ['(1 2 3) at: 1] 2) "List>>at: dispatches correctly")
 (check (= ["hello" length] 5) "String>>length")
+(check ["src/classes/String.c" fnMatch?: "src/*/*.c"]
+       "String>>fnMatch?: matches with default POSIX behavior")
+(check (not ["src/classes/String.h" fnMatch?: "*.c"])
+       "String>>fnMatch?: rejects a non-match")
+(check ["src/classes/String.c" fnMatch?: "src/*.c"]
+       "String>>fnMatch?: allows wildcards to match slashes by default")
+(check (not ["src/classes/String.c" fnMatchPathname?: "src/*.c"])
+       "String>>fnMatchPathname?: prevents wildcards from matching slashes")
+(check ["src/classes/String.c" fnMatchPathname?: "src/classes/*.c"]
+       "String>>fnMatchPathname?: matches within pathname components")
 (check (eq? ["hello" at: 1] (string-ref "hello" 1)) "String>>at: dispatches correctly")
 (check (equal? ["aλ" append: "😀z"] "aλ😀z") "String>>append: concatenates")
 (check (equal? ["aλ😀z" from: 1 to: 3] "λ😀")

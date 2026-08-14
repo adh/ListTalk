@@ -36,6 +36,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <fnmatch.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -86,6 +87,30 @@ static int boolean_from_value(LT_Value value, const char* message){
         LT_error(message);
     }
     return LT_Value_boolean_value(value);
+}
+
+static LT_Value string_fnmatch_result(LT_String* string,
+                                      LT_String* pattern,
+                                      int flags){
+    int result;
+
+    errno = 0;
+    result = fnmatch(
+        LT_String_value_cstr(pattern),
+        LT_String_value_cstr(string),
+        flags
+    );
+    if (result == 0){
+        return LT_TRUE;
+    }
+    if (result == FNM_NOMATCH){
+        return LT_FALSE;
+    }
+    if (errno != 0){
+        LT_system_error("Could not match filename pattern", errno);
+    }
+    LT_error(LT_sprintf("Could not match filename pattern (fnmatch returned %d)", result));
+    return LT_FALSE;
 }
 
 static size_t String_byte_offset_for_codepoint_index(LT_String* string,
@@ -989,6 +1014,42 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    string_method_fn_match,
+    "String>>fnMatch?:",
+    "(self pattern)",
+    "Return true when the string matches a POSIX filename pattern."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* pattern;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return string_fnmatch_result(self, pattern, 0);
+}
+
+LT_DEFINE_PRIMITIVE(
+    string_method_fn_match_pathname,
+    "String>>fnMatchPathname?:",
+    "(self pattern)",
+    "Return true when the string matches a POSIX filename pattern without wildcards matching slashes."
+){
+    LT_Value cursor = arguments;
+    LT_String* self;
+    LT_String* pattern;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, self, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, pattern, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+
+    return string_fnmatch_result(self, pattern, FNM_PATHNAME);
+}
+
+LT_DEFINE_PRIMITIVE(
     string_method_match,
     "String>>match:",
     "(self pattern)",
@@ -1702,6 +1763,8 @@ static LT_Method_Descriptor String_methods[] = {
     {"append:", &string_method_append},
     {"replace:with:", &string_method_replace_with},
     {"replaceFirst:with:", &string_method_replace_first_with},
+    {"fnMatch?:", &string_method_fn_match},
+    {"fnMatchPathname?:", &string_method_fn_match_pathname},
     {"match:", &string_method_match},
     {"matches?:", &string_method_matches},
     {"substitute:with:", &string_method_substitute},
