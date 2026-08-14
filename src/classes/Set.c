@@ -642,6 +642,39 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    set_method_size,
+    "Set>>size",
+    "(self)",
+    "Return set size."
+){
+    LT_Value cursor = arguments;
+    LT_Set* set;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, set, LT_Set*, set_from_value);
+    LT_ARG_END(cursor);
+    return LT_Number_smallinteger_from_size(
+        LT_Set_size(set),
+        "Set size does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    set_method_empty_p,
+    "Set>>empty?",
+    "(self)",
+    "Return true when set has no elements."
+){
+    LT_Value cursor = arguments;
+    LT_Set* set;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, set, LT_Set*, set_from_value);
+    LT_ARG_END(cursor);
+    return LT_Set_size(set) == 0 ? LT_TRUE : LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
     set_method_as_list,
     "Set>>asList",
     "(self)",
@@ -814,6 +847,8 @@ LT_DEFINE_PRIMITIVE(
 }
 
 static LT_Method_Descriptor Set_methods[] = {
+    {"size", &set_method_size},
+    {"empty?", &set_method_empty_p},
     {"put:", &set_method_put},
     {"contains?:", &set_method_contains},
     {"remove:", &set_method_remove},

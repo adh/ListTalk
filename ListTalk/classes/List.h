@@ -31,6 +31,7 @@ void LT_List_debugPrintOn(LT_Value value, FILE* stream);
 int LT_List_proper_p(LT_Value value);
 LT_Value LT_List_at(LT_Value list, size_t index);
 LT_Value LT_List_map(LT_Value callable, LT_Value list);
+LT_Value LT_List_filter(LT_Value callable, LT_Value list);
 LT_Value LT_List_map_many(
     LT_Value callable,
     size_t list_count,

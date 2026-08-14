@@ -129,6 +129,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Iterator", &LT_Iterator_class},
     {"EmptyIterator", &LT_EmptyIterator_class},
     {"MapIterator", &LT_MapIterator_class},
+    {"FilterIterator", &LT_FilterIterator_class},
     {"List", &LT_List_class},
     {"ListIterator", &LT_ListIterator_class},
     {"ImmutableList", &LT_ImmutableList_class},
