@@ -1622,7 +1622,7 @@ LT_DEFINE_PRIMITIVE(
     string_method_as_portable_filename,
     "String>>asPortableFilename",
     "(self)",
-    "Encode the receiver using the POSIX portable filename character set."
+    "Encode the receiver into a POSIX portable filename string (A–Z, a–z, 0–9, '.', '-', '_'), escaping '_' as '__' and other bytes as _HH."
 ){
     static const char hex[] = "0123456789ABCDEF";
     LT_Value cursor = arguments;
