@@ -325,6 +325,40 @@
                              with: (lambda (x) (set! calls (+ calls 1)) x)]))
   (check (null? [iterator asList]) "MapIterator handles empty wrapped iterator")
   (check (= calls 0) "MapIterator does not call function without current value"))
+(check (equal? [[[#(1 2 3 4) asIterator] filter: (lambda (x) (> x 2))] asList]
+               '(3 4))
+       "Iterator>>filter: lazily selects matching values")
+(check (null? [[['() asIterator] filter: (lambda (x) #true)] asList])
+       "Iterator>>filter: handles an empty iterator")
+(let ((seen '())
+      (iterator [#(1 2 3) asIterator]))
+  (check (null? [iterator forEach: (lambda (x) (set! seen (cons x seen)))])
+         "Iterator>>forEach: returns nil")
+  (check (equal? seen '(3 2 1)) "Iterator>>forEach: visits every value")
+  (check (not [iterator hasThis?]) "Iterator>>forEach: consumes receiver"))
+(let ((seen '()))
+  [['(1 2 3) asIterator] do: (lambda (x) (set! seen (cons x seen)))]
+  (check (equal? seen '(3 2 1)) "Iterator>>do: aliases forEach:"))
+(let ((iterator [#(1 2 3 4) asIterator]))
+  (check [iterator any: (lambda (x) (= x 2))]
+         "Iterator>>any: finds a matching value")
+  (check (= [iterator this] 3) "Iterator>>any: short-circuits after the match"))
+(check (not [['() asIterator] any: (lambda (x) #true)])
+       "Iterator>>any: is false for an empty iterator")
+(let ((iterator [#(1 2 3 4) asIterator]))
+  (check (not [iterator every: (lambda (x) (< x 3))])
+         "Iterator>>every: detects a falsey result")
+  (check (= [iterator this] 4) "Iterator>>every: short-circuits after the miss"))
+(check [['() asIterator] every: (lambda (x) #false)]
+       "Iterator>>every: is true for an empty iterator")
+(check (= [[#(1 2 3) asIterator] inject: 10 into: +] 16)
+       "Iterator>>inject:into: folds from the left")
+(check (= [['() asIterator] inject: 10 into: +] 10)
+       "Iterator>>inject:into: returns its initial value for an empty iterator")
+(check (= [[#(10 1 2) asIterator] reduce: (lambda (a b) (- a b))] 7)
+       "Iterator>>reduce: reduces from the left")
+(check-raises "Iterator>>reduce: rejects an empty iterator"
+  [['() asIterator] reduce: +])
 )
 
 (define-test "Strings"

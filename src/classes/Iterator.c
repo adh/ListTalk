@@ -29,9 +29,37 @@ struct LT_MapIterator_s {
     LT_Value callable;
 };
 
+struct LT_FilterIterator_s {
+    LT_Object base;
+    LT_Value iterator;
+    LT_Value callable;
+};
+
 static LT_EmptyIterator empty_iterator_instance = {
     .base = {.klass = &LT_EmptyIterator_class},
 };
+
+static LT_Value iterator_apply1(LT_Value callable, LT_Value value){
+    return LT_apply(
+        callable,
+        LT_cons(value, LT_NIL),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
+
+static LT_Value iterator_apply2(LT_Value callable,
+                                LT_Value left,
+                                LT_Value right){
+    return LT_apply(
+        callable,
+        LT_cons(left, LT_cons(right, LT_NIL)),
+        LT_NIL,
+        LT_NIL,
+        NULL
+    );
+}
 
 LT_DEFINE_SUBCLASS_RESPONSIBILITY_METHOD_0(
     iterator_method_this,
@@ -105,6 +133,142 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)LT_MapIterator_new(self, callable);
 }
 
+LT_DEFINE_PRIMITIVE(
+    iterator_method_filter,
+    "Iterator>>filter:",
+    "(self callable)",
+    "Return a lazy iterator selecting values for which callable is truthy."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_FilterIterator_new(self, callable);
+}
+
+LT_DEFINE_PRIMITIVE(
+    iterator_method_for_each,
+    "Iterator>>forEach:",
+    "(self callable)",
+    "Consume receiver, applying callable to each value, and return nil."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    while (LT_Value_truthy_p(LT_Iterator_hasThis(self))){
+        (void)iterator_apply1(callable, LT_Iterator_this(self));
+        (void)LT_Iterator_next(self);
+    }
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    iterator_method_any,
+    "Iterator>>any:",
+    "(self callable)",
+    "Consume receiver until callable returns truthy or it is exhausted."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    while (LT_Value_truthy_p(LT_Iterator_hasThis(self))){
+        LT_Value value = LT_Iterator_this(self);
+        (void)LT_Iterator_next(self);
+        if (LT_Value_truthy_p(iterator_apply1(callable, value))){
+            return LT_TRUE;
+        }
+    }
+    return LT_FALSE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    iterator_method_every,
+    "Iterator>>every:",
+    "(self callable)",
+    "Consume receiver until callable returns falsey or it is exhausted."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    while (LT_Value_truthy_p(LT_Iterator_hasThis(self))){
+        LT_Value value = LT_Iterator_this(self);
+        (void)LT_Iterator_next(self);
+        if (!LT_Value_truthy_p(iterator_apply1(callable, value))){
+            return LT_FALSE;
+        }
+    }
+    return LT_TRUE;
+}
+
+LT_DEFINE_PRIMITIVE(
+    iterator_method_inject_into,
+    "Iterator>>inject:into:",
+    "(self initial callable)",
+    "Consume receiver, folding values from the left."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value accumulator;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, accumulator);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    while (LT_Value_truthy_p(LT_Iterator_hasThis(self))){
+        accumulator = iterator_apply2(callable, accumulator, LT_Iterator_this(self));
+        (void)LT_Iterator_next(self);
+    }
+    return accumulator;
+}
+
+LT_DEFINE_PRIMITIVE(
+    iterator_method_reduce,
+    "Iterator>>reduce:",
+    "(self callable)",
+    "Consume receiver, reducing values from the left."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value callable;
+    LT_Value accumulator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    if (!LT_Value_truthy_p(LT_Iterator_hasThis(self))){
+        LT_error("Iterator reduce: requires at least one value");
+    }
+    accumulator = LT_Iterator_this(self);
+    (void)LT_Iterator_next(self);
+    while (LT_Value_truthy_p(LT_Iterator_hasThis(self))){
+        accumulator = iterator_apply2(callable, accumulator, LT_Iterator_this(self));
+        (void)LT_Iterator_next(self);
+    }
+    return accumulator;
+}
+
 static LT_Method_Descriptor Iterator_methods[] = {
     {"this", &iterator_method_this},
     {"hasThis?", &iterator_method_has_this},
@@ -112,6 +276,13 @@ static LT_Method_Descriptor Iterator_methods[] = {
     {"asList", &iterator_method_as_list},
     {"asIterator", &iterator_method_as_iterator},
     {"map:", &iterator_method_map},
+    {"filter:", &iterator_method_filter},
+    {"forEach:", &iterator_method_for_each},
+    {"do:", &iterator_method_for_each},
+    {"any:", &iterator_method_any},
+    {"every:", &iterator_method_every},
+    {"inject:into:", &iterator_method_inject_into},
+    {"reduce:", &iterator_method_reduce},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -412,6 +583,122 @@ LT_DEFINE_CLASS(LT_MapIterator) {
     .class_methods = MapIterator_class_methods,
 };
 
+static void filter_iterator_advance_to_match(LT_FilterIterator* iterator){
+    while (LT_Value_truthy_p(LT_Iterator_hasThis(iterator->iterator))){
+        if (LT_Value_truthy_p(iterator_apply1(
+                iterator->callable,
+                LT_Iterator_this(iterator->iterator)
+            ))){
+            return;
+        }
+        (void)LT_Iterator_next(iterator->iterator);
+    }
+}
+
+static void FilterIterator_debugPrintOn(LT_Value obj, FILE* stream){
+    LT_FilterIterator* iterator = LT_FilterIterator_from_value(obj);
+
+    fputs("#<FilterIterator iterator=", stream);
+    LT_Value_debugPrintOn(iterator->iterator, stream);
+    fputs(" callable=", stream);
+    LT_Value_debugPrintOn(iterator->callable, stream);
+    fputc('>', stream);
+}
+
+LT_DEFINE_PRIMITIVE(
+    filter_iterator_class_method_filter_with,
+    "FilterIterator class>>filter:with:",
+    "(self iterator callable)",
+    "Return a lazy iterator filtering iterator with callable."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value iterator;
+    LT_Value callable;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, iterator);
+    LT_OBJECT_ARG(cursor, callable);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_FilterIterator_class){
+        LT_error("filter:with: class method is only supported on FilterIterator");
+    }
+    return (LT_Value)(uintptr_t)LT_FilterIterator_new(iterator, callable);
+}
+
+LT_DEFINE_PRIMITIVE(
+    filter_iterator_method_this,
+    "FilterIterator>>this",
+    "(self)",
+    "Return the current matching value."
+){
+    LT_Value cursor = arguments;
+    LT_FilterIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_FilterIterator*, LT_FilterIterator_from_value);
+    LT_ARG_END(cursor);
+    return LT_Iterator_this(iterator->iterator);
+}
+
+LT_DEFINE_PRIMITIVE(
+    filter_iterator_method_has_this,
+    "FilterIterator>>hasThis?",
+    "(self)",
+    "Return true when a matching value remains."
+){
+    LT_Value cursor = arguments;
+    LT_FilterIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, iterator, LT_FilterIterator*, LT_FilterIterator_from_value);
+    LT_ARG_END(cursor);
+    return LT_Iterator_hasThis(iterator->iterator);
+}
+
+LT_DEFINE_PRIMITIVE(
+    filter_iterator_method_next,
+    "FilterIterator>>next!",
+    "(self)",
+    "Advance to the next matching value and return receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_FilterIterator* iterator;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    iterator = LT_FilterIterator_from_value(self);
+    (void)LT_Iterator_next(iterator->iterator);
+    filter_iterator_advance_to_match(iterator);
+    return self;
+}
+
+static LT_Method_Descriptor FilterIterator_methods[] = {
+    {"this", &filter_iterator_method_this},
+    {"hasThis?", &filter_iterator_method_has_this},
+    {"next!", &filter_iterator_method_next},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor FilterIterator_class_methods[] = {
+    {"filter:with:", &filter_iterator_class_method_filter_with},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+LT_DEFINE_CLASS(LT_FilterIterator) {
+    .superclass = &LT_Iterator_class,
+    .metaclass_superclass = &LT_Class_class,
+    .name = "FilterIterator",
+    .documentation = "Lazy iterator selecting values accepted by a callable.",
+    .instance_size = sizeof(LT_FilterIterator),
+    .debugPrintOn = FilterIterator_debugPrintOn,
+    .methods = FilterIterator_methods,
+    .class_methods = FilterIterator_class_methods,
+};
+
 LT_Value LT_Iterator_this(LT_Value iterator){
     return LT_SEND(iterator, "this");
 }
@@ -448,4 +735,13 @@ LT_MapIterator* LT_MapIterator_new(LT_Value iterator, LT_Value callable){
     map_iterator->iterator = iterator;
     map_iterator->callable = callable;
     return map_iterator;
+}
+
+LT_FilterIterator* LT_FilterIterator_new(LT_Value iterator, LT_Value callable){
+    LT_FilterIterator* result = LT_Class_ALLOC(LT_FilterIterator);
+
+    result->iterator = iterator;
+    result->callable = callable;
+    filter_iterator_advance_to_match(result);
+    return result;
 }
