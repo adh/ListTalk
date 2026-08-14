@@ -900,6 +900,22 @@
        "String>>join: uses receiver as delimiter")
 (check (equal? [", " join: '()] "")
        "String>>join: returns empty string for empty list")
+(check (equal? ["Az09.-" asPortableFilename] "Az09.-")
+       "String>>asPortableFilename preserves portable characters")
+(check (equal? ["a_b c" asPortableFilename] "a__b_20c")
+       "String>>asPortableFilename escapes underscore and non-portable bytes")
+(check (equal? ["λ😀" asPortableFilename] "_CE_BB_F0_9F_98_80")
+       "String>>asPortableFilename encodes UTF-8 bytes")
+(check (equal? [String fromPortableFilename: "a__b_20c"] "a_b c")
+       "String class>>fromPortableFilename: decodes escapes")
+(check (equal? [String fromPortableFilename: "_ce_bb_F0_9f_98_80"] "λ😀")
+       "String class>>fromPortableFilename: accepts mixed-case hexadecimal")
+(check (equal? [String fromPortableFilename: ["a_λ-😀" asPortableFilename]]
+               "a_λ-😀")
+       "portable filenames round-trip Unicode strings")
+(check-error-message "Invalid portable filename"
+                     "String class>>fromPortableFilename: rejects malformed escapes"
+                     [String fromPortableFilename: "bad_xx"])
 (check (equal? (format "a=~a s=~s~~~%" 42 "x") "a=42 s=\"x\"~\n")
        "format supports ~a, ~s, ~~, and ~%")
 (check (equal? (format "~{[~a]~}" '(1 2 3)) "[1][2][3]")
@@ -1143,6 +1159,20 @@
        "ByteVector>>hex encodes lowercase hexadecimal")
 (check (equal? [(bytevector 0 1 10 16 255) asBase16] "00010A10FF")
        "ByteVector>>asBase16 encodes uppercase hexadecimal")
+(check (equal? [(bytevector 65 122 48 57 46 45 95 0 255) asPortableFilename]
+               "Az09.-___00_FF")
+       "ByteVector>>asPortableFilename returns a portable String")
+(check (equal? [ByteVector fromPortableFilename: "Az09.-___00_FF"]
+               (bytevector 65 122 48 57 46 45 95 0 255))
+       "ByteVector class>>fromPortableFilename: preserves arbitrary bytes")
+(check (equal? [ByteVector fromPortableFilename:
+                           [(bytevector 128 191 192 255) asPortableFilename]]
+               (bytevector 128 191 192 255))
+       "portable filenames round-trip invalid UTF-8 bytes")
+(check-error-message
+  "Invalid portable filename"
+  "ByteVector class>>fromPortableFilename: rejects malformed escapes"
+  [ByteVector fromPortableFilename: "bad_"])
 (check (equal? ["" asHexByteVector] (bytevector))
        "String>>asHexByteVector decodes empty input")
 (check (equal? ["00010A10ff" asHexByteVector] (bytevector 0 1 10 16 255))
