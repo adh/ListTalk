@@ -14,6 +14,7 @@
 LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_BitVector);
+LT_DECLARE_CLASS(LT_BitVectorIterator);
 
 LT_BitVector* LT_BitVector_new(size_t length, int fill);
 size_t LT_BitVector_length(LT_BitVector* bitvector);

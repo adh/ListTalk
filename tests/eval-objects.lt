@@ -971,6 +971,30 @@
   (check (eq? [ones at: 8] #true) "BitVector class>>new:filled: accepts 1")
   (check (eq? [truths at: 1] #true) "BitVector class>>new:filled: accepts #true")
   (check (eq? [falses at: 1] #false) "BitVector class>>new:filled: accepts #false"))
+(let ((bits [BitVector new: 3])
+      (iterator #nil))
+  [bits at: 1 put: #true]
+  (set! iterator [bits asIterator])
+  (check (eq? [iterator class] BitVectorIterator)
+         "BitVector>>asIterator returns a BitVectorIterator")
+  (check (eq? [iterator this] #false)
+         "BitVectorIterator>>this returns false as a Boolean")
+  (check (eq? [iterator next!] iterator)
+         "BitVectorIterator>>next! returns receiver")
+  (check (eq? [iterator this] #true)
+         "BitVectorIterator>>this returns true as a Boolean")
+  [iterator next!]
+  [iterator next!]
+  (check (not [iterator hasThis?])
+         "BitVectorIterator is exhausted at the bit length")
+  (check-error-message "BitVectorIterator is not positioned"
+                       "BitVectorIterator>>this rejects an exhausted iterator"
+    [iterator this]))
+(check (equal? [[[BitVector new: 4 filled: 1] asIterator] asList]
+               '(#true #true #true #true))
+       "BitVectorIterator integrates with Iterator>>asList")
+(check (eq? [[[BitVector new: 0] asIterator] class] EmptyIterator)
+       "An empty BitVector uses EmptyIterator")
 (check-error-message "BitVector value must be 0, 1, #false, or #true"
                      "BitVector rejects other stored values"
   [[BitVector new: 1] at: 0 put: 2])
