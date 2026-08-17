@@ -1051,6 +1051,43 @@
 (check-error-message "BitVector index out of bounds"
                      "BitVector checks logical rather than byte bounds"
   [[BitVector new: 1] at: 1])
+(let ((a [BitVector fromList: '(0 1 1 0)])
+      (b [BitVector fromList: '(0 0 1 1)]))
+  (check (= [a popCount] 2) "BitVector>>popCount counts set bits")
+  (check (equal? [[a at: 1 length: 2] asList] '(#true #true))
+         "BitVector>>at:length: returns a bit slice")
+  (check (equal? [[a and: b] asList] '(#false #false #true #false))
+         "BitVector>>and: combines corresponding bits")
+  (check (equal? [[a or: b] asList] '(#false #true #true #true))
+         "BitVector>>or: combines corresponding bits")
+  (check (equal? [[a xor: b] asList] '(#false #true #false #true))
+         "BitVector>>xor: combines corresponding bits")
+  (check (equal? [[a not] asList] '(#true #false #false #true))
+         "BitVector>>not inverts every logical bit")
+  (check (equal? [[a select: a or: b] asList]
+                 '(#false #true #true #true))
+         "BitVector>>select:or: selects corresponding bits")
+  (check (equal? [[a combineWith: b using: [BitVector fromList: '(0 1 1 0)]]
+                  asList]
+                 '(#false #true #false #true))
+         "BitVector>>combineWith:using: accepts a BitVector truth table")
+  (check (equal? [[a combineWith: b using: #(0 0 0 1)] asList]
+                 '(#false #false #true #false))
+         "BitVector>>combineWith:using: accepts a Vector truth table")
+  (check (equal? [[a combineWith: b using: (lambda (x y) (or x y))] asList]
+                 '(#false #true #true #true))
+         "BitVector>>combineWith:using: accepts a two-argument function"))
+(let ((destination [BitVector new: 6]))
+  [destination put: [BitVector fromList: '(1 0 1)] at: 2]
+  (check (equal? [destination asList]
+                 '(#false #false #true #false #true #false))
+         "BitVector>>put:at: inserts a BitVector"))
+(check-error-message "BitVector range out of bounds"
+                     "BitVector>>at:length: checks the complete range"
+  [[BitVector new: 3] at: 2 length: 2])
+(check-error-message "BitVector lengths must match"
+                     "BitVector binary operations require matching lengths"
+  [[BitVector new: 2] and: [BitVector new: 3]])
 (let ((v #(3 1 2 1)))
   (check (equal? [v sort] #(1 1 2 3)) "Vector>>sort returns sorted fresh vector")
   (check (equal? v #(3 1 2 1)) "Vector>>sort does not mutate receiver"))

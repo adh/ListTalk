@@ -14,6 +14,7 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SmallInteger.h>
+#include <ListTalk/classes/Vector.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/utils.h>
@@ -49,6 +50,38 @@ static int bit_from_value(LT_Value value){
         }
     }
     LT_error("BitVector value must be 0, 1, #false, or #true");
+}
+
+static void require_same_length(LT_BitVector* left, LT_BitVector* right){
+    if (left->length != right->length){
+        LT_error("BitVector lengths must match");
+    }
+}
+
+static void require_span(LT_BitVector* bitvector, size_t at, size_t length){
+    if (at > bitvector->length || length > bitvector->length - at){
+        LT_error("BitVector range out of bounds");
+    }
+}
+
+static LT_BitVector* bitvector_binary(LT_BitVector* left,
+                                      LT_BitVector* right,
+                                      int operation){
+    LT_BitVector* result;
+    size_t i;
+
+    require_same_length(left, right);
+    result = LT_BitVector_new(left->length, 0);
+    for (i = 0; i < left->length; i++){
+        int a = LT_BitVector_at(left, i);
+        int b = LT_BitVector_at(right, i);
+        int value = operation == 0 ? (a & b)
+            : operation == 1 ? (a | b)
+            : (a ^ b);
+
+        LT_BitVector_atPut(result, i, value);
+    }
+    return result;
 }
 
 static void require_bitvector_class(LT_Value self, const char* selector){
@@ -554,6 +587,256 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    bitvector_method_pop_count,
+    "BitVector>>popCount",
+    "(self)",
+    "Return the number of set bits."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    size_t count = 0;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    for (i = 0; i < bitvector->length; i++){
+        count += (size_t)LT_BitVector_at(bitvector, i);
+    }
+    return LT_Number_smallinteger_from_size(
+        count,
+        "BitVector population count does not fit fixnum"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_at_length,
+    "BitVector>>at:length:",
+    "(self index length)",
+    "Return a copy of a range of bits."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_Value index_value;
+    LT_Value length_value;
+    LT_BitVector* result;
+    size_t index;
+    size_t length;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, index_value);
+    LT_OBJECT_ARG(cursor, length_value);
+    LT_ARG_END(cursor);
+    index = LT_Number_nonnegative_size_from_integer(
+        index_value, "BitVector range out of bounds", "BitVector range out of bounds"
+    );
+    length = LT_Number_nonnegative_size_from_integer(
+        length_value, "BitVector range out of bounds", "BitVector range out of bounds"
+    );
+    require_span(bitvector, index, length);
+    result = LT_BitVector_new(length, 0);
+    for (i = 0; i < length; i++){
+        LT_BitVector_atPut(result, i, LT_BitVector_at(bitvector, index + i));
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_put_at,
+    "BitVector>>put:at:",
+    "(self value index)",
+    "Put a bit or all bits of a BitVector starting at index and return value."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_Value value;
+    LT_Value index_value;
+    size_t index;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, value);
+    LT_OBJECT_ARG(cursor, index_value);
+    LT_ARG_END(cursor);
+    index = LT_Number_nonnegative_size_from_integer(
+        index_value, "BitVector index out of bounds", "BitVector index out of bounds"
+    );
+    if (LT_BitVector_p(value)){
+        LT_BitVector* source = LT_BitVector_from_value(value);
+        LT_BitVector* source_copy = NULL;
+
+        require_span(bitvector, index, source->length);
+        if (source == bitvector && source->length != 0){
+            source_copy = LT_BitVector_new(source->length, 0);
+            for (i = 0; i < source->length; i++){
+                LT_BitVector_atPut(source_copy, i, LT_BitVector_at(source, i));
+            }
+            source = source_copy;
+        }
+        for (i = 0; i < source->length; i++){
+            LT_BitVector_atPut(bitvector, index + i, LT_BitVector_at(source, i));
+        }
+    } else {
+        LT_BitVector_atPut(bitvector, index, bit_from_value(value));
+    }
+    return value;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_combine_with_using,
+    "BitVector>>combineWith:using:",
+    "(self other combination)",
+    "Combine equal-length BitVectors using a four-entry truth table or function."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* left;
+    LT_BitVector* right;
+    LT_Value combination;
+    LT_BitVector* result;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, left, LT_BitVector*, LT_BitVector_from_value);
+    LT_GENERIC_ARG(cursor, right, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, combination);
+    LT_ARG_END(cursor);
+    require_same_length(left, right);
+    if (LT_BitVector_p(combination)
+        && LT_BitVector_length(LT_BitVector_from_value(combination)) != 4){
+        LT_error("BitVector combination table must have four elements");
+    }
+    if (LT_Vector_p(combination)
+        && LT_Vector_length(LT_Vector_from_value(combination)) != 4){
+        LT_error("BitVector combination table must have four elements");
+    }
+    result = LT_BitVector_new(left->length, 0);
+    for (i = 0; i < left->length; i++){
+        int a = LT_BitVector_at(left, i);
+        int b = LT_BitVector_at(right, i);
+        size_t table_index = (size_t)(a * 2 + b);
+        LT_Value value;
+
+        if (LT_BitVector_p(combination)){
+            value = LT_BitVector_at(LT_BitVector_from_value(combination), table_index)
+                ? LT_TRUE : LT_FALSE;
+        } else if (LT_Vector_p(combination)){
+            value = LT_Vector_at(LT_Vector_from_value(combination), table_index);
+        } else {
+            value = LT_APPLY(
+                combination,
+                a ? LT_TRUE : LT_FALSE,
+                b ? LT_TRUE : LT_FALSE
+            );
+        }
+        LT_BitVector_atPut(result, i, bit_from_value(value));
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_and,
+    "BitVector>>and:",
+    "(self other)",
+    "Return the bitwise conjunction with another BitVector."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* left;
+    LT_BitVector* right;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, left, LT_BitVector*, LT_BitVector_from_value);
+    LT_GENERIC_ARG(cursor, right, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)bitvector_binary(left, right, 0);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_or,
+    "BitVector>>or:",
+    "(self other)",
+    "Return the bitwise disjunction with another BitVector."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* left;
+    LT_BitVector* right;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, left, LT_BitVector*, LT_BitVector_from_value);
+    LT_GENERIC_ARG(cursor, right, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)bitvector_binary(left, right, 1);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_xor,
+    "BitVector>>xor:",
+    "(self other)",
+    "Return the bitwise exclusive disjunction with another BitVector."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* left;
+    LT_BitVector* right;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, left, LT_BitVector*, LT_BitVector_from_value);
+    LT_GENERIC_ARG(cursor, right, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)bitvector_binary(left, right, 2);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_not,
+    "BitVector>>not",
+    "(self)",
+    "Return a BitVector with every bit inverted."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_BitVector* result;
+    size_t i;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    result = LT_BitVector_new(bitvector->length, 0);
+    for (i = 0; i < bitvector->length; i++){
+        LT_BitVector_atPut(result, i, !LT_BitVector_at(bitvector, i));
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_select_or,
+    "BitVector>>select:or:",
+    "(self whenTrue whenFalse)",
+    "Select bits from the first or second BitVector according to receiver."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* selector;
+    LT_BitVector* when_true;
+    LT_BitVector* when_false;
+    LT_BitVector* result;
+    size_t i;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, selector, LT_BitVector*, LT_BitVector_from_value);
+    LT_GENERIC_ARG(cursor, when_true, LT_BitVector*, LT_BitVector_from_value);
+    LT_GENERIC_ARG(cursor, when_false, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    require_same_length(selector, when_true);
+    require_same_length(selector, when_false);
+    result = LT_BitVector_new(selector->length, 0);
+    for (i = 0; i < selector->length; i++){
+        LT_BitVector_atPut(
+            result,
+            i,
+            LT_BitVector_at(selector, i)
+                ? LT_BitVector_at(when_true, i)
+                : LT_BitVector_at(when_false, i)
+        );
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
     bitvector_method_as_unsigned_integer,
     "BitVector>>asUnsignedInteger",
     "(self)",
@@ -693,7 +976,16 @@ static LT_Method_Descriptor BitVectorIterator_methods[] = {
 
 static LT_Method_Descriptor BitVector_methods[] = {
     {"at:", &bitvector_method_at},
+    {"at:length:", &bitvector_method_at_length},
     {"at:put:", &bitvector_method_at_put},
+    {"put:at:", &bitvector_method_put_at},
+    {"popCount", &bitvector_method_pop_count},
+    {"select:or:", &bitvector_method_select_or},
+    {"and:", &bitvector_method_and},
+    {"or:", &bitvector_method_or},
+    {"xor:", &bitvector_method_xor},
+    {"not", &bitvector_method_not},
+    {"combineWith:using:", &bitvector_method_combine_with_using},
     {"asUnsignedInteger", &bitvector_method_as_unsigned_integer},
     {"asSignedInteger", &bitvector_method_as_signed_integer},
     {"asList", &bitvector_method_as_list},
