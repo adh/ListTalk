@@ -1064,9 +1064,9 @@
          "BitVector>>xor: combines corresponding bits")
   (check (equal? [[a not] asList] '(#true #false #false #true))
          "BitVector>>not inverts every logical bit")
-  (check (equal? [[a select: a or: b] asList]
+  (check (equal? [[a choose: a or: b] asList]
                  '(#false #true #true #true))
-         "BitVector>>select:or: selects corresponding bits")
+         "BitVector>>choose:or: selects corresponding bits")
   (check (equal? [[a combineWith: b using: [BitVector fromList: '(0 1 1 0)]]
                   asList]
                  '(#false #true #false #true))

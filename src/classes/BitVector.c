@@ -769,8 +769,8 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    bitvector_method_select_or,
-    "BitVector>>select:or:",
+    bitvector_method_choose_or,
+    "BitVector>>choose:or:",
     "(self whenTrue whenFalse)",
     "Select bits from the first or second BitVector according to receiver."
 ){
@@ -943,7 +943,7 @@ static LT_Method_Descriptor BitVector_methods[] = {
     {"at:length:", &bitvector_method_at_length},
     {"at:put:", &bitvector_method_at_put},
     {"popCount", &bitvector_method_pop_count},
-    {"select:or:", &bitvector_method_select_or},
+    {"choose:or:", &bitvector_method_choose_or},
     {"and:", &bitvector_method_and},
     {"or:", &bitvector_method_or},
     {"xor:", &bitvector_method_xor},
