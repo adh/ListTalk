@@ -1078,10 +1078,10 @@
                  '(#false #true #true #true))
          "BitVector>>combineWith:using: accepts a two-argument function"))
 (let ((destination [BitVector new: 6]))
-  [destination put: [BitVector fromList: '(1 0 1)] at: 2]
+  [destination at: 2 put: [BitVector fromList: '(1 0 1)]]
   (check (equal? [destination asList]
                  '(#false #false #true #false #true #false))
-         "BitVector>>put:at: inserts a BitVector"))
+         "BitVector>>at:put: inserts a BitVector"))
 (check-error-message "BitVector range out of bounds"
                      "BitVector>>at:length: checks the complete range"
   [[BitVector new: 3] at: 2 length: 2])

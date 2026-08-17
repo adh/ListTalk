@@ -560,30 +560,36 @@ LT_DEFINE_PRIMITIVE(
     bitvector_method_at_put,
     "BitVector>>at:put:",
     "(self index value)",
-    "Set the bit at index and return its Boolean value."
+    "Put a bit or all bits of a BitVector starting at index and return value."
 ){
     LT_Value cursor = arguments;
     LT_BitVector* bitvector;
     LT_Value index;
     LT_Value value;
-    int bit;
+    size_t at;
+    size_t i;
     (void)tail_call_unwind_marker;
 
     LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
     LT_OBJECT_ARG(cursor, index);
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
-    bit = bit_from_value(value);
-    LT_BitVector_atPut(
-        bitvector,
-        LT_Number_nonnegative_size_from_integer(
-            index,
-            "BitVector index out of bounds",
-            "BitVector index out of bounds"
-        ),
-        bit
+    at = LT_Number_nonnegative_size_from_integer(
+        index,
+        "BitVector index out of bounds",
+        "BitVector index out of bounds"
     );
-    return bit ? LT_TRUE : LT_FALSE;
+    if (LT_BitVector_p(value)){
+        LT_BitVector* source = LT_BitVector_from_value(value);
+
+        require_span(bitvector, at, source->length);
+        for (i = 0; i < source->length; i++){
+            LT_BitVector_atPut(bitvector, at + i, LT_BitVector_at(source, i));
+        }
+        return value;
+    }
+    LT_BitVector_atPut(bitvector, at, bit_from_value(value));
+    return LT_BitVector_at(bitvector, at) ? LT_TRUE : LT_FALSE;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -641,48 +647,6 @@ LT_DEFINE_PRIMITIVE(
         LT_BitVector_atPut(result, i, LT_BitVector_at(bitvector, index + i));
     }
     return (LT_Value)(uintptr_t)result;
-}
-
-LT_DEFINE_PRIMITIVE(
-    bitvector_method_put_at,
-    "BitVector>>put:at:",
-    "(self value index)",
-    "Put a bit or all bits of a BitVector starting at index and return value."
-){
-    LT_Value cursor = arguments;
-    LT_BitVector* bitvector;
-    LT_Value value;
-    LT_Value index_value;
-    size_t index;
-    size_t i;
-    (void)tail_call_unwind_marker;
-
-    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
-    LT_OBJECT_ARG(cursor, value);
-    LT_OBJECT_ARG(cursor, index_value);
-    LT_ARG_END(cursor);
-    index = LT_Number_nonnegative_size_from_integer(
-        index_value, "BitVector index out of bounds", "BitVector index out of bounds"
-    );
-    if (LT_BitVector_p(value)){
-        LT_BitVector* source = LT_BitVector_from_value(value);
-        LT_BitVector* source_copy = NULL;
-
-        require_span(bitvector, index, source->length);
-        if (source == bitvector && source->length != 0){
-            source_copy = LT_BitVector_new(source->length, 0);
-            for (i = 0; i < source->length; i++){
-                LT_BitVector_atPut(source_copy, i, LT_BitVector_at(source, i));
-            }
-            source = source_copy;
-        }
-        for (i = 0; i < source->length; i++){
-            LT_BitVector_atPut(bitvector, index + i, LT_BitVector_at(source, i));
-        }
-    } else {
-        LT_BitVector_atPut(bitvector, index, bit_from_value(value));
-    }
-    return value;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -978,7 +942,6 @@ static LT_Method_Descriptor BitVector_methods[] = {
     {"at:", &bitvector_method_at},
     {"at:length:", &bitvector_method_at_length},
     {"at:put:", &bitvector_method_at_put},
-    {"put:at:", &bitvector_method_put_at},
     {"popCount", &bitvector_method_pop_count},
     {"select:or:", &bitvector_method_select_or},
     {"and:", &bitvector_method_and},
