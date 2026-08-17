@@ -84,6 +84,38 @@ static LT_BitVector* bitvector_binary(LT_BitVector* left,
     return result;
 }
 
+static size_t BitVector_hash(LT_Value value){
+    LT_BitVector* bitvector = LT_BitVector_from_value(value);
+    size_t hash = (size_t)0x9e3779b1 ^ bitvector->length;
+    size_t i;
+
+    for (i = 0; i < bitvector->length; i++){
+        hash = (hash * (size_t)33) ^ (size_t)LT_BitVector_at(bitvector, i);
+    }
+    return hash;
+}
+
+static int BitVector_equal_p(LT_Value left, LT_Value right){
+    LT_BitVector* a;
+    LT_BitVector* b;
+    size_t i;
+
+    if (!LT_BitVector_p(right)){
+        return 0;
+    }
+    a = LT_BitVector_from_value(left);
+    b = LT_BitVector_from_value(right);
+    if (a->length != b->length){
+        return 0;
+    }
+    for (i = 0; i < a->length; i++){
+        if (LT_BitVector_at(a, i) != LT_BitVector_at(b, i)){
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static void require_bitvector_class(LT_Value self, const char* selector){
     (void)selector;
     if (self != (LT_Value)(uintptr_t)&LT_BitVector_class){
@@ -801,6 +833,338 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    bitvector_method_length,
+    "BitVector>>length",
+    "(self)",
+    "Return the number of bits."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    return LT_Number_smallinteger_from_size(
+        bitvector->length,
+        "BitVector length does not fit fixnum"
+    );
+}
+
+static LT_BitVector* bitvector_shift(LT_BitVector* source,
+                                     size_t amount,
+                                     int left){
+    LT_BitVector* result = LT_BitVector_new(source->length, 0);
+    size_t i;
+
+    if (amount >= source->length){
+        return result;
+    }
+    if (left){
+        for (i = amount; i < source->length; i++){
+            LT_BitVector_atPut(result, i, LT_BitVector_at(source, i - amount));
+        }
+    } else {
+        for (i = 0; i < source->length - amount; i++){
+            LT_BitVector_atPut(result, i, LT_BitVector_at(source, i + amount));
+        }
+    }
+    return result;
+}
+
+#define DEFINE_BITVECTOR_SHIFT_METHOD(c_name, selector, direction) \
+LT_DEFINE_PRIMITIVE( \
+    c_name, selector, "(self amount)", "Return a logically shifted BitVector." \
+){ \
+    LT_Value cursor = arguments; \
+    LT_BitVector* bitvector; \
+    LT_Value amount_value; \
+    size_t amount; \
+    (void)tail_call_unwind_marker; \
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value); \
+    LT_OBJECT_ARG(cursor, amount_value); \
+    LT_ARG_END(cursor); \
+    amount = LT_Number_nonnegative_size_from_integer( \
+        amount_value, "BitVector shift must be nonnegative", \
+        "BitVector shift out of range" \
+    ); \
+    return (LT_Value)(uintptr_t)bitvector_shift(bitvector, amount, direction); \
+}
+
+DEFINE_BITVECTOR_SHIFT_METHOD(
+    bitvector_method_shift_left, "BitVector>>shiftLeft:", 1
+)
+DEFINE_BITVECTOR_SHIFT_METHOD(
+    bitvector_method_shift_right, "BitVector>>shiftRight:", 0
+)
+
+static LT_Value bitvector_rotate_primitive(LT_Value arguments, int left){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_Value amount_value;
+    LT_BitVector* result;
+    size_t amount;
+    size_t i;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, amount_value);
+    LT_ARG_END(cursor);
+    amount = LT_Number_nonnegative_size_from_integer(
+        amount_value,
+        "BitVector rotation must be nonnegative",
+        "BitVector rotation out of range"
+    );
+    result = LT_BitVector_new(bitvector->length, 0);
+    if (bitvector->length == 0){
+        return (LT_Value)(uintptr_t)result;
+    }
+    amount %= bitvector->length;
+    for (i = 0; i < bitvector->length; i++){
+        size_t destination = left
+            ? (i + amount) % bitvector->length
+            : (i + bitvector->length - amount) % bitvector->length;
+        LT_BitVector_atPut(result, destination, LT_BitVector_at(bitvector, i));
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_rotate_left,
+    "BitVector>>rotateLeft:",
+    "(self amount)",
+    "Return a left-rotated BitVector."
+){
+    (void)tail_call_unwind_marker;
+    return bitvector_rotate_primitive(arguments, 1);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_rotate_right,
+    "BitVector>>rotateRight:",
+    "(self amount)",
+    "Return a right-rotated BitVector."
+){
+    (void)tail_call_unwind_marker;
+    return bitvector_rotate_primitive(arguments, 0);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_append,
+    "BitVector>>append:",
+    "(self other)",
+    "Return the concatenation of receiver and another BitVector."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* left;
+    LT_BitVector* right;
+    LT_BitVector* result;
+    size_t i;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, left, LT_BitVector*, LT_BitVector_from_value);
+    LT_GENERIC_ARG(cursor, right, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    if (right->length > SIZE_MAX - left->length){
+        LT_error("Concatenated BitVector is too large");
+    }
+    result = LT_BitVector_new(left->length + right->length, 0);
+    for (i = 0; i < left->length; i++){
+        LT_BitVector_atPut(result, i, LT_BitVector_at(left, i));
+    }
+    for (i = 0; i < right->length; i++){
+        LT_BitVector_atPut(result, left->length + i, LT_BitVector_at(right, i));
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_resize_filled,
+    "BitVector>>resize:filled:",
+    "(self length fill)",
+    "Return a resized copy, filling newly added bits with fill."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_Value length_value;
+    LT_Value fill_value;
+    LT_BitVector* result;
+    size_t length;
+    size_t copied;
+    size_t i;
+    int fill;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, length_value);
+    LT_OBJECT_ARG(cursor, fill_value);
+    LT_ARG_END(cursor);
+    length = LT_Number_nonnegative_size_from_integer(
+        length_value, "BitVector size out of bounds", "BitVector size out of bounds"
+    );
+    fill = bit_from_value(fill_value);
+    result = LT_BitVector_new(length, fill);
+    copied = length < bitvector->length ? length : bitvector->length;
+    for (i = 0; i < copied; i++){
+        LT_BitVector_atPut(result, i, LT_BitVector_at(bitvector, i));
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_rank,
+    "BitVector>>rank:",
+    "(self index)",
+    "Return the number of set bits before index."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_Value index_value;
+    size_t index;
+    size_t count = 0;
+    size_t i;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, index_value);
+    LT_ARG_END(cursor);
+    index = LT_Number_nonnegative_size_from_integer(
+        index_value, "BitVector rank index out of bounds",
+        "BitVector rank index out of bounds"
+    );
+    if (index > bitvector->length){
+        LT_error("BitVector rank index out of bounds");
+    }
+    for (i = 0; i < index; i++){
+        count += (size_t)LT_BitVector_at(bitvector, i);
+    }
+    return LT_Number_smallinteger_from_size(count, "BitVector rank does not fit fixnum");
+}
+
+static LT_Value bitvector_find_set_bit(LT_BitVector* bitvector,
+                                       size_t start,
+                                       size_t ordinal,
+                                       int use_ordinal){
+    size_t i;
+    size_t seen = 0;
+
+    for (i = start; i < bitvector->length; i++){
+        if (LT_BitVector_at(bitvector, i)){
+            if (!use_ordinal || seen == ordinal){
+                return LT_Number_smallinteger_from_size(
+                    i, "BitVector index does not fit fixnum"
+                );
+            }
+            seen++;
+        }
+    }
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_select,
+    "BitVector>>select:",
+    "(self ordinal)",
+    "Return the index of the zero-based ordinal set bit, or nil."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_Value ordinal_value;
+    size_t ordinal;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, ordinal_value);
+    LT_ARG_END(cursor);
+    ordinal = LT_Number_nonnegative_size_from_integer(
+        ordinal_value, "BitVector select ordinal out of bounds",
+        "BitVector select ordinal out of bounds"
+    );
+    return bitvector_find_set_bit(bitvector, 0, ordinal, 1);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_first_set_bit,
+    "BitVector>>firstSetBit",
+    "(self)",
+    "Return the first set-bit index, or nil."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    return bitvector_find_set_bit(bitvector, 0, 0, 0);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_next_set_bit_after,
+    "BitVector>>nextSetBitAfter:",
+    "(self index)",
+    "Return the next set-bit index strictly after index, or nil."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_Value index_value;
+    size_t index;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_OBJECT_ARG(cursor, index_value);
+    LT_ARG_END(cursor);
+    index = LT_Number_nonnegative_size_from_integer(
+        index_value, "BitVector index out of bounds", "BitVector index out of bounds"
+    );
+    if (index >= bitvector->length){
+        LT_error("BitVector index out of bounds");
+    }
+    return bitvector_find_set_bit(bitvector, index + 1, 0, 0);
+}
+
+static LT_Value bitvector_predicate(LT_BitVector* bitvector, int kind){
+    size_t count = 0;
+    size_t i;
+    for (i = 0; i < bitvector->length; i++){
+        count += (size_t)LT_BitVector_at(bitvector, i);
+    }
+    if (kind == 0){
+        return count != 0 ? LT_TRUE : LT_FALSE;
+    }
+    if (kind == 1){
+        return count == bitvector->length ? LT_TRUE : LT_FALSE;
+    }
+    return count == 0 ? LT_TRUE : LT_FALSE;
+}
+
+#define DEFINE_BITVECTOR_PREDICATE(c_name, selector, kind_value) \
+LT_DEFINE_PRIMITIVE(c_name, selector, "(self)", "Query the receiver bits."){ \
+    LT_Value cursor = arguments; \
+    LT_BitVector* bitvector; \
+    (void)tail_call_unwind_marker; \
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value); \
+    LT_ARG_END(cursor); \
+    return bitvector_predicate(bitvector, kind_value); \
+}
+
+DEFINE_BITVECTOR_PREDICATE(bitvector_method_any, "BitVector>>any?", 0)
+DEFINE_BITVECTOR_PREDICATE(bitvector_method_all, "BitVector>>all?", 1)
+DEFINE_BITVECTOR_PREDICATE(bitvector_method_none, "BitVector>>none?", 2)
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_reverse,
+    "BitVector>>reverse",
+    "(self)",
+    "Return a BitVector with reversed index order."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_BitVector* result;
+    size_t i;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    result = LT_BitVector_new(bitvector->length, 0);
+    for (i = 0; i < bitvector->length; i++){
+        LT_BitVector_atPut(
+            result, bitvector->length - i - 1, LT_BitVector_at(bitvector, i)
+        );
+    }
+    return (LT_Value)(uintptr_t)result;
+}
+
+LT_DEFINE_PRIMITIVE(
     bitvector_method_as_unsigned_integer,
     "BitVector>>asUnsignedInteger",
     "(self)",
@@ -939,6 +1303,7 @@ static LT_Method_Descriptor BitVectorIterator_methods[] = {
 };
 
 static LT_Method_Descriptor BitVector_methods[] = {
+    {"length", &bitvector_method_length},
     {"at:", &bitvector_method_at},
     {"at:length:", &bitvector_method_at_length},
     {"at:put:", &bitvector_method_at_put},
@@ -949,6 +1314,20 @@ static LT_Method_Descriptor BitVector_methods[] = {
     {"xor:", &bitvector_method_xor},
     {"not", &bitvector_method_not},
     {"combineWith:using:", &bitvector_method_combine_with_using},
+    {"shiftLeft:", &bitvector_method_shift_left},
+    {"shiftRight:", &bitvector_method_shift_right},
+    {"rotateLeft:", &bitvector_method_rotate_left},
+    {"rotateRight:", &bitvector_method_rotate_right},
+    {"append:", &bitvector_method_append},
+    {"resize:filled:", &bitvector_method_resize_filled},
+    {"rank:", &bitvector_method_rank},
+    {"select:", &bitvector_method_select},
+    {"firstSetBit", &bitvector_method_first_set_bit},
+    {"nextSetBitAfter:", &bitvector_method_next_set_bit_after},
+    {"any?", &bitvector_method_any},
+    {"all?", &bitvector_method_all},
+    {"none?", &bitvector_method_none},
+    {"reverse", &bitvector_method_reverse},
     {"asUnsignedInteger", &bitvector_method_as_unsigned_integer},
     {"asSignedInteger", &bitvector_method_as_signed_integer},
     {"asList", &bitvector_method_as_list},
@@ -987,6 +1366,8 @@ LT_DEFINE_CLASS(LT_BitVector) {
     .documentation = "Mutable indexed sequence of bits.",
     .instance_size = sizeof(LT_BitVector),
     .class_flags = LT_CLASS_FLAG_FLEXIBLE,
+    .hash = BitVector_hash,
+    .equal_p = BitVector_equal_p,
     .debugPrintOn = BitVector_debugPrintOn,
     .methods = BitVector_methods,
     .class_methods = BitVector_class_methods,
