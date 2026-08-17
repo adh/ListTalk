@@ -995,6 +995,56 @@
        "BitVectorIterator integrates with Iterator>>asList")
 (check (eq? [[[BitVector new: 0] asIterator] class] EmptyIterator)
        "An empty BitVector uses EmptyIterator")
+(check (equal? [[BitVector fromUnsignedInteger: 0] asList] '(#false))
+       "BitVector class>>fromUnsignedInteger: represents zero with one bit")
+(check (equal? [[BitVector fromUnsignedInteger: 13] asList]
+               '(#true #false #true #true))
+       "BitVector class>>fromUnsignedInteger: uses least-significant-bit-first indexes")
+(check (equal? [[BitVector fromUnsignedInteger: 13 size: 6] asList]
+               '(#true #false #true #true #false #false))
+       "BitVector class>>fromUnsignedInteger:size: zero-extends to exact size")
+(check (= [[BitVector fromUnsignedInteger: #x10000000000000003]
+           asUnsignedInteger]
+          #x10000000000000003)
+       "BitVector unsigned integer conversion supports big integers")
+(check (= [[BitVector fromUnsignedInteger: 0 size: 0] asUnsignedInteger] 0)
+       "Zero has an empty exact-width unsigned representation")
+(check-error-message "Unsigned integer does not fit requested BitVector size"
+                     "BitVector class>>fromUnsignedInteger:size: checks bit overflow"
+  [BitVector fromUnsignedInteger: 8 size: 3])
+(check (equal? [[BitVector fromInteger: -3 size: 4] asList]
+               '(#true #false #true #true))
+       "BitVector class>>fromInteger:size: uses two's complement")
+(check (= [[BitVector fromInteger: -3 size: 4] asSignedInteger] -3)
+       "BitVector>>asSignedInteger sign-extends partial bytes")
+(check (= [[BitVector fromInteger: 7 size: 4] asSignedInteger] 7)
+       "BitVector signed conversion preserves positive values")
+(check (= [[BitVector fromInteger: -128 size: 8] asSignedInteger] -128)
+       "BitVector signed conversion handles whole bytes")
+(check-error-message "Integer does not fit requested BitVector size"
+                     "BitVector class>>fromInteger:size: rejects positive overflow"
+  [BitVector fromInteger: 8 size: 4])
+(check-error-message "Integer does not fit requested BitVector size"
+                     "BitVector class>>fromInteger:size: rejects negative overflow"
+  [BitVector fromInteger: -9 size: 4])
+(check (equal? [[BitVector fromList: '(1 #false #true 0)] asList]
+               '(#true #false #true #false))
+       "BitVector list conversions normalize values to Booleans")
+(let ((bytes (bytevector 1 128)))
+  (check (equal? [[BitVector fromLEByteVector: bytes] asLEByteVector] bytes)
+         "BitVector little-endian ByteVector conversion round-trips")
+  (check (equal? [[BitVector fromLEByteVector: bytes] asBEByteVector]
+                 (bytevector 128 1))
+         "BitVector converts little-endian bytes to big-endian bytes")
+  (check (equal? [[BitVector fromBEByteVector: bytes] asBEByteVector] bytes)
+         "BitVector big-endian ByteVector conversion round-trips")
+  (check (= [[BitVector fromBEByteVector: bytes] asUnsignedInteger] #x0180)
+         "BitVector big-endian bytes have the expected unsigned value"))
+(let ((partial [BitVector fromUnsignedInteger: 13 size: 6]))
+  (check (equal? [partial asLEByteVector] (bytevector 13))
+         "BitVector>>asLEByteVector zeroes unused high bits")
+  (check (equal? [partial asBEByteVector] (bytevector 13))
+         "BitVector>>asBEByteVector packs a partial leading byte"))
 (check-error-message "BitVector value must be 0, 1, #false, or #true"
                      "BitVector rejects other stored values"
   [[BitVector new: 1] at: 0 put: 2])

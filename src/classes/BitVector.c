@@ -3,15 +3,20 @@
  * Copyright (c) 2023 - 2026 Ales Hakl
  */
 
+#include <ListTalk/ListTalk.h>
 #include <ListTalk/classes/BitVector.h>
 #include <ListTalk/classes/Boolean.h>
+#include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Class.h>
 #include <ListTalk/classes/Iterator.h>
+#include <ListTalk/classes/Integer.h>
+#include <ListTalk/classes/List.h>
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/SmallInteger.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/utils.h>
 
 #include <stdint.h>
 #include <string.h>
@@ -44,6 +49,102 @@ static int bit_from_value(LT_Value value){
         }
     }
     LT_error("BitVector value must be 0, 1, #false, or #true");
+}
+
+static void require_bitvector_class(LT_Value self, const char* selector){
+    (void)selector;
+    if (self != (LT_Value)(uintptr_t)&LT_BitVector_class){
+        LT_error("Class method is only supported on BitVector");
+    }
+}
+
+static LT_BitVector* bitvector_from_be_bytes(LT_ByteVector* bytes,
+                                             size_t bit_length){
+    LT_BitVector* bitvector = LT_BitVector_new(bit_length, 0);
+    size_t byte_length = LT_ByteVector_length(bytes);
+    size_t i;
+
+    for (i = 0; i < byte_length; i++){
+        uint8_t byte = LT_ByteVector_at(bytes, byte_length - i - 1);
+        size_t destination = i * 8;
+        size_t remaining;
+
+        if (destination >= bit_length){
+            break;
+        }
+        remaining = bit_length - destination;
+        if (remaining < 8){
+            byte &= (uint8_t)(UINT8_C(1) << remaining) - 1;
+        }
+        bitvector->bytes[i] = byte;
+    }
+    return bitvector;
+}
+
+static LT_BitVector* bitvector_from_le_bytes(LT_ByteVector* bytes){
+    size_t byte_length = LT_ByteVector_length(bytes);
+    LT_BitVector* bitvector;
+    size_t i;
+
+    if (byte_length > SIZE_MAX / 8){
+        LT_error("ByteVector is too large for a BitVector");
+    }
+    bitvector = LT_BitVector_new(byte_length * 8, 0);
+    for (i = 0; i < byte_length; i++){
+        bitvector->bytes[i] = LT_ByteVector_at(bytes, i);
+    }
+    return bitvector;
+}
+
+static LT_ByteVector* bitvector_as_le_bytes(LT_BitVector* bitvector){
+    size_t byte_length = byte_length_for_bits(bitvector->length);
+    LT_ByteVector* bytes = LT_ByteVector_new_filled(byte_length, 0);
+    size_t i;
+
+    for (i = 0; i < byte_length; i++){
+        uint8_t byte = bitvector->bytes[i];
+
+        if (i + 1 == byte_length && bitvector->length % 8 != 0){
+            byte &= (uint8_t)(UINT8_C(1) << (bitvector->length % 8)) - 1;
+        }
+        LT_ByteVector_atPut(bytes, i, byte);
+    }
+    return bytes;
+}
+
+static LT_ByteVector* bitvector_as_be_bytes(LT_BitVector* bitvector){
+    LT_ByteVector* little_endian = bitvector_as_le_bytes(bitvector);
+    size_t length = LT_ByteVector_length(little_endian);
+    LT_ByteVector* big_endian = LT_ByteVector_new_filled(length, 0);
+    size_t i;
+
+    for (i = 0; i < length; i++){
+        LT_ByteVector_atPut(
+            big_endian,
+            i,
+            LT_ByteVector_at(little_endian, length - i - 1)
+        );
+    }
+    return big_endian;
+}
+
+static size_t unsigned_bit_length(LT_ByteVector* bytes){
+    size_t byte_length = LT_ByteVector_length(bytes);
+    uint8_t first;
+    size_t high_bits = 0;
+
+    if (byte_length == 0){
+        return 1;
+    }
+    first = LT_ByteVector_at(bytes, 0);
+    while (first != 0){
+        first >>= 1;
+        high_bits++;
+    }
+    if (high_bits == 0){
+        return 1;
+    }
+    return (byte_length - 1) * 8 + high_bits;
 }
 
 static void BitVector_debugPrintOn(LT_Value value, FILE* stream){
@@ -138,6 +239,208 @@ LT_DEFINE_PRIMITIVE(
         iterator->index++;
     }
     return self;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_class_method_from_unsigned_integer,
+    "BitVector class>>fromUnsignedInteger:",
+    "(self integer)",
+    "Return the shortest bit vector representing a non-negative integer."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value integer;
+    LT_ByteVector* bytes;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, integer);
+    LT_ARG_END(cursor);
+    require_bitvector_class(self, "fromUnsignedInteger:");
+    bytes = LT_ByteVector_from_value(LT_SEND(integer, "toBytes"));
+    return (LT_Value)(uintptr_t)bitvector_from_be_bytes(
+        bytes,
+        unsigned_bit_length(bytes)
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_class_method_from_unsigned_integer_size,
+    "BitVector class>>fromUnsignedInteger:size:",
+    "(self integer size)",
+    "Return an exact-size bit vector representing a non-negative integer."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value integer;
+    LT_Value size_value;
+    size_t size;
+    size_t byte_length;
+    LT_ByteVector* bytes;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, integer);
+    LT_OBJECT_ARG(cursor, size_value);
+    LT_ARG_END(cursor);
+    require_bitvector_class(self, "fromUnsignedInteger:size:");
+    size = LT_Number_nonnegative_size_from_integer(
+        size_value,
+        "BitVector size out of bounds",
+        "BitVector size out of bounds"
+    );
+    byte_length = byte_length_for_bits(size);
+    bytes = LT_ByteVector_from_value(LT_SEND(
+        integer,
+        "toBytes:",
+        LT_Number_smallinteger_from_size(
+            byte_length,
+            "BitVector size out of bounds"
+        )
+    ));
+    if (size % 8 != 0
+        && (LT_ByteVector_at(bytes, 0) >> (size % 8)) != 0){
+        LT_error("Unsigned integer does not fit requested BitVector size");
+    }
+    return (LT_Value)(uintptr_t)bitvector_from_be_bytes(bytes, size);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_class_method_from_integer_size,
+    "BitVector class>>fromInteger:size:",
+    "(self integer size)",
+    "Return an exact-size two's-complement bit vector."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value integer;
+    LT_Value size_value;
+    size_t size;
+    size_t byte_length;
+    LT_ByteVector* bytes;
+    uint8_t high_byte;
+    uint8_t value_mask;
+    uint8_t extension_mask;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, integer);
+    LT_OBJECT_ARG(cursor, size_value);
+    LT_ARG_END(cursor);
+    require_bitvector_class(self, "fromInteger:size:");
+    size = LT_Number_nonnegative_size_from_integer(
+        size_value,
+        "BitVector size out of bounds",
+        "BitVector size out of bounds"
+    );
+    if (size == 0){
+        LT_error("Signed BitVector size must be positive");
+    }
+    byte_length = byte_length_for_bits(size);
+    bytes = LT_ByteVector_from_value(LT_SEND(
+        integer,
+        "toTwosComplement:",
+        LT_Number_smallinteger_from_size(
+            byte_length,
+            "BitVector size out of bounds"
+        )
+    ));
+    high_byte = LT_ByteVector_at(bytes, 0);
+    if (size % 8 != 0){
+        value_mask = (uint8_t)(UINT8_C(1) << (size % 8)) - 1;
+        extension_mask = (uint8_t)~value_mask;
+        if ((high_byte & (UINT8_C(1) << ((size - 1) % 8))) != 0){
+            if ((high_byte & extension_mask) != extension_mask){
+                LT_error("Integer does not fit requested BitVector size");
+            }
+        } else if ((high_byte & extension_mask) != 0){
+            LT_error("Integer does not fit requested BitVector size");
+        }
+    }
+    return (LT_Value)(uintptr_t)bitvector_from_be_bytes(bytes, size);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_class_method_from_list,
+    "BitVector class>>fromList:",
+    "(self list)",
+    "Return a bit vector whose index order matches the list."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value list;
+    LT_Value rest;
+    size_t length = 0;
+    size_t index = 0;
+    LT_BitVector* bitvector;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, list);
+    LT_ARG_END(cursor);
+    require_bitvector_class(self, "fromList:");
+    if (!LT_List_p(list) || !LT_List_proper_p(list)){
+        LT_error("BitVector class>>fromList: requires a proper List");
+    }
+    rest = list;
+    while (rest != LT_NIL){
+        if (length == SIZE_MAX){
+            LT_error("List is too large for a BitVector");
+        }
+        length++;
+        rest = LT_cdr(rest);
+    }
+    bitvector = LT_BitVector_new(length, 0);
+    rest = list;
+    while (rest != LT_NIL){
+        LT_BitVector_atPut(bitvector, index++, bit_from_value(LT_car(rest)));
+        rest = LT_cdr(rest);
+    }
+    return (LT_Value)(uintptr_t)bitvector;
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_class_method_from_le_bytevector,
+    "BitVector class>>fromLEByteVector:",
+    "(self bytevector)",
+    "Return a bit vector decoded from little-endian bytes."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ByteVector* bytes;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, bytes, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    require_bitvector_class(self, "fromLEByteVector:");
+    return (LT_Value)(uintptr_t)bitvector_from_le_bytes(bytes);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_class_method_from_be_bytevector,
+    "BitVector class>>fromBEByteVector:",
+    "(self bytevector)",
+    "Return a bit vector decoded from big-endian bytes."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_ByteVector* bytes;
+    size_t byte_length;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_GENERIC_ARG(cursor, bytes, LT_ByteVector*, LT_ByteVector_from_value);
+    LT_ARG_END(cursor);
+    require_bitvector_class(self, "fromBEByteVector:");
+    byte_length = LT_ByteVector_length(bytes);
+    if (byte_length > SIZE_MAX / 8){
+        LT_error("ByteVector is too large for a BitVector");
+    }
+    return (LT_Value)(uintptr_t)bitvector_from_be_bytes(
+        bytes,
+        byte_length * 8
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -251,6 +554,114 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    bitvector_method_as_unsigned_integer,
+    "BitVector>>asUnsignedInteger",
+    "(self)",
+    "Return the bits interpreted as an unsigned integer."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_ByteVector* bytes;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    bytes = bitvector_as_be_bytes(bitvector);
+    return LT_SEND(
+        (LT_Value)(uintptr_t)&LT_Integer_class,
+        "fromBytes:",
+        (LT_Value)(uintptr_t)bytes
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_as_signed_integer,
+    "BitVector>>asSignedInteger",
+    "(self)",
+    "Return the bits interpreted as a two's-complement integer."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_ByteVector* bytes;
+    size_t remainder;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    if (bitvector->length == 0){
+        return LT_SmallInteger_new(0);
+    }
+    bytes = bitvector_as_be_bytes(bitvector);
+    remainder = bitvector->length % 8;
+    if (remainder != 0
+        && LT_BitVector_at(bitvector, bitvector->length - 1)){
+        uint8_t high_byte = LT_ByteVector_at(bytes, 0);
+        uint8_t value_mask = (uint8_t)(UINT8_C(1) << remainder) - 1;
+
+        LT_ByteVector_atPut(bytes, 0, high_byte | (uint8_t)~value_mask);
+    }
+    return LT_SEND(
+        (LT_Value)(uintptr_t)&LT_Integer_class,
+        "fromTwosComplement:",
+        (LT_Value)(uintptr_t)bytes
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_as_list,
+    "BitVector>>asList",
+    "(self)",
+    "Return the bits as a list of Booleans in index order."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    LT_ListBuilder* builder;
+    size_t i;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    builder = LT_ListBuilder_new();
+    for (i = 0; i < bitvector->length; i++){
+        LT_ListBuilder_append(
+            builder,
+            LT_BitVector_at(bitvector, i) ? LT_TRUE : LT_FALSE
+        );
+    }
+    return LT_ListBuilder_value(builder);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_as_le_bytevector,
+    "BitVector>>asLEByteVector",
+    "(self)",
+    "Return the bits packed into little-endian bytes."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)bitvector_as_le_bytes(bitvector);
+}
+
+LT_DEFINE_PRIMITIVE(
+    bitvector_method_as_be_bytevector,
+    "BitVector>>asBEByteVector",
+    "(self)",
+    "Return the bits packed into big-endian bytes."
+){
+    LT_Value cursor = arguments;
+    LT_BitVector* bitvector;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, bitvector, LT_BitVector*, LT_BitVector_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)bitvector_as_be_bytes(bitvector);
+}
+
+LT_DEFINE_PRIMITIVE(
     bitvector_method_as_iterator,
     "BitVector>>asIterator",
     "(self)",
@@ -283,11 +694,22 @@ static LT_Method_Descriptor BitVectorIterator_methods[] = {
 static LT_Method_Descriptor BitVector_methods[] = {
     {"at:", &bitvector_method_at},
     {"at:put:", &bitvector_method_at_put},
+    {"asUnsignedInteger", &bitvector_method_as_unsigned_integer},
+    {"asSignedInteger", &bitvector_method_as_signed_integer},
+    {"asList", &bitvector_method_as_list},
+    {"asLEByteVector", &bitvector_method_as_le_bytevector},
+    {"asBEByteVector", &bitvector_method_as_be_bytevector},
     {"asIterator", &bitvector_method_as_iterator},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
 static LT_Method_Descriptor BitVector_class_methods[] = {
+    {"fromUnsignedInteger:", &bitvector_class_method_from_unsigned_integer},
+    {"fromUnsignedInteger:size:", &bitvector_class_method_from_unsigned_integer_size},
+    {"fromInteger:size:", &bitvector_class_method_from_integer_size},
+    {"fromList:", &bitvector_class_method_from_list},
+    {"fromLEByteVector:", &bitvector_class_method_from_le_bytevector},
+    {"fromBEByteVector:", &bitvector_class_method_from_be_bytevector},
     {"new:", &bitvector_class_method_new},
     {"new:filled:", &bitvector_class_method_new_filled},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
