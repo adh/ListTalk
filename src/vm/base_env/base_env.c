@@ -140,6 +140,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"MethodDescriptor", &LT_MethodDescriptor_class},
     {"Vector", &LT_Vector_class},
     {"VectorIterator", &LT_VectorIterator_class},
+    {"BitVector", &LT_BitVector_class},
     {"ByteVector", &LT_ByteVector_class},
     {"ByteVectorIterator", &LT_ByteVectorIterator_class},
     {"RandomAccessFile", &LT_RandomAccessFile_class},

@@ -47,6 +47,7 @@
 #include <ListTalk/classes/BindingDescriptor.h>
 #include <ListTalk/classes/MethodDescriptor.h>
 #include <ListTalk/classes/Vector.h>
+#include <ListTalk/classes/BitVector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/RandomAccessFile.h>
 #include <ListTalk/classes/Builder.h>

@@ -953,6 +953,30 @@
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
   (check (eq? [v at: 1] 9) "Vector>>at:put: mutates element"))
+(let ((bits [BitVector new: 10]))
+  (check (eq? [bits at: 0] #false) "BitVector class>>new: fills with false")
+  (check (eq? [bits at: 9] #false) "BitVector class>>new: preserves bit length")
+  (check (eq? [bits at: 1 put: 1] #true)
+         "BitVector>>at:put: accepts 1 and returns true")
+  (check (eq? [bits at: 1] #true) "BitVector>>at: returns a Boolean")
+  (check (eq? [bits at: 1 put: 0] #false)
+         "BitVector>>at:put: accepts 0 and returns false")
+  (check (eq? [bits at: 2 put: #true] #true)
+         "BitVector>>at:put: accepts #true")
+  (check (eq? [bits at: 2 put: #false] #false)
+         "BitVector>>at:put: accepts #false"))
+(let ((ones [BitVector new: 9 filled: 1])
+      (truths [BitVector new: 2 filled: #true])
+      (falses [BitVector new: 2 filled: #false]))
+  (check (eq? [ones at: 8] #true) "BitVector class>>new:filled: accepts 1")
+  (check (eq? [truths at: 1] #true) "BitVector class>>new:filled: accepts #true")
+  (check (eq? [falses at: 1] #false) "BitVector class>>new:filled: accepts #false"))
+(check-error-message "BitVector value must be 0, 1, #false, or #true"
+                     "BitVector rejects other stored values"
+  [[BitVector new: 1] at: 0 put: 2])
+(check-error-message "BitVector index out of bounds"
+                     "BitVector checks logical rather than byte bounds"
+  [[BitVector new: 1] at: 1])
 (let ((v #(3 1 2 1)))
   (check (equal? [v sort] #(1 1 2 3)) "Vector>>sort returns sorted fresh vector")
   (check (equal? v #(3 1 2 1)) "Vector>>sort does not mutate receiver"))
