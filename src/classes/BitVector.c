@@ -685,13 +685,15 @@ LT_DEFINE_PRIMITIVE(
     bitvector_method_combine_with_using,
     "BitVector>>combineWith:using:",
     "(self other combination)",
-    "Combine equal-length BitVectors using a four-entry truth table or function."
+    "Combine BitVectors using a four-entry table, 4-bit integer, or function."
 ){
     LT_Value cursor = arguments;
     LT_BitVector* left;
     LT_BitVector* right;
     LT_Value combination;
     LT_BitVector* result;
+    int64_t integer_table = 0;
+    int combination_is_integer;
     size_t i;
     (void)tail_call_unwind_marker;
 
@@ -708,6 +710,17 @@ LT_DEFINE_PRIMITIVE(
         && LT_Vector_length(LT_Vector_from_value(combination)) != 4){
         LT_error("BitVector combination table must have four elements");
     }
+    combination_is_integer = LT_Value_is_instance_of(
+        combination,
+        LT_STATIC_CLASS(LT_Integer)
+    );
+    if (combination_is_integer){
+        if (!LT_SmallInteger_p(combination)
+            || (integer_table = LT_SmallInteger_value(combination)) < 0
+            || integer_table > 15){
+            LT_error("BitVector integer combination table must be between 0 and 15");
+        }
+    }
     result = LT_BitVector_new(left->length, 0);
     for (i = 0; i < left->length; i++){
         int a = LT_BitVector_at(left, i);
@@ -720,6 +733,8 @@ LT_DEFINE_PRIMITIVE(
                 ? LT_TRUE : LT_FALSE;
         } else if (LT_Vector_p(combination)){
             value = LT_Vector_at(LT_Vector_from_value(combination), table_index);
+        } else if (combination_is_integer){
+            value = (integer_table >> table_index) & 1 ? LT_TRUE : LT_FALSE;
         } else {
             value = LT_APPLY(
                 combination,

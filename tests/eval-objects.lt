@@ -1074,9 +1074,18 @@
   (check (equal? [[a combineWith: b using: #(0 0 0 1)] asList]
                  '(#false #false #true #false))
          "BitVector>>combineWith:using: accepts a Vector truth table")
+  (check (equal? [[a combineWith: b using: 6] asList]
+                 '(#false #true #false #true))
+         "BitVector>>combineWith:using: accepts an integer truth table")
   (check (equal? [[a combineWith: b using: (lambda (x y) (or x y))] asList]
                  '(#false #true #true #true))
          "BitVector>>combineWith:using: accepts a two-argument function"))
+(check-error-message "BitVector integer combination table must be between 0 and 15"
+                     "BitVector integer truth tables reject excess bits"
+  [[BitVector new: 1] combineWith: [BitVector new: 1] using: 16])
+(check-error-message "BitVector integer combination table must be between 0 and 15"
+                     "BitVector integer truth tables reject negative values"
+  [[BitVector new: 1] combineWith: [BitVector new: 1] using: -1])
 (let ((destination [BitVector new: 6]))
   [destination at: 2 put: [BitVector fromList: '(1 0 1)]]
   (check (equal? [destination asList]
