@@ -4,6 +4,7 @@
  */
 
 #include <ListTalk/ListTalk.h>
+#include <ListTalk/classes/BitVector.h>
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/vm/reader.h>
@@ -3604,6 +3605,46 @@ static int test_integer_from_intmax_c_api(void){
     return 0;
 }
 
+static int test_bitvector_uint8_array_conversions(void){
+    const uint8_t little_endian[] = {0x5a, 0x03};
+    const uint8_t big_endian[] = {0x03, 0x5a};
+    LT_BitVector* from_little = LT_BitVector_from_le_uint8_array(
+        little_endian,
+        10
+    );
+    LT_BitVector* from_big = LT_BitVector_from_be_uint8_array(
+        big_endian,
+        10
+    );
+    uint8_t little_result[] = {0xff, 0xff};
+    uint8_t big_result[] = {0xff, 0xff};
+    int failed = 0;
+    size_t i;
+
+    failed += expect(
+        LT_BitVector_length(from_little) == 10
+            && LT_BitVector_byte_length(from_little) == 2,
+        "BitVector uint8 array conversion preserves partial-byte bit length"
+    );
+    for (i = 0; i < 10; i++){
+        failed += expect(
+            LT_BitVector_at(from_little, i) == LT_BitVector_at(from_big, i),
+            "BitVector little- and big-endian uint8 arrays represent equal bits"
+        );
+    }
+    LT_BitVector_to_le_uint8_array(from_big, little_result);
+    LT_BitVector_to_be_uint8_array(from_little, big_result);
+    failed += expect(
+        memcmp(little_result, little_endian, sizeof(little_endian)) == 0,
+        "BitVector converts to a packed little-endian uint8 array"
+    );
+    failed += expect(
+        memcmp(big_result, big_endian, sizeof(big_endian)) == 0,
+        "BitVector converts to a packed big-endian uint8 array"
+    );
+    return failed;
+}
+
 static int test_integer_bytevector_conversions(void){
     static const uint8_t zero[] = {0x00};
     static const uint8_t unsigned_255[] = {0xff};
@@ -4370,6 +4411,7 @@ int main(void){
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
     RUN_TEST(test_string_format_c_api);
     RUN_TEST(test_integer_from_intmax_c_api);
+    RUN_TEST(test_bitvector_uint8_array_conversions);
     RUN_TEST(test_integer_bytevector_conversions);
     RUN_TEST(test_string_split_c_api);
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);

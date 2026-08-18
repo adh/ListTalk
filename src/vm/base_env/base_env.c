@@ -32,6 +32,7 @@
 #include <ListTalk/classes/MethodDescriptor.h>
 #include <ListTalk/classes/Vector.h>
 #include <ListTalk/classes/ByteVector.h>
+#include <ListTalk/classes/BitVector.h>
 #include <ListTalk/classes/RandomAccessFile.h>
 #include <ListTalk/classes/Builder.h>
 #include <ListTalk/classes/MessageDigest.h>
@@ -140,6 +141,8 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"MethodDescriptor", &LT_MethodDescriptor_class},
     {"Vector", &LT_Vector_class},
     {"VectorIterator", &LT_VectorIterator_class},
+    {"BitVector", &LT_BitVector_class},
+    {"BitVectorIterator", &LT_BitVectorIterator_class},
     {"ByteVector", &LT_ByteVector_class},
     {"ByteVectorIterator", &LT_ByteVectorIterator_class},
     {"RandomAccessFile", &LT_RandomAccessFile_class},

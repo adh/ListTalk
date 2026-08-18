@@ -953,6 +953,202 @@
 (let ((v #(1 2 3)))
   [v at: 1 put: 9]
   (check (eq? [v at: 1] 9) "Vector>>at:put: mutates element"))
+(let ((bits [BitVector new: 10]))
+  (check (eq? [bits at: 0] #false) "BitVector class>>new: fills with false")
+  (check (eq? [bits at: 9] #false) "BitVector class>>new: preserves bit length")
+  (check (eq? [bits at: 1 put: 1] #true)
+         "BitVector>>at:put: accepts 1 and returns true")
+  (check (eq? [bits at: 1] #true) "BitVector>>at: returns a Boolean")
+  (check (eq? [bits at: 1 put: 0] #false)
+         "BitVector>>at:put: accepts 0 and returns false")
+  (check (eq? [bits at: 2 put: #true] #true)
+         "BitVector>>at:put: accepts #true")
+  (check (eq? [bits at: 2 put: #false] #false)
+         "BitVector>>at:put: accepts #false"))
+(let ((ones [BitVector new: 9 filled: 1])
+      (truths [BitVector new: 2 filled: #true])
+      (falses [BitVector new: 2 filled: #false]))
+  (check (eq? [ones at: 8] #true) "BitVector class>>new:filled: accepts 1")
+  (check (eq? [truths at: 1] #true) "BitVector class>>new:filled: accepts #true")
+  (check (eq? [falses at: 1] #false) "BitVector class>>new:filled: accepts #false"))
+(let ((bits [BitVector new: 3])
+      (iterator #nil))
+  [bits at: 1 put: #true]
+  (set! iterator [bits asIterator])
+  (check (eq? [iterator class] BitVectorIterator)
+         "BitVector>>asIterator returns a BitVectorIterator")
+  (check (eq? [iterator this] #false)
+         "BitVectorIterator>>this returns false as a Boolean")
+  (check (eq? [iterator next!] iterator)
+         "BitVectorIterator>>next! returns receiver")
+  (check (eq? [iterator this] #true)
+         "BitVectorIterator>>this returns true as a Boolean")
+  [iterator next!]
+  [iterator next!]
+  (check (not [iterator hasThis?])
+         "BitVectorIterator is exhausted at the bit length")
+  (check-error-message "BitVectorIterator is not positioned"
+                       "BitVectorIterator>>this rejects an exhausted iterator"
+    [iterator this]))
+(check (equal? [[[BitVector new: 4 filled: 1] asIterator] asList]
+               '(#true #true #true #true))
+       "BitVectorIterator integrates with Iterator>>asList")
+(check (eq? [[[BitVector new: 0] asIterator] class] EmptyIterator)
+       "An empty BitVector uses EmptyIterator")
+(check (equal? [[BitVector fromUnsignedInteger: 0] asList] '(#false))
+       "BitVector class>>fromUnsignedInteger: represents zero with one bit")
+(check (equal? [[BitVector fromUnsignedInteger: 13] asList]
+               '(#true #false #true #true))
+       "BitVector class>>fromUnsignedInteger: uses least-significant-bit-first indexes")
+(check (equal? [[BitVector fromUnsignedInteger: 13 size: 6] asList]
+               '(#true #false #true #true #false #false))
+       "BitVector class>>fromUnsignedInteger:size: zero-extends to exact size")
+(check (= [[BitVector fromUnsignedInteger: #x10000000000000003]
+           asUnsignedInteger]
+          #x10000000000000003)
+       "BitVector unsigned integer conversion supports big integers")
+(check (= [[BitVector fromUnsignedInteger: 0 size: 0] asUnsignedInteger] 0)
+       "Zero has an empty exact-width unsigned representation")
+(check-error-message "Unsigned integer does not fit requested BitVector size"
+                     "BitVector class>>fromUnsignedInteger:size: checks bit overflow"
+  [BitVector fromUnsignedInteger: 8 size: 3])
+(check (equal? [[BitVector fromInteger: -3 size: 4] asList]
+               '(#true #false #true #true))
+       "BitVector class>>fromInteger:size: uses two's complement")
+(check (= [[BitVector fromInteger: -3 size: 4] asSignedInteger] -3)
+       "BitVector>>asSignedInteger sign-extends partial bytes")
+(check (= [[BitVector fromInteger: 7 size: 4] asSignedInteger] 7)
+       "BitVector signed conversion preserves positive values")
+(check (= [[BitVector fromInteger: -128 size: 8] asSignedInteger] -128)
+       "BitVector signed conversion handles whole bytes")
+(check-error-message "Integer does not fit requested BitVector size"
+                     "BitVector class>>fromInteger:size: rejects positive overflow"
+  [BitVector fromInteger: 8 size: 4])
+(check-error-message "Integer does not fit requested BitVector size"
+                     "BitVector class>>fromInteger:size: rejects negative overflow"
+  [BitVector fromInteger: -9 size: 4])
+(check (equal? [[BitVector fromList: '(1 #false #true 0)] asList]
+               '(#true #false #true #false))
+       "BitVector list conversions normalize values to Booleans")
+(let ((bytes (bytevector 1 128)))
+  (check (equal? [[BitVector fromLEByteVector: bytes] asLEByteVector] bytes)
+         "BitVector little-endian ByteVector conversion round-trips")
+  (check (equal? [[BitVector fromLEByteVector: bytes] asBEByteVector]
+                 (bytevector 128 1))
+         "BitVector converts little-endian bytes to big-endian bytes")
+  (check (equal? [[BitVector fromBEByteVector: bytes] asBEByteVector] bytes)
+         "BitVector big-endian ByteVector conversion round-trips")
+  (check (= [[BitVector fromBEByteVector: bytes] asUnsignedInteger] #x0180)
+         "BitVector big-endian bytes have the expected unsigned value"))
+(let ((partial [BitVector fromUnsignedInteger: 13 size: 6]))
+  (check (equal? [partial asLEByteVector] (bytevector 13))
+         "BitVector>>asLEByteVector zeroes unused high bits")
+  (check (equal? [partial asBEByteVector] (bytevector 13))
+         "BitVector>>asBEByteVector packs a partial leading byte"))
+(check-error-message "BitVector value must be 0, 1, #false, or #true"
+                     "BitVector rejects other stored values"
+  [[BitVector new: 1] at: 0 put: 2])
+(check-error-message "BitVector index out of bounds"
+                     "BitVector checks logical rather than byte bounds"
+  [[BitVector new: 1] at: 1])
+(let ((a [BitVector fromList: '(0 1 1 0)])
+      (b [BitVector fromList: '(0 0 1 1)]))
+  (check (= [a popCount] 2) "BitVector>>popCount counts set bits")
+  (check (equal? [[a at: 1 length: 2] asList] '(#true #true))
+         "BitVector>>at:length: returns a bit slice")
+  (check (equal? [[a and: b] asList] '(#false #false #true #false))
+         "BitVector>>and: combines corresponding bits")
+  (check (equal? [[a or: b] asList] '(#false #true #true #true))
+         "BitVector>>or: combines corresponding bits")
+  (check (equal? [[a xor: b] asList] '(#false #true #false #true))
+         "BitVector>>xor: combines corresponding bits")
+  (check (equal? [[a not] asList] '(#true #false #false #true))
+         "BitVector>>not inverts every logical bit")
+  (check (equal? [[a choose: a or: b] asList]
+                 '(#false #true #true #true))
+         "BitVector>>choose:or: selects corresponding bits")
+  (check (equal? [[a combineWith: b using: [BitVector fromList: '(0 1 1 0)]]
+                  asList]
+                 '(#false #true #false #true))
+         "BitVector>>combineWith:using: accepts a BitVector truth table")
+  (check (equal? [[a combineWith: b using: #(0 0 0 1)] asList]
+                 '(#false #false #true #false))
+         "BitVector>>combineWith:using: accepts a Vector truth table")
+  (check (equal? [[a combineWith: b using: 6] asList]
+                 '(#false #true #false #true))
+         "BitVector>>combineWith:using: accepts an integer truth table")
+  (check (equal? [[a combineWith: b using: (lambda (x y) (or x y))] asList]
+                 '(#false #true #true #true))
+         "BitVector>>combineWith:using: accepts a two-argument function"))
+(check-error-message "BitVector integer combination table must be between 0 and 15"
+                     "BitVector integer truth tables reject excess bits"
+  [[BitVector new: 1] combineWith: [BitVector new: 1] using: 16])
+(check-error-message "BitVector integer combination table must be between 0 and 15"
+                     "BitVector integer truth tables reject negative values"
+  [[BitVector new: 1] combineWith: [BitVector new: 1] using: -1])
+(let ((destination [BitVector new: 6]))
+  [destination at: 2 put: [BitVector fromList: '(1 0 1)]]
+  (check (equal? [destination asList]
+                 '(#false #false #true #false #true #false))
+         "BitVector>>at:put: inserts a BitVector"))
+(check-error-message "BitVector range out of bounds"
+                     "BitVector>>at:length: checks the complete range"
+  [[BitVector new: 3] at: 2 length: 2])
+(check-error-message "BitVector lengths must match"
+                     "BitVector binary operations require matching lengths"
+  [[BitVector new: 2] and: [BitVector new: 3]])
+(let ((bits [BitVector fromList: '(1 1 0 0)]))
+  (check (= [bits length] 4) "BitVector>>length returns the logical bit length")
+  (check (equal? bits [BitVector fromList: '(1 1 0 0)])
+         "BitVectors compare structurally")
+  (check (not (equal? bits [BitVector fromList: '(1 1 0)]))
+         "BitVector equality includes length")
+  (check (equal? [[bits shiftLeft: 1] asList]
+                 '(#false #true #true #false))
+         "BitVector>>shiftLeft: preserves length")
+  (check (equal? [[bits shiftRight: 1] asList]
+                 '(#true #false #false #false))
+         "BitVector>>shiftRight: preserves length")
+  (check (equal? [[bits shiftLeft: 9] asList]
+                 '(#false #false #false #false))
+         "BitVector shifts beyond length produce zero bits")
+  (check (equal? [[bits rotateLeft: 1] asList]
+                 '(#false #true #true #false))
+         "BitVector>>rotateLeft: wraps bits")
+  (check (equal? [[bits rotateRight: 1] asList]
+                 '(#true #false #false #true))
+         "BitVector>>rotateRight: wraps bits")
+  (check (equal? [[bits reverse] asList]
+                 '(#false #false #true #true))
+         "BitVector>>reverse reverses index order")
+  (check (equal? [[bits append: [BitVector fromList: '(0 1)]] asList]
+                 '(#true #true #false #false #false #true))
+         "BitVector>>append: concatenates in index order")
+  (check (equal? [[bits resize: 6 filled: 1] asList]
+                 '(#true #true #false #false #true #true))
+         "BitVector>>resize:filled: extends with the requested bit")
+  (check (equal? [[bits resize: 2 filled: 0] asList] '(#true #true))
+         "BitVector>>resize:filled: truncates high-index bits")
+  (check (= [bits rank: 3] 2) "BitVector>>rank: counts bits before index")
+  (check (= [bits select: 0] 0) "BitVector>>select: uses zero-based ordinals")
+  (check (= [bits select: 1] 1) "BitVector>>select: finds later set bits")
+  (check (eq? [bits select: 2] #nil) "BitVector>>select: returns nil when absent")
+  (check (= [bits firstSetBit] 0) "BitVector>>firstSetBit finds the first bit")
+  (check (= [bits nextSetBitAfter: 0] 1)
+         "BitVector>>nextSetBitAfter: finds the following bit")
+  (check (eq? [bits nextSetBitAfter: 1] #nil)
+         "BitVector>>nextSetBitAfter: returns nil when absent")
+  (check [bits any?] "BitVector>>any? detects a set bit")
+  (check (not [bits all?]) "BitVector>>all? detects an unset bit")
+  (check (not [bits none?]) "BitVector>>none? detects a set bit"))
+(let ((empty [BitVector new: 0]))
+  (check (not [empty any?]) "Empty BitVector does not satisfy any?")
+  (check [empty all?] "Empty BitVector vacuously satisfies all?")
+  (check [empty none?] "Empty BitVector satisfies none?")
+  (check (eq? [empty firstSetBit] #nil)
+         "Empty BitVector has no first set bit")
+  (check (equal? [[empty rotateLeft: 3] asList] '())
+         "Rotating an empty BitVector is defined"))
 (let ((v #(3 1 2 1)))
   (check (equal? [v sort] #(1 1 2 3)) "Vector>>sort returns sorted fresh vector")
   (check (equal? v #(3 1 2 1)) "Vector>>sort does not mutate receiver"))
