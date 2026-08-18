@@ -17,9 +17,18 @@ LT_DECLARE_CLASS(LT_BitVector);
 LT_DECLARE_CLASS(LT_BitVectorIterator);
 
 LT_BitVector* LT_BitVector_new(size_t length, int fill);
+/* Input arrays contain ceil(bit_length / 8) packed bytes. */
+LT_BitVector* LT_BitVector_from_le_uint8_array(const uint8_t* bytes,
+                                               size_t bit_length);
+LT_BitVector* LT_BitVector_from_be_uint8_array(const uint8_t* bytes,
+                                               size_t bit_length);
 size_t LT_BitVector_length(LT_BitVector* bitvector);
+size_t LT_BitVector_byte_length(LT_BitVector* bitvector);
 int LT_BitVector_at(LT_BitVector* bitvector, size_t index);
 void LT_BitVector_atPut(LT_BitVector* bitvector, size_t index, int value);
+/* Output arrays must have LT_BitVector_byte_length(bitvector) bytes. */
+void LT_BitVector_to_le_uint8_array(LT_BitVector* bitvector, uint8_t* bytes);
+void LT_BitVector_to_be_uint8_array(LT_BitVector* bitvector, uint8_t* bytes);
 
 LT__END_DECLS
 

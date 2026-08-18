@@ -1400,8 +1400,43 @@ LT_BitVector* LT_BitVector_new(size_t length, int fill){
     return bitvector;
 }
 
+LT_BitVector* LT_BitVector_from_le_uint8_array(const uint8_t* bytes,
+                                               size_t bit_length){
+    LT_BitVector* bitvector = LT_BitVector_new(bit_length, 0);
+    size_t i;
+
+    for (i = 0; i < bit_length; i++){
+        LT_BitVector_atPut(
+            bitvector,
+            i,
+            (bytes[i / 8] >> (i % 8)) & 1
+        );
+    }
+    return bitvector;
+}
+
+LT_BitVector* LT_BitVector_from_be_uint8_array(const uint8_t* bytes,
+                                               size_t bit_length){
+    LT_BitVector* bitvector = LT_BitVector_new(bit_length, 0);
+    size_t byte_length = byte_length_for_bits(bit_length);
+    size_t i;
+
+    for (i = 0; i < bit_length; i++){
+        LT_BitVector_atPut(
+            bitvector,
+            i,
+            (bytes[byte_length - i / 8 - 1] >> (i % 8)) & 1
+        );
+    }
+    return bitvector;
+}
+
 size_t LT_BitVector_length(LT_BitVector* bitvector){
     return bitvector->length;
+}
+
+size_t LT_BitVector_byte_length(LT_BitVector* bitvector){
+    return byte_length_for_bits(bitvector->length);
 }
 
 int LT_BitVector_at(LT_BitVector* bitvector, size_t index){
@@ -1422,5 +1457,34 @@ void LT_BitVector_atPut(LT_BitVector* bitvector, size_t index, int value){
         bitvector->bytes[index / 8] |= mask;
     } else {
         bitvector->bytes[index / 8] &= (uint8_t)~mask;
+    }
+}
+
+void LT_BitVector_to_le_uint8_array(LT_BitVector* bitvector, uint8_t* bytes){
+    size_t byte_length = byte_length_for_bits(bitvector->length);
+    size_t i;
+
+    if (byte_length != 0){
+        memset(bytes, 0, byte_length);
+    }
+    for (i = 0; i < bitvector->length; i++){
+        if (LT_BitVector_at(bitvector, i)){
+            bytes[i / 8] |= (uint8_t)(UINT8_C(1) << (i % 8));
+        }
+    }
+}
+
+void LT_BitVector_to_be_uint8_array(LT_BitVector* bitvector, uint8_t* bytes){
+    size_t byte_length = byte_length_for_bits(bitvector->length);
+    size_t i;
+
+    if (byte_length != 0){
+        memset(bytes, 0, byte_length);
+    }
+    for (i = 0; i < bitvector->length; i++){
+        if (LT_BitVector_at(bitvector, i)){
+            bytes[byte_length - i / 8 - 1] |=
+                (uint8_t)(UINT8_C(1) << (i % 8));
+        }
     }
 }
