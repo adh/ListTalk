@@ -88,13 +88,18 @@ runtime_init_once_embedded = custom_target(
 
 unicode_data_source = custom_target(
         'unicode_data.c',
-        input : ['data/UnicodeData.txt', 'data/CaseFolding.txt'],
+        input : [
+                'data/UnicodeData.txt',
+                'data/CaseFolding.txt',
+                'data/SpecialCasing.txt'
+        ],
         output : 'unicode_data.c',
         command : [
                 python3,
                 files('tools/generate_unicode_data.py'),
                 '@INPUT0@',
                 '@INPUT1@',
+                '@INPUT2@',
                 '@OUTPUT@'
         ],
         depend_files : files('tools/generate_unicode_data.py')
