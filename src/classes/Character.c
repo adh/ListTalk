@@ -14,6 +14,7 @@
 #include <ListTalk/classes/Class.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/utils/utf8.h>
+#include "src/utils/unicode_data.h"
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -90,8 +91,111 @@ LT_DEFINE_PRIMITIVE(
     return LT_SmallInteger_new((int64_t)width);
 }
 
+#define CHARACTER_CASE_METHOD(name, selector, function, description) \
+    LT_DEFINE_PRIMITIVE_FLAGS( \
+        name, "Character>>" selector, "(self)", description, \
+        LT_PRIMITIVE_FLAG_PURE \
+    ){ \
+        LT_Value cursor = arguments; \
+        LT_Value self; \
+        (void)tail_call_unwind_marker; \
+        LT_OBJECT_ARG(cursor, self); \
+        LT_ARG_END(cursor); \
+        return LT_Character_new(function(LT_Character_value(self))); \
+    }
+
+CHARACTER_CASE_METHOD(character_method_lower_case, "lowerCase",
+    LT_unicode_lowercase, "Return the Unicode simple lowercase mapping.")
+CHARACTER_CASE_METHOD(character_method_upper_case, "upperCase",
+    LT_unicode_uppercase, "Return the Unicode simple uppercase mapping.")
+CHARACTER_CASE_METHOD(character_method_title_case, "titleCase",
+    LT_unicode_titlecase, "Return the Unicode simple titlecase mapping.")
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    character_method_category,
+    "Character>>category",
+    "(self)",
+    "Return the two-letter Unicode general category.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_String_new_cstr(
+        (char*)LT_unicode_category(LT_Character_value(self))
+    );
+}
+
+static int character_alphabetic_p(uint32_t codepoint){
+    return LT_unicode_category(codepoint)[0] == 'L';
+}
+static int character_numeric_p(uint32_t codepoint){
+    return LT_unicode_category(codepoint)[0] == 'N';
+}
+static int character_whitespace_p(uint32_t codepoint){
+    return codepoint == 9 || codepoint == 10 || codepoint == 13
+        || LT_unicode_category(codepoint)[0] == 'Z';
+}
+static int character_decimal_p(uint32_t codepoint){
+    const char* category = LT_unicode_category(codepoint);
+    return category[0] == 'N' && category[1] == 'd';
+}
+static int character_upper_case_p(uint32_t codepoint){
+    const char* category = LT_unicode_category(codepoint);
+    return category[0] == 'L' && category[1] == 'u';
+}
+static int character_lower_case_p(uint32_t codepoint){
+    const char* category = LT_unicode_category(codepoint);
+    return category[0] == 'L' && category[1] == 'l';
+}
+static int character_mark_p(uint32_t codepoint){
+    return LT_unicode_category(codepoint)[0] == 'M';
+}
+
+#define CHARACTER_PROPERTY_METHOD(name, selector, predicate, description) \
+    LT_DEFINE_PRIMITIVE_FLAGS( \
+        name, "Character>>" selector, "(self)", description, \
+        LT_PRIMITIVE_FLAG_PURE \
+    ){ \
+        LT_Value cursor = arguments; \
+        LT_Value self; \
+        (void)tail_call_unwind_marker; \
+        LT_OBJECT_ARG(cursor, self); \
+        LT_ARG_END(cursor); \
+        return predicate(LT_Character_value(self)) ? LT_TRUE : LT_FALSE; \
+    }
+
+CHARACTER_PROPERTY_METHOD(character_method_alphabetic_p, "alphabetic?",
+    character_alphabetic_p, "Return true for a Unicode letter.")
+CHARACTER_PROPERTY_METHOD(character_method_numeric_p, "numeric?",
+    character_numeric_p, "Return true for a Unicode number.")
+CHARACTER_PROPERTY_METHOD(character_method_whitespace_p, "whitespace?",
+    character_whitespace_p, "Return true for Unicode whitespace.")
+CHARACTER_PROPERTY_METHOD(character_method_decimal_p, "decimal?",
+    character_decimal_p, "Return true for a Unicode decimal digit.")
+CHARACTER_PROPERTY_METHOD(character_method_upper_case_p, "upperCase?",
+    character_upper_case_p, "Return true for an uppercase Unicode letter.")
+CHARACTER_PROPERTY_METHOD(character_method_lower_case_p, "lowerCase?",
+    character_lower_case_p, "Return true for a lowercase Unicode letter.")
+CHARACTER_PROPERTY_METHOD(character_method_mark_p, "mark?",
+    character_mark_p, "Return true for a Unicode combining mark.")
+
 static LT_Method_Descriptor Character_methods[] = {
     {"asString", &character_method_as_string},
+    {"lowerCase", &character_method_lower_case},
+    {"upperCase", &character_method_upper_case},
+    {"titleCase", &character_method_title_case},
+    {"category", &character_method_category},
+    {"alphabetic?", &character_method_alphabetic_p},
+    {"numeric?", &character_method_numeric_p},
+    {"whitespace?", &character_method_whitespace_p},
+    {"decimal?", &character_method_decimal_p},
+    {"upperCase?", &character_method_upper_case_p},
+    {"lowerCase?", &character_method_lower_case_p},
+    {"mark?", &character_method_mark_p},
     {"width", &character_method_width},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };

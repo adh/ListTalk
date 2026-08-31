@@ -86,11 +86,25 @@ runtime_init_once_embedded = custom_target(
         depend_files : files('tools/embed_file_as_c.py')
 )
 
+unicode_data_source = custom_target(
+        'unicode_data.c',
+        input : 'data/UnicodeData.txt',
+        output : 'unicode_data.c',
+        command : [
+                python3,
+                files('tools/generate_unicode_data.py'),
+                '@INPUT@',
+                '@OUTPUT@'
+        ],
+        depend_files : files('tools/generate_unicode_data.py')
+)
+
 vm_lib = library(
                 'ListTalkVM', 
         [
                 runtime_init_embedded,
                 runtime_init_once_embedded,
+                unicode_data_source,
                 'src/vm/eval.c',
                 'src/vm/loader.c',
                 'src/vm/quasiquote.c',
