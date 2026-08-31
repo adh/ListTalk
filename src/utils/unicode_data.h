@@ -7,10 +7,12 @@
 #define H__ListTalk__utils__unicode_data__
 
 #include <stdint.h>
+#include <stddef.h>
 
 const char* LT_unicode_category(uint32_t codepoint);
 uint32_t LT_unicode_lowercase(uint32_t codepoint);
 uint32_t LT_unicode_uppercase(uint32_t codepoint);
 uint32_t LT_unicode_titlecase(uint32_t codepoint);
+const uint32_t* LT_unicode_casefold(uint32_t codepoint, size_t* length_out);
 
 #endif
