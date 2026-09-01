@@ -136,7 +136,7 @@ static int character_numeric_p(uint32_t codepoint){
     return LT_unicode_category(codepoint)[0] == 'N';
 }
 static int character_whitespace_p(uint32_t codepoint){
-    return codepoint == 9 || codepoint == 10 || codepoint == 13
+    return (codepoint >= 9 && codepoint <= 13) || codepoint == 0x85
         || LT_unicode_category(codepoint)[0] == 'Z';
 }
 static int character_decimal_p(uint32_t codepoint){
