@@ -32,6 +32,7 @@
 #include <ListTalk/utils/base64.h>
 #include <ListTalk/utils/hex.h>
 #include <ListTalk/utils/utf8.h>
+#include "src/utils/unicode_data.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -1790,6 +1791,152 @@ LT_DEFINE_PRIMITIVE(
     return self;
 }
 
+LT_DEFINE_PRIMITIVE_FLAGS(
+    string_method_case_fold,
+    "String>>caseFold",
+    "(self)",
+    "Return the Unicode default full case folding of receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_String* string;
+    LT_StringBuilder* builder;
+    const char* input;
+    const char* end;
+    (void)tail_call_unwind_marker;
+
+    LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
+    LT_ARG_END(cursor);
+    builder = LT_StringBuilder_new();
+    input = LT_String_value_cstr(string);
+    end = input + LT_String_byte_length(string);
+    while (input < end){
+        uint32_t codepoint = LT_utf8_codepoint_at_bounded(
+            input,
+            (size_t)(end - input)
+        );
+        const uint32_t* mapping;
+        size_t mapping_length;
+        size_t index;
+
+        mapping = LT_unicode_casefold(codepoint, &mapping_length);
+        if (mapping == NULL){
+            StringBuilder_append_codepoint(builder, codepoint);
+        } else {
+            for (index = 0; index < mapping_length; index++){
+                StringBuilder_append_codepoint(builder, mapping[index]);
+            }
+        }
+        input = LT_utf8_next_bounded(input, (size_t)(end - input));
+    }
+    return (LT_Value)(uintptr_t)LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
+}
+
+typedef enum {
+    STRING_CASE_LOWER,
+    STRING_CASE_TITLE,
+    STRING_CASE_UPPER
+} StringCase;
+
+static const uint32_t* String_full_case_mapping(StringCase mode,
+                                                uint32_t codepoint,
+                                                size_t* length_out){
+    switch (mode){
+        case STRING_CASE_LOWER:
+            return LT_unicode_full_lowercase(codepoint, length_out);
+        case STRING_CASE_TITLE:
+            return LT_unicode_full_titlecase(codepoint, length_out);
+        case STRING_CASE_UPPER:
+            return LT_unicode_full_uppercase(codepoint, length_out);
+    }
+    LT_error("Invalid string case mapping");
+    return NULL;
+}
+
+static uint32_t String_simple_case_mapping(StringCase mode,
+                                           uint32_t codepoint){
+    switch (mode){
+        case STRING_CASE_LOWER:
+            return LT_unicode_lowercase(codepoint);
+        case STRING_CASE_TITLE:
+            return LT_unicode_titlecase(codepoint);
+        case STRING_CASE_UPPER:
+            return LT_unicode_uppercase(codepoint);
+    }
+    LT_error("Invalid string case mapping");
+    return codepoint;
+}
+
+static LT_Value String_case(LT_String* string,
+                            StringCase mode,
+                            int title_each_word){
+    LT_StringBuilder* builder = LT_StringBuilder_new();
+    const char* input = LT_String_value_cstr(string);
+    const char* end = input + LT_String_byte_length(string);
+    int first = 1;
+
+    while (input < end){
+        uint32_t codepoint = LT_utf8_codepoint_at_bounded(
+            input,
+            (size_t)(end - input)
+        );
+        StringCase character_mode = mode;
+        const uint32_t* mapping;
+        size_t mapping_length;
+        size_t index;
+
+        if (mode == STRING_CASE_TITLE && !first){
+            character_mode = STRING_CASE_LOWER;
+        }
+        mapping = String_full_case_mapping(
+            character_mode,
+            codepoint,
+            &mapping_length
+        );
+        if (mapping == NULL){
+            StringBuilder_append_codepoint(
+                builder,
+                String_simple_case_mapping(character_mode, codepoint)
+            );
+        } else {
+            for (index = 0; index < mapping_length; index++){
+                StringBuilder_append_codepoint(builder, mapping[index]);
+            }
+        }
+        first = title_each_word && LT_unicode_whitespace_p(codepoint);
+        input = LT_utf8_next_bounded(input, (size_t)(end - input));
+    }
+    return (LT_Value)(uintptr_t)LT_String_new(
+        LT_StringBuilder_value(builder),
+        LT_StringBuilder_length(builder)
+    );
+}
+
+#define STRING_CASE_METHOD(name, selector, mode, title_each_word, description) \
+    LT_DEFINE_PRIMITIVE_FLAGS( \
+        name, "String>>" selector, "(self)", description, \
+        LT_PRIMITIVE_FLAG_PURE \
+    ){ \
+        LT_Value cursor = arguments; \
+        LT_String* string; \
+        (void)tail_call_unwind_marker; \
+        LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value); \
+        LT_ARG_END(cursor); \
+        return String_case(string, mode, title_each_word); \
+    }
+
+STRING_CASE_METHOD(string_method_lower, "lower", STRING_CASE_LOWER, 0,
+    "Return the locale-invariant Unicode lowercase mapping.")
+STRING_CASE_METHOD(string_method_upper, "upper", STRING_CASE_UPPER, 0,
+    "Return the locale-invariant Unicode uppercase mapping.")
+STRING_CASE_METHOD(string_method_capitalize, "capitalize", STRING_CASE_TITLE, 0,
+    "Titlecase the first code point and lowercase the remainder.")
+STRING_CASE_METHOD(string_method_title, "title", STRING_CASE_TITLE, 1,
+    "Titlecase each whitespace-delimited word.")
+
 LT_DEFINE_PRIMITIVE(
     string_method_as_list,
     "String>>asList",
@@ -1906,6 +2053,11 @@ static LT_Method_Descriptor String_methods[] = {
     {"asHexByteVector", &string_method_as_hex_bytevector},
     {"asPortableFilename", &string_method_as_portable_filename},
     {"asString", &string_method_as_string},
+    {"caseFold", &string_method_case_fold},
+    {"lower", &string_method_lower},
+    {"upper", &string_method_upper},
+    {"capitalize", &string_method_capitalize},
+    {"title", &string_method_title},
     {"asList", &string_method_as_list},
     {"asIterator", &string_method_as_iterator},
     {"writeToFile:", &string_method_write_to_file},
