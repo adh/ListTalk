@@ -135,10 +135,6 @@ static int character_alphabetic_p(uint32_t codepoint){
 static int character_numeric_p(uint32_t codepoint){
     return LT_unicode_category(codepoint)[0] == 'N';
 }
-static int character_whitespace_p(uint32_t codepoint){
-    return (codepoint >= 9 && codepoint <= 13) || codepoint == 0x85
-        || LT_unicode_category(codepoint)[0] == 'Z';
-}
 static int character_decimal_p(uint32_t codepoint){
     const char* category = LT_unicode_category(codepoint);
     return category[0] == 'N' && category[1] == 'd';
@@ -173,7 +169,7 @@ CHARACTER_PROPERTY_METHOD(character_method_alphabetic_p, "alphabetic?",
 CHARACTER_PROPERTY_METHOD(character_method_numeric_p, "numeric?",
     character_numeric_p, "Return true for a Unicode number.")
 CHARACTER_PROPERTY_METHOD(character_method_whitespace_p, "whitespace?",
-    character_whitespace_p, "Return true for Unicode whitespace.")
+    LT_unicode_whitespace_p, "Return true for Unicode whitespace.")
 CHARACTER_PROPERTY_METHOD(character_method_decimal_p, "decimal?",
     character_decimal_p, "Return true for a Unicode decimal digit.")
 CHARACTER_PROPERTY_METHOD(character_method_upper_case_p, "upperCase?",

@@ -1870,7 +1870,9 @@ static uint32_t String_simple_case_mapping(StringCase mode,
     return codepoint;
 }
 
-static LT_Value String_case(LT_String* string, StringCase mode){
+static LT_Value String_case(LT_String* string,
+                            StringCase mode,
+                            int title_each_word){
     LT_StringBuilder* builder = LT_StringBuilder_new();
     const char* input = LT_String_value_cstr(string);
     const char* end = input + LT_String_byte_length(string);
@@ -1904,7 +1906,7 @@ static LT_Value String_case(LT_String* string, StringCase mode){
                 StringBuilder_append_codepoint(builder, mapping[index]);
             }
         }
-        first = 0;
+        first = title_each_word && LT_unicode_whitespace_p(codepoint);
         input = LT_utf8_next_bounded(input, (size_t)(end - input));
     }
     return (LT_Value)(uintptr_t)LT_String_new(
@@ -1913,7 +1915,7 @@ static LT_Value String_case(LT_String* string, StringCase mode){
     );
 }
 
-#define STRING_CASE_METHOD(name, selector, mode, description) \
+#define STRING_CASE_METHOD(name, selector, mode, title_each_word, description) \
     LT_DEFINE_PRIMITIVE_FLAGS( \
         name, "String>>" selector, "(self)", description, \
         LT_PRIMITIVE_FLAG_PURE \
@@ -1923,15 +1925,17 @@ static LT_Value String_case(LT_String* string, StringCase mode){
         (void)tail_call_unwind_marker; \
         LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value); \
         LT_ARG_END(cursor); \
-        return String_case(string, mode); \
+        return String_case(string, mode, title_each_word); \
     }
 
-STRING_CASE_METHOD(string_method_lower, "lower", STRING_CASE_LOWER,
+STRING_CASE_METHOD(string_method_lower, "lower", STRING_CASE_LOWER, 0,
     "Return the locale-invariant Unicode lowercase mapping.")
-STRING_CASE_METHOD(string_method_upper, "upper", STRING_CASE_UPPER,
+STRING_CASE_METHOD(string_method_upper, "upper", STRING_CASE_UPPER, 0,
     "Return the locale-invariant Unicode uppercase mapping.")
-STRING_CASE_METHOD(string_method_title, "title", STRING_CASE_TITLE,
+STRING_CASE_METHOD(string_method_capitalize, "capitalize", STRING_CASE_TITLE, 0,
     "Titlecase the first code point and lowercase the remainder.")
+STRING_CASE_METHOD(string_method_title, "title", STRING_CASE_TITLE, 1,
+    "Titlecase each whitespace-delimited word.")
 
 LT_DEFINE_PRIMITIVE(
     string_method_as_list,
@@ -2052,6 +2056,7 @@ static LT_Method_Descriptor String_methods[] = {
     {"caseFold", &string_method_case_fold},
     {"lower", &string_method_lower},
     {"upper", &string_method_upper},
+    {"capitalize", &string_method_capitalize},
     {"title", &string_method_title},
     {"asList", &string_method_as_list},
     {"asIterator", &string_method_as_iterator},
