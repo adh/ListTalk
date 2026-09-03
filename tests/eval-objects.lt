@@ -650,6 +650,29 @@
 (check (equal? [#\λ upper] #\Λ) "Character>>upper aliases upperCase")
 (check (equal? [#\ǳ titleCase] #\ǲ) "Character>>titleCase maps digraphs")
 (check (equal? [#\ǳ title] #\ǲ) "Character>>title aliases titleCase")
+(check (= [#\λ asCodepoint] 955) "Character>>asCodepoint returns Unicode value")
+(check (equal? [Character fromCodepoint: 955] #\λ)
+       "Character class>>fromCodepoint: returns Character")
+(check (equal? [Character fromCodepoint: 1114111] #\u+10ffff)
+       "Character class>>fromCodepoint: accepts maximum scalar value")
+(check-error-message "Character code point out of range"
+                     "Character class>>fromCodepoint: rejects negative values"
+  [Character fromCodepoint: -1])
+(check-error-message "Character code point out of range"
+                     "Character class>>fromCodepoint: rejects surrogates"
+  [Character fromCodepoint: 55296])
+(check-error-message "Character code point out of range"
+                     "Character class>>fromCodepoint: rejects values above Unicode range"
+  [Character fromCodepoint: 1114112])
+(check-error-message "Character code point out of range"
+                     "Character class>>fromCodepoint: rejects oversized integers"
+  [Character fromCodepoint: 340282366920938463463374607431768211456])
+(check (= [#\a compareWith: #\b] -1) "Character>>compareWith: orders code points")
+(check (= [#\λ compareWith: #\λ] 0) "Character>>compareWith: recognizes equality")
+(check [#\a < #\b] "Character>>< compares code points")
+(check [#\b > #\a] "Character>>> compares code points")
+(check [#\a <= #\a] "Character>><= compares code points")
+(check [#\b >= #\a] "Character>>>= compares code points")
 (check (equal? [#\λ category] "Ll") "Character>>category")
 (check [#\λ alphabetic?] "Character>>alphabetic?")
 (check [#\Ⅷ numeric?] "Character>>numeric?")

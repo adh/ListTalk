@@ -7,7 +7,10 @@
 #define _XOPEN_SOURCE 700
 #endif
 
+#include "BigInteger_internal.h"
+
 #include <ListTalk/classes/Character.h>
+#include <ListTalk/classes/Integer.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/macros/arg_macros.h>
@@ -50,6 +53,101 @@ static void Character_debugPrintOn(LT_Value obj, FILE* stream){
             return;
     }
 }
+
+static int character_compare(LT_Value self, LT_Value other){
+    uint32_t self_codepoint = LT_Character_value(self);
+    uint32_t other_codepoint = LT_Character_value(other);
+
+    return (self_codepoint > other_codepoint)
+        - (self_codepoint < other_codepoint);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    character_method_as_codepoint,
+    "Character>>asCodepoint",
+    "(self)",
+    "Return the Unicode code point of receiver.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_SmallInteger_new((int64_t)LT_Character_value(self));
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    character_class_method_from_codepoint,
+    "Character class>>fromCodepoint:",
+    "(self codepoint)",
+    "Return the Character for a Unicode scalar value.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value codepoint;
+    uint32_t value;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, codepoint);
+    LT_ARG_END(cursor);
+    if (self != (LT_Value)(uintptr_t)&LT_Character_class){
+        LT_error("fromCodepoint: class method is only supported on Character");
+    }
+    if (!LT_Integer_value_p(codepoint)){
+        LT_type_error(codepoint, &LT_Integer_class);
+    }
+    if (!LT_Integer_to_uint32(codepoint, &value)
+            || !LT_Character_codepoint_is_valid(value)){
+        LT_error("Character code point out of range");
+    }
+    return LT_Character_new(value);
+}
+
+LT_DEFINE_PRIMITIVE_FLAGS(
+    character_method_compare_with,
+    "Character>>compareWith:",
+    "(self other)",
+    "Return -1, 0, or 1 when receiver's code point is less than, equal to, or greater than the argument's.",
+    LT_PRIMITIVE_FLAG_PURE
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value other;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, other);
+    LT_ARG_END(cursor);
+    return LT_SmallInteger_new((int64_t)character_compare(self, other));
+}
+
+#define CHARACTER_COMPARISON_METHOD(name, selector, comparison, description) \
+    LT_DEFINE_PRIMITIVE_FLAGS( \
+        name, "Character>>" selector, "(self other)", description, \
+        LT_PRIMITIVE_FLAG_PURE \
+    ){ \
+        LT_Value cursor = arguments; \
+        LT_Value self; \
+        LT_Value other; \
+        (void)tail_call_unwind_marker; \
+        LT_OBJECT_ARG(cursor, self); \
+        LT_OBJECT_ARG(cursor, other); \
+        LT_ARG_END(cursor); \
+        return character_compare(self, other) comparison 0 ? LT_TRUE : LT_FALSE; \
+    }
+
+CHARACTER_COMPARISON_METHOD(character_method_less_than, "<", <,
+    "Return true when receiver's code point is less than the argument's.")
+CHARACTER_COMPARISON_METHOD(character_method_greater_than, ">", >,
+    "Return true when receiver's code point is greater than the argument's.")
+CHARACTER_COMPARISON_METHOD(character_method_less_than_or_equal, "<=", <=,
+    "Return true when receiver's code point is less than or equal to the argument's.")
+CHARACTER_COMPARISON_METHOD(character_method_greater_than_or_equal, ">=", >=,
+    "Return true when receiver's code point is greater than or equal to the argument's.")
 
 LT_DEFINE_PRIMITIVE(
     character_method_as_string,
@@ -181,6 +279,7 @@ CHARACTER_PROPERTY_METHOD(character_method_mark_p, "mark?",
 
 static LT_Method_Descriptor Character_methods[] = {
     {"asString", &character_method_as_string},
+    {"asCodepoint", &character_method_as_codepoint},
     {"lower", &character_method_lower_case},
     {"lowerCase", &character_method_lower_case},
     {"upper", &character_method_upper_case},
@@ -196,6 +295,16 @@ static LT_Method_Descriptor Character_methods[] = {
     {"lowerCase?", &character_method_lower_case_p},
     {"mark?", &character_method_mark_p},
     {"width", &character_method_width},
+    {"compareWith:", &character_method_compare_with},
+    {"<", &character_method_less_than},
+    {">", &character_method_greater_than},
+    {"<=", &character_method_less_than_or_equal},
+    {">=", &character_method_greater_than_or_equal},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor Character_class_methods[] = {
+    {"fromCodepoint:", &character_class_method_from_codepoint},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -209,4 +318,5 @@ LT_DEFINE_CLASS(LT_Character) {
         | LT_CLASS_FLAG_SCALAR,
     .debugPrintOn = Character_debugPrintOn,
     .methods = Character_methods,
+    .class_methods = Character_class_methods,
 };
