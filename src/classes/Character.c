@@ -181,8 +181,11 @@ CHARACTER_PROPERTY_METHOD(character_method_mark_p, "mark?",
 
 static LT_Method_Descriptor Character_methods[] = {
     {"asString", &character_method_as_string},
+    {"lower", &character_method_lower_case},
     {"lowerCase", &character_method_lower_case},
+    {"upper", &character_method_upper_case},
     {"upperCase", &character_method_upper_case},
+    {"title", &character_method_title_case},
     {"titleCase", &character_method_title_case},
     {"category", &character_method_category},
     {"alphabetic?", &character_method_alphabetic_p},
