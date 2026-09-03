@@ -434,6 +434,7 @@ static void inspector_repl_object(LT_Value input, void* opaque){
     LT_Value slot_name = context->list_p && !LT_SmallInteger_p(input)
         ? LT_INVALID
         : inspector_selected_slot(input, context->slots);
+    LT_Value selected_object;
 
     if (slot_name == LT_INVALID){
         fprintf(
@@ -443,9 +444,10 @@ static void inspector_repl_object(LT_Value input, void* opaque){
         );
         return;
     }
-    context->object = context->list_p
+    selected_object = context->list_p
         ? slot_name
         : LT_Object_slot_ref(context->object, slot_name);
+    LT_Debugger_inspect(selected_object);
     inspector_print(context);
 }
 
