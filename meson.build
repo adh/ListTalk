@@ -251,6 +251,24 @@ pkg.generate(
         requires_private : libedit_dep.found() ? [libedit_dep] : []
 )
 
+debugger_lib = library(
+        'ListTalkDebugger',
+        'src/debugger/debugger.c',
+        link_with : [vm_lib, repl_lib],
+        dependencies : listtalk_deps,
+        c_args : listtalk_c_args,
+        install : true
+)
+
+pkg.generate(
+        debugger_lib,
+        filebase : 'ListTalkDebugger',
+        name : 'ListTalkDebugger',
+        description : 'ListTalk debugger and object inspector library',
+        subdirs : '.',
+        requires : ['ListTalkVM', 'ListTalkREPL']
+)
+
 os_module = shared_module(
         'os',
         'src/modules/os.c',
