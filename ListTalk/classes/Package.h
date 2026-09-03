@@ -58,11 +58,13 @@ void LT_set_current_package(LT_Package* package);
 extern LT_Package LT_Package_LISTTALK;
 extern LT_Package LT_Package_LISTTALK_IMPLEMENTATION;
 extern LT_Package LT_Package_LISTTALK_USER;
+extern LT_Package LT_Package_LISTTALK_DEBUG;
 extern LT_Package LT_Package_KEYWORD;
 
 #define LT_PACKAGE_LISTTALK (&LT_Package_LISTTALK)
 #define LT_PACKAGE_LISTTALK_IMPLEMENTATION (&LT_Package_LISTTALK_IMPLEMENTATION)
 #define LT_PACKAGE_LISTTALK_USER (&LT_Package_LISTTALK_USER)
+#define LT_PACKAGE_LISTTALK_DEBUG (&LT_Package_LISTTALK_DEBUG)
 #define LT_PACKAGE_KEYWORD (&LT_Package_KEYWORD)
 
 LT__END_DECLS

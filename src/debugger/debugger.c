@@ -22,6 +22,7 @@
 #include <string.h>
 
 typedef struct {
+    LT_Value condition;
     LT_Value restarts;
     LT_Environment* environment;
     LT_Value debugger_hook;
@@ -78,6 +79,24 @@ LT_DEFINE_PRIMITIVE(
 
     LT_ARG_END(cursor);
     LT_throw(return_to_debugger_tag_value(), LT_TRUE);
+}
+
+LT_DEFINE_PRIMITIVE(
+    inspect_primitive,
+    "ListTalk-debug:inspect",
+    "(object)",
+    "Interactively inspect an object."
+){
+    LT_Value cursor = arguments;
+    LT_Value object;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, object);
+    LT_ARG_END(cursor);
+    LT_Debugger_inspect(object);
+    return object;
 }
 
 LT_Value LT_Debugger_get_hook(void){
@@ -227,10 +246,24 @@ static LT_Value debugger_restart_selected(LT_Value input, LT_Value restarts){
     return LT_INVALID;
 }
 
+static int debugger_inspect_condition_selected(LT_Value input){
+    return LT_Symbol_p(input)
+        && LT_Symbol_package(LT_Symbol_from_value(input)) == LT_PACKAGE_KEYWORD
+        && strcmp(
+            LT_Symbol_name(LT_Symbol_from_value(input)),
+            "inspect-condition"
+        ) == 0;
+}
+
 static void debugger_repl_object(LT_Value object, void* opaque){
     DebuggerContext* context = opaque;
     LT_Value restart_value = debugger_restart_selected(object, context->restarts);
     LT_Value returned_to_debugger = LT_NIL;
+
+    if (debugger_inspect_condition_selected(object)){
+        LT_Debugger_inspect(context->condition);
+        return;
+    }
 
     if (restart_value != LT_INVALID){
         LT_Restart* restart = LT_Restart_from_value(restart_value);
@@ -278,10 +311,24 @@ static void debugger_repl_object(LT_Value object, void* opaque){
 void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
     LT_REPL_State* repl = LT_REPL_State_new();
     DebuggerContext context = {
+        .condition = condition,
         .restarts = LT_current_restarts(),
         .environment = LT_new_base_environment(),
         .debugger_hook = debugger_hook
     };
+
+    LT_Environment_bind(
+        context.environment,
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK_DEBUG, "condition"),
+        condition,
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    LT_Environment_bind(
+        context.environment,
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK_DEBUG, "inspect"),
+        LT_Primitive_from_static(&inspect_primitive),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
 
     debugger_print_entered_on(condition);
     fputc('\n', stdout);
@@ -294,7 +341,9 @@ void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
     debugger_print_restarts(context.restarts);
 
     LT_REPL_State_set_prompt(repl, "debug> ");
-    LT_REPL_State_loop(repl, debugger_repl_object, &context);
+    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_DEBUG, {
+        LT_REPL_State_loop(repl, debugger_repl_object, &context);
+    });
 }
 
 static void inspector_print(InspectorContext* context){
