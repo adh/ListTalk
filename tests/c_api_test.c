@@ -2388,7 +2388,7 @@ static int test_define_method_macro(void){
     LT_Value cursor;
 
     (void)LT_eval(
-        read_one("(define-method [Pair first] (%self-slot car))"),
+        read_one("(define-method [Pair first] .car)"),
         env,
         NULL
     );
@@ -2446,7 +2446,7 @@ static int test_define_method_macro(void){
     }
 
     (void)LT_eval(
-        read_one("(define-method [Pair setFirst: value] (set! (%self-slot car) value) (%self-slot car))"),
+        read_one("(define-method [Pair setFirst: value] (set! .car value) .car)"),
         env,
         NULL
     );

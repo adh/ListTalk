@@ -107,7 +107,7 @@
                       ,(car reversed-parameters)))))
   (expand forms '()))
 
-(ListTalk:define-macro (ListTalk:%self-slot slot-name)
+(ListTalk:define-macro (ListTalk-implementation:%self-slot slot-name)
   "Expand method-local slot shorthand to a self slot reference."
   `(slot-ref ListTalk:self ',slot-name))
 
@@ -116,7 +116,7 @@
   (if (symbol? target)
       `(%set! ,target ,value)
       (if (pair? target)
-          (if (eq? (car target) '%self-slot)
+          (if (eq? (car target) 'ListTalk-implementation:%self-slot)
               `(slot-set! ListTalk:self ',(cadr target) ,value)
               (if (eq? (car target) 'ListTalk-implementation:%dynamic-ref)
                   `(ListTalk-implementation:%send ,(cadr target) :value: ,value)

@@ -906,7 +906,7 @@ static LT_Value expand_self_slot_accessor(LT_Reader* reader, LT_Value source_loc
         return 0;
     }
 
-    values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "%self-slot");
+    values[0] = LT_Symbol_new_in(LT_PACKAGE_LISTTALK_IMPLEMENTATION, "%self-slot");
     {
         LT_ReadTokenResult slot_token_result = {0};
         char* slot_token = token + 1;

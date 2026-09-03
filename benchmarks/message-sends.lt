@@ -10,18 +10,18 @@
     counter))
 
 (define-method [MessageSendCounter value]
-  (%self-slot value))
+  .value)
 
 (define-method [MessageSendCounter increment]
-  (set! (%self-slot value) (+ (%self-slot value) 1))
-  (%self-slot value))
+  (set! .value (+ .value 1))
+  .value)
 
 (define-method [MessageSendCounter add: amount]
-  (set! (%self-slot value) (+ (%self-slot value) amount))
-  (%self-slot value))
+  (set! .value (+ .value amount))
+  .value)
 
 (define-method [MessageSendCounter incrementSelf]
-  (set! (%self-slot value) (+ (%self-slot value) 1))
+  (set! .value (+ .value 1))
   self)
 
 (define (message-send:unary-loop count counter)

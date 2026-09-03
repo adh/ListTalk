@@ -12,33 +12,32 @@
   (events text attribute))
 
 (define-method [RecordingXMLHandler startDocument]
-  (set! (%self-slot events) (cons :start-document (%self-slot events))))
+  (set! .events (cons :start-document .events)))
 
 (define-method [RecordingXMLHandler endDocument]
-  (set! (%self-slot events) (cons :end-document (%self-slot events))))
+  (set! .events (cons :end-document .events)))
 
 (define-method [RecordingXMLHandler startElement: name attributes: attributes]
-  (set! (%self-slot attribute) [attributes at: "id"])
-  (set! (%self-slot events) (cons (list :start name) (%self-slot events))))
+  (set! .attribute [attributes at: "id"])
+  (set! .events (cons (list :start name) .events)))
 
 (define-method [RecordingXMLHandler endElement: name]
-  (set! (%self-slot events) (cons (list :end name) (%self-slot events))))
+  (set! .events (cons (list :end name) .events)))
 
 (define-method [RecordingXMLHandler characters: characters]
-  (set! (%self-slot text) (string-append (%self-slot text) characters)))
+  (set! .text (string-append .text characters)))
 
 (define-method [RecordingXMLHandler processingInstruction: target data: data]
-  (set! (%self-slot events)
-        (cons (list :processing-instruction target data) (%self-slot events))))
+  (set! .events (cons (list :processing-instruction target data) .events)))
 
 (define-method [RecordingXMLHandler comment: comment]
-  (set! (%self-slot events) (cons (list :comment comment) (%self-slot events))))
+  (set! .events (cons (list :comment comment) .events)))
 
 (define-method [RecordingXMLHandler startCDATA]
-  (set! (%self-slot events) (cons :start-cdata (%self-slot events))))
+  (set! .events (cons :start-cdata .events)))
 
 (define-method [RecordingXMLHandler endCDATA]
-  (set! (%self-slot events) (cons :end-cdata (%self-slot events))))
+  (set! .events (cons :end-cdata .events)))
 
 (check (eq? [(slot-ref ListTalk:XML:XMLEventHandler 'name) package]
             [Package named: "ListTalk:XML"])
