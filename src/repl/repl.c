@@ -425,7 +425,11 @@ static char* repl_read_line(const char* prompt){
     char* line = NULL;
     size_t capacity = 0;
     ssize_t length;
-    (void)prompt;
+
+    if (prompt != NULL && prompt[0] != '\0'){
+        fputs(prompt, stdout);
+        fflush(stdout);
+    }
 
     length = getline(&line, &capacity, stdin);
     if (length < 0){
