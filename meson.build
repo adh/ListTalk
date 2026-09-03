@@ -408,7 +408,7 @@ endif
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
-        link_with: [vm_lib, repl_lib],
+        link_with: [vm_lib, repl_lib, debugger_lib],
         dependencies : listtalk_deps,
         c_args : listtalk_c_args + [
                 '-DLT_NATIVE_MODULE_DIR="@0@"'.format(listtalk_native_module_runtime_dir),

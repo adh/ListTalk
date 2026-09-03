@@ -27,6 +27,7 @@ void _Noreturn LT_error_impl(const char* message, ...) {
     condition = LT_Condition_vnew(&LT_Error_class, message, args);
     va_end(args);
     LT_signal(condition);
+    LT_invoke_debugger(condition);
     fprintf(stderr, "Unrecoverable error: %s\n", message);
     LT_print_backtrace(stderr);
 #ifdef __APPLE__
@@ -40,6 +41,7 @@ void _Noreturn LT_system_error(const char* message, int errnum){
     LT_Value condition = LT_SystemError_new(message, errnum, LT_NIL);
 
     LT_signal(condition);
+    LT_invoke_debugger(condition);
     fprintf(
         stderr,
         "Unrecoverable system error: %s: %s\n",
@@ -59,6 +61,7 @@ void _Noreturn LT_subclass_responsibility_error(void){
     LT_Value condition = LT_SubclassResponsibilityError(message);
 
     LT_signal(condition);
+    LT_invoke_debugger(condition);
     fprintf(stderr, "Unrecoverable subclass responsibility error: %s\n", message);
     LT_print_backtrace(stderr);
 #ifdef __APPLE__

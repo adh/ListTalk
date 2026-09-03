@@ -267,6 +267,7 @@ static void _Noreturn reader_signal_error(
     );
 
     LT_signal(condition);
+    LT_invoke_debugger(condition);
     fprintf(stderr, "Unrecoverable error: %s\n", message);
     LT_print_backtrace(stderr);
 #ifdef __APPLE__

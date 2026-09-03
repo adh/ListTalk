@@ -47,6 +47,30 @@ static LT_Value g_error_test_tag = LT_NIL;
 static LT_Value g_backtrace_test_tag = LT_NIL;
 static char* g_backtrace_output = NULL;
 static size_t g_backtrace_output_length = 0;
+static int g_debugger_hook_calls = 0;
+static LT_Value g_debugger_hook_condition = LT_NIL;
+static LT_Value g_debugger_hook_original = LT_NIL;
+
+static LT_Value debugger_hook_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, g_debugger_hook_condition);
+    LT_OBJECT_ARG(cursor, g_debugger_hook_original);
+    LT_ARG_END(cursor);
+    g_debugger_hook_calls++;
+
+    /* The hook must already be disabled while it is running. */
+    LT_invoke_debugger(g_debugger_hook_condition);
+    return LT_NIL;
+}
 
 static LT_Value read_one_with_source_file(const char* source, const char* source_file){
     LT_Reader* reader = LT_Reader_new(
@@ -980,6 +1004,50 @@ static int test_filestream_open_failure_signals_system_error(void){
     );
 }
 
+static int test_debugger_hook_is_scoped_and_disabled_during_invocation(void){
+    LT_Value condition = LT_Condition("debugger hook test");
+    LT_Value hook = LT_Primitive_new(
+        "test-debugger-hook",
+        "(condition original-hook)",
+        "Record debugger hook invocation.",
+        debugger_hook_impl
+    );
+
+    g_debugger_hook_calls = 0;
+    g_debugger_hook_condition = LT_NIL;
+    g_debugger_hook_original = LT_NIL;
+
+    LT_WITH_DEBUGGER_HOOK(hook, {
+        LT_invoke_debugger(condition);
+        LT_invoke_debugger(condition);
+    });
+
+    if (expect(
+            g_debugger_hook_calls == 2,
+            "debugger hook is restored after each invocation"
+        )){
+        return 1;
+    }
+    if (expect(
+            g_debugger_hook_condition == condition,
+            "debugger hook receives condition"
+        )){
+        return 1;
+    }
+    if (expect(
+            g_debugger_hook_original == hook,
+            "debugger hook receives its original value"
+        )){
+        return 1;
+    }
+
+    LT_invoke_debugger(condition);
+    return expect(
+        g_debugger_hook_calls == 2,
+        "debugger hook scope restores the previous nil hook"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -1008,6 +1076,7 @@ int main(void){
     failures += test_stream_abstract_methods_signal_specific_error();
     failures += test_system_error_preserves_errno_and_strerror_message();
     failures += test_filestream_open_failure_signals_system_error();
+    failures += test_debugger_hook_is_scoped_and_disabled_during_invocation();
 
     if (failures == 0){
         puts("conditions tests passed");

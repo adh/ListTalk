@@ -61,6 +61,7 @@ static inline void LT_stack_trace_restore(LT_StackFrame* frame){
 unsigned int LT_stack_trace_depth(void);
 LT_Value LT_stack_trace_capture(void);
 void LT_stack_trace_print(FILE* stream);
+void LT_stack_trace_print_skipping(FILE* stream, unsigned int skip);
 
 LT__END_DECLS
 

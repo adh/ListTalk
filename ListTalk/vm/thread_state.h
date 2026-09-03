@@ -30,6 +30,7 @@ struct LT_ThreadState_s {
     LT_IdentityDictionary* dynamic_values;
     LT_Package* current_package;
     LT_Thread* current_thread;
+    LT_Value debugger_hook;
     _Atomic LT_Value pending_signal;
     int current_package_is_set;
 };

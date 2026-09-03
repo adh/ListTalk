@@ -54,11 +54,54 @@ def run_failure_case(exe, args):
     return 0
 
 
+def run_interactive_syntax_error_case(exe):
+    completed = subprocess.run(
+        [exe],
+        input=")\n(+ 4 5)\n",
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0:
+        sys.stderr.write(
+            "FAIL: interactive syntax recovery exited with {0}\n{1}".format(
+                completed.returncode,
+                completed.stderr,
+            )
+        )
+        return 1
+    if "Condition: #<ReaderError" in completed.stdout:
+        sys.stderr.write(
+            "FAIL: syntax error unexpectedly entered debugger\n{0}".format(
+                completed.stdout
+            )
+        )
+        return 1
+    if "Error: #<ReaderError" not in completed.stderr:
+        sys.stderr.write(
+            "FAIL: syntax error was not reported by the REPL\n{0}".format(
+                completed.stderr
+            )
+        )
+        return 1
+    if not completed.stdout.rstrip().endswith("9"):
+        sys.stderr.write(
+            "FAIL: top-level REPL did not recover from syntax error\n{0}".format(
+                completed.stdout
+            )
+        )
+        return 1
+    return 0
+
+
 def main():
     exe, build_dir, fixture_dir = sys.argv[1:4]
     failures = 0
 
     failures += run_case(exe, ["-E", "(+ 1 2)"], "3\n")
+    failures += run_case(exe, ["-d", "-E", "(+ 2 3)"], "5\n")
+    failures += run_case(exe, ["--debug", "-E", "(+ 3 4)"], "7\n")
     failures += run_case(
         exe,
         ["-e", "(define cli-side-effect 41)", "-E", "(+ cli-side-effect 1)"],
@@ -83,6 +126,7 @@ def main():
         exe,
         ["--no-std-lib", "-r", "test-module-foo", "-L", fixture_dir],
     )
+    failures += run_interactive_syntax_error_case(exe)
 
     if failures:
         return 1

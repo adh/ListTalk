@@ -27,9 +27,25 @@ typedef struct LT_RestartFrame_s {
 #define LT__restart_stack (LT_thread_state()->restart_stack)
 
 void LT_signal(LT_Value condition);
+void LT_invoke_debugger(LT_Value condition);
+void LT_set_debugger_hook(LT_Value hook);
 LT_Value LT_current_restarts(void);
 LT_Value LT_find_restart(LT_Value name);
 LT_Value LT_invoke_restart(LT_Value name, LT_Value arguments);
+
+#define LT_WITH_DEBUGGER_HOOK(HOOK_EXPR, BODY) \
+    do { \
+        LT_Value LT__with_debugger_hook_previous = \
+            LT_thread_state()->debugger_hook; \
+        LT_set_debugger_hook((HOOK_EXPR)); \
+        LT_UNWIND_PROTECT( \
+        { \
+            BODY \
+        }, \
+        { \
+            LT_set_debugger_hook(LT__with_debugger_hook_previous); \
+        }); \
+    } while (0)
 
 #define LT_HANDLER_BIND(HANDLER_EXPR, BODY) \
     do { \
