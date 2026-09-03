@@ -5,11 +5,12 @@ C. The surface syntax is mostly Scheme-like S-expressions with a Smalltalk-style
 message-send shorthand, packages, classes, methods, macros, dynamic variables,
 conditions/restarts, modules, and a C embedding API.
 
-The repository builds both:
+The repository builds:
 
 - `listtalk`, an interactive REPL and script runner.
 - `libListTalkVM`, the VM/runtime library used by the executable and native
   modules.
+- `libListTalkREPL`, the reusable line-oriented REPL frontend.
 
 ## Status
 
@@ -298,7 +299,9 @@ LT_INIT();
 
 Useful public entry points include `LT_eval`, `LT_eval_sequence`,
 `LT_eval_sequence_string`, `LT_apply`, `LT_send`, and the `LT_SEND`/`LT_APPLY`
-helper macros. Public class/value headers are installed under `ListTalk/`.
+helper macros. Public class/value headers are installed under `ListTalk/`. The
+REPL API is available from `ListTalk/repl/repl.h`; its prompt templates
+accept `%p` as a placeholder for the current package.
 
 ## Repository Layout
 
@@ -306,11 +309,13 @@ helper macros. Public class/value headers are installed under `ListTalk/`.
   services.
 - `src/classes/` - native class implementations.
 - `src/modules/` - native loadable modules.
-- `src/bin/listtalk/` - command-line executable and REPL.
+- `src/repl/` - reusable REPL input, prompting, history, and completion logic.
+- `src/bin/listtalk/` - command-line executable and its eval/print callback.
 - `runtime/init.lt` - per-environment ListTalk runtime definitions embedded into the VM.
 - `runtime/init-once.lt` - one-time ListTalk runtime method definitions and global mutations.
 - `modules/` - source modules installed with the runtime.
 - `ListTalk/` - public C headers.
+- `ListTalk/repl/` - public REPL library header.
 - `tests/` - C, CLI, and ListTalk language tests.
 - `design/` - design notes for syntax and VM internals.
 
