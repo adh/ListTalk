@@ -642,6 +642,24 @@ static int test_environment_invocation_context_lookup_walks_parent_frames(void){
     );
 }
 
+static int test_environment_parent_slot_maps_null_to_nil(void){
+    LT_Environment* root = LT_Environment_new(NULL, LT_NIL, LT_NIL);
+    LT_Environment* child = LT_Environment_new(root, LT_NIL, LT_NIL);
+    LT_Value parent_slot = LT_Symbol_new("parent");
+
+    if (expect(
+            LT_Object_slot_ref((LT_Value)(uintptr_t)root, parent_slot) == LT_NIL,
+            "root environment parent slot exposes null as nil"
+        )){
+        return 1;
+    }
+    return expect(
+        LT_Object_slot_ref((LT_Value)(uintptr_t)child, parent_slot)
+            == (LT_Value)(uintptr_t)root,
+        "child environment parent slot exposes its parent object"
+    );
+}
+
 static int test_send_passes_invocation_context_kind_to_primitive_method(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "invocation-context-kind");
     LT_Value result;
@@ -4328,6 +4346,7 @@ int main(void){
     RUN_TEST(test_register_posix_signal_schedules_pending_signal);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
+    RUN_TEST(test_environment_parent_slot_maps_null_to_nil);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
     RUN_TEST(test_send_passes_next_precedence_tail_as_invocation_context_data);
     RUN_TEST(test_super_send_c_api_uses_explicit_precedence_list);
