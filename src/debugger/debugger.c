@@ -23,6 +23,7 @@
 
 typedef struct {
     LT_Value condition;
+    LT_Value backtrace;
     LT_Value restarts;
     LT_Environment* environment;
     LT_Value debugger_hook;
@@ -31,6 +32,7 @@ typedef struct {
 typedef struct {
     LT_Value object;
     LT_Value slots;
+    int list_p;
 } InspectorContext;
 
 static LT_Value return_to_debugger_tag = LT_NIL;
@@ -246,12 +248,12 @@ static LT_Value debugger_restart_selected(LT_Value input, LT_Value restarts){
     return LT_INVALID;
 }
 
-static int debugger_inspect_condition_selected(LT_Value input){
+static int debugger_keyword_selected(LT_Value input, const char* name){
     return LT_Symbol_p(input)
         && LT_Symbol_package(LT_Symbol_from_value(input)) == LT_PACKAGE_KEYWORD
         && strcmp(
             LT_Symbol_name(LT_Symbol_from_value(input)),
-            "inspect-condition"
+            name
         ) == 0;
 }
 
@@ -260,8 +262,12 @@ static void debugger_repl_object(LT_Value object, void* opaque){
     LT_Value restart_value = debugger_restart_selected(object, context->restarts);
     LT_Value returned_to_debugger = LT_NIL;
 
-    if (debugger_inspect_condition_selected(object)){
+    if (debugger_keyword_selected(object, "inspect-condition")){
         LT_Debugger_inspect(context->condition);
+        return;
+    }
+    if (debugger_keyword_selected(object, "inspect-backtrace")){
+        LT_Debugger_inspect(context->backtrace);
         return;
     }
 
@@ -310,8 +316,10 @@ static void debugger_repl_object(LT_Value object, void* opaque){
 
 void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
     LT_REPL_State* repl = LT_REPL_State_new();
+    LT_Value backtrace = LT_stack_trace_capture();
     DebuggerContext context = {
         .condition = condition,
+        .backtrace = LT_Pair_p(backtrace) ? LT_cdr(backtrace) : LT_NIL,
         .restarts = LT_current_restarts(),
         .environment = LT_new_base_environment(),
         .debugger_hook = debugger_hook
@@ -327,6 +335,12 @@ void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
         context.environment,
         LT_Symbol_new_in(LT_PACKAGE_LISTTALK_DEBUG, "inspect"),
         LT_Primitive_from_static(&inspect_primitive),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+    LT_Environment_bind(
+        context.environment,
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK_DEBUG, "backtrace"),
+        context.backtrace,
         LT_ENV_BINDING_FLAG_CONSTANT
     );
 
@@ -352,29 +366,41 @@ static void inspector_print(InspectorContext* context){
 
     fputs("Object: ", stdout);
     LT_Value_debugPrintOn(context->object, stdout);
-    fputc('\n', stdout);
+    fputs("\n\n", stdout);
 
-    context->slots = LT_Class_slots(LT_Value_class(context->object));
+    context->list_p = LT_List_proper_p(context->object);
+    context->slots = context->list_p
+        ? context->object
+        : LT_Class_slots(LT_Value_class(context->object));
     cursor = context->slots;
     if (cursor == LT_NIL){
-        fputs("Slots: (none)\n", stdout);
+        fprintf(
+            stdout,
+            "%s: (none)\n\n",
+            context->list_p ? "Elements" : "Slots"
+        );
         return;
     }
 
-    fputs("Slots:\n", stdout);
+    fprintf(stdout, "%s:\n", context->list_p ? "Elements" : "Slots");
     while (LT_Pair_p(cursor)){
-        LT_Value slot_name = LT_car(cursor);
+        LT_Value entry = LT_car(cursor);
 
         fprintf(stdout, "  %u: ", index++);
-        LT_Value_debugPrintOn(slot_name, stdout);
-        fputs(" = ", stdout);
-        LT_Value_debugPrintOn(
-            LT_Object_slot_ref(context->object, slot_name),
-            stdout
-        );
+        if (context->list_p){
+            LT_Value_debugPrintOn(entry, stdout);
+        } else {
+            LT_Value_debugPrintOn(entry, stdout);
+            fputs(" = ", stdout);
+            LT_Value_debugPrintOn(
+                LT_Object_slot_ref(context->object, entry),
+                stdout
+            );
+        }
         fputc('\n', stdout);
         cursor = LT_cdr(cursor);
     }
+    fputc('\n', stdout);
 }
 
 static LT_Value inspector_selected_slot(LT_Value input, LT_Value slots){
@@ -405,19 +431,31 @@ static LT_Value inspector_selected_slot(LT_Value input, LT_Value slots){
 
 static void inspector_repl_object(LT_Value input, void* opaque){
     InspectorContext* context = opaque;
-    LT_Value slot_name = inspector_selected_slot(input, context->slots);
+    LT_Value slot_name = context->list_p && !LT_SmallInteger_p(input)
+        ? LT_INVALID
+        : inspector_selected_slot(input, context->slots);
 
     if (slot_name == LT_INVALID){
-        fputs("No such slot.\n", stdout);
+        fprintf(
+            stdout,
+            "No such %s.\n",
+            context->list_p ? "element" : "slot"
+        );
         return;
     }
-    context->object = LT_Object_slot_ref(context->object, slot_name);
+    context->object = context->list_p
+        ? slot_name
+        : LT_Object_slot_ref(context->object, slot_name);
     inspector_print(context);
 }
 
 void LT_Debugger_inspect(LT_Value object){
     LT_REPL_State* repl = LT_REPL_State_new();
-    InspectorContext context = {.object = object, .slots = LT_NIL};
+    InspectorContext context = {
+        .object = object,
+        .slots = LT_NIL,
+        .list_p = 0
+    };
 
     inspector_print(&context);
     LT_REPL_State_set_prompt(repl, "inspect> ");
