@@ -85,7 +85,7 @@
   "Define a value, function, or dynamic variable."
   (if (pair? target)
       (if (eq? (car target) 'ListTalk-implementation:%dynamic-ref)
-          `(%define ,(cadr target) [DynamicVariable new: ,(car body)])
+          `(%define-constant ,(cadr target) [DynamicVariable new: ,(car body)])
           `(%define-constant ,(car target) (%lambda ',(car target) ,(cdr target) ,@body)))
       `(%define ,target ,(car body))))
 
