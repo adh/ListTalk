@@ -232,6 +232,25 @@ pkg.generate(
         ]
 )
 
+repl_lib = library(
+        'ListTalkREPL',
+        'src/repl/repl.c',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        c_args : listtalk_c_args,
+        install : true
+)
+
+pkg.generate(
+        repl_lib,
+        filebase : 'ListTalkREPL',
+        name : 'ListTalkREPL',
+        description : 'ListTalk interactive REPL library',
+        subdirs : '.',
+        requires : ['ListTalkVM'],
+        requires_private : libedit_dep.found() ? [libedit_dep] : []
+)
+
 os_module = shared_module(
         'os',
         'src/modules/os.c',
@@ -371,7 +390,7 @@ endif
 listtalk_exe = executable(
         'listtalk', 
         'src/bin/listtalk/main.c', 
-        link_with: [vm_lib], 
+        link_with: [vm_lib, repl_lib],
         dependencies : listtalk_deps,
         c_args : listtalk_c_args + [
                 '-DLT_NATIVE_MODULE_DIR="@0@"'.format(listtalk_native_module_runtime_dir),
@@ -385,6 +404,13 @@ reader_test_exe = executable(
         'tests/reader_test.c',
         link_with: [vm_lib],
         dependencies : [bdwgc]
+)
+
+repl_test_exe = executable(
+        'repl_test',
+        'tests/repl_test.c',
+        link_with: [vm_lib, repl_lib],
+        dependencies : listtalk_deps
 )
 
 c_api_test_exe = executable(
@@ -474,6 +500,11 @@ message_queue_test_exe = executable(
 test(
         'reader_test',
         reader_test_exe
+)
+
+test(
+        'repl_test',
+        repl_test_exe
 )
 
 test(
