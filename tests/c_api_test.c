@@ -642,6 +642,24 @@ static int test_environment_invocation_context_lookup_walks_parent_frames(void){
     );
 }
 
+static int test_environment_parent_slot_maps_null_to_nil(void){
+    LT_Environment* root = LT_Environment_new(NULL, LT_NIL, LT_NIL);
+    LT_Environment* child = LT_Environment_new(root, LT_NIL, LT_NIL);
+    LT_Value parent_slot = LT_Symbol_new("parent");
+
+    if (expect(
+            LT_Object_slot_ref((LT_Value)(uintptr_t)root, parent_slot) == LT_NIL,
+            "root environment parent slot exposes null as nil"
+        )){
+        return 1;
+    }
+    return expect(
+        LT_Object_slot_ref((LT_Value)(uintptr_t)child, parent_slot)
+            == (LT_Value)(uintptr_t)root,
+        "child environment parent slot exposes its parent object"
+    );
+}
+
 static int test_send_passes_invocation_context_kind_to_primitive_method(void){
     LT_Value selector = LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "invocation-context-kind");
     LT_Value result;
@@ -2053,13 +2071,16 @@ static int test_static_primitive_restart_macro(void){
     LT_Value argument_list = LT_Restart_argument_list(restart_object);
     LT_Value callable = LT_Restart_callable(restart_object);
     LT_Value applied;
+    LT_Value invoked = LT_NIL;
     int failed = 0;
 
     failed += expect(
-        LT_String_p(name)
-            && strcmp(LT_String_value_cstr(LT_String_from_value(name)),
+        LT_Symbol_p(name)
+            && LT_Symbol_package(LT_Symbol_from_value(name))
+                == LT_PACKAGE_KEYWORD
+            && strcmp(LT_Symbol_name(LT_Symbol_from_value(name)),
                       "test-restart") == 0,
-        "static Restart name comes from primitive metadata"
+        "static Restart name is a keyword from primitive metadata"
     );
     failed += expect(
         LT_String_p(description)
@@ -2088,6 +2109,22 @@ static int test_static_primitive_restart_macro(void){
     failed += expect(
         LT_Value_is_fixnum(applied) && LT_SmallInteger_value(applied) == 42,
         "static Restart callable invokes primitive implementation"
+    );
+    LT_RESTART_BIND(restart, {
+        failed += expect(
+            LT_find_restart(
+                LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "test-restart")
+            ) == restart,
+            "static Restart is found by its keyword name"
+        );
+        invoked = LT_invoke_restart(
+            LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "test-restart"),
+            LT_cons(LT_SmallInteger_new(43), LT_NIL)
+        );
+    });
+    failed += expect(
+        LT_Value_is_fixnum(invoked) && LT_SmallInteger_value(invoked) == 43,
+        "static Restart is invoked by its keyword name"
     );
     return failed;
 }
@@ -4328,6 +4365,7 @@ int main(void){
     RUN_TEST(test_register_posix_signal_schedules_pending_signal);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);
     RUN_TEST(test_environment_invocation_context_lookup_walks_parent_frames);
+    RUN_TEST(test_environment_parent_slot_maps_null_to_nil);
     RUN_TEST(test_send_passes_invocation_context_kind_to_primitive_method);
     RUN_TEST(test_send_passes_next_precedence_tail_as_invocation_context_data);
     RUN_TEST(test_super_send_c_api_uses_explicit_precedence_list);

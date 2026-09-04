@@ -36,7 +36,11 @@ LT_InvocationContextKind LT_send_invocation_context = {
 };
 
 static LT_Slot_Descriptor Environment_slots[] = {
-    {"parent", offsetof(LT_Environment, parent), &LT_SlotType_ReadonlyObject},
+    {
+        "parent",
+        offsetof(LT_Environment, parent),
+        &LT_SlotType_ReadonlyNativeObjectPointer
+    },
     LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 

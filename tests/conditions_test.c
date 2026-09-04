@@ -47,6 +47,30 @@ static LT_Value g_error_test_tag = LT_NIL;
 static LT_Value g_backtrace_test_tag = LT_NIL;
 static char* g_backtrace_output = NULL;
 static size_t g_backtrace_output_length = 0;
+static int g_debugger_hook_calls = 0;
+static LT_Value g_debugger_hook_condition = LT_NIL;
+static LT_Value g_debugger_hook_original = LT_NIL;
+
+static LT_Value debugger_hook_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, g_debugger_hook_condition);
+    LT_OBJECT_ARG(cursor, g_debugger_hook_original);
+    LT_ARG_END(cursor);
+    g_debugger_hook_calls++;
+
+    /* The hook must already be disabled while it is running. */
+    LT_invoke_debugger(g_debugger_hook_condition);
+    return LT_NIL;
+}
 
 static LT_Value read_one_with_source_file(const char* source, const char* source_file){
     LT_Reader* reader = LT_Reader_new(
@@ -191,6 +215,73 @@ static LT_Value make_test_restart(LT_Value name){
             "return restart argument",
             restart_echo_impl
         )
+    );
+}
+
+static LT_Value use_value_for_unbound_symbol_handler_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    (void)condition;
+    return LT_invoke_restart(
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "use-value"),
+        LT_cons(LT_SmallInteger_new(41), LT_NIL)
+    );
+}
+
+static LT_Value define_variable_for_unbound_symbol_handler_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    (void)condition;
+    return LT_invoke_restart(
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "define-variable"),
+        LT_cons(LT_SmallInteger_new(41), LT_NIL)
+    );
+}
+
+static LT_Value g_cerror_condition = LT_NIL;
+static int g_cerror_continue_restart_seen = 0;
+
+static LT_Value continue_cerror_handler_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, g_cerror_condition);
+    LT_ARG_END(cursor);
+    g_cerror_continue_restart_seen =
+        LT_find_restart(LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "continue"))
+            != LT_NIL;
+    return LT_invoke_restart(
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "continue"),
+        LT_NIL
     );
 }
 
@@ -560,6 +651,146 @@ static int test_unbound_symbol_error_identifies_symbol(void){
     return expect(
         strcmp(LT_Symbol_name(LT_Symbol_from_value(symbol)), "missing-name") == 0,
         "unbound symbol error symbol value has missing name"
+    );
+}
+
+static int test_unbound_symbol_use_value_restart_resumes_evaluation(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value handler = LT_Primitive_new(
+        "use-value-for-unbound-symbol-handler",
+        "(condition)",
+        "invokes the unbound symbol use-value restart",
+        use_value_for_unbound_symbol_handler_impl
+    );
+    LT_Value result = LT_NIL;
+
+    LT_HANDLER_BIND(handler, {
+        result = LT_eval(
+            read_one_with_source_file("(+ missing-name 1)", "fixtures/unbound.lt"),
+            env,
+            NULL
+        );
+    });
+
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        "unbound symbol :use-value restart resumes surrounding evaluation"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_find_restart(LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "use-value"))
+            == LT_NIL,
+        "unbound symbol :use-value restart is removed after evaluation"
+    );
+}
+
+static int test_unbound_symbol_define_variable_restart_defines_at_top_level(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value handler = LT_Primitive_new(
+        "define-variable-for-unbound-symbol-handler",
+        "(condition)",
+        "invokes the unbound symbol define-variable restart",
+        define_variable_for_unbound_symbol_handler_impl
+    );
+    LT_Value result = LT_NIL;
+    LT_Value defined = LT_NIL;
+
+    LT_HANDLER_BIND(handler, {
+        result = LT_eval(
+            read_one_with_source_file(
+                "((lambda () (+ missing-name 1)))",
+                "fixtures/unbound.lt"
+            ),
+            env,
+            NULL
+        );
+    });
+
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        ":define-variable restart resumes surrounding evaluation"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Environment_lookup(env, LT_Symbol_new("missing-name"), &defined, NULL),
+        ":define-variable restart creates a top-level binding"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(defined) && LT_SmallInteger_value(defined) == 41,
+        ":define-variable top-level binding has the supplied value"
+    );
+}
+
+static int test_cerror_continue_restart_resumes_call(void){
+    LT_Value handler = LT_Primitive_new(
+        "continue-cerror-handler",
+        "(condition)",
+        "invokes the cerror continue restart",
+        continue_cerror_handler_impl
+    );
+    LT_Value message;
+    LT_Value args;
+    int resumed = 0;
+
+    g_cerror_condition = LT_NIL;
+    g_cerror_continue_restart_seen = 0;
+    LT_HANDLER_BIND(handler, {
+        LT_cerror("Correctable error", "value", LT_SmallInteger_new(17));
+        resumed = 1;
+    });
+
+    if (expect(resumed, "LT_cerror returns after :continue restart")){
+        return 1;
+    }
+    if (expect(
+        g_cerror_continue_restart_seen,
+        "LT_cerror establishes :continue while signaling"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_class(g_cerror_condition) == &LT_Error_class,
+        "LT_cerror emits Error condition"
+    )){
+        return 1;
+    }
+    message = LT_Object_slot_ref(
+        g_cerror_condition,
+        LT_Symbol_new("message")
+    );
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(message)),
+            "Correctable error"
+        ) == 0,
+        "LT_cerror preserves condition message"
+    )){
+        return 1;
+    }
+    args = LT_Object_slot_ref(g_cerror_condition, LT_Symbol_new("args"));
+    if (expect(
+        LT_Pair_p(args)
+            && LT_car(args) == LT_Symbol_new("value")
+            && LT_Pair_p(LT_cdr(args)),
+        "LT_cerror preserves condition argument plist"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(args)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(args))) == 17,
+        "LT_cerror preserves condition argument value"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_find_restart(LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "continue"))
+            == LT_NIL,
+        "LT_cerror removes :continue after resuming"
     );
 }
 
@@ -980,6 +1211,50 @@ static int test_filestream_open_failure_signals_system_error(void){
     );
 }
 
+static int test_debugger_hook_is_scoped_and_disabled_during_invocation(void){
+    LT_Value condition = LT_Condition("debugger hook test");
+    LT_Value hook = LT_Primitive_new(
+        "test-debugger-hook",
+        "(condition original-hook)",
+        "Record debugger hook invocation.",
+        debugger_hook_impl
+    );
+
+    g_debugger_hook_calls = 0;
+    g_debugger_hook_condition = LT_NIL;
+    g_debugger_hook_original = LT_NIL;
+
+    LT_WITH_DEBUGGER_HOOK(hook, {
+        LT_invoke_debugger(condition);
+        LT_invoke_debugger(condition);
+    });
+
+    if (expect(
+            g_debugger_hook_calls == 2,
+            "debugger hook is restored after each invocation"
+        )){
+        return 1;
+    }
+    if (expect(
+            g_debugger_hook_condition == condition,
+            "debugger hook receives condition"
+        )){
+        return 1;
+    }
+    if (expect(
+            g_debugger_hook_original == hook,
+            "debugger hook receives its original value"
+        )){
+        return 1;
+    }
+
+    LT_invoke_debugger(condition);
+    return expect(
+        g_debugger_hook_calls == 2,
+        "debugger hook scope restores the previous nil hook"
+    );
+}
+
 int main(void){
     int failures = 0;
 
@@ -995,6 +1270,9 @@ int main(void){
     failures += test_find_and_invoke_restart_use_eq_name_matching();
     failures += test_lt_error_signals_condition_to_handlers();
     failures += test_unbound_symbol_error_identifies_symbol();
+    failures += test_unbound_symbol_use_value_restart_resumes_evaluation();
+    failures += test_unbound_symbol_define_variable_restart_defines_at_top_level();
+    failures += test_cerror_continue_restart_resumes_call();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
     failures += test_subclass_responsibility_error_builder();
@@ -1008,6 +1286,7 @@ int main(void){
     failures += test_stream_abstract_methods_signal_specific_error();
     failures += test_system_error_preserves_errno_and_strerror_message();
     failures += test_filestream_open_failure_signals_system_error();
+    failures += test_debugger_hook_is_scoped_and_disabled_during_invocation();
 
     if (failures == 0){
         puts("conditions tests passed");

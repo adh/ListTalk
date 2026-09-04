@@ -9,6 +9,7 @@
 #include <ListTalk/classes/Closure.h>
 #include <ListTalk/classes/Message.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/Restart.h>
 #include <ListTalk/classes/Macro.h>
 #include <ListTalk/classes/SpecialForm.h>
 #include <ListTalk/classes/Symbol.h>
@@ -16,8 +17,10 @@
 #include <ListTalk/vm/reader.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/stack_trace.h>
 #include <ListTalk/vm/thread_state.h>
+#include <ListTalk/vm/throw_catch.h>
 
 #include <ctype.h>
 #include <setjmp.h>
@@ -48,6 +51,63 @@ static LT_Value send_does_not_understand(
     LT_TailCallUnwindMarker* tail_call_unwind_marker
 );
 static LT_Value copy_message_arguments(LT_Value arguments);
+
+static LT_Value unbound_symbol_use_value_tag(void){
+    return LT_Symbol_new_in(
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "unbound-symbol-use-value"
+    );
+}
+
+static LT_Value unbound_symbol_define_variable_tag(void){
+    return LT_Symbol_new_in(
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "unbound-symbol-define-variable"
+    );
+}
+
+static LT_Environment* top_level_environment(LT_Environment* environment){
+    LT_Environment* parent;
+
+    while ((parent = LT_Environment_parent(environment)) != NULL){
+        environment = parent;
+    }
+    return environment;
+}
+
+LT_DEFINE_PRIMITIVE_RESTART(
+    unbound_symbol_use_value_restart,
+    "use-value",
+    "(value)",
+    "Use a supplied value for the unbound symbol."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_throw(unbound_symbol_use_value_tag(), value);
+}
+
+LT_DEFINE_PRIMITIVE_RESTART(
+    unbound_symbol_define_variable_restart,
+    "define-variable",
+    "(value)",
+    "Define the unbound symbol in its top-level environment using a supplied value."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_throw(unbound_symbol_define_variable_tag(), value);
+}
 
 static void check_pending_signal(void){
     LT_ThreadState* state = LT__thread_state;
@@ -813,19 +873,43 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
 
     if (!LT_Environment_lookup(environment, symbol, &value, NULL)){
         LT_String* printed_symbol;
+        LT_Value replacement = LT_INVALID;
+        LT_Value definition = LT_INVALID;
 
         if (LT_Symbol_package(LT_Symbol_from_value(symbol))
             == LT_PACKAGE_KEYWORD){
             return symbol;
         }
         printed_symbol = LT_Value_asString(symbol);
-        LT_error(
-            LT_sprintf(
-                "Unbound symbol: %s",
-                LT_String_value_cstr(printed_symbol)
-            ),
-            "symbol", symbol
-        );
+        LT_CATCH(unbound_symbol_use_value_tag(), replacement, {
+            LT_CATCH(unbound_symbol_define_variable_tag(), definition, {
+                LT_RESTART_BIND(
+                LT_Restart_from_static(
+                    &unbound_symbol_define_variable_restart
+                ), {
+                    LT_RESTART_BIND(
+                    LT_Restart_from_static(&unbound_symbol_use_value_restart), {
+                        LT_error(
+                            LT_sprintf(
+                                "Unbound symbol: %s",
+                                LT_String_value_cstr(printed_symbol)
+                            ),
+                            "symbol", symbol
+                        );
+                    });
+                });
+            });
+            if (definition != LT_INVALID){
+                LT_Environment_bind(
+                    top_level_environment(environment),
+                    symbol,
+                    definition,
+                    0
+                );
+                replacement = definition;
+            }
+        });
+        return replacement;
     }
     return value;
 }

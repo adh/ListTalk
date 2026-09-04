@@ -145,12 +145,17 @@ LT_Value LT_stack_trace_capture(void){
     return LT_ListBuilder_value(builder);
 }
 
-void LT_stack_trace_print(FILE* stream){
+void LT_stack_trace_print_skipping(FILE* stream, unsigned int skip){
     LT_Value snapshot = LT_stack_trace_capture();
     LT_Value cursor = snapshot;
     unsigned int index = 0;
 
-    if (snapshot == LT_NIL){
+    while (skip > 0 && LT_Pair_p(cursor)){
+        cursor = LT_cdr(cursor);
+        skip--;
+    }
+
+    if (cursor == LT_NIL){
         return;
     }
 
@@ -187,4 +192,8 @@ void LT_stack_trace_print(FILE* stream){
         index += 1;
         cursor = LT_cdr(cursor);
     }
+}
+
+void LT_stack_trace_print(FILE* stream){
+    LT_stack_trace_print_skipping(stream, 0);
 }

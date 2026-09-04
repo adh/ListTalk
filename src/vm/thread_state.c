@@ -145,6 +145,7 @@ LT_ThreadState* LT_thread_state_slow(void)
     if (state == NULL){
         state = GC_MALLOC_UNCOLLECTABLE(sizeof(LT_ThreadState));
         memset(state, 0, sizeof(LT_ThreadState));
+        state->debugger_hook = LT_NIL;
         atomic_init(&state->pending_signal, LT_INVALID);
         pthread_setspecific(LT_thread_state_key, state);
     }

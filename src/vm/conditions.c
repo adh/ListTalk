@@ -16,6 +16,23 @@ void LT_signal(LT_Value condition){
     }
 }
 
+void LT_set_debugger_hook(LT_Value hook){
+    LT_thread_state()->debugger_hook = hook;
+}
+
+void LT_invoke_debugger(LT_Value condition){
+    LT_ThreadState* state = LT_thread_state();
+    LT_Value hook = state->debugger_hook;
+
+    if (hook == LT_NIL){
+        return;
+    }
+
+    LT_WITH_DEBUGGER_HOOK(LT_NIL, {
+        (void)LT_applyv(hook, condition, hook, LT_INVALID);
+    });
+}
+
 LT_Value LT_current_restarts(void){
     LT_ListBuilder* builder = LT_ListBuilder_new();
     LT_RestartFrame* frame = LT__restart_stack;

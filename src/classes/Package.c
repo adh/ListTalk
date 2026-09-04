@@ -30,6 +30,7 @@ struct LT_Package_s {
 LT_Package LT_Package_LISTTALK = {0};
 LT_Package LT_Package_LISTTALK_IMPLEMENTATION = {0};
 LT_Package LT_Package_LISTTALK_USER = {0};
+LT_Package LT_Package_LISTTALK_DEBUG = {0};
 LT_Package LT_Package_KEYWORD = {0};
 static LT_InlineHash package_table;
 static pthread_once_t package_table_once = PTHREAD_ONCE_INIT;
@@ -674,6 +675,13 @@ static void predefined_packages_init_once(void){
         &LT_Package_LISTTALK_USER
     );
 
+    package_init(&LT_Package_LISTTALK_DEBUG, "ListTalk-debug");
+    LT_StringHash_at_put(
+        package_table,
+        LT_Package_LISTTALK_DEBUG.name,
+        &LT_Package_LISTTALK_DEBUG
+    );
+
     package_init(&LT_Package_KEYWORD, "keyword");
     LT_StringHash_at_put(
         package_table,
@@ -688,6 +696,11 @@ static void predefined_packages_init_once(void){
     );
     package_use_package_initialized(
         &LT_Package_LISTTALK_USER,
+        &LT_Package_LISTTALK,
+        NULL
+    );
+    package_use_package_initialized(
+        &LT_Package_LISTTALK_DEBUG,
         &LT_Package_LISTTALK,
         NULL
     );
