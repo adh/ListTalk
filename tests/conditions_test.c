@@ -260,6 +260,31 @@ static LT_Value define_variable_for_unbound_symbol_handler_impl(
     );
 }
 
+static LT_Value g_cerror_condition = LT_NIL;
+static int g_cerror_continue_restart_seen = 0;
+
+static LT_Value continue_cerror_handler_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, g_cerror_condition);
+    LT_ARG_END(cursor);
+    g_cerror_continue_restart_seen =
+        LT_find_restart(LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "continue"))
+            != LT_NIL;
+    return LT_invoke_restart(
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "continue"),
+        LT_NIL
+    );
+}
+
 static int test_signal_invokes_bound_handler_with_condition_value(void){
     LT_Value condition = LT_Symbol_new("condition-a");
     LT_Value inner_handler = LT_Primitive_new(
@@ -697,6 +722,75 @@ static int test_unbound_symbol_define_variable_restart_defines_at_top_level(void
     return expect(
         LT_Value_is_fixnum(defined) && LT_SmallInteger_value(defined) == 41,
         ":define-variable top-level binding has the supplied value"
+    );
+}
+
+static int test_cerror_continue_restart_resumes_call(void){
+    LT_Value handler = LT_Primitive_new(
+        "continue-cerror-handler",
+        "(condition)",
+        "invokes the cerror continue restart",
+        continue_cerror_handler_impl
+    );
+    LT_Value message;
+    LT_Value args;
+    int resumed = 0;
+
+    g_cerror_condition = LT_NIL;
+    g_cerror_continue_restart_seen = 0;
+    LT_HANDLER_BIND(handler, {
+        LT_cerror("Correctable error", "value", LT_SmallInteger_new(17));
+        resumed = 1;
+    });
+
+    if (expect(resumed, "LT_cerror returns after :continue restart")){
+        return 1;
+    }
+    if (expect(
+        g_cerror_continue_restart_seen,
+        "LT_cerror establishes :continue while signaling"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_class(g_cerror_condition) == &LT_Error_class,
+        "LT_cerror emits Error condition"
+    )){
+        return 1;
+    }
+    message = LT_Object_slot_ref(
+        g_cerror_condition,
+        LT_Symbol_new("message")
+    );
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(LT_String_from_value(message)),
+            "Correctable error"
+        ) == 0,
+        "LT_cerror preserves condition message"
+    )){
+        return 1;
+    }
+    args = LT_Object_slot_ref(g_cerror_condition, LT_Symbol_new("args"));
+    if (expect(
+        LT_Pair_p(args)
+            && LT_car(args) == LT_Symbol_new("value")
+            && LT_Pair_p(LT_cdr(args)),
+        "LT_cerror preserves condition argument plist"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Value_is_fixnum(LT_car(LT_cdr(args)))
+            && LT_SmallInteger_value(LT_car(LT_cdr(args))) == 17,
+        "LT_cerror preserves condition argument value"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_find_restart(LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "continue"))
+            == LT_NIL,
+        "LT_cerror removes :continue after resuming"
     );
 }
 
@@ -1178,6 +1272,7 @@ int main(void){
     failures += test_unbound_symbol_error_identifies_symbol();
     failures += test_unbound_symbol_use_value_restart_resumes_evaluation();
     failures += test_unbound_symbol_define_variable_restart_defines_at_top_level();
+    failures += test_cerror_continue_restart_resumes_call();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
     failures += test_subclass_responsibility_error_builder();

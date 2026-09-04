@@ -23,6 +23,12 @@ LT__BEGIN_DECLS
 void _Noreturn LT_error_impl(const char* message, ...);
 #define LT_error(...) LT_error_impl(__VA_ARGS__, NULL)
 
+/** Report a correctable error with an active :continue restart. Trailing
+ *  arguments have the same key-value shape as LT_error.
+ */
+void LT_cerror_impl(const char* message, ...);
+#define LT_cerror(...) LT_cerror_impl(__VA_ARGS__, NULL)
+
 void _Noreturn LT_system_error(const char* message, int errnum);
 void _Noreturn LT_subclass_responsibility_error(void);
 void _Noreturn LT_type_error(LT_Value value, LT_Class* expected_class);
