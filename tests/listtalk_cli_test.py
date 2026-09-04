@@ -71,7 +71,7 @@ def run_interactive_syntax_error_case(exe):
             )
         )
         return 1
-    if "Condition: #<ReaderError" in completed.stdout:
+    if "Debugger entered on:" in completed.stdout or "debug> " in completed.stdout:
         sys.stderr.write(
             "FAIL: syntax error unexpectedly entered debugger\n{0}".format(
                 completed.stdout
