@@ -27,6 +27,8 @@ typedef struct {
     LT_Value restarts;
     LT_Environment* environment;
     LT_Value debugger_hook;
+    LT_REPL_State* repl;
+    unsigned int level;
 } DebuggerContext;
 
 typedef struct {
@@ -34,6 +36,8 @@ typedef struct {
     LT_Value slots;
     int list_p;
 } InspectorContext;
+
+static _Thread_local unsigned int debugger_level = 0;
 
 static LT_Value return_to_debugger_tag = LT_NIL;
 static pthread_once_t return_to_debugger_tag_once = PTHREAD_ONCE_INIT;
@@ -221,6 +225,25 @@ static void debugger_print_entered_on(LT_Value object){
     }
 }
 
+static void debugger_set_prompt(DebuggerContext* context){
+    LT_REPL_State_set_prompt(
+        context->repl,
+        LT_sprintf("debug[%u]> ", context->level)
+    );
+}
+
+static void debugger_print_banner(DebuggerContext* context){
+    debugger_print_entered_on(context->condition);
+    fputc('\n', stdout);
+    if (LT_stack_trace_depth() <= 1){
+        fputs("Backtrace:\n  (empty)\n", stdout);
+    } else {
+        LT_stack_trace_print_skipping(stdout, 1);
+    }
+    fputc('\n', stdout);
+    debugger_print_restarts(context->restarts);
+}
+
 static LT_Value debugger_restart_selected(LT_Value input, LT_Value restarts){
     LT_Value cursor;
 
@@ -248,6 +271,85 @@ static LT_Value debugger_restart_selected(LT_Value input, LT_Value restarts){
     return LT_INVALID;
 }
 
+static int debugger_restart_shorthand_p(LT_Value input){
+    return LT_Pair_p(input)
+        && LT_Symbol_p(LT_car(input))
+        && LT_Symbol_package(LT_Symbol_from_value(LT_car(input)))
+            == LT_PACKAGE_KEYWORD;
+}
+
+static LT_Value debugger_prompt_restart_arguments(
+    DebuggerContext* context,
+    LT_Restart* restart
+){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value cursor = LT_Restart_argument_list(restart);
+
+    while (LT_Pair_p(cursor)){
+        LT_String* printed_argument = LT_Value_asString(LT_car(cursor));
+        LT_Value argument;
+
+        LT_REPL_State_set_prompt(
+            context->repl,
+            LT_sprintf(
+                "debug[%u] %s> ",
+                context->level,
+                LT_String_value_cstr(printed_argument)
+            )
+        );
+        argument = LT_REPL_State_read(context->repl);
+        if (argument == LT_INVALID){
+            debugger_set_prompt(context);
+            return LT_INVALID;
+        }
+        LT_ListBuilder_append(builder, argument);
+        cursor = LT_cdr(cursor);
+    }
+    debugger_set_prompt(context);
+    return LT_ListBuilder_value(builder);
+}
+
+static LT_Value debugger_eval_argument_list(
+    LT_Value expressions,
+    LT_Environment* environment
+){
+    LT_ListBuilder* builder = LT_ListBuilder_new();
+    LT_Value cursor = expressions;
+
+    while (cursor != LT_NIL){
+        if (!LT_Pair_p(cursor)){
+            LT_error("Debugger restart shorthand expects proper argument list");
+        }
+        LT_ListBuilder_append(builder, LT_eval(LT_car(cursor), environment, NULL));
+        cursor = LT_cdr(cursor);
+    }
+    return LT_ListBuilder_value(builder);
+}
+
+static int debugger_eval_restart_arguments(
+    DebuggerContext* context,
+    LT_Value expressions,
+    LT_Value* arguments_out
+){
+    LT_Value returned_to_debugger = LT_NIL;
+
+    LT_CATCH(return_to_debugger_tag_value(), returned_to_debugger, {
+        LT_RESTART_BIND(LT_Restart_from_static(&return_to_debugger_restart), {
+            LT_WITH_DEBUGGER_HOOK(context->debugger_hook, {
+                *arguments_out = debugger_eval_argument_list(
+                    expressions,
+                    context->environment
+                );
+            });
+        });
+    });
+    if (returned_to_debugger != LT_NIL){
+        debugger_print_banner(context);
+        debugger_set_prompt(context);
+    }
+    return returned_to_debugger == LT_NIL;
+}
+
 static int debugger_keyword_selected(LT_Value input, const char* name){
     return LT_Symbol_p(input)
         && LT_Symbol_package(LT_Symbol_from_value(input)) == LT_PACKAGE_KEYWORD
@@ -259,7 +361,12 @@ static int debugger_keyword_selected(LT_Value input, const char* name){
 
 static void debugger_repl_object(LT_Value object, void* opaque){
     DebuggerContext* context = opaque;
-    LT_Value restart_value = debugger_restart_selected(object, context->restarts);
+    int restart_shorthand = debugger_restart_shorthand_p(object);
+    LT_Value restart_designator = restart_shorthand ? LT_car(object) : object;
+    LT_Value restart_value = debugger_restart_selected(
+        restart_designator,
+        context->restarts
+    );
     LT_Value returned_to_debugger = LT_NIL;
 
     if (debugger_keyword_selected(object, "inspect-condition")){
@@ -270,12 +377,35 @@ static void debugger_repl_object(LT_Value object, void* opaque){
         LT_Debugger_inspect(context->backtrace);
         return;
     }
+    if (debugger_keyword_selected(object, "show")){
+        debugger_print_banner(context);
+        return;
+    }
 
     if (restart_value != LT_INVALID){
         LT_Restart* restart = LT_Restart_from_value(restart_value);
+        LT_Value restart_arguments = LT_NIL;
+
+        if (restart_shorthand){
+            if (!debugger_eval_restart_arguments(
+                context,
+                LT_cdr(object),
+                &restart_arguments
+            )){
+                return;
+            }
+        } else if (LT_Restart_argument_list(restart) != LT_NIL){
+            restart_arguments = debugger_prompt_restart_arguments(
+                context,
+                restart
+            );
+            if (restart_arguments == LT_INVALID){
+                return;
+            }
+        }
         LT_apply(
             LT_Restart_callable(restart),
-            LT_NIL,
+            restart_arguments,
             LT_NIL,
             LT_NIL,
             NULL
@@ -283,7 +413,8 @@ static void debugger_repl_object(LT_Value object, void* opaque){
         return;
     }
 
-    if (LT_SmallInteger_p(object)
+    if (restart_shorthand
+        || LT_SmallInteger_p(object)
         || (LT_Symbol_p(object)
             && LT_Symbol_package(LT_Symbol_from_value(object))
                 == LT_PACKAGE_KEYWORD)){
@@ -299,6 +430,8 @@ static void debugger_repl_object(LT_Value object, void* opaque){
         });
     });
     if (returned_to_debugger != LT_NIL){
+        debugger_print_banner(context);
+        debugger_set_prompt(context);
         return;
     }
     LT_Value_debugPrintOn(object, stdout);
@@ -313,7 +446,9 @@ void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
         .backtrace = LT_Pair_p(backtrace) ? LT_cdr(backtrace) : LT_NIL,
         .restarts = LT_current_restarts(),
         .environment = LT_new_base_environment(),
-        .debugger_hook = debugger_hook
+        .debugger_hook = debugger_hook,
+        .repl = repl,
+        .level = debugger_level + 1
     };
 
     LT_Environment_bind(
@@ -335,19 +470,15 @@ void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
         LT_ENV_BINDING_FLAG_CONSTANT
     );
 
-    debugger_print_entered_on(condition);
-    fputc('\n', stdout);
-    if (LT_stack_trace_depth() <= 1){
-        fputs("Backtrace:\n  (empty)\n", stdout);
-    } else {
-        LT_stack_trace_print_skipping(stdout, 1);
-    }
-    fputc('\n', stdout);
-    debugger_print_restarts(context.restarts);
-
-    LT_REPL_State_set_prompt(repl, "debug> ");
-    LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_DEBUG, {
-        LT_REPL_State_loop(repl, debugger_repl_object, &context);
+    debugger_level++;
+    LT_UNWIND_PROTECT({
+        debugger_print_banner(&context);
+        debugger_set_prompt(&context);
+        LT_WITH_PACKAGE(LT_PACKAGE_LISTTALK_DEBUG, {
+            LT_REPL_State_loop(repl, debugger_repl_object, &context);
+        });
+    }, {
+        debugger_level--;
     });
 }
 
