@@ -59,11 +59,11 @@ static LT_Value unbound_symbol_use_value_tag(void){
     );
 }
 
-LT_DEFINE_PRIMITIVE(
-    unbound_symbol_use_value,
-    "unbound-symbol-use-value",
+LT_DEFINE_PRIMITIVE_RESTART(
+    unbound_symbol_use_value_restart,
+    "use-value",
     "(value)",
-    "Use value as the value of an unbound symbol."
+    "Use a supplied value for the unbound symbol."
 ){
     LT_Value cursor = arguments;
     LT_Value value;
@@ -841,23 +841,15 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
     if (!LT_Environment_lookup(environment, symbol, &value, NULL)){
         LT_String* printed_symbol;
         LT_Value replacement = LT_INVALID;
-        LT_Value restart;
 
         if (LT_Symbol_package(LT_Symbol_from_value(symbol))
             == LT_PACKAGE_KEYWORD){
             return symbol;
         }
         printed_symbol = LT_Value_asString(symbol);
-        restart = LT_Restart_new(
-            LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "use-value"),
-            (LT_Value)(uintptr_t)LT_String_new_cstr(
-                "Use a supplied value for the unbound symbol."
-            ),
-            LT_cons(LT_Symbol_new("value"), LT_NIL),
-            LT_Primitive_from_static(&unbound_symbol_use_value)
-        );
         LT_CATCH(unbound_symbol_use_value_tag(), replacement, {
-            LT_RESTART_BIND(restart, {
+            LT_RESTART_BIND(
+            LT_Restart_from_static(&unbound_symbol_use_value_restart), {
                 LT_error(
                     LT_sprintf(
                         "Unbound symbol: %s",

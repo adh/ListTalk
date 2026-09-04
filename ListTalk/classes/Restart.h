@@ -53,11 +53,15 @@ struct LT_Restart_s {
         .argument_list = LT_INVALID, \
         .callable = LT_INVALID \
     }; \
+    static void LT___materialize_##restart_object_name(void){ \
+        (void)LT_Restart_from_static(&restart_object_name); \
+    } \
     static void LT___init_##restart_object_name(void){ \
         LT_Restart_init_static( \
             &restart_object_name, \
             &restart_object_name##_primitive \
         ); \
+        LT_register_constructor(LT___materialize_##restart_object_name); \
     } \
     LT_REGISTER_CONSTRUCTOR(LT___init_##restart_object_name)
 

@@ -26,8 +26,8 @@
 static LT_Value LT__repl_error_tag = LT_NIL;
 static LT_Value LT__return_to_toplevel_tag = LT_NIL;
 
-LT_DEFINE_PRIMITIVE(
-    return_to_toplevel_primitive,
+LT_DEFINE_PRIMITIVE_RESTART(
+    return_to_toplevel_restart,
     "return-to-toplevel",
     "()",
     "Abort the current computation and return to the interactive top level."
@@ -433,14 +433,6 @@ int main(int argc, char**argv){
         LT_Debugger_enable();
         {
             LT_REPL_State* repl = LT_REPL_State_new();
-            LT_Value return_to_toplevel_restart = LT_Restart_new(
-                LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "return-to-toplevel"),
-                (LT_Value)(uintptr_t)LT_String_new_cstr(
-                    "Abort the current computation and return to the top level."
-                ),
-                LT_NIL,
-                LT_Primitive_from_static(&return_to_toplevel_primitive)
-            );
 
             eval_status = 0;
             while (1){
@@ -452,7 +444,8 @@ int main(int argc, char**argv){
                     LT__return_to_toplevel_tag,
                     returned_to_toplevel,
                     {
-                        LT_RESTART_BIND(return_to_toplevel_restart, {
+                        LT_RESTART_BIND(
+                        LT_Restart_from_static(&return_to_toplevel_restart), {
                             LT_CATCH(LT__repl_error_tag, reader_error, {
                                 LT_HANDLER_BIND(repl_reader_handler, {
                                     object = LT_REPL_State_read(repl);

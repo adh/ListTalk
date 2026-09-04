@@ -32,6 +32,13 @@ static LT_Value restart_string_or_nil(char* string){
     return (LT_Value)(uintptr_t)LT_String_new_cstr(string);
 }
 
+static LT_Value restart_name_or_nil(char* name){
+    if (name == NULL){
+        return LT_NIL;
+    }
+    return LT_Symbol_new_in(LT_PACKAGE_KEYWORD, name);
+}
+
 static LT_Value restart_argument_list_or_nil(char* arguments_text){
     LT_Reader* reader;
     LT_ReaderStream* stream;
@@ -58,7 +65,7 @@ static void Restart_materialize_static(LT_Restart* restart){
     }
 
     primitive = LT_Primitive_from_value(restart->callable);
-    restart->name = restart_string_or_nil(LT_Primitive_name(primitive));
+    restart->name = restart_name_or_nil(LT_Primitive_name(primitive));
     restart->description = restart_string_or_nil(LT_Primitive_description(primitive));
     restart->argument_list = restart_argument_list_or_nil(
         LT_Primitive_arguments(primitive)
@@ -251,11 +258,9 @@ LT_Value LT_Restart_from_static(LT_Restart* restart){
 
 void LT_Restart_init_static(LT_Restart* restart, LT_Primitive* primitive){
     restart->callable = LT_Primitive_from_static(primitive);
-    restart->name = restart_string_or_nil(LT_Primitive_name(primitive));
-    restart->description = restart_string_or_nil(LT_Primitive_description(primitive));
-    restart->argument_list = restart_argument_list_or_nil(
-        LT_Primitive_arguments(primitive)
-    );
+    restart->name = LT_INVALID;
+    restart->description = LT_INVALID;
+    restart->argument_list = LT_INVALID;
 }
 
 LT_Value LT_Restart_name(LT_Restart* restart){

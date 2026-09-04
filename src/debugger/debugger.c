@@ -68,8 +68,8 @@ LT_DEFINE_PRIMITIVE(
     return LT_NIL;
 }
 
-LT_DEFINE_PRIMITIVE(
-    return_to_debugger_primitive,
+LT_DEFINE_PRIMITIVE_RESTART(
+    return_to_debugger_restart,
     "return-to-debugger",
     "()",
     "Abort the current debugger evaluation and return to its REPL."
@@ -292,16 +292,7 @@ static void debugger_repl_object(LT_Value object, void* opaque){
     }
 
     LT_CATCH(return_to_debugger_tag_value(), returned_to_debugger, {
-        LT_Value restart = LT_Restart_new(
-            LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "return-to-debugger"),
-            (LT_Value)(uintptr_t)LT_String_new_cstr(
-                "Abort evaluation and return to the debugger."
-            ),
-            LT_NIL,
-            LT_Primitive_from_static(&return_to_debugger_primitive)
-        );
-
-        LT_RESTART_BIND(restart, {
+        LT_RESTART_BIND(LT_Restart_from_static(&return_to_debugger_restart), {
             LT_WITH_DEBUGGER_HOOK(context->debugger_hook, {
                 object = LT_eval(object, context->environment, NULL);
             });
