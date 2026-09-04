@@ -59,6 +59,22 @@ static LT_Value unbound_symbol_use_value_tag(void){
     );
 }
 
+static LT_Value unbound_symbol_define_variable_tag(void){
+    return LT_Symbol_new_in(
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "unbound-symbol-define-variable"
+    );
+}
+
+static LT_Environment* top_level_environment(LT_Environment* environment){
+    LT_Environment* parent;
+
+    while ((parent = LT_Environment_parent(environment)) != NULL){
+        environment = parent;
+    }
+    return environment;
+}
+
 LT_DEFINE_PRIMITIVE_RESTART(
     unbound_symbol_use_value_restart,
     "use-value",
@@ -74,6 +90,23 @@ LT_DEFINE_PRIMITIVE_RESTART(
     LT_OBJECT_ARG(cursor, value);
     LT_ARG_END(cursor);
     LT_throw(unbound_symbol_use_value_tag(), value);
+}
+
+LT_DEFINE_PRIMITIVE_RESTART(
+    unbound_symbol_define_variable_restart,
+    "define-variable",
+    "(value)",
+    "Define the unbound symbol in its top-level environment using a supplied value."
+){
+    LT_Value cursor = arguments;
+    LT_Value value;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, value);
+    LT_ARG_END(cursor);
+    LT_throw(unbound_symbol_define_variable_tag(), value);
 }
 
 static void check_pending_signal(void){
@@ -841,6 +874,7 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
     if (!LT_Environment_lookup(environment, symbol, &value, NULL)){
         LT_String* printed_symbol;
         LT_Value replacement = LT_INVALID;
+        LT_Value definition = LT_INVALID;
 
         if (LT_Symbol_package(LT_Symbol_from_value(symbol))
             == LT_PACKAGE_KEYWORD){
@@ -848,16 +882,32 @@ static LT_Value eval_symbol(LT_Value symbol, LT_Environment* environment){
         }
         printed_symbol = LT_Value_asString(symbol);
         LT_CATCH(unbound_symbol_use_value_tag(), replacement, {
-            LT_RESTART_BIND(
-            LT_Restart_from_static(&unbound_symbol_use_value_restart), {
-                LT_error(
-                    LT_sprintf(
-                        "Unbound symbol: %s",
-                        LT_String_value_cstr(printed_symbol)
-                    ),
-                    "symbol", symbol
-                );
+            LT_CATCH(unbound_symbol_define_variable_tag(), definition, {
+                LT_RESTART_BIND(
+                LT_Restart_from_static(
+                    &unbound_symbol_define_variable_restart
+                ), {
+                    LT_RESTART_BIND(
+                    LT_Restart_from_static(&unbound_symbol_use_value_restart), {
+                        LT_error(
+                            LT_sprintf(
+                                "Unbound symbol: %s",
+                                LT_String_value_cstr(printed_symbol)
+                            ),
+                            "symbol", symbol
+                        );
+                    });
+                });
             });
+            if (definition != LT_INVALID){
+                LT_Environment_bind(
+                    top_level_environment(environment),
+                    symbol,
+                    definition,
+                    0
+                );
+                replacement = definition;
+            }
         });
         return replacement;
     }

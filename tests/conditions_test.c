@@ -239,6 +239,27 @@ static LT_Value use_value_for_unbound_symbol_handler_impl(
     );
 }
 
+static LT_Value define_variable_for_unbound_symbol_handler_impl(
+    LT_Value arguments,
+    LT_Value invocation_context_kind,
+    LT_Value invocation_context_data,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    (void)condition;
+    return LT_invoke_restart(
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "define-variable"),
+        LT_cons(LT_SmallInteger_new(41), LT_NIL)
+    );
+}
+
 static int test_signal_invokes_bound_handler_with_condition_value(void){
     LT_Value condition = LT_Symbol_new("condition-a");
     LT_Value inner_handler = LT_Primitive_new(
@@ -636,6 +657,46 @@ static int test_unbound_symbol_use_value_restart_resumes_evaluation(void){
         LT_find_restart(LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "use-value"))
             == LT_NIL,
         "unbound symbol :use-value restart is removed after evaluation"
+    );
+}
+
+static int test_unbound_symbol_define_variable_restart_defines_at_top_level(void){
+    LT_Environment* env = LT_new_base_environment();
+    LT_Value handler = LT_Primitive_new(
+        "define-variable-for-unbound-symbol-handler",
+        "(condition)",
+        "invokes the unbound symbol define-variable restart",
+        define_variable_for_unbound_symbol_handler_impl
+    );
+    LT_Value result = LT_NIL;
+    LT_Value defined = LT_NIL;
+
+    LT_HANDLER_BIND(handler, {
+        result = LT_eval(
+            read_one_with_source_file(
+                "((lambda () (+ missing-name 1)))",
+                "fixtures/unbound.lt"
+            ),
+            env,
+            NULL
+        );
+    });
+
+    if (expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 42,
+        ":define-variable restart resumes surrounding evaluation"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_Environment_lookup(env, LT_Symbol_new("missing-name"), &defined, NULL),
+        ":define-variable restart creates a top-level binding"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_Value_is_fixnum(defined) && LT_SmallInteger_value(defined) == 41,
+        ":define-variable top-level binding has the supplied value"
     );
 }
 
@@ -1116,6 +1177,7 @@ int main(void){
     failures += test_lt_error_signals_condition_to_handlers();
     failures += test_unbound_symbol_error_identifies_symbol();
     failures += test_unbound_symbol_use_value_restart_resumes_evaluation();
+    failures += test_unbound_symbol_define_variable_restart_defines_at_top_level();
     failures += test_backtrace_prints_source_locations_and_expansion_chain();
     failures += test_error_builder_collects_named_arguments();
     failures += test_subclass_responsibility_error_builder();
