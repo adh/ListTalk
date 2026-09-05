@@ -1610,6 +1610,29 @@
 (check-error-message "Cannot append an absolute pathname"
                      "Pathname>>/ rejects an absolute right operand"
   [[Pathname fromString: "/a"] / [Pathname fromString: "/b"]])
+(check (equal? [[Pathname fromString: "a/b/c"] parent]
+               [Pathname fromString: "a/b"])
+       "Pathname>>parent removes the final relative segment")
+(check (equal? [[Pathname fromString: "/a"] parent]
+               [Pathname fromString: "/"])
+       "Pathname>>parent preserves an absolute root")
+(check (equal? [[Pathname fromString: "../a"] parent]
+               [Pathname fromString: ".."])
+       "Pathname>>parent preserves leading parent segments")
+(check-error-message "Pathname has no parent"
+                     "current-directory pathname has no parent"
+  [[Pathname fromString: "."] parent])
+(check-error-message "Pathname has no parent"
+                     "root pathname has no parent"
+  [[Pathname fromString: "/"] parent])
+(check (equal? [[AbsolutePathname fromString: "/usr/local"]
+                rootedAt: [Pathname fromString: "/sandbox"]]
+               [Pathname fromString: "/sandbox/usr/local"])
+       "AbsolutePathname>>rootedAt: interprets the receiver beneath an absolute root")
+(check (equal? [[AbsolutePathname fromString: "/usr/local"]
+                rootedAt: [Pathname fromString: "sandbox"]]
+               [Pathname fromString: "sandbox/usr/local"])
+       "AbsolutePathname>>rootedAt: also accepts a relative root")
 )
 
 (define-test "make-class and make-instance"

@@ -3622,6 +3622,11 @@ static int test_pathname_c_api_round_trips_utf8(void){
     );
     LT_RelativePathname* relative = LT_RelativePathname_new("x/y");
     LT_AbsolutePathname* forced_absolute = LT_AbsolutePathname_new("x/y");
+    LT_Pathname* parent = LT_Pathname_parent(LT_Pathname_new("/a/b"));
+    LT_Pathname* rooted = LT_AbsolutePathname_rooted_at(
+        LT_AbsolutePathname_new("/a/b"),
+        LT_Pathname_new("/root")
+    );
 
     if (expect(
             strcmp(LT_Pathname_value_cstr(pathname), "./dir/\xce\xbb.txt") == 0,
@@ -3669,6 +3674,14 @@ static int test_pathname_c_api_round_trips_utf8(void){
             strcmp(LT_Pathname_value_cstr(appended), "/a/d") == 0,
             "LT_Pathname_append combines and normalizes paths"
         )){
+        return 1;
+    }
+    if (expect(strcmp(LT_Pathname_value_cstr(parent), "/a") == 0,
+               "LT_Pathname_parent removes the final segment")){
+        return 1;
+    }
+    if (expect(strcmp(LT_Pathname_value_cstr(rooted), "/root/a/b") == 0,
+               "LT_AbsolutePathname_rooted_at roots an absolute pathname")){
         return 1;
     }
     return expect(

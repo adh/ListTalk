@@ -257,11 +257,43 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)LT_Pathname_as_string(pathname);
 }
 
+LT_DEFINE_PRIMITIVE(
+    pathname_method_parent,
+    "Pathname>>parent",
+    "(self)",
+    "Return the pathname with its final segment removed."
+){
+    LT_Value cursor = arguments;
+    LT_Pathname* pathname;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, pathname, LT_Pathname*, LT_Pathname_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_Pathname_parent(pathname);
+}
+
+LT_DEFINE_PRIMITIVE(
+    absolute_pathname_method_rooted_at,
+    "AbsolutePathname>>rootedAt:",
+    "(self root)",
+    "Interpret the absolute pathname relative to root."
+){
+    LT_Value cursor = arguments;
+    LT_AbsolutePathname* pathname;
+    LT_Pathname* root;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, pathname, LT_AbsolutePathname*,
+                   LT_AbsolutePathname_from_value);
+    LT_GENERIC_ARG(cursor, root, LT_Pathname*, LT_Pathname_from_value);
+    LT_ARG_END(cursor);
+    return (LT_Value)(uintptr_t)LT_AbsolutePathname_rooted_at(pathname, root);
+}
+
 static LT_Method_Descriptor Pathname_methods[] = {
     {"asString", &pathname_method_as_string},
     {"absolute?", &pathname_method_absolute_p},
     {"relative?", &pathname_method_relative_p},
     {"/", &pathname_method_append},
+    {"parent", &pathname_method_parent},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -277,6 +309,11 @@ static LT_Method_Descriptor RelativePathname_class_methods[] = {
 
 static LT_Method_Descriptor AbsolutePathname_class_methods[] = {
     {"fromString:", &absolute_pathname_class_method_from_string},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor AbsolutePathname_methods[] = {
+    {"rootedAt:", &absolute_pathname_method_rooted_at},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -316,6 +353,7 @@ LT_DEFINE_CLASS(LT_AbsolutePathname) {
     .class_flags = LT_CLASS_FLAG_FINAL | LT_CLASS_FLAG_IMMUTABLE
         | LT_CLASS_FLAG_SCALAR,
     .debugPrintOn = Pathname_debugPrintOn,
+    .methods = AbsolutePathname_methods,
     .class_methods = AbsolutePathname_class_methods,
 };
 
@@ -385,6 +423,42 @@ LT_Pathname* LT_Pathname_append(LT_Pathname* left, LT_Pathname* right){
     combined[left_length] = '/';
     memcpy(combined + left_length + 1, right_suffix, right_length + 1);
     return LT_Pathname_new(combined);
+}
+
+LT_Pathname* LT_Pathname_parent(LT_Pathname* pathname){
+    const char* bytes = LT_Pathname_value_cstr(pathname);
+    const char* slash;
+    size_t length;
+    char* parent;
+
+    if (strcmp(bytes, ".") == 0 || strcmp(bytes, "/") == 0){
+        LT_error("Pathname has no parent");
+    }
+    slash = strrchr(bytes, '/');
+    if (slash == NULL){
+        return LT_Pathname_new(".");
+    }
+    if (slash == bytes){
+        return LT_Pathname_new("/");
+    }
+    length = (size_t)(slash - bytes);
+    if (length == 1 && bytes[0] == '.'){
+        return LT_Pathname_new(".");
+    }
+    parent = GC_MALLOC_ATOMIC(length + 1);
+    memcpy(parent, bytes, length);
+    parent[length] = '\0';
+    return LT_Pathname_new(parent);
+}
+
+LT_Pathname* LT_AbsolutePathname_rooted_at(LT_AbsolutePathname* pathname,
+                                           LT_Pathname* root){
+    const char* suffix = LT_Pathname_value_cstr((LT_Pathname*)pathname) + 1;
+    LT_RelativePathname* relative = LT_RelativePathname_new(
+        (char*)(*suffix == '\0' ? "." : suffix)
+    );
+
+    return LT_Pathname_append(root, (LT_Pathname*)relative);
 }
 
 LT_String* LT_Pathname_as_string(LT_Pathname* pathname){

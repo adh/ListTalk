@@ -37,6 +37,11 @@ LT_RelativePathname* LT_RelativePathname_from_string(LT_String* string);
 LT_AbsolutePathname* LT_AbsolutePathname_new(char* pathname);
 LT_AbsolutePathname* LT_AbsolutePathname_from_string(LT_String* string);
 LT_Pathname* LT_Pathname_append(LT_Pathname* left, LT_Pathname* right);
+LT_Pathname* LT_Pathname_parent(LT_Pathname* pathname);
+LT_Pathname* LT_AbsolutePathname_rooted_at(
+    LT_AbsolutePathname* pathname,
+    LT_Pathname* root
+);
 LT_String* LT_Pathname_as_string(LT_Pathname* pathname);
 char* LT_Pathname_value_cstr(LT_Pathname* pathname);
 int LT_Pathname_absolute_p(LT_Pathname* pathname);
