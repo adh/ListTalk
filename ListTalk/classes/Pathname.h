@@ -18,6 +18,7 @@ extern LT_Class LT_Pathname_class;
 extern LT_Class LT_Pathname_class_class;
 LT_DECLARE_CLASS(LT_RelativePathname);
 LT_DECLARE_CLASS(LT_AbsolutePathname);
+LT_DECLARE_CLASS(LT_PathnameStat);
 
 static inline int LT_Pathname_p(LT_Value value){
     return LT_Value_is_instance_of(value, LT_STATIC_CLASS(LT_Pathname));
@@ -46,6 +47,19 @@ LT_String* LT_Pathname_as_string(LT_Pathname* pathname);
 char* LT_Pathname_value_cstr(LT_Pathname* pathname);
 int LT_Pathname_absolute_p(LT_Pathname* pathname);
 int LT_Pathname_relative_p(LT_Pathname* pathname);
+int LT_Pathname_exists_p(LT_Pathname* pathname);
+int LT_Pathname_directory_p(LT_Pathname* pathname);
+int LT_Pathname_regular_file_p(LT_Pathname* pathname);
+int LT_Pathname_symbolic_link_p(LT_Pathname* pathname);
+int LT_Pathname_fifo_p(LT_Pathname* pathname);
+int LT_Pathname_socket_p(LT_Pathname* pathname);
+int LT_Pathname_character_device_p(LT_Pathname* pathname);
+int LT_Pathname_block_device_p(LT_Pathname* pathname);
+int LT_Pathname_readable_p(LT_Pathname* pathname);
+int LT_Pathname_writable_p(LT_Pathname* pathname);
+int LT_Pathname_executable_p(LT_Pathname* pathname);
+LT_PathnameStat* LT_Pathname_stat(LT_Pathname* pathname);
+LT_PathnameStat* LT_Pathname_lstat(LT_Pathname* pathname);
 char* LT_Pathname_like_value_cstr(LT_Value value);
 LT_String* LT_Pathname_like_as_string(LT_Value value);
 

@@ -157,6 +157,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"Pathname", &LT_Pathname_class},
     {"RelativePathname", &LT_RelativePathname_class},
     {"AbsolutePathname", &LT_AbsolutePathname_class},
+    {"PathnameStat", &LT_PathnameStat_class},
     {"StringIterator", &LT_StringIterator_class},
     {"Symbol", &LT_Symbol_class},
     {"Package", &LT_Package_class},
