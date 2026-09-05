@@ -9,6 +9,7 @@
 #include <ListTalk/classes/Number.h>
 #include <ListTalk/classes/Primitive.h>
 #include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Pathname.h>
 #include <ListTalk/classes/Boolean.h>
 #include <ListTalk/classes/List.h>
 #include <ListTalk/utils.h>
@@ -305,17 +306,17 @@ LT_DEFINE_PRIMITIVE(
 ){
     LT_Value cursor = arguments;
     LT_Value self;
-    LT_String* filename;
+    LT_Value filename;
     uint8_t* bytes;
     size_t length;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
-    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, filename);
     LT_ARG_END(cursor);
     (void)self;
 
-    bytes = read_file_bytes(LT_String_value_cstr(filename), &length);
+    bytes = read_file_bytes(LT_Pathname_like_value_cstr(filename), &length);
     return (LT_Value)(uintptr_t)LT_ByteVector_new(bytes, length);
 }
 
@@ -367,19 +368,19 @@ LT_DEFINE_PRIMITIVE(
 ){
     LT_Value cursor = arguments;
     LT_ByteVector* bytevector;
-    LT_String* filename;
+    LT_Value filename;
     (void)tail_call_unwind_marker;
 
     LT_GENERIC_ARG(cursor, bytevector, LT_ByteVector*, LT_ByteVector_from_value);
-    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, filename);
     LT_ARG_END(cursor);
 
     LT_write_file_bytes_atomically(
-        LT_String_value_cstr(filename),
+        LT_Pathname_like_value_cstr(filename),
         LT_ByteVector_bytes(bytevector),
         LT_ByteVector_length(bytevector)
     );
-    return (LT_Value)(uintptr_t)filename;
+    return filename;
 }
 
 LT_DEFINE_PRIMITIVE(

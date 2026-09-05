@@ -1564,6 +1564,16 @@
        "RegularExpression>>substitute:with: treats unmatched captures as empty")
 )
 
+(define-test "Pathname"
+;;; Pathname
+
+(let ((path [Pathname fromString: "dir/\u03bb.txt"]))
+  (check (eq? (type-of path) Pathname)
+         "Pathname class>>fromString: creates Pathname")
+  (check (equal? [path asString] "dir/\u03bb.txt")
+         "Pathname>>asString returns pathname text"))
+)
+
 (define-test "make-class and make-instance"
 ;;; make-class and make-instance
 

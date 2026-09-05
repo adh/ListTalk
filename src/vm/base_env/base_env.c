@@ -154,6 +154,7 @@ static const struct LT_NativeClassBinding native_class_bindings[] = {
     {"XoshiroRNG", &LT_XoshiroRNG_class},
     {"AsconRNG", &LT_AsconRNG_class},
     {"String", &LT_String_class},
+    {"Pathname", &LT_Pathname_class},
     {"StringIterator", &LT_StringIterator_class},
     {"Symbol", &LT_Symbol_class},
     {"Package", &LT_Package_class},

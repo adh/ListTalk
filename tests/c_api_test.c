@@ -3612,6 +3612,22 @@ static int test_string_utf8_helpers_replace_invalid_sequences(void){
     );
 }
 
+static int test_pathname_c_api_round_trips_utf8(void){
+    LT_Pathname* pathname = LT_Pathname_new("dir/\xce\xbb.txt");
+    LT_String* string = LT_Pathname_as_string(pathname);
+
+    if (expect(
+            strcmp(LT_Pathname_value_cstr(pathname), "dir/\xce\xbb.txt") == 0,
+            "LT_Pathname_new and LT_Pathname_value_cstr round-trip UTF-8"
+        )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(string), "dir/\xce\xbb.txt") == 0,
+        "LT_Pathname_as_string converts to String"
+    );
+}
+
 static int test_string_append_and_substring_c_api_use_codepoint_indexes(void){
     LT_String* left = LT_String_new_cstr("a\xce\xbb");
     LT_String* right = LT_String_new_cstr("\xf0\x9f\x98\x80" "z");
@@ -4617,6 +4633,7 @@ int main(void){
     RUN_TEST(test_character_api_uses_unicode_codepoints);
     RUN_TEST(test_string_api_uses_unicode_codepoints);
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
+    RUN_TEST(test_pathname_c_api_round_trips_utf8);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
     RUN_TEST(test_string_format_c_api);

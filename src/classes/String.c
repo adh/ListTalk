@@ -21,6 +21,7 @@
 #include <ListTalk/classes/Character.h>
 #include <ListTalk/classes/IdentityDictionary.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Pathname.h>
 #include <ListTalk/classes/RegularExpression.h>
 #include <ListTalk/classes/RealNumber.h>
 #include <ListTalk/classes/Set.h>
@@ -1269,15 +1270,17 @@ LT_DEFINE_PRIMITIVE(
 ){
     LT_Value cursor = arguments;
     LT_Value self;
-    LT_String* filename;
+    LT_Value filename;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
-    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, filename);
     LT_ARG_END(cursor);
     (void)self;
 
-    return (LT_Value)(uintptr_t)read_file_string(LT_String_value_cstr(filename));
+    return (LT_Value)(uintptr_t)read_file_string(
+        LT_Pathname_like_value_cstr(filename)
+    );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -1288,19 +1291,19 @@ LT_DEFINE_PRIMITIVE(
 ){
     LT_Value cursor = arguments;
     LT_String* string;
-    LT_String* filename;
+    LT_Value filename;
     (void)tail_call_unwind_marker;
 
     LT_GENERIC_ARG(cursor, string, LT_String*, LT_String_from_value);
-    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_OBJECT_ARG(cursor, filename);
     LT_ARG_END(cursor);
 
     LT_write_file_bytes_atomically(
-        LT_String_value_cstr(filename),
+        LT_Pathname_like_value_cstr(filename),
         LT_String_value_cstr(string),
         LT_String_byte_length(string)
     );
-    return (LT_Value)(uintptr_t)filename;
+    return filename;
 }
 
 LT_DEFINE_PRIMITIVE(

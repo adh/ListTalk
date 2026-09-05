@@ -165,6 +165,7 @@ vm_lib = library(
                 'src/classes/Float.c',
                 'src/classes/List.c',
                 'src/classes/String.c',
+                'src/classes/Pathname.c',
                 'src/classes/Vector.c',
                 'src/classes/BitVector.c',
                 'src/classes/ByteVector.c',

@@ -6,6 +6,7 @@
 #include "BigInteger_internal.h"
 
 #include <ListTalk/classes/RandomAccessFile.h>
+#include <ListTalk/classes/Pathname.h>
 
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/classes/Integer.h>
@@ -191,7 +192,7 @@ static LT_Value random_access_file_constructor(LT_Value arguments,
     LT_String* filename;
 
     LT_OBJECT_ARG(cursor, self);
-    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, filename, LT_String*, LT_Pathname_like_as_string);
     LT_ARG_END(cursor);
     if (self != (LT_Value)(uintptr_t)&LT_RandomAccessFile_class){
         LT_error(

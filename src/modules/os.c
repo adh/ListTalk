@@ -179,7 +179,7 @@ static void bind_os_primitive(LT_Environment* environment,
 }
 
 #define OS_STRING_ARG(cursor, name) \
-    LT_GENERIC_ARG(cursor, name, LT_String*, LT_String_from_value)
+    LT_GENERIC_ARG(cursor, name, LT_String*, LT_Pathname_like_as_string)
 
 #define OS_STAT_ARG(cursor, name) \
     LT_GENERIC_ARG(cursor, name, LT_OS_Stat*, LT_OS_Stat_from_value)

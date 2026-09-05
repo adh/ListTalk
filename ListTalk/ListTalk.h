@@ -39,6 +39,7 @@
 #include <ListTalk/classes/List.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Pathname.h>
 #include <ListTalk/classes/Package.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/SourceLocation.h>
