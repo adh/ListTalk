@@ -7,6 +7,7 @@
 #define H__ListTalk__debugger__debugger__
 
 #include <ListTalk/macros/env_macros.h>
+#include <ListTalk/classes/Environment.h>
 #include <ListTalk/vm/value.h>
 
 LT__BEGIN_DECLS
@@ -22,6 +23,9 @@ LT_Value LT_Debugger_get_hook(void);
 
 /* Install LT_Debugger_get_hook() as the current thread's debugger hook. */
 void LT_Debugger_enable(void);
+
+/* Bind the interactive inspector primitive as ListTalk:inspect. */
+void LT_Debugger_define_inspect(LT_Environment* environment);
 
 /* Interactively display OBJECT and descend through its named slots. */
 void LT_Debugger_inspect(LT_Value object);

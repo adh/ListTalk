@@ -15,6 +15,7 @@
 #include <ListTalk/vm/thread_state.h>
 
 #include <stdatomic.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -463,6 +464,175 @@ static int test_eval_runs_pending_signal_closure(void){
     );
 
     return failed;
+}
+
+static int test_object_inspection_contains_slots(void){
+    LT_Value object = LT_BindingDescriptor_new(
+        LT_Symbol_new("example"),
+        LT_SmallInteger_new(1),
+        0
+    );
+    LT_Value value = LT_SEND(object, "inspection");
+    LT_ObjectInspection* inspection;
+    LT_Value slots;
+    LT_Value constructed;
+    char* expected_name;
+
+    if (expect(
+        LT_ObjectInspection_p(value),
+        "Object>>inspection returns ObjectInspection"
+    )){
+        return 1;
+    }
+    inspection = LT_ObjectInspection_from_value(value);
+    expected_name = LT_sprintf(
+        "%s at 0x%" PRIxPTR,
+        LT_Symbol_name(LT_Symbol_from_value(LT_Value_class(object)->name)),
+        (uintptr_t)object
+    );
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(
+                LT_String_from_value(LT_ObjectInspection_name(inspection))
+            ),
+            expected_name
+        ) == 0,
+        "Object>>inspection names the receiver class and identity"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_ObjectInspection_description(inspection)
+            == LT_Value_class(object)->documentation,
+        "Object>>inspection uses the receiver class documentation"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_ObjectInspection_contents(inspection) == LT_NIL,
+        "Object>>inspection has empty contents"
+    )){
+        return 1;
+    }
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(
+                LT_String_from_value(
+                    LT_ObjectInspection_contents_label(inspection)
+                )
+            ),
+            "Contents:"
+        ) == 0,
+        "Object>>inspection uses the default contents label"
+    )){
+        return 1;
+    }
+
+    slots = LT_ObjectInspection_slots(inspection);
+    while (slots != LT_NIL){
+        LT_Value slot_name = LT_car(slots);
+        LT_Value slot_value = LT_car(LT_cdr(slots));
+
+        if (expect(
+            slot_value == LT_Object_slot_ref(object, slot_name),
+            "Object>>inspection pairs each slot name with its value"
+        )){
+            return 1;
+        }
+        slots = LT_cdr(LT_cdr(slots));
+    }
+
+    if (expect(
+        LT_SEND(value, "name") == LT_ObjectInspection_name(inspection)
+            && LT_SEND(value, "description")
+                == LT_ObjectInspection_description(inspection)
+            && LT_SEND(value, "slots") == LT_ObjectInspection_slots(inspection)
+            && LT_SEND(value, "contents-label")
+                == LT_ObjectInspection_contents_label(inspection)
+            && LT_SEND(value, "contents")
+                == LT_ObjectInspection_contents(inspection),
+        "ObjectInspection accessor methods return stored fields"
+    )){
+        return 1;
+    }
+    constructed = LT_SEND(
+        (LT_Value)(uintptr_t)&LT_ObjectInspection_class,
+        "newName:description:slots:contentsLabel:contents:",
+        LT_ObjectInspection_name(inspection),
+        LT_ObjectInspection_description(inspection),
+        LT_ObjectInspection_slots(inspection),
+        LT_ObjectInspection_contents_label(inspection),
+        LT_ObjectInspection_contents(inspection)
+    );
+    return expect(
+        LT_ObjectInspection_p(constructed)
+            && LT_SEND(constructed, "name")
+                == LT_ObjectInspection_name(inspection)
+            && LT_SEND(constructed, "contents") == LT_NIL,
+        "ObjectInspection class constructor stores supplied fields"
+    );
+}
+
+static LT_Value inspection_contents_at(LT_Value inspection_value, LT_Value key){
+    LT_Value contents = LT_ObjectInspection_contents(
+        LT_ObjectInspection_from_value(inspection_value)
+    );
+
+    while (contents != LT_NIL){
+        if (LT_Value_equal_p(LT_car(contents), key)){
+            return LT_car(LT_cdr(contents));
+        }
+        contents = LT_cdr(LT_cdr(contents));
+    }
+    return LT_INVALID;
+}
+
+static int test_specialized_object_inspection_contents(void){
+    LT_Value list = LT_listn(
+        2,
+        LT_SmallInteger_new(10),
+        LT_SmallInteger_new(20)
+    );
+    LT_Value list_inspection = LT_SEND(list, "inspection");
+    LT_Environment* environment = LT_new_base_environment();
+    LT_Value binding_name = LT_Symbol_new("inspected-binding");
+    LT_Value environment_inspection;
+    LT_Value class_inspection;
+    LT_Value class_contents;
+
+    if (expect(
+        inspection_contents_at(list_inspection, LT_SmallInteger_new(0))
+            == LT_SmallInteger_new(10)
+            && inspection_contents_at(list_inspection, LT_SmallInteger_new(1))
+                == LT_SmallInteger_new(20),
+        "List inspection exposes indexed elements"
+    )){
+        return 1;
+    }
+    LT_Environment_bind(environment, binding_name, LT_SmallInteger_new(42), 0);
+    environment_inspection = LT_SEND(
+        (LT_Value)(uintptr_t)environment,
+        "inspection"
+    );
+    if (expect(
+        inspection_contents_at(environment_inspection, binding_name)
+            == LT_SmallInteger_new(42),
+        "Environment inspection exposes direct bindings"
+    )){
+        return 1;
+    }
+    class_inspection = LT_SEND(
+        (LT_Value)(uintptr_t)&LT_Pair_class,
+        "inspection"
+    );
+    class_contents = LT_ObjectInspection_contents(
+        LT_ObjectInspection_from_value(class_inspection)
+    );
+    return expect(
+        class_contents != LT_NIL
+            && LT_MethodDescriptor_p(LT_car(LT_cdr(class_contents))),
+        "Class inspection exposes direct method descriptors"
+    );
 }
 
 static int test_register_posix_signal_schedules_pending_signal(void){
@@ -4361,6 +4531,8 @@ int main(void){
     RUN_TEST(test_send_site_macros_c_api);
     RUN_TEST(test_apply_varargs_c_api);
     RUN_TEST(test_value_asString_c_api_uses_debug_print);
+    RUN_TEST(test_object_inspection_contains_slots);
+    RUN_TEST(test_specialized_object_inspection_contents);
     RUN_TEST(test_eval_runs_pending_signal_closure);
     RUN_TEST(test_register_posix_signal_schedules_pending_signal);
     RUN_TEST(test_send_primitive_uses_precedence_lookup_and_cache);

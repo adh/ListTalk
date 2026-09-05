@@ -99,6 +99,26 @@ def run_interactive_syntax_error_case(exe):
     return 0
 
 
+def run_interactive_inspect_binding_case(exe):
+    completed = subprocess.run(
+        [exe],
+        input="(primitive? inspect)\n",
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    if completed.returncode != 0 or not completed.stdout.rstrip().endswith("#true"):
+        sys.stderr.write(
+            "FAIL: interactive REPL did not bind ListTalk:inspect\n{0}{1}".format(
+                completed.stdout,
+                completed.stderr,
+            )
+        )
+        return 1
+    return 0
+
+
 def run_debugger_restart_case(exe, input_text, expected_result, description):
     completed = subprocess.run(
         [exe],
@@ -255,6 +275,7 @@ def main():
         ["--no-std-lib", "-r", "test-module-foo", "-L", fixture_dir],
     )
     failures += run_interactive_syntax_error_case(exe)
+    failures += run_interactive_inspect_binding_case(exe)
     failures += run_debugger_restart_case(
         exe,
         "missing-name\n(:use-value (+ 20 21))\n",

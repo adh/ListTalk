@@ -191,6 +191,7 @@ vm_lib = library(
                 'src/classes/ImmutableList.c',
                 'src/classes/Pair.c',
                 'src/classes/StackFrame.c',
+                'src/classes/ObjectInspection.c',
                 'src/classes/BindingDescriptor.c',
                 'src/classes/MethodDescriptor.c',
                 'src/classes/Message.c',

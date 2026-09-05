@@ -4,12 +4,18 @@
  */
 
 #include <ListTalk/classes/Object.h>
+#include <ListTalk/classes/ObjectInspection.h>
 #include <ListTalk/classes/Message.h>
 #include <ListTalk/classes/Primitive.h>
+#include <ListTalk/classes/String.h>
+#include <ListTalk/classes/Symbol.h>
+#include <ListTalk/utils.h>
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/macros/decl_macros.h>
 #include <ListTalk/macros/method_macros.h>
 #include <ListTalk/vm/value.h>
+
+#include <inttypes.h>
 
 LT_DEFINE_PRIMITIVE(
     object_method_class,
@@ -76,6 +82,21 @@ LT_DEFINE_PRIMITIVE_FLAGS(
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
     return (LT_Value)(uintptr_t)LT_Value_asString(self);
+}
+
+LT_DEFINE_PRIMITIVE(
+    object_method_inspection,
+    "Object>>inspection",
+    "(self)",
+    "Return a presentation-independent inspection of receiver."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    return LT_Object_inspection(self);
 }
 
 LT_DEFINE_PRIMITIVE_FLAGS(
@@ -179,6 +200,7 @@ static LT_Method_Descriptor Object_methods[] = {
     {"slot:", &object_method_slot},
     {"slot:put:", &object_method_slot_put},
     {"asString", &object_method_as_string},
+    {"inspection", &object_method_inspection},
     {"==", &object_method_identity_equal},
     {"=",  &object_method_equal},
     {"subclassResponsibility", &object_method_subclass_responsibility},
@@ -196,6 +218,46 @@ LT_DEFINE_CLASS(LT_Object) {
     .class_flags = LT_CLASS_FLAG_ABSTRACT,
     .methods = Object_methods,
 };
+
+LT_Value LT_Object_inspection(LT_Value object){
+    return LT_Object_inspection_with_contents(object, "Contents:", LT_NIL);
+}
+
+LT_Value LT_Object_inspection_with_contents(LT_Value object,
+                                            char* contents_label,
+                                            LT_Value contents){
+    LT_Class* klass = LT_Value_class(object);
+    LT_ListBuilder* slots = LT_ListBuilder_new();
+    char* name_text;
+    LT_Value name;
+    LT_Value description;
+    size_t i;
+
+    name_text = LT_sprintf(
+        "%s at 0x%" PRIxPTR,
+        LT_Symbol_name(LT_Symbol_from_value(klass->name)),
+        (uintptr_t)object
+    );
+    name = (LT_Value)(uintptr_t)LT_String_new_cstr(name_text);
+    description = klass->documentation == LT_NIL
+        ? (LT_Value)(uintptr_t)LT_String_new_cstr("")
+        : klass->documentation;
+    for (i = 0; i < klass->slot_count; i++){
+        LT_ListBuilder_append(slots, klass->slots[i].name);
+        LT_ListBuilder_append(
+            slots,
+            klass->slots[i].type->ref(&klass->slots[i], object)
+        );
+    }
+
+    return LT_ObjectInspection_new(
+        name,
+        description,
+        LT_ListBuilder_value(slots),
+        (LT_Value)(uintptr_t)LT_String_new_cstr(contents_label),
+        contents
+    );
+}
 
 LT_Value LT_Object_slot_ref(LT_Value object, LT_Value slot_name){
     LT_Class* klass = LT_Value_class(object);

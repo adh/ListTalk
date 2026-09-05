@@ -43,6 +43,7 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/classes/SourceLocation.h>
 #include <ListTalk/classes/StackFrame.h>
+#include <ListTalk/classes/ObjectInspection.h>
 #include <ListTalk/classes/Message.h>
 #include <ListTalk/classes/BindingDescriptor.h>
 #include <ListTalk/classes/MethodDescriptor.h>
