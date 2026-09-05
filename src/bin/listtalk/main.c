@@ -431,6 +431,7 @@ int main(int argc, char**argv){
         command_action_ensure_standard_resolvers(&command_action);
         LT_enable_KeyboardInterrupt();
         LT_Debugger_enable();
+        LT_Debugger_define_inspect(base_environment);
         {
             LT_REPL_State* repl = LT_REPL_State_new();
 

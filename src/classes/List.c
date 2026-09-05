@@ -919,7 +919,40 @@ LT_DEFINE_PRIMITIVE(
     return (LT_Value)(uintptr_t)vector;
 }
 
+LT_DEFINE_PRIMITIVE(
+    list_method_inspection,
+    "List>>inspection",
+    "(self)",
+    "Return an inspection whose contents are the list elements."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value list;
+    LT_ListBuilder* contents = LT_ListBuilder_new();
+    int64_t index = 0;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    list = self;
+    while (LT_Pair_p(list)){
+        LT_ListBuilder_append(contents, LT_SmallInteger_new(index++));
+        LT_ListBuilder_append(contents, LT_car(list));
+        list = LT_cdr(list);
+    }
+    if (list != LT_NIL){
+        LT_ListBuilder_append(contents, LT_SmallInteger_new(index));
+        LT_ListBuilder_append(contents, list);
+    }
+    return LT_Object_inspection_with_contents(
+        self,
+        "Elements:",
+        LT_ListBuilder_value(contents)
+    );
+}
+
 static LT_Method_Descriptor List_methods[] = {
+    {"inspection", &list_method_inspection},
     {"length", &list_method_length},
     {"at:", &list_method_at},
     {"map:", &list_method_map},

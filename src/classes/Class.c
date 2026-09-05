@@ -187,6 +187,12 @@ LT_DECLARE_PRIMITIVE(
     "Return direct method descriptors as a list."
 );
 LT_DECLARE_PRIMITIVE(
+    class_method_inspection,
+    "Class>>inspection",
+    "(self)",
+    "Return an inspection whose contents are direct methods."
+);
+LT_DECLARE_PRIMITIVE(
     class_method_all_methods_do,
     "Class>>allMethodsDo:",
     "(self callable)",
@@ -223,6 +229,7 @@ static LT_Method_Descriptor Class_methods[] = {
     {"allSelectorsAsList", &class_method_all_selectors_as_list},
     {"methodsDo:", &class_method_methods_do},
     {"methodsAsList", &class_method_methods_as_list},
+    {"inspection", &class_method_inspection},
     {"allMethodsDo:", &class_method_all_methods_do},
     {"allMethodsAsList", &class_method_all_methods_as_list},
     {"addMethod:withSelector:", &class_method_add_method_with_selector},
@@ -1298,6 +1305,32 @@ static LT_Value class_direct_methods_as_list(LT_Class* klass){
         &baton
     );
     return LT_ListBuilder_value(builder);
+}
+
+LT_PRIMITIVE_HEAD(class_method_inspection){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value methods;
+    LT_ListBuilder* contents = LT_ListBuilder_new();
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    methods = class_direct_methods_as_list(LT_Class_from_object(self));
+    while (methods != LT_NIL){
+        LT_Value method = LT_car(methods);
+        LT_ListBuilder_append(
+            contents,
+            LT_MethodDescriptor_selector(LT_MethodDescriptor_from_value(method))
+        );
+        LT_ListBuilder_append(contents, method);
+        methods = LT_cdr(methods);
+    }
+    return LT_Object_inspection_with_contents(
+        self,
+        "Methods:",
+        LT_ListBuilder_value(contents)
+    );
 }
 
 static void class_all_methods_do(LT_Class* klass, LT_Value callable){

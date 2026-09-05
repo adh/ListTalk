@@ -115,6 +115,12 @@ LT_DECLARE_PRIMITIVE(
     "(self)",
     "Return direct binding reflections as a list."
 );
+LT_DECLARE_PRIMITIVE(
+    environment_method_inspection,
+    "Environment>>inspection",
+    "(self)",
+    "Return an inspection whose contents are direct bindings."
+);
 
 static LT_Method_Descriptor Environment_methods[] = {
     {"contains?:", &environment_method_contains},
@@ -124,6 +130,7 @@ static LT_Method_Descriptor Environment_methods[] = {
     {"constant?:", &environment_method_constant},
     {"bindingsDo:", &environment_method_bindings_do},
     {"bindingsAsList", &environment_method_bindings_as_list},
+    {"inspection", &environment_method_inspection},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 
@@ -437,6 +444,31 @@ static LT_Value Environment_bindings_as_list(LT_Environment* environment){
     LT_MutexWord_unlock(&table->lock);
 
     return LT_ListBuilder_value(builder);
+}
+
+LT_PRIMITIVE_HEAD(environment_method_inspection){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value bindings;
+    LT_ListBuilder* contents = LT_ListBuilder_new();
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, self);
+    LT_ARG_END(cursor);
+    bindings = Environment_bindings_as_list(LT_Environment_from_value(self));
+    while (bindings != LT_NIL){
+        LT_BindingDescriptor* binding = LT_BindingDescriptor_from_value(
+            LT_car(bindings)
+        );
+        LT_ListBuilder_append(contents, LT_BindingDescriptor_symbol(binding));
+        LT_ListBuilder_append(contents, LT_BindingDescriptor_value(binding));
+        bindings = LT_cdr(bindings);
+    }
+    return LT_Object_inspection_with_contents(
+        self,
+        "Bindings:",
+        LT_ListBuilder_value(contents)
+    );
 }
 
 LT_PRIMITIVE_HEAD(environment_method_bindings_do){

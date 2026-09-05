@@ -20,6 +20,10 @@ extern LT_Class LT_Object_class_class;
 
 LT_Value LT_Object_slot_ref(LT_Value object, LT_Value slot_name);
 LT_Value LT_Object_slot_set(LT_Value object, LT_Value slot_name, LT_Value value);
+LT_Value LT_Object_inspection(LT_Value object);
+LT_Value LT_Object_inspection_with_contents(LT_Value object,
+                                            char* contents_label,
+                                            LT_Value contents);
 
 LT__END_DECLS
 

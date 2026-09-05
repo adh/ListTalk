@@ -34,7 +34,7 @@ typedef struct {
 typedef struct {
     LT_Value object;
     LT_Value slots;
-    int list_p;
+    LT_Value contents;
 } InspectorContext;
 
 static _Thread_local unsigned int debugger_level = 0;
@@ -89,7 +89,7 @@ LT_DEFINE_PRIMITIVE_RESTART(
 
 LT_DEFINE_PRIMITIVE(
     inspect_primitive,
-    "ListTalk-debug:inspect",
+    "ListTalk:inspect",
     "(object)",
     "Interactively inspect an object."
 ){
@@ -103,6 +103,15 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
     LT_Debugger_inspect(object);
     return object;
+}
+
+void LT_Debugger_define_inspect(LT_Environment* environment){
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "inspect"),
+        LT_Primitive_from_static(&inspect_primitive),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
 }
 
 LT_Value LT_Debugger_get_hook(void){
@@ -482,93 +491,113 @@ void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
     });
 }
 
-static void inspector_print(InspectorContext* context){
-    LT_Value cursor;
-    unsigned int index = 1;
+static void inspector_print_plist(const char* label,
+                                  LT_Value plist){
+    LT_Value cursor = plist;
 
-    fputs("Object: ", stdout);
-    LT_Value_debugPrintOn(context->object, stdout);
-    fputs("\n\n", stdout);
-
-    context->list_p = LT_List_proper_p(context->object);
-    context->slots = context->list_p
-        ? context->object
-        : LT_Class_slots(LT_Value_class(context->object));
-    cursor = context->slots;
     if (cursor == LT_NIL){
-        fprintf(
-            stdout,
-            "%s: (none)\n\n",
-            context->list_p ? "Elements" : "Slots"
-        );
+        fprintf(stdout, "%s (none)\n\n", label);
         return;
     }
+    fprintf(stdout, "%s\n", label);
+    while (cursor != LT_NIL){
+        LT_Value key = LT_car(cursor);
+        LT_Value value = LT_car(LT_cdr(cursor));
 
-    fprintf(stdout, "%s:\n", context->list_p ? "Elements" : "Slots");
-    while (LT_Pair_p(cursor)){
-        LT_Value entry = LT_car(cursor);
-
-        fprintf(stdout, "  %u: ", index++);
-        if (context->list_p){
-            LT_Value_debugPrintOn(entry, stdout);
-        } else {
-            LT_Value_debugPrintOn(entry, stdout);
-            fputs(" = ", stdout);
-            LT_Value_debugPrintOn(
-                LT_Object_slot_ref(context->object, entry),
-                stdout
-            );
-        }
+        fputs("  ", stdout);
+        LT_Value_debugPrintOn(key, stdout);
+        fputs(" = ", stdout);
+        LT_Value_debugPrintOn(value, stdout);
         fputc('\n', stdout);
-        cursor = LT_cdr(cursor);
+        cursor = LT_cdr(LT_cdr(cursor));
     }
     fputc('\n', stdout);
 }
 
-static LT_Value inspector_selected_slot(LT_Value input, LT_Value slots){
+static void inspector_print(InspectorContext* context){
+    LT_Value inspection_value = LT_SEND(context->object, "inspection");
+    LT_ObjectInspection* inspection = LT_ObjectInspection_from_value(
+        inspection_value
+    );
+    context->slots = LT_ObjectInspection_slots(inspection);
+    context->contents = LT_ObjectInspection_contents(inspection);
+
+    fputs("Object: ", stdout);
+    fputs(
+        LT_String_value_cstr(
+            LT_String_from_value(LT_ObjectInspection_name(inspection))
+        ),
+        stdout
+    );
+    fputc('\n', stdout);
+    fputs(
+        LT_String_value_cstr(
+            LT_String_from_value(LT_ObjectInspection_description(inspection))
+        ),
+        stdout
+    );
+    fputs("\n\n", stdout);
+
+    inspector_print_plist("Slots:", context->slots);
+    if (context->contents != LT_NIL){
+        inspector_print_plist(
+            LT_String_value_cstr(
+                LT_String_from_value(
+                    LT_ObjectInspection_contents_label(inspection)
+                )
+            ),
+            context->contents
+        );
+    }
+}
+
+static LT_Value inspector_selected_from_plist(LT_Value input,
+                                              LT_Value plist){
     LT_Value cursor;
 
-    if (LT_SmallInteger_p(input)){
-        return list_at_1_based(slots, LT_SmallInteger_value(input));
-    }
-    if (!LT_Symbol_p(input)){
-        return LT_INVALID;
-    }
+    cursor = plist;
+    while (cursor != LT_NIL){
+        LT_Value key = LT_car(cursor);
+        LT_Value value = LT_car(LT_cdr(cursor));
 
-    cursor = slots;
-    while (LT_Pair_p(cursor)){
-        LT_Value slot_name = LT_car(cursor);
-
-        if (LT_Symbol_p(slot_name)
+        if (LT_Value_equal_p(input, key)
+            || (LT_Symbol_p(input)
+            && LT_Symbol_p(key)
             && strcmp(
                 LT_Symbol_name(LT_Symbol_from_value(input)),
-                LT_Symbol_name(LT_Symbol_from_value(slot_name))
-            ) == 0){
-            return slot_name;
+                LT_Symbol_name(LT_Symbol_from_value(key))
+            ) == 0)){
+            return value;
         }
-        cursor = LT_cdr(cursor);
+        cursor = LT_cdr(LT_cdr(cursor));
     }
     return LT_INVALID;
 }
 
+static LT_Value inspector_selected_entry(LT_Value input,
+                                         LT_Value slots,
+                                         LT_Value contents){
+    LT_Value selected;
+
+    selected = inspector_selected_from_plist(input, slots);
+    if (selected != LT_INVALID){
+        return selected;
+    }
+    return inspector_selected_from_plist(input, contents);
+}
+
 static void inspector_repl_object(LT_Value input, void* opaque){
     InspectorContext* context = opaque;
-    LT_Value slot_name = context->list_p && !LT_SmallInteger_p(input)
-        ? LT_INVALID
-        : inspector_selected_slot(input, context->slots);
-    LT_Value selected_object;
+    LT_Value selected_object = inspector_selected_entry(
+        input,
+        context->slots,
+        context->contents
+    );
 
-    if (slot_name == LT_INVALID){
-        fprintf(
-            stdout,
-            "No such %s.\n",
-            context->list_p ? "element" : "slot"
-        );
+    if (selected_object == LT_INVALID){
+        fputs("No such entry.\n", stdout);
         return;
     }
-    selected_object = context->list_p
-        ? slot_name
-        : LT_Object_slot_ref(context->object, slot_name);
     LT_Debugger_inspect(selected_object);
     inspector_print(context);
 }
@@ -578,7 +607,7 @@ void LT_Debugger_inspect(LT_Value object){
     InspectorContext context = {
         .object = object,
         .slots = LT_NIL,
-        .list_p = 0
+        .contents = LT_NIL
     };
 
     inspector_print(&context);
