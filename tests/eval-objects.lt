@@ -1568,10 +1568,48 @@
 ;;; Pathname
 
 (let ((path [Pathname fromString: "dir/\u03bb.txt"]))
-  (check (eq? (type-of path) Pathname)
-         "Pathname class>>fromString: creates Pathname")
-  (check (equal? [path asString] "dir/\u03bb.txt")
-         "Pathname>>asString returns pathname text"))
+  (check (eq? (type-of path) RelativePathname)
+         "Pathname class>>fromString: dispatches to RelativePathname")
+  (check (equal? [path asString] "./dir/\u03bb.txt")
+         "Pathname>>asString returns normalized pathname text")
+  (check [path relative?] "Pathname>>relative? identifies relative paths")
+  (check (not [path absolute?]) "relative path is not absolute"))
+
+(let ((path [Pathname fromString: "///a//./b/../c/"]))
+  (check (eq? (type-of path) AbsolutePathname)
+         "Pathname class>>fromString: dispatches to AbsolutePathname")
+  (check (equal? [path asString] "/a/c")
+         "Pathname removes repeated slashes, dot segments, and resolved parent segments")
+  (check [path absolute?] "Pathname>>absolute? identifies absolute paths")
+  (check (not [path relative?]) "absolute path is not relative"))
+
+(check (equal? [[RelativePathname fromString: "a/./b"] asString] "./a/b")
+       "RelativePathname has a language-level constructor")
+(check-error-message "Relative pathname cannot start with slash"
+                     "RelativePathname rejects a leading slash"
+  [RelativePathname fromString: "/a"])
+(let ((path [AbsolutePathname fromString: "a/b"]))
+  (check (eq? (type-of path) AbsolutePathname)
+         "AbsolutePathname has a language-level constructor")
+  (check (equal? [path asString] "/a/b")
+         "AbsolutePathname quietly adds a leading slash"))
+
+(check (equal? [[Pathname fromString: "a/b"]
+                / [Pathname fromString: "../c"]]
+               [Pathname fromString: "a/c"])
+       "Pathname>>/ appends and normalizes relative paths")
+(check (equal? [[Pathname fromString: "/a/b"]
+                / [Pathname fromString: "../../c"]]
+               [Pathname fromString: "/c"])
+       "Pathname>>/ resolves parents in absolute paths")
+(check (equal? [[Pathname fromString: "../../a/../b"] asString] "../../b")
+       "relative parent segments remain only at the beginning")
+(check-error-message "Absolute pathname cannot resolve above root"
+                     "absolute pathname rejects unresolved parent segments"
+  [Pathname fromString: "/a/../../b"])
+(check-error-message "Cannot append an absolute pathname"
+                     "Pathname>>/ rejects an absolute right operand"
+  [[Pathname fromString: "/a"] / [Pathname fromString: "/b"]])
 )
 
 (define-test "make-class and make-instance"

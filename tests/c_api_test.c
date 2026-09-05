@@ -3615,15 +3615,64 @@ static int test_string_utf8_helpers_replace_invalid_sequences(void){
 static int test_pathname_c_api_round_trips_utf8(void){
     LT_Pathname* pathname = LT_Pathname_new("dir/\xce\xbb.txt");
     LT_String* string = LT_Pathname_as_string(pathname);
+    LT_Pathname* absolute = LT_Pathname_new("/a//b/../c");
+    LT_Pathname* appended = LT_Pathname_append(
+        absolute,
+        LT_Pathname_new("../d")
+    );
+    LT_RelativePathname* relative = LT_RelativePathname_new("x/y");
+    LT_AbsolutePathname* forced_absolute = LT_AbsolutePathname_new("x/y");
 
     if (expect(
-            strcmp(LT_Pathname_value_cstr(pathname), "dir/\xce\xbb.txt") == 0,
-            "LT_Pathname_new and LT_Pathname_value_cstr round-trip UTF-8"
+            strcmp(LT_Pathname_value_cstr(pathname), "./dir/\xce\xbb.txt") == 0,
+            "LT_Pathname_new normalizes and preserves UTF-8"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Pathname_relative_p(pathname) && !LT_Pathname_absolute_p(pathname),
+            "relative and absolute pathname predicates distinguish relative paths"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_RelativePathname_p((LT_Value)(uintptr_t)pathname),
+            "LT_Pathname_new dispatches to RelativePathname"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Pathname_absolute_p(absolute) && !LT_Pathname_relative_p(absolute),
+            "relative and absolute pathname predicates distinguish absolute paths"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_AbsolutePathname_p((LT_Value)(uintptr_t)absolute),
+            "LT_Pathname_new dispatches to AbsolutePathname"
+        )){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_Pathname_value_cstr((LT_Pathname*)relative), "./x/y") == 0,
+            "LT_RelativePathname_new constructs a relative pathname"
+        )){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_Pathname_value_cstr((LT_Pathname*)forced_absolute), "/x/y") == 0,
+            "LT_AbsolutePathname_new adds a leading slash"
+        )){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_Pathname_value_cstr(appended), "/a/d") == 0,
+            "LT_Pathname_append combines and normalizes paths"
         )){
         return 1;
     }
     return expect(
-        strcmp(LT_String_value_cstr(string), "dir/\xce\xbb.txt") == 0,
+        strcmp(LT_String_value_cstr(string), "./dir/\xce\xbb.txt") == 0,
         "LT_Pathname_as_string converts to String"
     );
 }
