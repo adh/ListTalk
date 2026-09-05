@@ -102,13 +102,15 @@ def run_interactive_syntax_error_case(exe):
 def run_interactive_inspect_binding_case(exe):
     completed = subprocess.run(
         [exe],
-        input="(primitive? inspect)\n",
+        input="(list (primitive? inspect) (primitive? inspect*))\n",
         check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    if completed.returncode != 0 or not completed.stdout.rstrip().endswith("#true"):
+    if completed.returncode != 0 or not completed.stdout.rstrip().endswith(
+        "(#true #true)"
+    ):
         sys.stderr.write(
             "FAIL: interactive REPL did not bind ListTalk:inspect\n{0}{1}".format(
                 completed.stdout,

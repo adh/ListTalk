@@ -37,6 +37,8 @@ typedef struct {
     LT_Value contents;
 } InspectorContext;
 
+static void inspector_print(InspectorContext* context);
+
 static _Thread_local unsigned int debugger_level = 0;
 
 static LT_Value return_to_debugger_tag = LT_NIL;
@@ -105,13 +107,46 @@ LT_DEFINE_PRIMITIVE(
     return object;
 }
 
-void LT_Debugger_define_inspect(LT_Environment* environment){
+LT_DEFINE_PRIMITIVE(
+    inspect_star_primitive,
+    "ListTalk:inspect*",
+    "(object)",
+    "Print an object inspection without entering the interactive inspector."
+){
+    LT_Value cursor = arguments;
+    LT_Value object;
+    InspectorContext context;
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+
+    LT_OBJECT_ARG(cursor, object);
+    LT_ARG_END(cursor);
+    context.object = object;
+    context.slots = LT_NIL;
+    context.contents = LT_NIL;
+    inspector_print(&context);
+    return object;
+}
+
+static void debugger_bind_inspect_primitives(LT_Environment* environment,
+                                              LT_Package* package){
     LT_Environment_bind(
         environment,
-        LT_Symbol_new_in(LT_PACKAGE_LISTTALK, "inspect"),
+        LT_Symbol_new_in(package, "inspect"),
         LT_Primitive_from_static(&inspect_primitive),
         LT_ENV_BINDING_FLAG_CONSTANT
     );
+    LT_Environment_bind(
+        environment,
+        LT_Symbol_new_in(package, "inspect*"),
+        LT_Primitive_from_static(&inspect_star_primitive),
+        LT_ENV_BINDING_FLAG_CONSTANT
+    );
+}
+
+void LT_Debugger_define_inspect(LT_Environment* environment){
+    debugger_bind_inspect_primitives(environment, LT_PACKAGE_LISTTALK);
 }
 
 LT_Value LT_Debugger_get_hook(void){
@@ -466,11 +501,9 @@ void LT_Debugger_break(LT_Value condition, LT_Value debugger_hook){
         condition,
         LT_ENV_BINDING_FLAG_CONSTANT
     );
-    LT_Environment_bind(
+    debugger_bind_inspect_primitives(
         context.environment,
-        LT_Symbol_new_in(LT_PACKAGE_LISTTALK_DEBUG, "inspect"),
-        LT_Primitive_from_static(&inspect_primitive),
-        LT_ENV_BINDING_FLAG_CONSTANT
+        LT_PACKAGE_LISTTALK_DEBUG
     );
     LT_Environment_bind(
         context.environment,
