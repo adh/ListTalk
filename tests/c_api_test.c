@@ -599,6 +599,26 @@ static int test_specialized_object_inspection_contents(void){
     LT_Value environment_inspection;
     LT_Value class_inspection;
     LT_Value class_contents;
+    LT_Value primitive = LT_Primitive_from_static(
+        &primitive_test_object_class_name_method
+    );
+    LT_Value primitive_inspection = LT_SEND(primitive, "inspection");
+
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(
+                LT_String_from_value(
+                    LT_ObjectInspection_description(
+                        LT_ObjectInspection_from_value(primitive_inspection)
+                    )
+                )
+            ),
+            "Test helper method: return receiver class name."
+        ) == 0,
+        "Object inspection obtains description through documentation protocol"
+    )){
+        return 1;
+    }
 
     if (expect(
         inspection_contents_at(list_inspection, LT_SmallInteger_new(0))
@@ -628,10 +648,44 @@ static int test_specialized_object_inspection_contents(void){
     class_contents = LT_ObjectInspection_contents(
         LT_ObjectInspection_from_value(class_inspection)
     );
-    return expect(
+    if (expect(
+        strcmp(
+            LT_String_value_cstr(
+                LT_String_from_value(
+                    LT_ObjectInspection_name(
+                        LT_ObjectInspection_from_value(class_inspection)
+                    )
+                )
+            ),
+            "Class Pair"
+        ) == 0,
+        "Class inspection uses the inspected class name"
+    )){
+        return 1;
+    }
+    if (expect(
+        LT_ObjectInspection_description(
+            LT_ObjectInspection_from_value(class_inspection)
+        ) == LT_Pair_class.documentation,
+        "Class inspection uses the inspected class documentation"
+    )){
+        return 1;
+    }
+    if (expect(
         class_contents != LT_NIL
             && LT_MethodDescriptor_p(LT_car(LT_cdr(class_contents))),
-        "Class inspection exposes direct method descriptors"
+        "Class inspection exposes method descriptors"
+    )){
+        return 1;
+    }
+    return expect(
+        LT_MethodDescriptor_p(
+            inspection_contents_at(
+                class_inspection,
+                LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "class")
+            )
+        ),
+        "Class inspection includes inherited methods"
     );
 }
 

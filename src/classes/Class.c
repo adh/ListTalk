@@ -1212,6 +1212,8 @@ struct LT_Class_MethodReflectionBaton {
     LT_IdentitySet* seen;
 };
 
+static LT_Value class_all_methods_as_list(LT_Class* klass);
+
 static LT_Value class_method_descriptor(LT_Class* klass, LT_Value selector){
     LT_Value callable;
 
@@ -1311,12 +1313,18 @@ LT_PRIMITIVE_HEAD(class_method_inspection){
     LT_Value cursor = arguments;
     LT_Value self;
     LT_Value methods;
+    LT_Value base_inspection_value;
+    LT_ObjectInspection* base_inspection;
     LT_ListBuilder* contents = LT_ListBuilder_new();
+    LT_Class* klass;
+    LT_Value name;
+    LT_Value description;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, self);
     LT_ARG_END(cursor);
-    methods = class_direct_methods_as_list(LT_Class_from_object(self));
+    klass = LT_Class_from_object(self);
+    methods = class_all_methods_as_list(klass);
     while (methods != LT_NIL){
         LT_Value method = LT_car(methods);
         LT_ListBuilder_append(
@@ -1326,9 +1334,20 @@ LT_PRIMITIVE_HEAD(class_method_inspection){
         LT_ListBuilder_append(contents, method);
         methods = LT_cdr(methods);
     }
-    return LT_Object_inspection_with_contents(
-        self,
-        "Methods:",
+    base_inspection_value = LT_Object_inspection(self);
+    base_inspection = LT_ObjectInspection_from_value(base_inspection_value);
+    name = (LT_Value)(uintptr_t)LT_String_new_cstr(
+        LT_sprintf(
+            "Class %s",
+            LT_Symbol_name(LT_Symbol_from_value(klass->name))
+        )
+    );
+    description = LT_ObjectInspection_description(base_inspection);
+    return LT_ObjectInspection_new(
+        name,
+        description,
+        LT_ObjectInspection_slots(base_inspection),
+        (LT_Value)(uintptr_t)LT_String_new_cstr("Methods:"),
         LT_ListBuilder_value(contents)
     );
 }
