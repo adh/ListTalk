@@ -15,6 +15,7 @@
 #include <gc.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -435,6 +436,24 @@ DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_size, "size", st_size, intmax)
 DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_mode, "mode", st_mode, uintmax)
 DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_uid, "uid", st_uid, uintmax)
 DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_gid, "gid", st_gid, uintmax)
+DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_dev, "dev", st_dev, uintmax)
+DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_ino, "ino", st_ino, uintmax)
+DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_nlink, "nlink", st_nlink, uintmax)
+DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_rdev, "rdev", st_rdev, uintmax)
+DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_blksize, "blksize", st_blksize, intmax)
+DEFINE_PATHNAME_STAT_INTEGER(pathname_stat_method_blocks, "blocks", st_blocks, intmax)
+
+LT_DEFINE_PRIMITIVE(pathname_stat_method_device_p, "PathnameStat>>device?",
+                    "(self)", "Return true for a character or block device."){
+    LT_Value cursor = arguments;
+    LT_PathnameStat* self;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(cursor, self, LT_PathnameStat*, LT_PathnameStat_from_value);
+    LT_ARG_END(cursor);
+    return Pathname_boolean(
+        S_ISCHR(self->status.st_mode) || S_ISBLK(self->status.st_mode)
+    );
+}
 
 LT_DEFINE_PRIMITIVE(pathname_stat_method_pathname, "PathnameStat>>pathname",
                     "(self)", "Return the pathname used for this snapshot."){
@@ -461,6 +480,37 @@ DEFINE_PATHNAME_STAT_TIME(pathname_stat_method_accessed_at, "accessedAt", st_ati
 DEFINE_PATHNAME_STAT_TIME(pathname_stat_method_modified_at, "modifiedAt", st_mtime)
 DEFINE_PATHNAME_STAT_TIME(pathname_stat_method_status_changed_at,
     "statusChangedAt", st_ctime)
+
+static LT_PathnameStat* PathnameStat_new_for_value(LT_Value path,
+                                                   int follow_links){
+    LT_PathnameStat* result = LT_Class_ALLOC(LT_PathnameStat);
+    const char* bytes = LT_Pathname_like_value_cstr(path);
+    int status = follow_links
+        ? stat(bytes, &result->status)
+        : lstat(bytes, &result->status);
+
+    if (status != 0){
+        LT_system_error("Could not stat pathname", errno);
+    }
+    result->pathname = path;
+    return result;
+}
+
+LT_DEFINE_PRIMITIVE(pathname_stat_class_method_file,
+                    "PathnameStat class>>file:", "(self path)",
+                    "Return POSIX status for a String or Pathname."){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value path;
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, self);
+    LT_OBJECT_ARG(cursor, path);
+    LT_ARG_END(cursor);
+    if (self != LT_STATIC_CLASS(LT_PathnameStat)){
+        LT_error("file: is only supported on PathnameStat");
+    }
+    return (LT_Value)(uintptr_t)PathnameStat_new_for_value(path, 1);
+}
 
 static LT_Method_Descriptor Pathname_methods[] = {
     {"asString", &pathname_method_as_string},
@@ -520,7 +570,31 @@ static LT_Method_Descriptor PathnameStat_methods[] = {
     {"accessedAt", &pathname_stat_method_accessed_at},
     {"modifiedAt", &pathname_stat_method_modified_at},
     {"statusChangedAt", &pathname_stat_method_status_changed_at},
+    {"regular-file?", &pathname_stat_method_regular_file_p},
+    {"directory?", &pathname_stat_method_directory_p},
+    {"pipe?", &pathname_stat_method_fifo_p},
+    {"device?", &pathname_stat_method_device_p},
+    {"socket?", &pathname_stat_method_socket_p},
+    {"dev", &pathname_stat_method_dev},
+    {"ino", &pathname_stat_method_ino},
+    {"nlink", &pathname_stat_method_nlink},
+    {"rdev", &pathname_stat_method_rdev},
+    {"blksize", &pathname_stat_method_blksize},
+    {"blocks", &pathname_stat_method_blocks},
+    {"atime", &pathname_stat_method_accessed_at},
+    {"mtime", &pathname_stat_method_modified_at},
+    {"ctime", &pathname_stat_method_status_changed_at},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Method_Descriptor PathnameStat_class_methods[] = {
+    {"file:", &pathname_stat_class_method_file},
+    LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
+};
+
+static LT_Slot_Descriptor PathnameStat_slots[] = {
+    {"path", offsetof(LT_PathnameStat, pathname), &LT_SlotType_ReadonlyObject},
+    LT_NULL_NATIVE_CLASS_SLOT_DESCRIPTOR
 };
 
 LT_DEFINE_CLASS(LT_Pathname) {
@@ -570,7 +644,9 @@ LT_DEFINE_CLASS(LT_PathnameStat) {
     .documentation = "Immutable snapshot of POSIX pathname metadata.",
     .instance_size = sizeof(LT_PathnameStat),
     .class_flags = LT_CLASS_FLAG_FINAL | LT_CLASS_FLAG_IMMUTABLE,
+    .slots = PathnameStat_slots,
     .methods = PathnameStat_methods,
+    .class_methods = PathnameStat_class_methods,
 };
 
 LT_Pathname* LT_Pathname_new(char* pathname){
@@ -757,19 +833,11 @@ int LT_Pathname_executable_p(LT_Pathname* pathname){
 }
 
 LT_PathnameStat* LT_Pathname_stat(LT_Pathname* pathname){
-    LT_PathnameStat* result = LT_Class_ALLOC(LT_PathnameStat);
-
-    Pathname_stat_buffer(pathname, &result->status, 1, 0);
-    result->pathname = (LT_Value)(uintptr_t)pathname;
-    return result;
+    return PathnameStat_new_for_value((LT_Value)(uintptr_t)pathname, 1);
 }
 
 LT_PathnameStat* LT_Pathname_lstat(LT_Pathname* pathname){
-    LT_PathnameStat* result = LT_Class_ALLOC(LT_PathnameStat);
-
-    Pathname_stat_buffer(pathname, &result->status, 0, 0);
-    result->pathname = (LT_Value)(uintptr_t)pathname;
-    return result;
+    return PathnameStat_new_for_value((LT_Value)(uintptr_t)pathname, 0);
 }
 
 char* LT_Pathname_like_value_cstr(LT_Value value){
