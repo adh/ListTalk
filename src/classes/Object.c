@@ -242,6 +242,15 @@ LT_Value LT_Object_inspection_with_contents(LT_Value object,
     description = klass->documentation == LT_NIL
         ? (LT_Value)(uintptr_t)LT_String_new_cstr("")
         : klass->documentation;
+    if (LT_Class_lookup_method(
+        klass,
+        LT_Symbol_new_in(LT_PACKAGE_KEYWORD, "documentation")
+    ) != LT_INVALID){
+        description = LT_SEND(object, "documentation");
+        if (description == LT_NIL){
+            description = (LT_Value)(uintptr_t)LT_String_new_cstr("");
+        }
+    }
     for (i = 0; i < klass->slot_count; i++){
         LT_ListBuilder_append(slots, klass->slots[i].name);
         LT_ListBuilder_append(
