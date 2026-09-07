@@ -757,7 +757,7 @@ LT_String* LT_Pathname_as_string(LT_Pathname* pathname){
     return LT_String_new_cstr(pathname->pathname);
 }
 
-char* LT_Pathname_value_cstr(LT_Pathname* pathname){
+const char* LT_Pathname_value_cstr(LT_Pathname* pathname){
     return pathname->pathname;
 }
 
@@ -840,14 +840,14 @@ LT_PathnameStat* LT_Pathname_lstat(LT_Pathname* pathname){
     return PathnameStat_new_for_value((LT_Value)(uintptr_t)pathname, 0);
 }
 
-char* LT_Pathname_like_value_cstr(LT_Value value){
+const char* LT_Pathname_like_value_cstr(LT_Value value){
     if (LT_Pathname_p(value)){
         return LT_Pathname_value_cstr(LT_Pathname_from_value(value));
     }
     if (LT_String_p(value)){
         LT_String* string = LT_String_from_value(value);
         Pathname_check_string(string);
-        return (char*)LT_String_value_cstr(string);
+        return LT_String_value_cstr(string);
     }
     LT_error("Expected Pathname or String");
     return NULL;

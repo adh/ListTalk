@@ -44,7 +44,7 @@ LT_Pathname* LT_AbsolutePathname_rooted_at(
     LT_Pathname* root
 );
 LT_String* LT_Pathname_as_string(LT_Pathname* pathname);
-char* LT_Pathname_value_cstr(LT_Pathname* pathname);
+const char* LT_Pathname_value_cstr(LT_Pathname* pathname);
 int LT_Pathname_absolute_p(LT_Pathname* pathname);
 int LT_Pathname_relative_p(LT_Pathname* pathname);
 int LT_Pathname_exists_p(LT_Pathname* pathname);
@@ -60,7 +60,7 @@ int LT_Pathname_writable_p(LT_Pathname* pathname);
 int LT_Pathname_executable_p(LT_Pathname* pathname);
 LT_PathnameStat* LT_Pathname_stat(LT_Pathname* pathname);
 LT_PathnameStat* LT_Pathname_lstat(LT_Pathname* pathname);
-char* LT_Pathname_like_value_cstr(LT_Value value);
+const char* LT_Pathname_like_value_cstr(LT_Value value);
 LT_String* LT_Pathname_like_as_string(LT_Value value);
 
 LT__END_DECLS
