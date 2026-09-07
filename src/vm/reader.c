@@ -19,6 +19,7 @@
 #include <ListTalk/classes/SourceLocation.h>
 #include <ListTalk/classes/ImmutableList.h>
 #include <ListTalk/classes/Pair.h>
+#include <ListTalk/classes/Pathname.h>
 #include <ListTalk/classes/Dictionary.h>
 #include <ListTalk/classes/String.h>
 #include <ListTalk/classes/Symbol.h>
@@ -84,6 +85,10 @@ static LT_Value read_complex_dispatch_literal(
     LT_ReaderStream* stream
 );
 static LT_Value read_dictionary_dispatch_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+);
+static LT_Value read_pathname_dispatch_literal(
     LT_Reader* reader,
     LT_ReaderStream* stream
 );
@@ -1173,6 +1178,23 @@ static LT_Value read_bytevector_dispatch_literal(
     return read_bytevector_literal(reader, stream);
 }
 
+static LT_Value read_pathname_dispatch_literal(
+    LT_Reader* reader,
+    LT_ReaderStream* stream
+){
+    int ch = reader_getc(reader, stream);
+    LT_String* string;
+
+    if (ch == EOF){
+        reader_incomplete_input(reader, "#p expects string syntax");
+    }
+    if (ch != '"'){
+        reader_error(reader, "#p expects string syntax");
+    }
+    string = read_string_literal(reader, stream);
+    return (LT_Value)(uintptr_t)LT_Pathname_from_string(string);
+}
+
 static LT_Value read_dispatch_macro(
     LT_Reader* reader,
     LT_ReaderStream* stream
@@ -1249,6 +1271,10 @@ static LT_Value read_dispatch_macro(
         case 'D':
             ensure_dispatch_argument_unused(reader, argument);
             return read_dictionary_dispatch_literal(reader, stream);
+        case 'p':
+        case 'P':
+            ensure_dispatch_argument_unused(reader, argument);
+            return read_pathname_dispatch_literal(reader, stream);
         case 'u':
         case 'U':
             ensure_dispatch_argument_unused(reader, argument);

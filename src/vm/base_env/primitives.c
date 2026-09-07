@@ -779,11 +779,7 @@ LT_DEFINE_PRIMITIVE(
 
     LT_OBJECT_ARG(cursor, path);
     LT_ARG_END(cursor);
-    if (!LT_String_p(path)){
-        LT_type_error(path, &LT_String_class);
-    }
-
-    path_cstr = LT_String_value_cstr(LT_String_from_value(path));
+    path_cstr = LT_Pathname_like_value_cstr(path);
     file = fopen(path_cstr, "r");
     if (file == NULL){
         LT_system_error("Could not open file for reading", errno);

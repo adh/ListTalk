@@ -600,6 +600,54 @@ static int test_dispatch_boolean_true(void){
     return expect(value == LT_TRUE, "dispatch #t");
 }
 
+static int test_dispatch_pathname_literal(void){
+    LT_Value relative = read_one("#p\"foo//./bar\"");
+    LT_Value absolute = read_one("#P\"/foo/../bar\"");
+    char* relative_printed;
+    char* absolute_printed;
+    LT_Value relative_reparsed;
+    LT_Value absolute_reparsed;
+
+    if (expect(LT_RelativePathname_p(relative),
+               "#p relative literal dispatches to RelativePathname")){
+        return 1;
+    }
+    if (expect(LT_AbsolutePathname_p(absolute),
+               "#p absolute literal dispatches to AbsolutePathname")){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_Pathname_value_cstr(LT_Pathname_from_value(relative)),
+                   "./foo/bar") == 0,
+            "#p literal uses shared pathname normalization"
+        )){
+        return 1;
+    }
+    relative_printed = debug_string_for_value(relative);
+    absolute_printed = debug_string_for_value(absolute);
+    if (relative_printed == NULL || absolute_printed == NULL){
+        free(relative_printed);
+        free(absolute_printed);
+        return 1;
+    }
+    if (expect(strcmp(relative_printed, "#p\"./foo/bar\"") == 0,
+               "RelativePathname prints as #p string syntax")
+        || expect(strcmp(absolute_printed, "#p\"/bar\"") == 0,
+                  "AbsolutePathname prints as #p string syntax")){
+        free(relative_printed);
+        free(absolute_printed);
+        return 1;
+    }
+    relative_reparsed = read_one(relative_printed);
+    absolute_reparsed = read_one(absolute_printed);
+    free(relative_printed);
+    free(absolute_printed);
+    return expect(LT_Value_equal_p(relative, relative_reparsed),
+                  "printed RelativePathname reads back equivalently")
+        + expect(LT_Value_equal_p(absolute, absolute_reparsed),
+                 "printed AbsolutePathname reads back equivalently");
+}
+
 static int test_dispatch_boolean_false(void){
     LT_Value value = read_one("#false");
     return expect(value == LT_FALSE, "dispatch #false");
@@ -2331,6 +2379,7 @@ int main(void){
     failures += test_quoted_dynamic_variable_symbol_does_not_expand();
     failures += test_single_star_symbol_does_not_expand_to_dynamic_ref();
     failures += test_dispatch_boolean_true();
+    failures += test_dispatch_pathname_literal();
     failures += test_dispatch_boolean_false();
     failures += test_dispatch_nil();
     failures += test_dispatch_nil_short();

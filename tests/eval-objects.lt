@@ -1564,6 +1564,108 @@
        "RegularExpression>>substitute:with: treats unmatched captures as empty")
 )
 
+(define-test "Pathname"
+;;; Pathname
+
+(let ((path [Pathname fromString: "dir/\u03bb.txt"]))
+  (check (eq? (type-of path) RelativePathname)
+         "Pathname class>>fromString: dispatches to RelativePathname")
+  (check (equal? [path asString] "./dir/\u03bb.txt")
+         "Pathname>>asString returns normalized pathname text")
+  (check [path relative?] "Pathname>>relative? identifies relative paths")
+  (check (not [path absolute?]) "relative path is not absolute"))
+
+(let ((path [Pathname fromString: "///a//./b/../c/"]))
+  (check (eq? (type-of path) AbsolutePathname)
+         "Pathname class>>fromString: dispatches to AbsolutePathname")
+  (check (equal? [path asString] "/a/c")
+         "Pathname removes repeated slashes, dot segments, and resolved parent segments")
+  (check [path absolute?] "Pathname>>absolute? identifies absolute paths")
+  (check (not [path relative?]) "absolute path is not relative"))
+
+(check (equal? [[RelativePathname fromString: "a/./b"] asString] "./a/b")
+       "RelativePathname has a language-level constructor")
+(check-error-message "Relative pathname cannot start with slash"
+                     "RelativePathname rejects a leading slash"
+  [RelativePathname fromString: "/a"])
+(let ((path [AbsolutePathname fromString: "a/b"]))
+  (check (eq? (type-of path) AbsolutePathname)
+         "AbsolutePathname has a language-level constructor")
+  (check (equal? [path asString] "/a/b")
+         "AbsolutePathname quietly adds a leading slash"))
+
+(check (equal? [[Pathname fromString: "a/b"]
+                / [Pathname fromString: "../c"]]
+               [Pathname fromString: "a/c"])
+       "Pathname>>/ appends and normalizes relative paths")
+(check (equal? [[Pathname fromString: "/a/b"]
+                / [Pathname fromString: "../../c"]]
+               [Pathname fromString: "/c"])
+       "Pathname>>/ resolves parents in absolute paths")
+(check (equal? [[Pathname fromString: "../../a/../b"] asString] "../../b")
+       "relative parent segments remain only at the beginning")
+(check-error-message "Absolute pathname cannot resolve above root"
+                     "absolute pathname rejects unresolved parent segments"
+  [Pathname fromString: "/a/../../b"])
+(check-error-message "Cannot append an absolute pathname"
+                     "Pathname>>/ rejects an absolute right operand"
+  [[Pathname fromString: "/a"] / [Pathname fromString: "/b"]])
+(check (equal? [[Pathname fromString: "a/b/c"] parent]
+               [Pathname fromString: "a/b"])
+       "Pathname>>parent removes the final relative segment")
+(check (equal? [[Pathname fromString: "/a"] parent]
+               [Pathname fromString: "/"])
+       "Pathname>>parent preserves an absolute root")
+(check (equal? [[Pathname fromString: "../a"] parent]
+               [Pathname fromString: ".."])
+       "Pathname>>parent preserves leading parent segments")
+(check-error-message "Pathname has no parent"
+                     "current-directory pathname has no parent"
+  [[Pathname fromString: "."] parent])
+(check-error-message "Pathname has no parent"
+                     "root pathname has no parent"
+  [[Pathname fromString: "/"] parent])
+(check (equal? [[AbsolutePathname fromString: "/usr/local"]
+                rootedAt: [Pathname fromString: "/sandbox"]]
+               [Pathname fromString: "/sandbox/usr/local"])
+       "AbsolutePathname>>rootedAt: interprets the receiver beneath an absolute root")
+(check (equal? [[AbsolutePathname fromString: "/usr/local"]
+                rootedAt: [Pathname fromString: "sandbox"]]
+               [Pathname fromString: "sandbox/usr/local"])
+       "AbsolutePathname>>rootedAt: also accepts a relative root")
+
+(let ((directory #p".")
+      (file #p"build.ninja")
+      (missing #p".__listtalk_missing_pathname__"))
+  (check [directory exists?] "Pathname>>exists? recognizes an existing path")
+  (check [directory isDirectory?] "Pathname>>isDirectory? recognizes a directory")
+  (check (not [directory isRegularFile?])
+         "Pathname>>isRegularFile? rejects a directory")
+  (check [file isRegularFile?] "Pathname>>isRegularFile? recognizes a file")
+  (check (not [file isDirectory?]) "Pathname>>isDirectory? rejects a file")
+  (check [file readable?] "Pathname>>readable? checks POSIX access")
+  (check (not [missing exists?]) "Pathname>>exists? returns false when missing")
+  (check (not [missing isDirectory?])
+         "file-kind predicates return false when the path is missing")
+  (let ((status [file stat]))
+    (check (eq? (type-of status) PathnameStat)
+           "Pathname>>stat returns PathnameStat")
+    (check (equal? [status pathname] file)
+           "PathnameStat retains its source pathname")
+    (check [status isRegularFile?]
+           "PathnameStat snapshots the POSIX file kind")
+    (check (integer? [status size]) "PathnameStat exposes size")
+    (check (integer? [status mode]) "PathnameStat exposes mode")
+    (check (integer? [status uid]) "PathnameStat exposes uid")
+    (check (integer? [status gid]) "PathnameStat exposes gid")
+    (check (eq? (type-of [status accessedAt]) Instant)
+           "PathnameStat exposes access time")
+    (check (eq? (type-of [status modifiedAt]) Instant)
+           "PathnameStat exposes modification time")
+    (check (eq? (type-of [status statusChangedAt]) Instant)
+           "PathnameStat exposes status-change time")))
+)
+
 (define-test "make-class and make-instance"
 ;;; make-class and make-instance
 

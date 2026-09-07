@@ -653,7 +653,7 @@ LT_DEFINE_PRIMITIVE(
         (void)tail_call_unwind_marker;                                        \
         (void)invocation_context_kind;                                        \
         (void)invocation_context_data;                                        \
-        LT_GENERIC_ARG(cursor, path, LT_String*, LT_String_from_value);        \
+        LT_GENERIC_ARG(cursor, path, LT_String*, LT_Pathname_like_as_string);  \
         LT_ARG_END(cursor);                                                   \
         return gzip_stream_new(path, mode);                                   \
     }
@@ -694,7 +694,7 @@ DEFINE_GZIP_OPEN_PRIMITIVE(
         (void)invocation_context_kind;                                          \
         (void)invocation_context_data;                                          \
         LT_OBJECT_ARG(cursor, self);                                            \
-        LT_GENERIC_ARG(cursor, path, LT_String*, LT_String_from_value);          \
+        LT_GENERIC_ARG(cursor, path, LT_String*, LT_Pathname_like_as_string);    \
         LT_ARG_END(cursor);                                                     \
         (void)self;                                                             \
         return gzip_stream_new(path, mode);                                     \

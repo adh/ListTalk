@@ -152,7 +152,7 @@ LT_DEFINE_PRIMITIVE(
     (void)invocation_context_data;
 
     LT_OBJECT_ARG(cursor, self);
-    LT_GENERIC_ARG(cursor, path, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, path, LT_String*, LT_Pathname_like_as_string);
     LT_ARG_END(cursor);
     if (self != LT_STATIC_CLASS(LT_INIReader)){
         LT_error("readFile: class method is only supported on INIReader");
@@ -209,7 +209,7 @@ LT_DEFINE_PRIMITIVE(
     (void)invocation_context_data;
 
     LT_GENERIC_ARG(cursor, self, LT_INIReader*, LT_INIReader_from_value);
-    LT_GENERIC_ARG(cursor, path, LT_String*, LT_String_from_value);
+    LT_GENERIC_ARG(cursor, path, LT_String*, LT_Pathname_like_as_string);
     LT_ARG_END(cursor);
 
     ini = LT_INI_parseFile(

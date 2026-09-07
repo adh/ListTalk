@@ -3666,6 +3666,99 @@ static int test_string_utf8_helpers_replace_invalid_sequences(void){
     );
 }
 
+static int test_pathname_c_api_round_trips_utf8(void){
+    LT_Pathname* pathname = LT_Pathname_new("dir/\xce\xbb.txt");
+    LT_String* string = LT_Pathname_as_string(pathname);
+    LT_Pathname* absolute = LT_Pathname_new("/a//b/../c");
+    LT_Pathname* appended = LT_Pathname_append(
+        absolute,
+        LT_Pathname_new("../d")
+    );
+    LT_RelativePathname* relative = LT_RelativePathname_new("x/y");
+    LT_AbsolutePathname* forced_absolute = LT_AbsolutePathname_new("x/y");
+    LT_Pathname* parent = LT_Pathname_parent(LT_Pathname_new("/a/b"));
+    LT_Pathname* rooted = LT_AbsolutePathname_rooted_at(
+        LT_AbsolutePathname_new("/a/b"),
+        LT_Pathname_new("/root")
+    );
+    LT_Pathname* source_file = LT_Pathname_new("build.ninja");
+
+    if (expect(
+            strcmp(LT_Pathname_value_cstr(pathname), "./dir/\xce\xbb.txt") == 0,
+            "LT_Pathname_new normalizes and preserves UTF-8"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Pathname_relative_p(pathname) && !LT_Pathname_absolute_p(pathname),
+            "relative and absolute pathname predicates distinguish relative paths"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_RelativePathname_p((LT_Value)(uintptr_t)pathname),
+            "LT_Pathname_new dispatches to RelativePathname"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_Pathname_absolute_p(absolute) && !LT_Pathname_relative_p(absolute),
+            "relative and absolute pathname predicates distinguish absolute paths"
+        )){
+        return 1;
+    }
+    if (expect(
+            LT_AbsolutePathname_p((LT_Value)(uintptr_t)absolute),
+            "LT_Pathname_new dispatches to AbsolutePathname"
+        )){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_Pathname_value_cstr((LT_Pathname*)relative), "./x/y") == 0,
+            "LT_RelativePathname_new constructs a relative pathname"
+        )){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_Pathname_value_cstr((LT_Pathname*)forced_absolute), "/x/y") == 0,
+            "LT_AbsolutePathname_new adds a leading slash"
+        )){
+        return 1;
+    }
+    if (expect(
+            strcmp(LT_Pathname_value_cstr(appended), "/a/d") == 0,
+            "LT_Pathname_append combines and normalizes paths"
+        )){
+        return 1;
+    }
+    if (expect(strcmp(LT_Pathname_value_cstr(parent), "/a") == 0,
+               "LT_Pathname_parent removes the final segment")){
+        return 1;
+    }
+    if (expect(strcmp(LT_Pathname_value_cstr(rooted), "/root/a/b") == 0,
+               "LT_AbsolutePathname_rooted_at roots an absolute pathname")){
+        return 1;
+    }
+    if (expect(LT_Pathname_exists_p(source_file),
+               "LT_Pathname_exists_p recognizes an existing path")){
+        return 1;
+    }
+    if (expect(LT_Pathname_regular_file_p(source_file),
+               "LT_Pathname_regular_file_p recognizes a regular file")){
+        return 1;
+    }
+    if (expect(LT_PathnameStat_p(
+            (LT_Value)(uintptr_t)LT_Pathname_stat(source_file)),
+            "LT_Pathname_stat returns PathnameStat"
+        )){
+        return 1;
+    }
+    return expect(
+        strcmp(LT_String_value_cstr(string), "./dir/\xce\xbb.txt") == 0,
+        "LT_Pathname_as_string converts to String"
+    );
+}
+
 static int test_string_append_and_substring_c_api_use_codepoint_indexes(void){
     LT_String* left = LT_String_new_cstr("a\xce\xbb");
     LT_String* right = LT_String_new_cstr("\xf0\x9f\x98\x80" "z");
@@ -4671,6 +4764,7 @@ int main(void){
     RUN_TEST(test_character_api_uses_unicode_codepoints);
     RUN_TEST(test_string_api_uses_unicode_codepoints);
     RUN_TEST(test_string_utf8_helpers_replace_invalid_sequences);
+    RUN_TEST(test_pathname_c_api_round_trips_utf8);
     RUN_TEST(test_string_append_and_substring_c_api_use_codepoint_indexes);
     RUN_TEST(test_string_search_c_api_uses_codepoint_indexes);
     RUN_TEST(test_string_format_c_api);
