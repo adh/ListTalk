@@ -548,7 +548,7 @@ LT_DEFINE_PRIMITIVE(
     stream_read,
     "TCPSocket>>read:",
     "(self maximumLength)",
-    "Read up to maximumLength bytes."
+    "Read exactly maximumLength bytes, or fewer at end of stream."
 ){
     LT_Value cursor = arguments;
     LT_Value maximum_length;
