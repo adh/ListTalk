@@ -112,10 +112,16 @@ static int unix_connect(const char* path, int type){
     if (fd < 0){
         LT_system_error("Could not create Unix socket", errno);
     }
-    while (connect(fd, (struct sockaddr*)&address, address_length) != 0){
+    while (1){
+        if (connect(fd, (struct sockaddr*)&address, address_length) == 0){
+            break;
+        }
         if (errno == EINTR){
             LT_socket_interrupted();
             continue;
+        }
+        if (errno == EISCONN){
+            break;
         }
         int saved_errno = errno;
 
