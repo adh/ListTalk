@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 static int failures;
 
@@ -34,8 +35,11 @@ int main(void){
     LT_TCPServerSocket* server;
     LT_TCPSocket *client, *peer;
     LT_UDPSocket *receiver, *sender;
+    LT_UnixStreamSocket *unix_first, *unix_second;
+    LT_UnixServerSocket* unix_server;
     LT_ByteVector *message, *received;
     char reply[4];
+    char unix_path[96];
 
     LT_INIT();
     server = LT_TCPServerSocket_listen("127.0.0.1", 0, 4);
@@ -97,5 +101,43 @@ int main(void){
     );
     LT_IPSocket_close((LT_IPSocket*)sender);
     LT_IPSocket_close((LT_IPSocket*)receiver);
+
+    LT_UnixStreamSocket_pair(&unix_first, &unix_second);
+    LT_UnixStreamSocket_write(unix_first, "pair", 4);
+    check(
+        LT_UnixStreamSocket_read(unix_second, reply, sizeof(reply)) == 4
+            && !memcmp(reply, "pair", 4),
+        "Unix stream socket pair round trip"
+    );
+    check(
+        LT_Value_is_instance_of(
+            (LT_Value)(uintptr_t)unix_first,
+            LT_STATIC_CLASS(LT_StreamSocket)
+        ),
+        "UnixStreamSocket implements StreamSocket"
+    );
+    LT_UnixSocket_close((LT_UnixSocket*)unix_first);
+    LT_UnixSocket_close((LT_UnixSocket*)unix_second);
+
+    snprintf(
+        unix_path,
+        sizeof(unix_path),
+        "/tmp/listtalk-networking-test-%ld.sock",
+        (long)getpid()
+    );
+    unlink(unix_path);
+    unix_server = LT_UnixServerSocket_listen(unix_path, 4);
+    unix_first = LT_UnixStreamSocket_connect(unix_path);
+    unix_second = LT_UnixServerSocket_accept(unix_server);
+    LT_UnixStreamSocket_write(unix_first, "path", 4);
+    check(
+        LT_UnixStreamSocket_read(unix_second, reply, sizeof(reply)) == 4
+            && !memcmp(reply, "path", 4),
+        "pathname Unix stream socket round trip"
+    );
+    LT_UnixSocket_close((LT_UnixSocket*)unix_first);
+    LT_UnixSocket_close((LT_UnixSocket*)unix_second);
+    LT_UnixSocket_close((LT_UnixSocket*)unix_server);
+    unlink(unix_path);
     return failures ? 1 : 0;
 }

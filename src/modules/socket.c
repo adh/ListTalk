@@ -13,6 +13,10 @@ void ListTalk_socket_load(LT_Environment* environment){
     BIND_CLASS(UDPSocket);
     BIND_CLASS(TCPSocket);
     BIND_CLASS(TCPServerSocket);
+    BIND_CLASS(UnixSocket);
+    BIND_CLASS(UnixDatagramSocket);
+    BIND_CLASS(UnixStreamSocket);
+    BIND_CLASS(UnixServerSocket);
 #undef BIND_CLASS
     LT_loader_provide(environment, "socket");
 }

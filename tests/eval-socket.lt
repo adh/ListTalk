@@ -10,3 +10,14 @@
 (check (not [socket isClosed]) "new datagram socket is open")
 [socket close]
 (check [socket isClosed] "inherited close closes a datagram socket")
+
+(define sockets [ListTalk:Socket:UnixStreamSocket pair])
+(check (and (pair? sockets) (pair? (cdr sockets)) (null? (cddr sockets)))
+       "UnixStreamSocket pair returns a two-element list")
+(define first (car sockets))
+(define second (cadr sockets))
+[first write: (bytevector 1 2 3)]
+(check (equal? [second read: 3] (bytevector 1 2 3))
+       "Unix stream socket pair transports bytes")
+[first close]
+[second close]

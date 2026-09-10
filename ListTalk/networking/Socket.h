@@ -16,6 +16,10 @@ LT_DECLARE_CLASS(LT_IPSocket);
 LT_DECLARE_CLASS(LT_UDPSocket);
 LT_DECLARE_CLASS(LT_TCPSocket);
 LT_DECLARE_CLASS(LT_TCPServerSocket);
+LT_DECLARE_CLASS(LT_UnixSocket);
+LT_DECLARE_CLASS(LT_UnixDatagramSocket);
+LT_DECLARE_CLASS(LT_UnixStreamSocket);
+LT_DECLARE_CLASS(LT_UnixServerSocket);
 
 int LT_IPSocket_closed(LT_IPSocket* socket);
 int LT_IPSocket_descriptor(LT_IPSocket* socket);
@@ -38,6 +42,36 @@ LT_TCPServerSocket* LT_TCPServerSocket_listen(const char* host,
                                               uint16_t port,
                                               int backlog);
 LT_TCPSocket* LT_TCPServerSocket_accept(LT_TCPServerSocket* socket);
+
+int LT_UnixSocket_closed(LT_UnixSocket* socket);
+int LT_UnixSocket_descriptor(LT_UnixSocket* socket);
+void LT_UnixSocket_close(LT_UnixSocket* socket);
+
+LT_UnixDatagramSocket* LT_UnixDatagramSocket_bind(const char* path);
+LT_UnixDatagramSocket* LT_UnixDatagramSocket_connect(const char* path);
+size_t LT_UnixDatagramSocket_send(LT_UnixDatagramSocket* socket,
+                                  LT_ByteVector* bytes);
+LT_ByteVector* LT_UnixDatagramSocket_receive(
+    LT_UnixDatagramSocket* socket,
+    size_t maximum_length
+);
+
+LT_UnixStreamSocket* LT_UnixStreamSocket_connect(const char* path);
+void LT_UnixStreamSocket_pair(LT_UnixStreamSocket** first,
+                              LT_UnixStreamSocket** second);
+size_t LT_UnixStreamSocket_read(LT_UnixStreamSocket* socket,
+                                void* buffer,
+                                size_t length);
+void LT_UnixStreamSocket_write(LT_UnixStreamSocket* socket,
+                               const void* buffer,
+                               size_t length);
+void LT_UnixStreamSocket_shutdown_write(LT_UnixStreamSocket* socket);
+
+LT_UnixServerSocket* LT_UnixServerSocket_listen(const char* path,
+                                                int backlog);
+LT_UnixStreamSocket* LT_UnixServerSocket_accept(
+    LT_UnixServerSocket* socket
+);
 
 LT__END_DECLS
 #endif
