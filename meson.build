@@ -262,6 +262,23 @@ debugger_lib = library(
         install : true
 )
 
+networking_lib = library(
+        'ListTalkNetworking',
+        'src/networking/Socket.c',
+        link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true
+)
+
+pkg.generate(
+        networking_lib,
+        filebase : 'ListTalkNetworking',
+        name : 'ListTalkNetworking',
+        description : 'ListTalk high-level socket networking library',
+        subdirs : '.',
+        requires : ['ListTalkVM']
+)
+
 pkg.generate(
         debugger_lib,
         filebase : 'ListTalkDebugger',
@@ -321,6 +338,17 @@ ini_module = shared_module(
         name_prefix : '',
         name_suffix : 'ltm',
         link_with : [vm_lib],
+        dependencies : listtalk_deps,
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
+socket_module = shared_module(
+        'socket',
+        'src/modules/socket.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib, networking_lib],
         dependencies : listtalk_deps,
         install : true,
         install_dir : listtalk_native_module_dir
@@ -517,6 +545,13 @@ message_queue_test_exe = executable(
         dependencies : [bdwgc]
 )
 
+networking_test_exe = executable(
+        'networking_test',
+        'tests/networking_test.c',
+        link_with : [vm_lib, networking_lib],
+        dependencies : [bdwgc]
+)
+
 test(
         'reader_test',
         reader_test_exe
@@ -543,6 +578,16 @@ test(
                 meson.current_source_dir() / 'tests' / 'eval-test.lt'
         ],
         depends : [os_module, gc_module, cmdopts_module, json_module, ini_module]
+)
+
+test(
+        'eval_socket',
+        listtalk_exe,
+        args : [
+                '-L', meson.current_build_dir(),
+                meson.current_source_dir() / 'tests' / 'eval-socket.lt'
+        ],
+        depends : [socket_module]
 )
 
 if md4c_dep.found() and md4c_html_dep.found()
@@ -681,6 +726,11 @@ test(
 test(
         'message_queue_test',
         message_queue_test_exe
+)
+
+test(
+        'networking_test',
+        networking_test_exe
 )
 
 install_subdir(

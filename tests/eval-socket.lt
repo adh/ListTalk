@@ -1,0 +1,12 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :socket)
+
+(define (check condition description)
+  (if condition #true (error (string-append "FAIL: " description))))
+
+(define socket [ListTalk:Socket:UDPSocket bindTo: "127.0.0.1" port: 0])
+(check (not [socket isClosed]) "new datagram socket is open")
+[socket close]
+(check [socket isClosed] "inherited close closes a datagram socket")
