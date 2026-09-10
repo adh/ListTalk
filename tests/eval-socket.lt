@@ -21,3 +21,9 @@
        "Unix stream socket pair transports bytes")
 [first close]
 [second close]
+
+(define server
+  [ListTalk:Socket:TCPServerSocket newOn: "127.0.0.1" port: 0])
+(check (not [server isClosed])
+       "TCP server constructor defaults its backlog")
+[server close]

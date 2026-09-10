@@ -33,6 +33,7 @@ static uint16_t local_port(LT_IPSocket* socket){
 
 int main(void){
     LT_TCPServerSocket* server;
+    LT_TCPServerSocket* wildcard_server;
     LT_TCPSocket *client, *peer;
     LT_UDPSocket *receiver, *sender;
     LT_UnixStreamSocket *unix_first, *unix_second;
@@ -40,9 +41,51 @@ int main(void){
     LT_ByteVector *message, *received;
     char reply[4];
     char unix_path[96];
+    int option;
+    socklen_t option_length;
+    struct sockaddr_storage wildcard_address;
+    socklen_t wildcard_address_length;
 
     LT_INIT();
-    server = LT_TCPServerSocket_listen("127.0.0.1", 0, 4);
+    wildcard_server = LT_TCPServerSocket_new("*", 0, SOMAXCONN);
+    option = 0;
+    option_length = sizeof(option);
+    check(
+        getsockopt(
+            LT_IPSocket_descriptor((LT_IPSocket*)wildcard_server),
+            SOL_SOCKET,
+            SO_REUSEADDR,
+            &option,
+            &option_length
+        ) == 0 && option != 0,
+        "TCP wildcard server enables SO_REUSEADDR"
+    );
+    wildcard_address_length = sizeof(wildcard_address);
+    check(
+        getsockname(
+            LT_IPSocket_descriptor((LT_IPSocket*)wildcard_server),
+            (struct sockaddr*)&wildcard_address,
+            &wildcard_address_length
+        ) == 0,
+        "TCP wildcard server has a local address"
+    );
+    if (wildcard_address.ss_family == AF_INET6){
+        option = 1;
+        option_length = sizeof(option);
+        check(
+            getsockopt(
+                LT_IPSocket_descriptor((LT_IPSocket*)wildcard_server),
+                IPPROTO_IPV6,
+                IPV6_V6ONLY,
+                &option,
+                &option_length
+            ) == 0 && option == 0,
+            "TCP IPv6 server disables IPV6_V6ONLY"
+        );
+    }
+    LT_IPSocket_close((LT_IPSocket*)wildcard_server);
+
+    server = LT_TCPServerSocket_new("127.0.0.1", 0, 4);
     check(
         LT_Value_is_instance_of(
             (LT_Value)(uintptr_t)server,
@@ -126,7 +169,7 @@ int main(void){
         (long)getpid()
     );
     unlink(unix_path);
-    unix_server = LT_UnixServerSocket_listen(unix_path, 4);
+    unix_server = LT_UnixServerSocket_new(unix_path, 4);
     unix_first = LT_UnixStreamSocket_connect(unix_path);
     unix_second = LT_UnixServerSocket_accept(unix_server);
     LT_UnixStreamSocket_write(unix_first, "path", 4);

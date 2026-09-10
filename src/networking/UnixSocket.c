@@ -276,8 +276,7 @@ void LT_UnixStreamSocket_shutdown_write(LT_UnixStreamSocket* socket){
     }
 }
 
-LT_UnixServerSocket* LT_UnixServerSocket_listen(const char* path,
-                                                int backlog){
+LT_UnixServerSocket* LT_UnixServerSocket_new(const char* path, int backlog){
     LT_UnixServerSocket* result;
 
     if (backlog < 1){
@@ -533,8 +532,8 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    unix_server_listen,
-    "UnixServerSocket class>>listenOn:backlog:",
+    unix_server_new,
+    "UnixServerSocket class>>newOn:backlog:",
     "(self path backlog)",
     "Create a listening Unix socket."
 ){
@@ -558,9 +557,30 @@ LT_DEFINE_PRIMITIVE(
         LT_error("Invalid socket backlog");
     }
     (void)self;
-    return (LT_Value)(uintptr_t)LT_UnixServerSocket_listen(
+    return (LT_Value)(uintptr_t)LT_UnixServerSocket_new(
         LT_String_value_cstr(path),
         (int)backlog
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    unix_server_new_default_backlog,
+    "UnixServerSocket class>>newOn:",
+    "(self path)",
+    "Create a listening Unix socket using the system maximum backlog."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_String* path;
+
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, self);
+    path = unix_path_arg(&cursor);
+    LT_ARG_END(cursor);
+    (void)self;
+    return (LT_Value)(uintptr_t)LT_UnixServerSocket_new(
+        LT_String_value_cstr(path),
+        SOMAXCONN
     );
 }
 
@@ -621,7 +641,8 @@ static LT_Method_Descriptor unix_server_methods[] = {
 };
 
 static LT_Method_Descriptor unix_server_class_methods[] = {
-    {"listenOn:backlog:", &unix_server_listen},
+    {"newOn:", &unix_server_new_default_backlog},
+    {"newOn:backlog:", &unix_server_new},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

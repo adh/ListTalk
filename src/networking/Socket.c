@@ -108,13 +108,19 @@ static int resolve_socket(const char* host,
     int result;
     int saved_errno = 0;
     int one = 1;
+    int zero = 0;
+    const char* resolved_host = host;
+
+    if (do_listen && host != NULL && strcmp(host, "*") == 0){
+        resolved_host = NULL;
+    }
 
     snprintf(service, sizeof(service), "%u", (unsigned)port);
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = type;
     hints.ai_flags = passive ? AI_PASSIVE : 0;
     result = getaddrinfo(
-        host && *host ? host : NULL,
+        resolved_host && *resolved_host ? resolved_host : NULL,
         service,
         &hints,
         &addresses
@@ -135,8 +141,32 @@ static int resolve_socket(const char* host,
             saved_errno = errno;
             continue;
         }
-        if (passive){
-            setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+        if (do_listen
+                && setsockopt(
+                    fd,
+                    SOL_SOCKET,
+                    SO_REUSEADDR,
+                    &one,
+                    sizeof(one)
+                ) != 0){
+            saved_errno = errno;
+            close(fd);
+            fd = -1;
+            continue;
+        }
+        if (do_listen
+                && address->ai_family == AF_INET6
+                && setsockopt(
+                    fd,
+                    IPPROTO_IPV6,
+                    IPV6_V6ONLY,
+                    &zero,
+                    sizeof(zero)
+                ) != 0){
+            saved_errno = errno;
+            close(fd);
+            fd = -1;
+            continue;
         }
         result = passive
             ? bind(fd, address->ai_addr, address->ai_addrlen)
@@ -277,9 +307,9 @@ void LT_TCPSocket_shutdown_write(LT_TCPSocket* socket){
     }
 }
 
-LT_TCPServerSocket* LT_TCPServerSocket_listen(const char* host,
-                                              uint16_t port,
-                                              int backlog){
+LT_TCPServerSocket* LT_TCPServerSocket_new(const char* host,
+                                           uint16_t port,
+                                           int backlog){
     LT_TCPServerSocket* result = LT_Class_ALLOC(LT_TCPServerSocket);
     if (backlog < 1){
         LT_error("Socket backlog must be positive");
@@ -543,8 +573,8 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
-    server_listen,
-    "TCPServerSocket class>>listenOn:port:backlog:",
+    server_new,
+    "TCPServerSocket class>>newOn:port:backlog:",
     "(self host port backlog)",
     "Create a listening socket."
 ){
@@ -570,10 +600,34 @@ LT_DEFINE_PRIMITIVE(
         LT_error("Invalid socket backlog");
     }
     (void)self;
-    return (LT_Value)(uintptr_t)LT_TCPServerSocket_listen(
+    return (LT_Value)(uintptr_t)LT_TCPServerSocket_new(
         LT_String_value_cstr(host),
         port_value(port),
         (int)backlog
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    server_new_default_backlog,
+    "TCPServerSocket class>>newOn:port:",
+    "(self host port)",
+    "Create a listening socket using the system maximum backlog."
+){
+    LT_Value cursor = arguments;
+    LT_Value self;
+    LT_Value port;
+    LT_String* host;
+
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, self);
+    host = string_arg(&cursor);
+    LT_OBJECT_ARG(cursor, port);
+    LT_ARG_END(cursor);
+    (void)self;
+    return (LT_Value)(uintptr_t)LT_TCPServerSocket_new(
+        LT_String_value_cstr(host),
+        port_value(port),
+        SOMAXCONN
     );
 }
 
@@ -633,7 +687,8 @@ static LT_Method_Descriptor server_methods[] = {
 };
 
 static LT_Method_Descriptor server_class_methods[] = {
-    {"listenOn:port:backlog:", &server_listen},
+    {"newOn:port:", &server_new_default_backlog},
+    {"newOn:port:backlog:", &server_new},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
 };
 

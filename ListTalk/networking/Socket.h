@@ -38,9 +38,9 @@ void LT_TCPSocket_write(LT_TCPSocket* socket,
                         const void* buffer, size_t length);
 void LT_TCPSocket_shutdown_write(LT_TCPSocket* socket);
 
-LT_TCPServerSocket* LT_TCPServerSocket_listen(const char* host,
-                                              uint16_t port,
-                                              int backlog);
+LT_TCPServerSocket* LT_TCPServerSocket_new(const char* host,
+                                           uint16_t port,
+                                           int backlog);
 LT_TCPSocket* LT_TCPServerSocket_accept(LT_TCPServerSocket* socket);
 
 int LT_UnixSocket_closed(LT_UnixSocket* socket);
@@ -67,8 +67,7 @@ void LT_UnixStreamSocket_write(LT_UnixStreamSocket* socket,
                                size_t length);
 void LT_UnixStreamSocket_shutdown_write(LT_UnixStreamSocket* socket);
 
-LT_UnixServerSocket* LT_UnixServerSocket_listen(const char* path,
-                                                int backlog);
+LT_UnixServerSocket* LT_UnixServerSocket_new(const char* path, int backlog);
 LT_UnixStreamSocket* LT_UnixServerSocket_accept(
     LT_UnixServerSocket* socket
 );
