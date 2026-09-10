@@ -114,9 +114,7 @@ static int resolve_socket(const char* host,
     int zero = 0;
     const char* resolved_host = host;
 
-    if (do_listen && host != NULL && strcmp(host, "*") == 0){
-        resolved_host = NULL;
-    }
+    if (passive && host != NULL && strcmp(host, "*") == 0){
 
     snprintf(service, sizeof(service), "%u", (unsigned)port);
     hints.ai_family = AF_UNSPEC;
