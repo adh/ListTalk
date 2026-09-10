@@ -266,6 +266,7 @@ networking_lib = library(
         'ListTalkNetworking',
         [
                 'src/networking/Socket.c',
+                'src/networking/IPSocket.c',
                 'src/networking/SocketBuffer.c',
                 'src/networking/UnixSocket.c',
         ],
