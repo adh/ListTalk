@@ -20,5 +20,6 @@ size_t LT_socket_buffered_read(int fd,
 LT_Value LT_socket_buffered_read_line(int fd,
                                       LT_SocketReadBuffer* buffer,
                                       const char* error_message);
+void LT_socket_interrupted(void);
 
 #endif

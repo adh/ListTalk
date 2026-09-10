@@ -109,7 +109,7 @@ LT_DEFINE_PRIMITIVE_RESTART(
     LT_throw(unbound_symbol_define_variable_tag(), value);
 }
 
-static void check_pending_signal(void){
+void LT_check_pending_signal(void){
     LT_ThreadState* state = LT__thread_state;
     LT_Value signal;
 
@@ -919,7 +919,7 @@ static LT_Value eval_form(LT_Value expression,
                           LT_TailCallUnwindMarker* tail_call_unwind_marker){
     LT_StackFrame stack_frame;
 
-    check_pending_signal();
+    LT_check_pending_signal();
 
     stack_frame.type = LT_STACK_FRAME_TYPE_EVAL;
     stack_frame.arguments.eval.expression = expression;

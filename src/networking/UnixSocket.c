@@ -69,7 +69,7 @@ void LT_UnixSocket_close(LT_UnixSocket* socket){
     }
     fd = socket->fd;
     socket->fd = -1;
-    if (close(fd) != 0){
+    if (close(fd) != 0 && errno != EINTR){
         LT_system_error("Socket close failed", errno);
     }
 }
@@ -160,16 +160,23 @@ size_t LT_UnixDatagramSocket_send(LT_UnixDatagramSocket* socket,
                                   LT_ByteVector* bytes){
     ssize_t count;
 
-    do {
+    while (1){
         count = send(
             unix_socket_fd((LT_UnixSocket*)socket),
             LT_ByteVector_bytes(bytes),
             LT_ByteVector_length(bytes),
             0
         );
-    } while (count < 0 && errno == EINTR);
+        if (count >= 0 || errno != EINTR){
+            break;
+        }
+        LT_socket_interrupted();
+    }
     if (count < 0){
         LT_system_error("Unix datagram send failed", errno);
+    }
+    if ((size_t)count != LT_ByteVector_length(bytes)){
+        LT_error("Unix datagram send was incomplete");
     }
     return (size_t)count;
 }
@@ -183,14 +190,18 @@ LT_ByteVector* LT_UnixDatagramSocket_receive(
     );
     ssize_t count;
 
-    do {
+    while (1){
         count = recv(
             unix_socket_fd((LT_UnixSocket*)socket),
             bytes,
             maximum_length,
             0
         );
-    } while (count < 0 && errno == EINTR);
+        if (count >= 0 || errno != EINTR){
+            break;
+        }
+        LT_socket_interrupted();
+    }
     if (count < 0){
         LT_system_error("Unix datagram receive failed", errno);
     }
@@ -213,8 +224,11 @@ void LT_UnixStreamSocket_pair(LT_UnixStreamSocket** first,
                               LT_UnixStreamSocket** second){
     int descriptors[2];
 
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors) != 0){
-        LT_system_error("Could not create Unix socket pair", errno);
+    while (socketpair(AF_UNIX, SOCK_STREAM, 0, descriptors) != 0){
+        if (errno != EINTR){
+            LT_system_error("Could not create Unix socket pair", errno);
+        }
+        LT_socket_interrupted();
     }
     *first = unix_stream_from_fd(descriptors[0]);
     *second = unix_stream_from_fd(descriptors[1]);
@@ -263,6 +277,7 @@ void LT_UnixStreamSocket_write(LT_UnixStreamSocket* socket,
         );
 #endif
         if (count < 0 && errno == EINTR){
+            LT_socket_interrupted();
             continue;
         }
         if (count <= 0){
@@ -300,9 +315,13 @@ LT_UnixStreamSocket* LT_UnixServerSocket_accept(
 ){
     int fd;
 
-    do {
+    while (1){
         fd = accept(unix_socket_fd((LT_UnixSocket*)socket), NULL, NULL);
-    } while (fd < 0 && errno == EINTR);
+        if (fd >= 0 || errno != EINTR){
+            break;
+        }
+        LT_socket_interrupted();
+    }
     if (fd < 0){
         LT_system_error("Unix socket accept failed", errno);
     }

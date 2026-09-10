@@ -6,9 +6,28 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <pthread.h>
+#include <time.h>
 #include <unistd.h>
 
 static int failures;
+
+typedef struct ShortWriteArguments {
+    LT_UnixStreamSocket* socket;
+} ShortWriteArguments;
+
+static void* short_write(void* data){
+    ShortWriteArguments* arguments = data;
+    struct timespec delay = {
+        .tv_sec = 0,
+        .tv_nsec = 10000000,
+    };
+
+    LT_UnixStreamSocket_write(arguments->socket, "12", 2);
+    nanosleep(&delay, NULL);
+    LT_UnixStreamSocket_write(arguments->socket, "34", 2);
+    return NULL;
+}
 
 static void check(int condition, const char* message){
     if (!condition){
@@ -46,6 +65,9 @@ int main(void){
     socklen_t option_length;
     struct sockaddr_storage wildcard_address;
     socklen_t wildcard_address_length;
+    ShortWriteArguments short_write_arguments;
+    pthread_t writer;
+    int writer_created;
 
     LT_INIT();
     wildcard_server = LT_TCPServerSocket_new("*", 0, SOMAXCONN);
@@ -170,6 +192,22 @@ int main(void){
             && !memcmp(reply, "bc", 2),
         "Unix stream read consumes readLine buffered bytes"
     );
+    short_write_arguments.socket = unix_first;
+    writer_created = pthread_create(
+        &writer,
+        NULL,
+        short_write,
+        &short_write_arguments
+    ) == 0;
+    check(writer_created, "create short-write thread");
+    if (writer_created){
+        check(
+            LT_UnixStreamSocket_read(unix_second, reply, 4) == 4
+                && !memcmp(reply, "1234", 4),
+            "high-level read shields caller from short reads"
+        );
+        pthread_join(writer, NULL);
+    }
     check(
         LT_Value_is_instance_of(
             (LT_Value)(uintptr_t)unix_first,

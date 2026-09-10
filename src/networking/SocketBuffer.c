@@ -3,6 +3,7 @@
 
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/vm/error.h>
+#include <ListTalk/vm/eval.h>
 
 #include <errno.h>
 #include <string.h>
@@ -27,13 +28,21 @@ static ssize_t socket_receive(int fd,
                               const char* error_message){
     ssize_t count;
 
-    do {
+    while (1){
         count = recv(fd, destination, length, 0);
-    } while (count < 0 && errno == EINTR);
+        if (count >= 0 || errno != EINTR){
+            break;
+        }
+        LT_socket_interrupted();
+    }
     if (count < 0){
         LT_system_error(error_message, errno);
     }
     return count;
+}
+
+void LT_socket_interrupted(void){
+    LT_check_pending_signal();
 }
 
 static int fill_buffer(int fd,
@@ -61,24 +70,35 @@ size_t LT_socket_buffered_read(int fd,
                                void* destination,
                                size_t length,
                                const char* error_message){
-    size_t available = buffered_length(buffer);
-    size_t count;
+    uint8_t* output = destination;
+    size_t total = 0;
 
-    if (length == 0){
-        return 0;
+    while (total < length){
+        size_t available = buffered_length(buffer);
+
+        if (available > 0){
+            size_t count = available < length - total
+                ? available
+                : length - total;
+
+            memcpy(output + total, buffer->bytes + buffer->start, count);
+            buffer->start += count;
+            total += count;
+        } else {
+            ssize_t count = socket_receive(
+                fd,
+                output + total,
+                length - total,
+                error_message
+            );
+
+            if (count == 0){
+                break;
+            }
+            total += (size_t)count;
+        }
     }
-    if (available == 0){
-        return (size_t)socket_receive(
-            fd,
-            destination,
-            length,
-            error_message
-        );
-    }
-    count = available < length ? available : length;
-    memcpy(destination, buffer->bytes + buffer->start, count);
-    buffer->start += count;
-    return count;
+    return total;
 }
 
 static void append_bytes(uint8_t** result,

@@ -65,7 +65,7 @@ void LT_IPSocket_close(LT_IPSocket* socket){
     }
     fd = socket->fd;
     socket->fd = -1;
-    if (close(fd) != 0){
+    if (close(fd) != 0 && errno != EINTR){
         LT_system_error("Socket close failed", errno);
     }
 }
@@ -211,16 +211,23 @@ LT_UDPSocket* LT_UDPSocket_connect(const char* host, uint16_t port){
 size_t LT_UDPSocket_send(LT_UDPSocket* socket, LT_ByteVector* bytes){
     ssize_t n;
 
-    do {
+    while (1){
         n = send(
             socket_fd((LT_IPSocket*)socket),
             LT_ByteVector_bytes(bytes),
             LT_ByteVector_length(bytes),
             0
         );
-    } while (n < 0 && errno == EINTR);
+        if (n >= 0 || errno != EINTR){
+            break;
+        }
+        LT_socket_interrupted();
+    }
     if (n < 0){
         LT_system_error("Datagram send failed", errno);
+    }
+    if ((size_t)n != LT_ByteVector_length(bytes)){
+        LT_error("Datagram send was incomplete");
     }
     return (size_t)n;
 }
@@ -228,14 +235,18 @@ LT_ByteVector* LT_UDPSocket_receive(LT_UDPSocket* socket,
                                     size_t maximum_length){
     uint8_t* bytes = GC_MALLOC_ATOMIC(maximum_length ? maximum_length : 1);
     ssize_t n;
-    do {
+    while (1){
         n = recv(
             socket_fd((LT_IPSocket*)socket),
             bytes,
             maximum_length,
             0
         );
-    } while (n < 0 && errno == EINTR);
+        if (n >= 0 || errno != EINTR){
+            break;
+        }
+        LT_socket_interrupted();
+    }
     if (n < 0){
         LT_system_error("Datagram receive failed", errno);
     }
@@ -301,6 +312,7 @@ void LT_TCPSocket_write(LT_TCPSocket* socket,
         );
 #endif
         if (n < 0 && errno == EINTR){
+            LT_socket_interrupted();
             continue;
         }
         if (n <= 0){
@@ -334,9 +346,13 @@ LT_TCPServerSocket* LT_TCPServerSocket_new(const char* host,
 LT_TCPSocket* LT_TCPServerSocket_accept(LT_TCPServerSocket* socket){
     int fd;
 
-    do {
+    while (1){
         fd = accept(socket_fd((LT_IPSocket*)socket), NULL, NULL);
-    } while (fd < 0 && errno == EINTR);
+        if (fd >= 0 || errno != EINTR){
+            break;
+        }
+        LT_socket_interrupted();
+    }
     if (fd < 0){
         LT_system_error("Socket accept failed", errno);
     }
