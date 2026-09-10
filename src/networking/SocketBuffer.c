@@ -31,7 +31,7 @@ static ssize_t socket_receive(int fd,
         count = recv(fd, destination, length, 0);
     } while (count < 0 && errno == EINTR);
     if (count < 0){
-        LT_system_error((char*)error_message, errno);
+        LT_system_error(error_message, errno);
     }
     return count;
 }
