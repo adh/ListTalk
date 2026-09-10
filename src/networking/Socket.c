@@ -171,10 +171,37 @@ static int resolve_socket(const char* host,
             fd = -1;
             continue;
         }
-        result = passive
-            ? bind(fd, address->ai_addr, address->ai_addrlen)
-            : connect(fd, address->ai_addr, address->ai_addrlen);
-        if (result == 0 && (!do_listen || listen(fd, backlog) == 0)){
+        int ready = 0;
+
+        while (1){
+            result = passive
+                ? bind(fd, address->ai_addr, address->ai_addrlen)
+                : connect(fd, address->ai_addr, address->ai_addrlen);
+            if (result == 0){
+                ready = 1;
+                break;
+            }
+            if (errno == EINTR){
+                LT_socket_interrupted();
+                continue;
+            }
+            break;
+        }
+        if (ready && do_listen){
+            ready = 0;
+            while (1){
+                if (listen(fd, backlog) == 0){
+                    ready = 1;
+                    break;
+                }
+                if (errno == EINTR){
+                    LT_socket_interrupted();
+                    continue;
+                }
+                break;
+            }
+        }
+        if (ready){
             break;
         }
         saved_errno = errno;
