@@ -15,6 +15,9 @@ LT__BEGIN_DECLS
 
 typedef struct LT_TailCallUnwindMarker_s LT_TailCallUnwindMarker;
 
+/* Run and clear the current thread's pending ListTalk signal, if any. */
+extern void LT_check_pending_signal(void);
+
 extern LT_Value LT_eval(
     LT_Value expression,
     LT_Environment* environment,
