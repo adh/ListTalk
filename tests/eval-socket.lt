@@ -19,6 +19,11 @@
 [first write: (bytevector 1 2 3)]
 (check (equal? [second read: 3] (bytevector 1 2 3))
        "Unix stream socket pair transports bytes")
+[first write: (bytevector 4 10 5 6)]
+(check (equal? [second readLine] (bytevector 4 10))
+       "readLine includes its line-feed delimiter")
+(check (equal? [second read: 2] (bytevector 5 6))
+       "ordinary reads consume bytes buffered by readLine")
 [first close]
 [second close]
 

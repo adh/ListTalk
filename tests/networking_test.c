@@ -39,6 +39,7 @@ int main(void){
     LT_UnixStreamSocket *unix_first, *unix_second;
     LT_UnixServerSocket* unix_server;
     LT_ByteVector *message, *received;
+    LT_Value line;
     char reply[4];
     char unix_path[96];
     int option;
@@ -151,6 +152,23 @@ int main(void){
         LT_UnixStreamSocket_read(unix_second, reply, sizeof(reply)) == 4
             && !memcmp(reply, "pair", 4),
         "Unix stream socket pair round trip"
+    );
+    LT_UnixStreamSocket_write(unix_first, "a\nbc", 4);
+    line = LT_UnixStreamSocket_readLine(unix_second);
+    check(
+        LT_ByteVector_p(line)
+            && LT_ByteVector_length(LT_ByteVector_from_value(line)) == 2
+            && !memcmp(
+                LT_ByteVector_bytes(LT_ByteVector_from_value(line)),
+                "a\n",
+                2
+            ),
+        "Unix stream readLine includes the delimiter"
+    );
+    check(
+        LT_UnixStreamSocket_read(unix_second, reply, 2) == 2
+            && !memcmp(reply, "bc", 2),
+        "Unix stream read consumes readLine buffered bytes"
     );
     check(
         LT_Value_is_instance_of(

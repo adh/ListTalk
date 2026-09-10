@@ -8,6 +8,8 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
 
+#include "Socket_internal.h"
+
 #include <errno.h>
 #include <limits.h>
 #include <netdb.h>
@@ -27,6 +29,7 @@ struct LT_UDPSocket_s {
 
 struct LT_TCPSocket_s {
     LT_IPSocket base;
+    LT_SocketReadBuffer read_buffer;
 };
 
 struct LT_TCPServerSocket_s {
@@ -245,27 +248,35 @@ LT_TCPSocket* LT_TCPSocket_connect(const char* host, uint16_t port){
         (LT_IPSocket*)result,
         resolve_socket(host, port, SOCK_STREAM, 0, 0, 0)
     );
+    LT_socket_read_buffer_init(&result->read_buffer);
     return result;
 }
 static LT_TCPSocket* stream_from_fd(int fd){
     LT_TCPSocket* result = LT_Class_ALLOC(LT_TCPSocket);
 
     set_fd((LT_IPSocket*)result, fd);
+    LT_socket_read_buffer_init(&result->read_buffer);
     return result;
 }
 
 size_t LT_TCPSocket_read(LT_TCPSocket* socket,
                          void* buffer,
                          size_t length){
-    ssize_t n;
+    return LT_socket_buffered_read(
+        socket_fd((LT_IPSocket*)socket),
+        &socket->read_buffer,
+        buffer,
+        length,
+        "Socket read failed"
+    );
+}
 
-    do {
-        n = recv(socket_fd((LT_IPSocket*)socket), buffer, length, 0);
-    } while (n < 0 && errno == EINTR);
-    if (n < 0){
-        LT_system_error("Socket read failed", errno);
-    }
-    return (size_t)n;
+LT_Value LT_TCPSocket_readLine(LT_TCPSocket* socket){
+    return LT_socket_buffered_read_line(
+        socket_fd((LT_IPSocket*)socket),
+        &socket->read_buffer,
+        "Socket read failed"
+    );
 }
 void LT_TCPSocket_write(LT_TCPSocket* socket,
                         const void* buffer,
@@ -552,6 +563,26 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    stream_read_line,
+    "TCPSocket>>readLine",
+    "(self)",
+    "Read through a line feed and include it in the returned bytevector."
+){
+    LT_Value cursor = arguments;
+    LT_TCPSocket* self;
+
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(
+        cursor,
+        self,
+        LT_TCPSocket*,
+        LT_TCPSocket_from_value
+    );
+    LT_ARG_END(cursor);
+    return LT_TCPSocket_readLine(self);
+}
+
+LT_DEFINE_PRIMITIVE(
     stream_shutdown,
     "TCPSocket>>shutdownWrite",
     "(self)",
@@ -671,6 +702,7 @@ static LT_Method_Descriptor datagram_class_methods[] = {
 
 static LT_Method_Descriptor stream_methods[] = {
     {"read:", &stream_read},
+    {"readLine", &stream_read_line},
     {"write:", &stream_write},
     {"shutdownWrite", &stream_shutdown},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR

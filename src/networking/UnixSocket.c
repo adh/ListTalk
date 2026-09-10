@@ -7,6 +7,8 @@
 #include <ListTalk/macros/arg_macros.h>
 #include <ListTalk/vm/error.h>
 
+#include "Socket_internal.h"
+
 #include <errno.h>
 #include <limits.h>
 #include <stddef.h>
@@ -26,6 +28,7 @@ struct LT_UnixDatagramSocket_s {
 
 struct LT_UnixStreamSocket_s {
     LT_UnixSocket base;
+    LT_SocketReadBuffer read_buffer;
 };
 
 struct LT_UnixServerSocket_s {
@@ -198,6 +201,7 @@ static LT_UnixStreamSocket* unix_stream_from_fd(int fd){
     LT_UnixStreamSocket* result = LT_Class_ALLOC(LT_UnixStreamSocket);
 
     unix_socket_set_fd((LT_UnixSocket*)result, fd);
+    LT_socket_read_buffer_init(&result->read_buffer);
     return result;
 }
 
@@ -219,20 +223,21 @@ void LT_UnixStreamSocket_pair(LT_UnixStreamSocket** first,
 size_t LT_UnixStreamSocket_read(LT_UnixStreamSocket* socket,
                                 void* buffer,
                                 size_t length){
-    ssize_t count;
+    return LT_socket_buffered_read(
+        unix_socket_fd((LT_UnixSocket*)socket),
+        &socket->read_buffer,
+        buffer,
+        length,
+        "Unix socket read failed"
+    );
+}
 
-    do {
-        count = recv(
-            unix_socket_fd((LT_UnixSocket*)socket),
-            buffer,
-            length,
-            0
-        );
-    } while (count < 0 && errno == EINTR);
-    if (count < 0){
-        LT_system_error("Unix socket read failed", errno);
-    }
-    return (size_t)count;
+LT_Value LT_UnixStreamSocket_readLine(LT_UnixStreamSocket* socket){
+    return LT_socket_buffered_read_line(
+        unix_socket_fd((LT_UnixSocket*)socket),
+        &socket->read_buffer,
+        "Unix socket read failed"
+    );
 }
 
 void LT_UnixStreamSocket_write(LT_UnixStreamSocket* socket,
@@ -511,6 +516,26 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    unix_stream_read_line,
+    "UnixStreamSocket>>readLine",
+    "(self)",
+    "Read through a line feed and include it in the returned bytevector."
+){
+    LT_Value cursor = arguments;
+    LT_UnixStreamSocket* self;
+
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(
+        cursor,
+        self,
+        LT_UnixStreamSocket*,
+        LT_UnixStreamSocket_from_value
+    );
+    LT_ARG_END(cursor);
+    return LT_UnixStreamSocket_readLine(self);
+}
+
+LT_DEFINE_PRIMITIVE(
     unix_stream_shutdown,
     "UnixStreamSocket>>shutdownWrite",
     "(self)",
@@ -624,6 +649,7 @@ static LT_Method_Descriptor unix_datagram_class_methods[] = {
 
 static LT_Method_Descriptor unix_stream_methods[] = {
     {"read:", &unix_stream_read},
+    {"readLine", &unix_stream_read_line},
     {"write:", &unix_stream_write},
     {"shutdownWrite", &unix_stream_shutdown},
     LT_NULL_NATIVE_CLASS_METHOD_DESCRIPTOR
