@@ -267,6 +267,7 @@ networking_lib = library(
         [
                 'src/networking/Socket.c',
                 'src/networking/IPSocket.c',
+                'src/networking/HTTP.c',
                 'src/networking/SocketBuffer.c',
                 'src/networking/UnixSocket.c',
         ],
@@ -351,6 +352,17 @@ ini_module = shared_module(
 socket_module = shared_module(
         'socket',
         'src/modules/socket.c',
+        name_prefix : '',
+        name_suffix : 'ltm',
+        link_with : [vm_lib, networking_lib],
+        dependencies : listtalk_deps,
+        install : true,
+        install_dir : listtalk_native_module_dir
+)
+
+httpd_module = shared_module(
+        'httpd',
+        'src/modules/httpd.c',
         name_prefix : '',
         name_suffix : 'ltm',
         link_with : [vm_lib, networking_lib],
@@ -593,6 +605,16 @@ test(
                 meson.current_source_dir() / 'tests' / 'eval-socket.lt'
         ],
         depends : [socket_module]
+)
+
+test(
+        'eval_httpd',
+        listtalk_exe,
+        args : [
+                '-L', meson.current_build_dir(),
+                meson.current_source_dir() / 'tests' / 'eval-httpd.lt'
+        ],
+        depends : [httpd_module]
 )
 
 if md4c_dep.found() and md4c_html_dep.found()
