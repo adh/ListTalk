@@ -745,6 +745,43 @@ LT_Value LT_HTTPServer_handle(LT_HTTPServer* server, LT_Value handler){
     return result;
 }
 
+struct HTTPConnectionContext {
+    LT_TCPSocket* socket;
+    LT_Value handler;
+};
+
+static LT_Value http_connection_worker(void* opaque){
+    struct HTTPConnectionContext* context = opaque;
+    LT_Value result;
+    LT_HTTPRequest* request;
+
+    request = LT_HTTPRequest_read(context->socket);
+    result = LT_apply(
+        context->handler,
+        LT_cons((LT_Value)(uintptr_t)request, LT_NIL),
+        LT_NIL, LT_NIL, NULL
+    );
+    LT_HTTPRequest_respond_with(request, result);
+    return result;
+}
+
+static void LT_HTTPServer_dispatch(LT_HTTPServer* server, LT_Value handler){
+    struct HTTPConnectionContext* context = GC_NEW(
+        struct HTTPConnectionContext
+    );
+    LT_Thread* thread;
+
+    context->socket = LT_TCPServerSocket_accept(server->socket);
+    context->handler = handler;
+    thread = LT_Thread_basicNew(
+        http_connection_worker,
+        context,
+        "http-connection"
+    );
+
+    LT_Thread_makeDetached(thread);
+}
+
 void LT_HTTPServer_close(LT_HTTPServer* server){
     LT_IPSocket_close((LT_IPSocket*)server->socket);
 }
@@ -974,7 +1011,7 @@ LT_DEFINE_PRIMITIVE(
     server_serve,
     "HTTPServer>>serve:",
     "(self handler)",
-    "Handle requests until the server is closed or an error is signaled."
+    "Accept connections and handle each in a detached thread."
 ){
     LT_Value cursor = arguments;
     LT_Value handler;
@@ -985,7 +1022,7 @@ LT_DEFINE_PRIMITIVE(
     LT_OBJECT_ARG(cursor, handler);
     LT_ARG_END(cursor);
     for (;;){
-        (void)LT_HTTPServer_handle(self, handler);
+        LT_HTTPServer_dispatch(self, handler);
     }
     return LT_NIL;
 }
@@ -1350,7 +1387,7 @@ LT_DEFINE_CLASS(LT_HTTPServer) {
     .metaclass_superclass = &LT_Class_class,
     .package = "ListTalk:HTTPD",
     .name = "Server",
-    .documentation = "A synchronous HTTP server.",
+    .documentation = "An HTTP server with a thread per served connection.",
     .instance_size = sizeof(LT_HTTPServer),
     .class_flags = LT_CLASS_FLAG_FINAL,
     .methods = server_methods,
