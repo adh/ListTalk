@@ -233,7 +233,7 @@ int main(void){
     LT_TCPSocket_write(
         client,
         "POST /items HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4\r\n\r\ndata",
-        75
+        sizeof("POST /items HTTP/1.1\r\nHost: example.test\r\nContent-Length: 4\r\n\r\ndata") - 1
     );
     request = LT_HTTPRequest_read(peer);
     check(
