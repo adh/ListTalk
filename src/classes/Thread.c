@@ -37,7 +37,8 @@ struct LT_Thread_s {
     LT_MutexWord state_lock;
     LT_CondWord state_cond;
     LT_ThreadState* thread_state;
-    LT_Value callable;
+    LT_Thread_Callback callback;
+    void* context;
     LT_Value result;
     char* name;
     bool finished : 1;
@@ -307,7 +308,7 @@ static void* thread_main(void* opaque){
 
     state->current_thread = thread;
     set_current_native_thread_name(thread->name);
-    result = LT_apply(thread->callable, LT_NIL, LT_NIL, LT_NIL, NULL);
+    result = thread->callback(thread->context);
 
     LT_MutexWord_lock(&thread->state_lock);
     thread->result = result;
@@ -318,14 +319,20 @@ static void* thread_main(void* opaque){
     return NULL;
 }
 
-LT_Thread* LT_Thread_new(LT_Value callable, char* name){
+LT_Thread* LT_Thread_basicNew(LT_Thread_Callback callback,
+                              void* context,
+                              char* name){
     LT_Thread* thread = LT_Class_ALLOC(LT_Thread);
     int errnum;
 
+    if (callback == NULL){
+        LT_error("Thread callback must not be NULL");
+    }
     LT_MutexWord_init(&thread->state_lock);
     LT_CondWord_init(&thread->state_cond);
     thread->thread_state = NULL;
-    thread->callable = callable;
+    thread->callback = callback;
+    thread->context = context;
     thread->result = LT_NIL;
     thread->name = name != NULL ? LT_strdup(name) : NULL;
     thread->finished = 0;
@@ -342,6 +349,32 @@ LT_Thread* LT_Thread_new(LT_Value callable, char* name){
     return thread;
 }
 
+struct ThreadCallableContext {
+    LT_Value callable;
+};
+
+static LT_Value apply_thread_callable(void* opaque){
+    struct ThreadCallableContext* context = opaque;
+
+    return LT_apply(
+        context->callable,
+        LT_NIL, LT_NIL, LT_NIL, NULL
+    );
+}
+
+LT_Thread* LT_Thread_new(LT_Value callable, char* name){
+    struct ThreadCallableContext* context = GC_NEW(
+        struct ThreadCallableContext
+    );
+
+    context->callable = callable;
+    return LT_Thread_basicNew(
+        apply_thread_callable,
+        context,
+        name
+    );
+}
+
 
 LT_Thread* LT_Thread_current(void){
     LT_ThreadState* state = LT_thread_state();
@@ -352,7 +385,8 @@ LT_Thread* LT_Thread_current(void){
         LT_MutexWord_init(&state->current_thread->state_lock);
         LT_CondWord_init(&state->current_thread->state_cond);
         state->current_thread->thread_state = state;
-        state->current_thread->callable = LT_NIL;
+        state->current_thread->callback = NULL;
+        state->current_thread->context = NULL;
         state->current_thread->result = LT_NIL;
         state->current_thread->name = NULL;
         state->current_thread->finished = 1;

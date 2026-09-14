@@ -15,6 +15,11 @@ LT__BEGIN_DECLS
 
 LT_DECLARE_CLASS(LT_Thread);
 
+typedef LT_Value (*LT_Thread_Callback)(void* context);
+
+LT_Thread* LT_Thread_basicNew(LT_Thread_Callback callback,
+                              void* context,
+                              char* name);
 LT_Thread* LT_Thread_new(LT_Value callable, char* name);
 LT_Thread* LT_Thread_current(void);
 

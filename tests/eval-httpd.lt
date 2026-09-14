@@ -1,0 +1,18 @@
+;;;;; -*- mode: scheme -*-
+; SPDX-License-Identifier: MIT
+
+(require :httpd)
+
+(define (check condition description)
+  (if condition #true (error (string-append "FAIL: " description))))
+
+(check ListTalk:HTTPD:Server "httpd exports Server")
+(check ListTalk:HTTPD:Request "httpd exports Request")
+(check ListTalk:HTTPD:StreamingResponse
+       "httpd exports StreamingResponse")
+
+(define response [ListTalk:HTTPD:Response new: 201 body: "created"])
+(check (= [response status] 201) "Response retains its status")
+(check (equal? [response body] "created") "Response retains its body")
+(check (= [[response headers] size] 0)
+       "Response defaults to empty headers")
