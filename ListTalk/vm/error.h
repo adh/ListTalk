@@ -29,6 +29,10 @@ void _Noreturn LT_error_impl(const char* message, ...);
 void LT_cerror_impl(const char* message, ...);
 #define LT_cerror(...) LT_cerror_impl(__VA_ARGS__, NULL)
 
+/** Signal an error condition, invoke the debugger if it is unhandled, then
+ *  report the condition and terminate. */
+void _Noreturn LT_signal_error(LT_Value condition);
+
 void _Noreturn LT_system_error(const char* message, int errnum);
 void _Noreturn LT_subclass_responsibility_error(void);
 void _Noreturn LT_type_error(LT_Value value, LT_Class* expected_class);

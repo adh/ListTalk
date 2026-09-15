@@ -7,7 +7,6 @@
 #include <ListTalk/classes/Restart.h>
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/macros/arg_macros.h>
-#include <ListTalk/utils.h>
 #include <ListTalk/vm/error.h>
 #include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/stack_trace.h>
@@ -16,7 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <string.h>
 #include <unistd.h>
 
 static LT_Value cerror_continue_tag(void){
@@ -45,6 +43,21 @@ void LT_print_backtrace(FILE* stream){
     LT_stack_trace_print(stream);
 }
 
+void _Noreturn LT_signal_error(LT_Value condition){
+    LT_signal(condition);
+    LT_invoke_debugger(condition);
+
+    fputs("Unrecoverable error: ", stderr);
+    LT_Value_debugPrintOn(condition, stderr);
+    fputc('\n', stderr);
+    LT_print_backtrace(stderr);
+#ifdef __APPLE__
+    _exit(1); /* Use _exit on macOS to avoid Crash Reporter */
+#else
+    abort();
+#endif
+}
+
 void _Noreturn LT_error_impl(const char* message, ...) {
     LT_Value condition;
     va_list args;
@@ -52,15 +65,7 @@ void _Noreturn LT_error_impl(const char* message, ...) {
     va_start(args, message);
     condition = LT_Condition_vnew(&LT_Error_class, message, args);
     va_end(args);
-    LT_signal(condition);
-    LT_invoke_debugger(condition);
-    fprintf(stderr, "Unrecoverable error: %s\n", message);
-    LT_print_backtrace(stderr);
-#ifdef __APPLE__
-    _exit(1); /* Use _exit on macOS to avoid Crash Reporter */
-#else
-    abort();
-#endif
+    LT_signal_error(condition);
 }
 
 void LT_cerror_impl(const char* message, ...){
@@ -74,15 +79,7 @@ void LT_cerror_impl(const char* message, ...){
 
     LT_CATCH(cerror_continue_tag(), continued, {
         LT_RESTART_BIND(LT_Restart_from_static(&cerror_continue_restart), {
-            LT_signal(condition);
-            LT_invoke_debugger(condition);
-            fprintf(stderr, "Unrecoverable error: %s\n", message);
-            LT_print_backtrace(stderr);
-#ifdef __APPLE__
-            _exit(1); /* Use _exit on macOS to avoid Crash Reporter */
-#else
-            abort();
-#endif
+            LT_signal_error(condition);
         });
     });
     (void)continued;
@@ -91,35 +88,14 @@ void LT_cerror_impl(const char* message, ...){
 void _Noreturn LT_system_error(const char* message, int errnum){
     LT_Value condition = LT_SystemError_new(message, errnum, LT_NIL);
 
-    LT_signal(condition);
-    LT_invoke_debugger(condition);
-    fprintf(
-        stderr,
-        "Unrecoverable system error: %s: %s\n",
-        message,
-        LT_strerror(errnum)
-    );
-    LT_print_backtrace(stderr);
-#ifdef __APPLE__
-    _exit(1);
-#else
-    abort();
-#endif
+    LT_signal_error(condition);
 }
 
 void _Noreturn LT_subclass_responsibility_error(void){
     static const char* message = "Subclass responsibility";
     LT_Value condition = LT_SubclassResponsibilityError(message);
 
-    LT_signal(condition);
-    LT_invoke_debugger(condition);
-    fprintf(stderr, "Unrecoverable subclass responsibility error: %s\n", message);
-    LT_print_backtrace(stderr);
-#ifdef __APPLE__
-    _exit(1);
-#else
-    abort();
-#endif
+    LT_signal_error(condition);
 }
 
 void LT_type_error(LT_Value value, LT_Class* expected_class){
