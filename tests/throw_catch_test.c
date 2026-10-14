@@ -84,7 +84,7 @@ static int test_unwind_protect_runs_cleanup_on_normal_completion(void){
 static int test_unwind_protect_runs_cleanup_and_rethrows(void){
     LT_Value tag = LT_Symbol_new("tag-up");
     LT_Value caught = LT_FALSE;
-    int cleanup_runs = 0;
+    volatile int cleanup_runs = 0;
 
     LT_CATCH(tag, caught, {
         LT_UNWIND_PROTECT(
