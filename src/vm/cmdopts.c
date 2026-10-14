@@ -235,6 +235,8 @@ static void parse_long_option(LT_CmdOpts* parser,
     char* argument = NULL;
     LT_CmdOptsOption* option;
 
+    (void)state;
+
     if (delimiter != NULL){
         size_t name_length = (size_t)(delimiter - name);
         char* name_copy = GC_MALLOC_ATOMIC(name_length + 1);
@@ -269,6 +271,8 @@ static void parse_short_options(LT_CmdOpts* parser,
                                 ParserSource* source,
                                 char* value){
     char* cursor = value + 1;
+
+    (void)state;
 
     while (*cursor != '\0'){
         LT_CmdOptsOption* option = find_short_option(parser, *cursor);

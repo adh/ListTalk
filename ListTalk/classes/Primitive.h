@@ -33,11 +33,12 @@ struct LT_Primitive_s {
 
 #define LT_PRIMITIVE_IMPL_NAME(primitive_object_name) primitive_object_name##_impl
 
+/* Primitive implementations may omit invocation context and tail-call handling. */
 #define LT_PRIMITIVE_HEAD(primitive_object_name) \
     static LT_Value LT_PRIMITIVE_IMPL_NAME(primitive_object_name)(LT_Value arguments, \
-                                                                  LT_Value invocation_context_kind, \
-                                                                  LT_Value invocation_context_data, \
-                                                                  LT_TailCallUnwindMarker* tail_call_unwind_marker)
+                                                                  LT_Value invocation_context_kind __attribute__((unused)), \
+                                                                  LT_Value invocation_context_data __attribute__((unused)), \
+                                                                  LT_TailCallUnwindMarker* tail_call_unwind_marker __attribute__((unused)))
 
 #define LT_DECLARE_PRIMITIVE(primitive_object_name, primitive_name, primitive_arguments, primitive_description) \
     LT_DECLARE_PRIMITIVE_FLAGS( \
