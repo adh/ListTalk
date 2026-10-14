@@ -4444,6 +4444,45 @@ struct thread_join_test_args {
     int failed;
 };
 
+struct basic_thread_context {
+    int value;
+    pthread_t thread;
+};
+
+static LT_Value basic_thread_callback(void* opaque){
+    struct basic_thread_context* context = opaque;
+
+    context->thread = pthread_self();
+    return LT_SmallInteger_new(context->value);
+}
+
+static int test_thread_basic_new_runs_callback_with_context(void){
+    struct basic_thread_context context = {
+        .value = 4321,
+    };
+    LT_Thread* thread = LT_Thread_basicNew(
+        basic_thread_callback,
+        &context,
+        "basic-c-api-thread"
+    );
+    LT_Value result = LT_Thread_join(thread);
+    int failed = 0;
+
+    failed += expect(
+        strcmp(LT_Thread_name(thread), "basic-c-api-thread") == 0,
+        "LT_Thread_basicNew stores thread name"
+    );
+    failed += expect(
+        !pthread_equal(context.thread, pthread_self()),
+        "LT_Thread_basicNew runs callback in another thread"
+    );
+    failed += expect(
+        LT_Value_is_fixnum(result) && LT_SmallInteger_value(result) == 4321,
+        "LT_Thread_basicNew passes context and returns callback result"
+    );
+    return failed;
+}
+
 static struct blocking_thread_callable_state* blocking_thread_callable_state;
 
 static LT_Value primitive_blocking_thread_callable_impl(
@@ -4775,6 +4814,7 @@ int main(void){
     RUN_TEST(test_file_stream_c_api_reads_writes_and_borrowed_close);
     RUN_TEST(test_stream_c_api_falls_back_to_send_for_non_file_streams);
     RUN_TEST(test_file_stream_class_constructors);
+    RUN_TEST(test_thread_basic_new_runs_callback_with_context);
     RUN_TEST(test_thread_join_returns_result_to_concurrent_joiners);
     RUN_TEST(test_thread_signal_returns_queue_status);
     RUN_TEST(test_dynamic_variable_c_api_uses_thread_local_values);
