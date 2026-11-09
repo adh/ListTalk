@@ -123,15 +123,58 @@
                   (error "set! unsupported target")))
           (error "set! unsupported target"))))
 
-(ListTalk:define-macro (ListTalk:define-class name superclasses slot-names)
-  "Define a class with superclasses and slot names."
+(ListTalk:define-macro (ListTalk:define-class name superclasses slot-names . options)
+  "Define a class with superclasses, slot names, and optional documentation."
+  (define documentation
+    (cond
+      ((null? options) #nil)
+      ((and (pair? options)
+            (eq? (car options) :documentation)
+            (pair? (cdr options))
+            (null? (cddr options)))
+       (cadr options))
+      (#true
+       (error "define-class expects optional :documentation string"))))
   `(define ,name
      (make-class ',name
                  (list ,@superclasses)
-                 ',slot-names)))
+                 ',slot-names
+                 :documentation ,documentation)))
 
 (ListTalk:define-macro (ListTalk:define-method signature . body)
-  "Define a method on a class for a selector."
+  "Define a single-dispatch method or a method on a generic function."
+  (define (generic-parameter-name parameter)
+    (if (symbol? parameter)
+        parameter
+        (if (and (pair? parameter)
+                 (pair? (cdr parameter))
+                 (null? (cddr parameter))
+                 (symbol? (car parameter)))
+            (car parameter)
+            (error "Generic method parameter expects name or (name class)"))))
+  (define (generic-parameter-specializer parameter)
+    (if (symbol? parameter)
+        'ListTalk:Object
+        (cadr parameter)))
+  (define (generic-expansion generic-signature qualifier method-body)
+    (if (and (pair? generic-signature)
+             (symbol? (car generic-signature)))
+        (let ((generic-name (car generic-signature))
+              (parameters (cdr generic-signature)))
+          `(ListTalk:send
+             ,generic-name
+             :addMethod:
+             (ListTalk:send
+               ListTalk:GenericMethod
+               :newQualifier:specializers:function:
+               ,qualifier
+               (ListTalk:list
+                 ,@(map generic-parameter-specializer parameters))
+               (ListTalk-implementation:%lambda
+                 '(,generic-name ,qualifier)
+                 ,(map generic-parameter-name parameters)
+                 ,@method-body))))
+        (error "Generic define-method expects (name parameter ...) signature")))
   (if (pair? signature)
       (if (eq? (car signature) 'ListTalk:send)
           `[,(cadr signature)
@@ -139,8 +182,41 @@
                                 (ListTalk:self ,@(cdddr signature))
                          ,@body)
             withSelector: ,(caddr signature)]
-          (error "define-method expects [Class selector ...] signature"))
-      (error "define-method expects [Class selector ...] signature")))
+          (if (and (pair? (cdr signature))
+                   (or (eq? (cadr signature) :before)
+                       (eq? (cadr signature) :after)
+                       (eq? (cadr signature) :around)
+                       (eq? (cadr signature) :primary)))
+              (generic-expansion
+                (cons (car signature) (cddr signature))
+                (cadr signature)
+                body)
+              (generic-expansion signature :primary body)))
+      (if (or (eq? signature :before)
+              (eq? signature :after)
+              (eq? signature :around)
+              (eq? signature :primary))
+          (if (pair? body)
+              (generic-expansion (car body) signature (cdr body))
+              (error "Qualified define-method requires a signature"))
+          (error "define-method expects method signature"))))
+
+(ListTalk:define-macro (ListTalk:define-generic signature
+                       :key documentation method-combination)
+  "Define a generic function with optional documentation and method combination."
+  (if (and (pair? signature)
+           (symbol? (car signature))
+           (every symbol? (cdr signature)))
+      `(%define
+         ,(car signature)
+         (ListTalk:send
+           ListTalk:GenericFunction
+           :newNamed:parameters:documentation:methodCombination:
+           ',(car signature)
+           ',(cdr signature)
+           ,documentation
+           ,method-combination))
+      (error "define-generic expects (name parameter ...) signature")))
 
 (ListTalk:define-macro (ListTalk:define-constructor signature . body)
   "Define a class-side constructor and matching instance initializer."
@@ -316,3 +392,238 @@
 (define-macro (ListTalk:define-message-queue name capacity)
   "Define a message queue with the given name."
   `(define ,name [MessageQueue new: ,capacity named:',name]))
+
+;;; Generic functions are ordinary Function instances whose protocol forms the
+;;; metaobject interface.  Only invoking a method needs VM help, to establish
+;;; the invocation context consumed by call-next-method.
+
+(ListTalk:define-class ListTalk:GenericMethod (ListTalk:Object)
+  (qualifier specializers function))
+
+(ListTalk:define-constructor
+  [ListTalk:GenericMethod newQualifier: qualifier
+                          specializers: specializers
+                          function: function]
+  (if (or (eq? qualifier :primary)
+          (eq? qualifier :before)
+          (eq? qualifier :after)
+          (eq? qualifier :around))
+      #true
+      (error "Generic method has invalid qualifier"))
+  (if (every class? specializers)
+      #true
+      (error "Generic method specializers must be classes"))
+  (if (function? function)
+      #true
+      (error "Generic method implementation must be function"))
+  (set! .qualifier qualifier)
+  (set! .specializers specializers)
+  (set! .function function))
+
+(ListTalk:define-method [ListTalk:GenericMethod qualifier]
+  .qualifier)
+
+(ListTalk:define-method [ListTalk:GenericMethod specializers]
+  .specializers)
+
+(ListTalk:define-method [ListTalk:GenericMethod function]
+  .function)
+
+(ListTalk:define-method [ListTalk:GenericMethod documentation]
+  [.function documentation])
+
+(ListTalk:define-method [ListTalk:GenericMethod arguments]
+  [.function arguments])
+
+(ListTalk:define
+  (ListTalk-implementation:%generic-class-position class classes)
+  (let loop ((remaining classes) (position 0))
+    (if (null? remaining)
+        #nil
+        (if (eq? class (car remaining))
+            position
+            (loop (cdr remaining) (+ position 1))))))
+
+(ListTalk:define-method
+  [ListTalk:GenericMethod applicableToArguments: arguments]
+  (if (= (length .specializers) (length arguments))
+      (every
+        (lambda (specializer argument)
+          (memq specializer [(type-of argument) precedenceList]))
+        .specializers
+        arguments)
+      #false))
+
+(ListTalk:define
+  (ListTalk-implementation:%compare-generic-specializers
+    left-specializers right-specializers arguments)
+  (if (null? arguments)
+      0
+      (let ((left-position
+              (ListTalk-implementation:%generic-class-position
+                (car left-specializers)
+                [(type-of (car arguments)) precedenceList]))
+            (right-position
+              (ListTalk-implementation:%generic-class-position
+                (car right-specializers)
+                [(type-of (car arguments)) precedenceList])))
+        (if (< left-position right-position)
+            -1
+            (if (> left-position right-position)
+                1
+                (ListTalk-implementation:%compare-generic-specializers
+                  (cdr left-specializers)
+                  (cdr right-specializers)
+                  (cdr arguments)))))))
+
+(ListTalk:define-method
+  [ListTalk:GenericMethod compareSpecificityWith: other
+                          forArguments: arguments]
+  (ListTalk-implementation:%compare-generic-specializers
+    .specializers
+    [other specializers]
+    arguments))
+
+(ListTalk:define-method
+  [ListTalk:GenericMethod invokeWithArguments: arguments
+                          nextMethod: next-method]
+  (ListTalk-implementation:%apply-generic-method
+    .function arguments next-method))
+
+(ListTalk:define-class ListTalk:GenericFunction (ListTalk:Function)
+  (name parameters documentation methods method-combination))
+
+(ListTalk:define-constructor
+  [ListTalk:GenericFunction newNamed: name
+                            parameters: parameters
+                            documentation: documentation
+                            methodCombination: method-combination]
+  (if (symbol? name)
+      #true
+      (error "Generic function name must be symbol"))
+  (if (every symbol? parameters)
+      #true
+      (error "Generic function parameters must be symbols"))
+  (if (or (null? documentation) (string? documentation))
+      #true
+      (error "Generic function documentation must be string or nil"))
+  (if (or (null? method-combination) (function? method-combination))
+      #true
+      (error "Method combination must be function or nil"))
+  (set! .name name)
+  (set! .parameters parameters)
+  (set! .documentation documentation)
+  (set! .methods '())
+  (set! .method-combination method-combination))
+
+(ListTalk:define-method [ListTalk:GenericFunction name]
+  .name)
+
+(ListTalk:define-method [ListTalk:GenericFunction parameters]
+  .parameters)
+
+(ListTalk:define-method [ListTalk:GenericFunction arguments]
+  .parameters)
+
+(ListTalk:define-method [ListTalk:GenericFunction documentation]
+  .documentation)
+
+(ListTalk:define-method [ListTalk:GenericFunction methods]
+  .methods)
+
+(ListTalk:define-method [ListTalk:GenericFunction methodCombination]
+  .method-combination)
+
+(ListTalk:define-method [ListTalk:GenericFunction addMethod: method]
+  (if (eq? (type-of method) ListTalk:GenericMethod)
+      #true
+      (error "GenericFunction>>addMethod: expects GenericMethod"))
+  (if (= (length [method specializers]) (length .parameters))
+      #true
+      (error "Generic method parameter count does not match generic function"))
+  (set! .methods
+        (cons
+          method
+          [.methods filter:
+            (lambda (existing)
+              (not
+                (and (eq? [existing qualifier] [method qualifier])
+                     (equal? [existing specializers]
+                             [method specializers]))))]))
+  method)
+
+(ListTalk:define-method
+  [ListTalk:GenericFunction computeApplicableMethods: arguments]
+  (if (= (length arguments) (length .parameters))
+      #true
+      (error "Generic function arity mismatch"))
+  [[.methods filter:
+      (lambda (method) [method applicableToArguments: arguments])]
+    sortUsing:
+      (lambda (left right)
+        [left compareSpecificityWith: right forArguments: arguments])])
+
+(ListTalk:define
+  (ListTalk-implementation:%generic-method-chain methods terminal)
+  (if (null? methods)
+      terminal
+      (let ((method (car methods))
+            (next
+              (ListTalk-implementation:%generic-method-chain
+                (cdr methods)
+                terminal)))
+        (lambda arguments
+          [method invokeWithArguments: arguments nextMethod: next]))))
+
+(ListTalk:define
+  (ListTalk-implementation:%standard-method-combination methods)
+  (let ((around
+          [methods filter:
+            (lambda (method) (eq? [method qualifier] :around))])
+        (before
+          [methods filter:
+            (lambda (method) (eq? [method qualifier] :before))])
+        (primary
+          [methods filter:
+            (lambda (method) (eq? [method qualifier] :primary))])
+        (after
+          [methods filter:
+            (lambda (method) (eq? [method qualifier] :after))]))
+    (let ((core
+            (if (null? primary)
+                (lambda arguments
+                  (error "No applicable primary method"))
+                (let ((primary-chain
+                        (ListTalk-implementation:%generic-method-chain
+                          primary
+                          #nil)))
+                  (lambda arguments
+                    (for-each
+                      (lambda (method)
+                        [method invokeWithArguments: arguments
+                                nextMethod: #nil])
+                      before)
+                    (let ((result (apply primary-chain arguments)))
+                      (for-each
+                        (lambda (method)
+                          [method invokeWithArguments: arguments
+                                  nextMethod: #nil])
+                        (reverse after))
+                      result))))))
+      (ListTalk-implementation:%generic-method-chain around core))))
+
+(ListTalk:define-method
+  [ListTalk:GenericFunction computeEffectiveMethod: applicable-methods]
+  (let ((effective-method
+          (if (null? .method-combination)
+              (ListTalk-implementation:%standard-method-combination
+                applicable-methods)
+              (apply .method-combination (list applicable-methods)))))
+    (if (function? effective-method)
+        effective-method
+        (error "Method combination must return a function"))))
+
+(ListTalk:define-method
+  [ListTalk:GenericFunction valueWithArguments: arguments]
+  (let ((applicable [ListTalk:self computeApplicableMethods: arguments]))
+    (apply [ListTalk:self computeEffectiveMethod: applicable] arguments)))

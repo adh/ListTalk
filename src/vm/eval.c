@@ -741,8 +741,19 @@ LT_Value LT_apply(LT_Value callable,
             LT_stack_trace_pop(&stack_frame);
             return result;
         }
+        if (LT_Value_is_instance_of(callable, LT_STATIC_CLASS(LT_Function))){
+            LT_send(
+                callable,
+                LT_Symbol_new_in(
+                    LT_PACKAGE_KEYWORD,
+                    "valueWithArguments:"
+                ),
+                LT_cons(arguments, LT_NIL),
+                &local_tail_call_unwind_marker
+            );
+        }
 
-        LT_error("LT_apply expects primitive or closure callable");
+        LT_error("LT_apply expects a function");
     }
 
     return LT_NIL;

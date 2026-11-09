@@ -283,6 +283,18 @@
 (define-class DefPoint (Object) (x y))
 (let ((inst (make-instance DefPoint)))
   (check (eq? (type-of inst) DefPoint) "define-class wraps make-class and define"))
+(check (null? [DefPoint documentation])
+       "define-class defaults documentation to nil")
+
+(define-class DefDocumentedPoint (Object) (x y)
+  :documentation "A documented point class.")
+(check (equal? [DefDocumentedPoint documentation]
+               "A documented point class.")
+       "define-class accepts :documentation")
+(check-raises "make-class rejects unknown options"
+  (make-class 'DefBadClassOption (list Object) '() :unknown "bad"))
+(check-raises "define-class requires string documentation"
+  (define-class DefBadClassDocumentation (Object) () :documentation 42))
 
 (define-method [Pair first] .car)
 (check (= [(cons 9 8) first] 9) "define-method installs zero-argument method")
@@ -365,6 +377,180 @@
 (define-method [DefChild answer] [ListTalk:super answer])
 (check (= [(make-instance DefChild) answer] 11)
        "send macro rewrites super receiver to super send")
+)
+
+(define-test "generic functions and call-next-method"
+;;; generic functions and call-next-method
+
+(define-class GenericAnimal (Object) ())
+(define-class GenericDog (GenericAnimal) ())
+(define-generic (generic-speak value))
+(define-method (generic-speak value) :object)
+(define-method (generic-speak (value GenericAnimal))
+  (list :animal (call-next-method)))
+(define-method (generic-speak (value GenericDog))
+  (list :dog (call-next-method)))
+
+(check (function? generic-speak)
+       "define-generic creates a callable Function")
+(check (eq? (type-of generic-speak) GenericFunction)
+       "define-generic creates a GenericFunction metaobject")
+(check (string? [generic-speak asString])
+       "GenericFunction instances use normal object printing")
+(check (equal? (generic-speak (make-instance GenericDog))
+               '(:dog (:animal :object)))
+       "generic functions dispatch most-specific first and call next methods")
+(check (= (length [generic-speak methods]) 3)
+       "GenericFunction>>methods exposes generic method metaobjects")
+(check (eq? (type-of (car [generic-speak methods])) GenericMethod)
+       "GenericFunction MOP uses GenericMethod instances")
+
+(define-generic (generic-documented value)
+  :documentation "Documentation for a generic function.")
+(define-method (generic-documented (value GenericAnimal))
+  "Documentation for a generic method."
+  :documented)
+(let ((method (car [generic-documented methods])))
+  (check (equal? [generic-documented documentation]
+                 "Documentation for a generic function.")
+         "GenericFunction>>documentation returns define-generic documentation")
+  (check (equal? [generic-documented arguments] '(value))
+         "GenericFunction>>arguments returns its parameter list")
+  (check (equal? [method documentation]
+                 "Documentation for a generic method.")
+         "GenericMethod>>documentation delegates to its function")
+  (check (equal? [method arguments] '(value))
+         "GenericMethod>>arguments delegates to its function"))
+
+(define-method (generic-speak (value GenericDog)) :redefined-dog)
+(check (eq? (generic-speak (make-instance GenericDog)) :redefined-dog)
+       "redefining an equally specialized method replaces it")
+(check (= (length [generic-speak methods]) 3)
+       "generic method replacement does not leave duplicate methods")
+
+(define-generic (generic-reargument value))
+(define-method (generic-reargument value) (type-of value))
+(define-method (generic-reargument (value GenericDog))
+  (call-next-method 42))
+(check (eq? (generic-reargument (make-instance GenericDog)) SmallInteger)
+       "call-next-method accepts replacement arguments")
+
+(check-raises "call-next-method rejects calls outside generic methods"
+  (call-next-method))
+(check-raises "generic functions enforce their declared arity"
+  (generic-speak))
+)
+
+(define-test "generic multiple dispatch"
+;;; generic multiple dispatch
+
+(define-class GenericShape (Object) ())
+(define-class GenericCircle (GenericShape) ())
+(define-class GenericPaint (Object) ())
+(define-class GenericRedPaint (GenericPaint) ())
+(define-generic (generic-render shape paint))
+(define-method (generic-render shape paint) :object-object)
+(define-method (generic-render (shape GenericShape) paint) :shape-object)
+(define-method (generic-render (shape GenericShape) (paint GenericPaint))
+  :shape-paint)
+(define-method (generic-render (shape GenericCircle) (paint GenericPaint))
+  :circle-paint)
+(define-method (generic-render (shape GenericCircle) (paint GenericRedPaint))
+  :circle-red)
+
+(check (eq? (generic-render (make-instance GenericCircle)
+                            (make-instance GenericRedPaint))
+            :circle-red)
+       "generic methods specialize multiple arguments")
+(check (eq? (generic-render (make-instance GenericShape)
+                            (make-instance GenericRedPaint))
+            :shape-paint)
+       "generic method sorting compares later arguments after ties")
+(check (eq? (generic-render (make-instance GenericCircle) 1)
+            :shape-object)
+       "unspecialized parameters use Object as their specializer")
+)
+
+(define-test "standard generic method combination"
+;;; standard generic method combination
+
+(define-class GenericCombinedBase (Object) ())
+(define-class GenericCombinedChild (GenericCombinedBase) ())
+(define generic-combination-log '())
+(define (record-generic-combination event)
+  (set! generic-combination-log
+        (append generic-combination-log (list event))))
+(define-generic (generic-combined value))
+(define-method :before (generic-combined (value GenericCombinedBase))
+  (record-generic-combination :before-base))
+(define-method (generic-combined :before (value GenericCombinedChild))
+  (record-generic-combination :before-child))
+(define-method (generic-combined (value GenericCombinedBase))
+  (record-generic-combination :primary-base)
+  :result)
+(define-method (generic-combined (value GenericCombinedChild))
+  (record-generic-combination :primary-child)
+  (call-next-method))
+(define-method :after (generic-combined (value GenericCombinedBase))
+  (record-generic-combination :after-base))
+(define-method (generic-combined :after (value GenericCombinedChild))
+  (record-generic-combination :after-child))
+(define-method :around (generic-combined (value GenericCombinedBase))
+  (record-generic-combination :around-base-enter)
+  (let ((result (call-next-method)))
+    (record-generic-combination :around-base-exit)
+    result))
+(define-method (generic-combined :around (value GenericCombinedChild))
+  (record-generic-combination :around-child-enter)
+  (let ((result (call-next-method)))
+    (record-generic-combination :around-child-exit)
+    result))
+
+(check (eq? (generic-combined (make-instance GenericCombinedChild)) :result)
+       "standard method combination returns the primary result")
+(check
+  (equal?
+    generic-combination-log
+    '(:around-child-enter
+      :around-base-enter
+      :before-child
+      :before-base
+      :primary-child
+      :primary-base
+      :after-base
+      :after-child
+      :around-base-exit
+      :around-child-exit))
+  "standard combination orders around, before, primary, and after methods")
+)
+
+(define-test "user-supplied generic method combination"
+;;; user-supplied generic method combination
+
+(define-class GenericCustomBase (Object) ())
+(define-class GenericCustomChild (GenericCustomBase) ())
+(define generic-custom-sorted-specializers '())
+(define (generic-custom-combination methods)
+  (set! generic-custom-sorted-specializers
+        (map (lambda (method) (car [method specializers])) methods))
+  (let ((selected (car methods)))
+    (lambda arguments
+      [selected invokeWithArguments: arguments nextMethod: #nil])))
+(define-generic (generic-custom value)
+  :method-combination generic-custom-combination
+  :documentation "A generic with a custom method combination.")
+(define-method (generic-custom value) :object)
+(define-method (generic-custom (value GenericCustomBase)) :base)
+(define-method (generic-custom (value GenericCustomChild)) :child)
+
+(check (eq? (generic-custom (make-instance GenericCustomChild)) :child)
+       "user method combination returns the effective function")
+(check (equal? [generic-custom documentation]
+               "A generic with a custom method combination.")
+       "define-generic accepts keyword options in any order")
+(check (equal? generic-custom-sorted-specializers
+               (list GenericCustomChild GenericCustomBase Object))
+       "user method combination receives sorted applicable methods")
 )
 
 (define-test "macro special form"

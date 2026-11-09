@@ -1108,11 +1108,12 @@ LT_Value LT_Class_new(LT_Value name, LT_Value superclasses, LT_Value slot_names)
     klass->method_cache = (LT_Value)(uintptr_t)LT_IdentityDictionary_new();
     LT_ilc_epoch_copy_acquire_release(&klass->method_cache_epoch);
     klass->name = name;
-    klass->debugPrintOn = Class_debugPrintOn;
     if (primary_superclass != NULL){
+        klass->debugPrintOn = NULL;
         klass->hash = primary_superclass->hash;
         klass->equal_p = primary_superclass->equal_p;
     } else {
+        klass->debugPrintOn = NULL;
         klass->hash = Class_default_hash;
         klass->equal_p = Class_default_equal_p;
     }

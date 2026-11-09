@@ -31,7 +31,15 @@
   (ListTalk:self first second third))
 
 (ListTalk:define-method [ListTalk:Function valueWithArguments: arguments]
-  "Call the function with an argument list."
+  "Require concrete function classes to implement the application protocol."
+  (error "Function subclass must implement valueWithArguments:"))
+
+(ListTalk:define-method [ListTalk:Closure valueWithArguments: arguments]
+  "Call the closure with an argument list."
+  (apply ListTalk:self arguments))
+
+(ListTalk:define-method [ListTalk:Primitive valueWithArguments: arguments]
+  "Call the primitive with an argument list."
   (apply ListTalk:self arguments))
 
 (ListTalk:define-method [ListTalk:Function whileTrue]

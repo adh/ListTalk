@@ -1310,6 +1310,40 @@ static LT_Value special_form_super_send(
     );
 }
 
+static LT_Value special_form_call_next_method(
+    LT_Value arguments,
+    LT_Environment* environment,
+    LT_TailCallUnwindMarker* tail_call_unwind_marker
+){
+    LT_Value invocation_context;
+    LT_Value next_method;
+    LT_Value method_arguments;
+
+    invocation_context = LT_Environment_invocation_context_of_kind(
+        environment,
+        (LT_Value)(uintptr_t)&LT_generic_method_invocation_context
+    );
+    if (!LT_Pair_p(invocation_context)){
+        LT_error("call-next-method requires generic method invocation context");
+    }
+
+    next_method = LT_car(invocation_context);
+    if (next_method == LT_NIL){
+        LT_error("No next generic method");
+    }
+    method_arguments = (arguments == LT_NIL)
+        ? LT_cdr(invocation_context)
+        : LT_eval_argument_list(arguments, environment);
+
+    return LT_apply(
+        next_method,
+        method_arguments,
+        LT_NIL,
+        LT_NIL,
+        tail_call_unwind_marker
+    );
+}
+
 
 static LT_SpecialForm quote_special_form = {
     .function = special_form_quote,
@@ -1495,6 +1529,14 @@ static LT_SpecialForm super_send_special_form = {
     .description = "Evaluate and send selector using send invocation context."
 };
 
+static LT_SpecialForm call_next_method_special_form = {
+    .function = special_form_call_next_method,
+    .expand_function = expand_special_form_default,
+    .name = "call-next-method",
+    .arguments = "(:rest argument)",
+    .description = "Invoke the next applicable generic method."
+};
+
 static void bind_static_special_form(LT_Environment* environment,
                                      LT_SpecialForm* special_form){
     LT_Value special_form_value = LT_SpecialForm_from_static(special_form);
@@ -1580,4 +1622,5 @@ void LT_base_env_bind_special_forms(LT_Environment* environment){
         LT_PACKAGE_LISTTALK_IMPLEMENTATION,
         &super_send_special_form
     );
+    bind_static_special_form(environment, &call_next_method_special_form);
 }

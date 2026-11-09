@@ -27,9 +27,7 @@
 #include <ListTalk/classes/ByteVector.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/utils/utf8.h>
-#include <ListTalk/vm/conditions.h>
 #include <ListTalk/vm/error.h>
-#include <ListTalk/vm/stack_trace.h>
 
 #include <ctype.h>
 #include <errno.h>
@@ -37,7 +35,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 typedef struct LT_FileReaderStream_s {
     LT_ReaderStream base;
@@ -271,15 +268,7 @@ static void _Noreturn reader_signal_error(
         reader->nesting_depth
     );
 
-    LT_signal(condition);
-    LT_invoke_debugger(condition);
-    fprintf(stderr, "Unrecoverable error: %s\n", message);
-    LT_print_backtrace(stderr);
-#ifdef __APPLE__
-    _exit(1);
-#else
-    abort();
-#endif
+    LT_signal_error(condition);
 }
 
 static void _Noreturn reader_error(LT_Reader* reader, const char* message){

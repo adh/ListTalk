@@ -11,7 +11,7 @@
 #include <ListTalk/classes/Symbol.h>
 #include <ListTalk/utils.h>
 #include <ListTalk/classes/Class.h>
-#include <ListTalk/vm/conditions.h>
+#include <ListTalk/vm/error.h>
 #include <ListTalk/vm/thread_state.h>
 
 #include <signal.h>
@@ -291,13 +291,14 @@ LT_DEFINE_PRIMITIVE(
     "()",
     "Signal KeyboardInterrupt."
 ){
+    LT_Value condition;
     (void)arguments;
     (void)invocation_context_kind;
     (void)invocation_context_data;
     (void)tail_call_unwind_marker;
 
-    LT_signal(LT_KeyboardInterrupt("Keyboard interrupt"));
-    return LT_NIL;
+    condition = LT_KeyboardInterrupt("Keyboard interrupt");
+    LT_signal_error(condition);
 }
 
 void LT_enable_KeyboardInterrupt(void)

@@ -21,6 +21,7 @@ LT_DECLARE_CLASS(LT_Environment);
 #define LT_ENV_FRAME_FLAG_RECYCLABLE 0x1
 
 extern LT_InvocationContextKind LT_send_invocation_context;
+extern LT_InvocationContextKind LT_generic_method_invocation_context;
 
 LT_Environment* LT_Environment_new(LT_Environment* parent,
                                    LT_Value invocation_context_kind,

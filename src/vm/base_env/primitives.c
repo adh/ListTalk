@@ -587,21 +587,38 @@ LT_DEFINE_PRIMITIVE(
 LT_DEFINE_PRIMITIVE(
     primitive_make_class,
     "make-class",
-    "(name superclasses slot-names)",
-    "Create class with name, superclasses list, and slot-name list."
+    "(name superclasses slot-names :key documentation)",
+    "Create class with name, superclasses, slots, and optional documentation."
 ){
     LT_Value cursor = arguments;
     LT_Value name;
     LT_Value superclasses;
     LT_Value slot_names;
+    LT_Value keyword;
+    LT_Value documentation = LT_NIL;
+    LT_Value class_value;
     (void)tail_call_unwind_marker;
 
     LT_OBJECT_ARG(cursor, name);
     LT_OBJECT_ARG(cursor, superclasses);
     LT_OBJECT_ARG(cursor, slot_names);
+
+    if (cursor != LT_NIL){
+        LT_OBJECT_ARG(cursor, keyword);
+        if (!keyword_named_p(keyword, "documentation")){
+            LT_error("make-class expects :documentation keyword");
+        }
+        LT_OBJECT_ARG(cursor, documentation);
+    }
     LT_ARG_END(cursor);
 
-    return LT_Class_new(name, superclasses, slot_names);
+    if (documentation != LT_NIL && !LT_String_p(documentation)){
+        LT_type_error(documentation, &LT_String_class);
+    }
+
+    class_value = LT_Class_new(name, superclasses, slot_names);
+    LT_Class_from_object(class_value)->documentation = documentation;
+    return class_value;
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -856,6 +873,42 @@ LT_DEFINE_PRIMITIVE(
 }
 
 LT_DEFINE_PRIMITIVE(
+    primitive_apply_generic_method,
+    "%apply-generic-method",
+    "(method arguments next-method)",
+    "Apply a generic method with call-next-method invocation context."
+){
+    LT_Value cursor = arguments;
+    LT_Value method;
+    LT_Value argument_list;
+    LT_Value next_method;
+
+    LT_OBJECT_ARG(cursor, method);
+    LT_OBJECT_ARG(cursor, argument_list);
+    LT_OBJECT_ARG(cursor, next_method);
+    LT_ARG_END(cursor);
+
+    if (!LT_Value_is_instance_of(method, LT_STATIC_CLASS(LT_Function))){
+        LT_error("Generic method must be function");
+    }
+    if (next_method != LT_NIL
+        && !LT_Value_is_instance_of(
+            next_method,
+            LT_STATIC_CLASS(LT_Function)
+        )){
+        LT_error("Next generic method must be function or nil");
+    }
+
+    return LT_apply(
+        method,
+        argument_list,
+        (LT_Value)(uintptr_t)&LT_generic_method_invocation_context,
+        LT_cons(next_method, argument_list),
+        tail_call_unwind_marker
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
     primitive_fold_expression,
     "fold-expression",
     "(form environment)",
@@ -1098,6 +1151,11 @@ void LT_base_env_bind_primitives(LT_Environment* environment){
     LT_base_env_bind_static_primitive(environment, &primitive_macroexpand);
     LT_base_env_bind_static_primitive(environment, &primitive_eval);
     LT_base_env_bind_static_primitive(environment, &primitive_apply);
+    LT_base_env_bind_static_primitive_in(
+        environment,
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        &primitive_apply_generic_method
+    );
     LT_base_env_bind_static_primitive(environment, &primitive_fold_expression);
     LT_base_env_bind_static_primitive(environment, &primitive_package);
     LT_base_env_bind_static_primitive(environment, &primitive_define_package);

@@ -35,6 +35,10 @@ LT_InvocationContextKind LT_send_invocation_context = {
     .base = {.klass = &LT_InvocationContextKind_class},
 };
 
+LT_InvocationContextKind LT_generic_method_invocation_context = {
+    .base = {.klass = &LT_InvocationContextKind_class},
+};
+
 static LT_Slot_Descriptor Environment_slots[] = {
     {
         "parent",

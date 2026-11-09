@@ -5,6 +5,7 @@
 import os
 import pty
 import select
+import signal
 import subprocess
 import sys
 import time
@@ -245,6 +246,50 @@ def run_debugger_prompt_depth_case(exe):
     return 0
 
 
+def run_keyboard_interrupt_case(exe):
+    master, slave = pty.openpty()
+    process = subprocess.Popen(
+        [exe],
+        stdin=slave,
+        stdout=slave,
+        stderr=slave,
+        close_fds=True,
+    )
+    os.close(slave)
+    transcript = bytearray()
+    previous_sigint_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    try:
+        transcript.extend(read_pty_until(master, b"listtalk> "))
+        os.write(master, b"(while #true #false)\r")
+        transcript.extend(read_pty_until(master, b"\r\n"))
+        os.kill(process.pid, signal.SIGINT)
+        transcript.extend(read_pty_until(master, b"debug[1]> "))
+        os.write(master, b":return-to-toplevel\r")
+        transcript.extend(read_pty_until(master, b"listtalk> "))
+        os.write(master, b"(+ 1 2)\r")
+        transcript.extend(read_pty_until(master, b"listtalk> "))
+        os.write(master, b"\x04")
+        transcript.extend(drain_pty(master))
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        process.kill()
+        process.wait()
+    finally:
+        signal.signal(signal.SIGINT, previous_sigint_handler)
+        os.close(master)
+
+    required = (b"Keyboard interrupt", b"debug[1]> ", b"3\r\nlisttalk> ")
+    if any(item not in transcript for item in required):
+        sys.stderr.write(
+            "FAIL: keyboard interrupt did not return to the REPL\n{0}".format(
+                transcript.decode(errors="replace")
+            )
+        )
+        return 1
+    return 0
+
+
 def main():
     exe, build_dir, fixture_dir = sys.argv[1:4]
     failures = 0
@@ -309,6 +354,7 @@ def main():
         "parent debugger banner redisplay",
     )
     failures += run_debugger_prompt_depth_case(exe)
+    failures += run_keyboard_interrupt_case(exe)
 
     if failures:
         return 1

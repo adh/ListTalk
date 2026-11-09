@@ -344,7 +344,15 @@
 (check (= [(lambda (x y z) (+ x y z)) value: 10 value: 12 value: 20] 42)
        "Function>>value:value:value: calls with three arguments")
 (check (= [(lambda (x y) (+ x y)) valueWithArguments: '(19 23)] 42)
-       "Function>>valueWithArguments: applies argument list")
+       "Closure>>valueWithArguments: applies argument list")
+(define-class UnimplementedFunction (Function) ())
+(check-raises "Function subclasses without an application method fail explicitly"
+  ((make-instance UnimplementedFunction)))
+(define-class MessageDispatchedFunction (Function) ())
+(define-method [MessageDispatchedFunction valueWithArguments: arguments]
+  arguments)
+(check (equal? ((make-instance MessageDispatchedFunction) 19 23) '(19 23))
+       "Function subclasses implement application through valueWithArguments:")
 (check (equal? [ListTalk-implementation:%lambda arguments]
                '(name (:rest arg) :rest body))
        "SpecialForm>>arguments parses special form argument metadata")

@@ -1139,6 +1139,8 @@ LT_FileStream* LT_FileStream_newForAppending(char* filename){
 static void file_stream_finalizer(void* object, void* data){
     LT_FileStream* stream = (LT_FileStream*)object;
 
+    (void)data;
+
     if (stream->owns_file && stream->file != NULL){
         fclose(stream->file);
     }
