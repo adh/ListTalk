@@ -13,6 +13,18 @@ LT_DECLARE_CLASS(LT_HTTPResponse);
 LT_DECLARE_CLASS(LT_HTTPStreamingResponse);
 LT_DECLARE_CLASS(LT_HTTPServer);
 
+#define LT_HTTP_DEFAULT_REQUEST_LINE_LENGTH_LIMIT 8192
+#define LT_HTTP_DEFAULT_HEADER_LENGTH_LIMIT 8192
+#define LT_HTTP_DEFAULT_HEADERS_SIZE_LIMIT 65536
+#define LT_HTTP_DEFAULT_REQUEST_BODY_SIZE_LIMIT (16 * 1024 * 1024)
+
+typedef struct LT_HTTPRequestLimits {
+    size_t request_line_length;
+    size_t header_length;
+    size_t headers_size;
+    size_t request_body_size;
+} LT_HTTPRequestLimits;
+
 /* Header names are stored in lower case, making lookup case insensitive. */
 LT_String* LT_HTTP_header_name(const char* bytes, size_t length);
 int LT_HTTP_parse_header(LT_Dictionary* headers,
@@ -20,6 +32,10 @@ int LT_HTTP_parse_header(LT_Dictionary* headers,
                          size_t length);
 
 LT_HTTPRequest* LT_HTTPRequest_read(LT_TCPSocket* socket);
+LT_HTTPRequest* LT_HTTPRequest_read_with_limits(
+    LT_TCPSocket* socket,
+    const LT_HTTPRequestLimits* limits
+);
 LT_String* LT_HTTPRequest_method(LT_HTTPRequest* request);
 LT_String* LT_HTTPRequest_target(LT_HTTPRequest* request);
 LT_String* LT_HTTPRequest_version(LT_HTTPRequest* request);
@@ -67,6 +83,18 @@ void LT_HTTPStreamingResponse_send_event_with_fields(
 );
 
 LT_HTTPServer* LT_HTTPServer_new(const char* host, uint16_t port, int backlog);
+void LT_HTTPServer_set_request_line_length_limit(LT_HTTPServer* server,
+                                                 size_t limit);
+void LT_HTTPServer_set_header_length_limit(LT_HTTPServer* server,
+                                           size_t limit);
+void LT_HTTPServer_set_headers_size_limit(LT_HTTPServer* server,
+                                          size_t limit);
+void LT_HTTPServer_set_request_body_size_limit(LT_HTTPServer* server,
+                                               size_t limit);
+size_t LT_HTTPServer_request_line_length_limit(LT_HTTPServer* server);
+size_t LT_HTTPServer_header_length_limit(LT_HTTPServer* server);
+size_t LT_HTTPServer_headers_size_limit(LT_HTTPServer* server);
+size_t LT_HTTPServer_request_body_size_limit(LT_HTTPServer* server);
 LT_HTTPRequest* LT_HTTPServer_accept(LT_HTTPServer* server);
 LT_Value LT_HTTPServer_handle(LT_HTTPServer* server, LT_Value handler);
 void LT_HTTPServer_close(LT_HTTPServer* server);

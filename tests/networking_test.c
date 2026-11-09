@@ -12,6 +12,8 @@
 #include <unistd.h>
 
 static int failures;
+static LT_Value http_error_tag;
+static uint16_t local_port(LT_IPSocket* socket);
 
 typedef struct ShortWriteArguments {
     LT_UnixStreamSocket* socket;
@@ -35,6 +37,57 @@ static void check(int condition, const char* message){
         fprintf(stderr, "FAIL: %s\n", message);
         failures++;
     }
+}
+
+LT_DEFINE_PRIMITIVE(
+    catch_http_error,
+    "catch-http-error",
+    "(condition)",
+    "Capture an expected HTTP parser error."
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    LT_throw(http_error_tag, condition);
+}
+
+static int request_fails_with(const char* request_bytes,
+                              const LT_HTTPRequestLimits* limits,
+                              const char* expected_message){
+    LT_TCPServerSocket* listener = LT_TCPServerSocket_new("127.0.0.1", 0, 1);
+    LT_TCPSocket* client = LT_TCPSocket_connect(
+        "127.0.0.1",
+        local_port((LT_IPSocket*)listener)
+    );
+    LT_TCPSocket* peer = LT_TCPServerSocket_accept(listener);
+    LT_Value caught = LT_NIL;
+    LT_Value handler = LT_Primitive_from_static(&catch_http_error);
+    LT_Value message;
+
+    LT_TCPSocket_write(client, request_bytes, strlen(request_bytes));
+    http_error_tag = LT_Symbol_new("http-error-test-tag");
+    LT_CATCH(http_error_tag, caught, {
+        LT_HANDLER_BIND(handler, {
+            (void)LT_HTTPRequest_read_with_limits(peer, limits);
+        });
+    });
+    LT_IPSocket_close((LT_IPSocket*)peer);
+    LT_IPSocket_close((LT_IPSocket*)client);
+    LT_IPSocket_close((LT_IPSocket*)listener);
+    if (caught == LT_NIL){
+        return 0;
+    }
+    message = LT_Object_slot_ref(caught, LT_Symbol_new("message"));
+    return LT_String_p(message)
+        && !strcmp(
+            LT_String_value_cstr(LT_String_from_value(message)),
+            expected_message
+        );
 }
 
 LT_DEFINE_PRIMITIVE(
@@ -131,11 +184,76 @@ int main(void){
     LT_Dictionary* headers;
     LT_Value header_value;
     LT_HTTPRequest* request;
+    LT_HTTPServer* http_server;
+    LT_HTTPRequestLimits limits;
     LT_ByteVector* body;
     char http_reply[256];
     size_t http_reply_length;
 
     LT_INIT();
+    http_server = LT_HTTPServer_new("127.0.0.1", 0, 1);
+    check(
+        LT_HTTPServer_request_line_length_limit(http_server)
+            == LT_HTTP_DEFAULT_REQUEST_LINE_LENGTH_LIMIT
+            && LT_HTTPServer_header_length_limit(http_server)
+                == LT_HTTP_DEFAULT_HEADER_LENGTH_LIMIT
+            && LT_HTTPServer_headers_size_limit(http_server)
+                == LT_HTTP_DEFAULT_HEADERS_SIZE_LIMIT
+            && LT_HTTPServer_request_body_size_limit(http_server)
+                == LT_HTTP_DEFAULT_REQUEST_BODY_SIZE_LIMIT,
+        "HTTP server initializes request size limits"
+    );
+    LT_HTTPServer_set_request_line_length_limit(http_server, 101);
+    LT_HTTPServer_set_header_length_limit(http_server, 102);
+    LT_HTTPServer_set_headers_size_limit(http_server, 103);
+    LT_HTTPServer_set_request_body_size_limit(http_server, 104);
+    check(
+        LT_HTTPServer_request_line_length_limit(http_server) == 101
+            && LT_HTTPServer_header_length_limit(http_server) == 102
+            && LT_HTTPServer_headers_size_limit(http_server) == 103
+            && LT_HTTPServer_request_body_size_limit(http_server) == 104,
+        "HTTP server request size limits are configurable"
+    );
+    LT_HTTPServer_close(http_server);
+
+    limits = (LT_HTTPRequestLimits){64, 64, 128, 64};
+    limits.request_line_length = 8;
+    check(
+        request_fails_with(
+            "GET / HTTP/1.1\r\n\r\n",
+            &limits,
+            "HTTP request line length limit exceeded"
+        ),
+        "HTTP parser enforces request line length limit"
+    );
+    limits = (LT_HTTPRequestLimits){64, 8, 128, 64};
+    check(
+        request_fails_with(
+            "GET / HTTP/1.1\r\nX-Test: x\r\n\r\n",
+            &limits,
+            "HTTP header length limit exceeded"
+        ),
+        "HTTP parser enforces individual header length limit"
+    );
+    limits = (LT_HTTPRequestLimits){64, 64, 10, 64};
+    check(
+        request_fails_with(
+            "GET / HTTP/1.1\r\nA: b\r\nC: d\r\n\r\n",
+            &limits,
+            "HTTP headers size limit exceeded"
+        ),
+        "HTTP parser enforces overall headers size limit"
+    );
+    limits = (LT_HTTPRequestLimits){64, 64, 128, 3};
+    check(
+        request_fails_with(
+            "POST / HTTP/1.1\r\nContent-Length: 4\r\n\r\ndata",
+            &limits,
+            "HTTP request body size limit exceeded"
+        ),
+        "HTTP parser enforces request body size limit"
+    );
+
     headers = LT_Dictionary_new();
     check(
         LT_HTTP_parse_header(headers,

@@ -35,6 +35,9 @@ LT_TCPSocket* LT_TCPSocket_connect(const char* host, uint16_t port);
 size_t LT_TCPSocket_read(LT_TCPSocket* socket,
                          void* buffer, size_t length);
 LT_Value LT_TCPSocket_readLine(LT_TCPSocket* socket);
+LT_Value LT_TCPSocket_readLineLimited(LT_TCPSocket* socket,
+                                      size_t maximum_length,
+                                      int* limit_exceeded);
 void LT_TCPSocket_write(LT_TCPSocket* socket,
                         const void* buffer, size_t length);
 void LT_TCPSocket_shutdown_write(LT_TCPSocket* socket);

@@ -25,6 +25,7 @@ struct LT_HTTPRequest_s {
 struct LT_HTTPServer_s {
     LT_Object base;
     LT_TCPServerSocket* socket;
+    LT_HTTPRequestLimits limits;
 };
 
 struct LT_HTTPResponse_s {
@@ -110,6 +111,22 @@ static LT_ByteVector* line_bytes(LT_Value line){
     return LT_ByteVector_from_value(line);
 }
 
+static LT_ByteVector* limited_line(LT_TCPSocket* socket,
+                                   size_t limit,
+                                   const char* limit_message){
+    int limit_exceeded;
+    LT_Value line = LT_TCPSocket_readLineLimited(
+        socket,
+        limit,
+        &limit_exceeded
+    );
+
+    if (limit_exceeded){
+        LT_error(limit_message);
+    }
+    return line_bytes(line);
+}
+
 static void parse_request_line(LT_HTTPRequest* request, LT_ByteVector* line){
     const uint8_t* bytes = LT_ByteVector_bytes(line);
     size_t length = LT_ByteVector_length(line);
@@ -168,18 +185,39 @@ static size_t content_length(LT_Dictionary* headers){
     return (size_t)result;
 }
 
-LT_HTTPRequest* LT_HTTPRequest_read(LT_TCPSocket* socket){
+LT_HTTPRequest* LT_HTTPRequest_read_with_limits(
+    LT_TCPSocket* socket,
+    const LT_HTTPRequestLimits* limits
+){
     LT_HTTPRequest* request = LT_Class_ALLOC(LT_HTTPRequest);
     LT_Dictionary* headers = LT_Dictionary_new();
     LT_ByteVector* line;
+    size_t line_length;
+    size_t headers_size = 0;
     int result;
     request->socket = socket;
     request->body_read = request->responded = 0;
-    parse_request_line(request, line_bytes(LT_TCPSocket_readLine(socket)));
+    parse_request_line(
+        request,
+        limited_line(
+            socket,
+            limits->request_line_length,
+            "HTTP request line length limit exceeded"
+        )
+    );
     for (;;){
-        line = line_bytes(LT_TCPSocket_readLine(socket));
+        line = limited_line(
+            socket,
+            limits->header_length,
+            "HTTP header length limit exceeded"
+        );
+        line_length = LT_ByteVector_length(line);
+        if (line_length > limits->headers_size - headers_size){
+            LT_error("HTTP headers size limit exceeded");
+        }
+        headers_size += line_length;
         result = LT_HTTP_parse_header(headers, LT_ByteVector_bytes(line),
-                                      LT_ByteVector_length(line));
+                                      line_length);
         if (!result){
             break;
         }
@@ -189,7 +227,21 @@ LT_HTTPRequest* LT_HTTPRequest_read(LT_TCPSocket* socket){
     }
     request->headers = (LT_ImmutableDictionary*)headers;
     request->content_length = content_length(headers);
+    if (request->content_length > limits->request_body_size){
+        LT_error("HTTP request body size limit exceeded");
+    }
     return request;
+}
+
+LT_HTTPRequest* LT_HTTPRequest_read(LT_TCPSocket* socket){
+    static const LT_HTTPRequestLimits limits = {
+        LT_HTTP_DEFAULT_REQUEST_LINE_LENGTH_LIMIT,
+        LT_HTTP_DEFAULT_HEADER_LENGTH_LIMIT,
+        LT_HTTP_DEFAULT_HEADERS_SIZE_LIMIT,
+        LT_HTTP_DEFAULT_REQUEST_BODY_SIZE_LIMIT
+    };
+
+    return LT_HTTPRequest_read_with_limits(socket, &limits);
 }
 
 LT_String* LT_HTTPRequest_method(LT_HTTPRequest* request){
@@ -724,11 +776,58 @@ LT_HTTPServer* LT_HTTPServer_new(const char* host, uint16_t port, int backlog){
     LT_HTTPServer* result = LT_Class_ALLOC(LT_HTTPServer);
 
     result->socket = LT_TCPServerSocket_new(host, port, backlog);
+    result->limits.request_line_length =
+        LT_HTTP_DEFAULT_REQUEST_LINE_LENGTH_LIMIT;
+    result->limits.header_length = LT_HTTP_DEFAULT_HEADER_LENGTH_LIMIT;
+    result->limits.headers_size = LT_HTTP_DEFAULT_HEADERS_SIZE_LIMIT;
+    result->limits.request_body_size =
+        LT_HTTP_DEFAULT_REQUEST_BODY_SIZE_LIMIT;
     return result;
 }
 
+void LT_HTTPServer_set_request_line_length_limit(LT_HTTPServer* server,
+                                                 size_t limit){
+    server->limits.request_line_length = limit;
+}
+
+void LT_HTTPServer_set_header_length_limit(LT_HTTPServer* server,
+                                           size_t limit){
+    server->limits.header_length = limit;
+}
+
+void LT_HTTPServer_set_headers_size_limit(LT_HTTPServer* server,
+                                          size_t limit){
+    server->limits.headers_size = limit;
+}
+
+void LT_HTTPServer_set_request_body_size_limit(LT_HTTPServer* server,
+                                               size_t limit){
+    server->limits.request_body_size = limit;
+}
+
+size_t LT_HTTPServer_request_line_length_limit(LT_HTTPServer* server){
+    return server->limits.request_line_length;
+}
+
+size_t LT_HTTPServer_header_length_limit(LT_HTTPServer* server){
+    return server->limits.header_length;
+}
+
+size_t LT_HTTPServer_headers_size_limit(LT_HTTPServer* server){
+    return server->limits.headers_size;
+}
+
+size_t LT_HTTPServer_request_body_size_limit(LT_HTTPServer* server){
+    return server->limits.request_body_size;
+}
+
 LT_HTTPRequest* LT_HTTPServer_accept(LT_HTTPServer* server){
-    return LT_HTTPRequest_read(LT_TCPServerSocket_accept(server->socket));
+    LT_HTTPRequestLimits limits = server->limits;
+
+    return LT_HTTPRequest_read_with_limits(
+        LT_TCPServerSocket_accept(server->socket),
+        &limits
+    );
 }
 
 LT_Value LT_HTTPServer_handle(LT_HTTPServer* server, LT_Value handler){
@@ -748,6 +847,7 @@ LT_Value LT_HTTPServer_handle(LT_HTTPServer* server, LT_Value handler){
 struct HTTPConnectionContext {
     LT_TCPSocket* socket;
     LT_Value handler;
+    LT_HTTPRequestLimits limits;
 };
 
 static LT_Value http_connection_worker(void* opaque){
@@ -755,7 +855,10 @@ static LT_Value http_connection_worker(void* opaque){
     LT_Value result;
     LT_HTTPRequest* request;
 
-    request = LT_HTTPRequest_read(context->socket);
+    request = LT_HTTPRequest_read_with_limits(
+        context->socket,
+        &context->limits
+    );
     result = LT_apply(
         context->handler,
         LT_cons((LT_Value)(uintptr_t)request, LT_NIL),
@@ -773,6 +876,7 @@ static void LT_HTTPServer_dispatch(LT_HTTPServer* server, LT_Value handler){
 
     context->socket = LT_TCPServerSocket_accept(server->socket);
     context->handler = handler;
+    context->limits = server->limits;
     thread = LT_Thread_basicNew(
         http_connection_worker,
         context,
@@ -989,6 +1093,89 @@ LT_DEFINE_PRIMITIVE(
     LT_ARG_END(cursor);
     return (LT_Value)(uintptr_t)LT_HTTPServer_accept(self);
 }
+
+static size_t server_limit_arg(LT_Value value){
+    return LT_Number_nonnegative_size_from_integer(
+        value,
+        "HTTP server limit must be nonnegative",
+        "HTTP server limit is out of range"
+    );
+}
+
+#define SERVER_LIMIT_ACCESSORS(c_name, selector, getter, setter, description) \
+    LT_DEFINE_PRIMITIVE(                                                     \
+        c_name,                                                             \
+        "HTTPServer>>" selector,                                           \
+        "(self)",                                                          \
+        "Return the " description "."                                     \
+    ){                                                                      \
+        LT_Value cursor = arguments;                                        \
+        LT_HTTPServer* self;                                                \
+                                                                            \
+        (void)tail_call_unwind_marker;                                      \
+        LT_GENERIC_ARG(                                                     \
+            cursor, self, LT_HTTPServer*, LT_HTTPServer_from_value          \
+        );                                                                  \
+        LT_ARG_END(cursor);                                                 \
+        return LT_Number_smallinteger_from_size(                            \
+            getter(self),                                                   \
+            "HTTP server limit is out of range"                            \
+        );                                                                  \
+    }                                                                       \
+                                                                            \
+    LT_DEFINE_PRIMITIVE(                                                    \
+        c_name##_set,                                                       \
+        "HTTPServer>>" selector ":",                                      \
+        "(self limit)",                                                    \
+        "Set the " description " and return the receiver."                \
+    ){                                                                      \
+        LT_Value cursor = arguments;                                        \
+        LT_Value limit;                                                     \
+        LT_HTTPServer* self;                                                \
+                                                                            \
+        (void)tail_call_unwind_marker;                                      \
+        LT_GENERIC_ARG(                                                     \
+            cursor, self, LT_HTTPServer*, LT_HTTPServer_from_value          \
+        );                                                                  \
+        LT_OBJECT_ARG(cursor, limit);                                       \
+        LT_ARG_END(cursor);                                                 \
+        setter(self, server_limit_arg(limit));                              \
+        return (LT_Value)(uintptr_t)self;                                   \
+    }
+
+SERVER_LIMIT_ACCESSORS(
+    server_request_line_length_limit,
+    "requestLineLengthLimit",
+    LT_HTTPServer_request_line_length_limit,
+    LT_HTTPServer_set_request_line_length_limit,
+    "maximum request-line size in bytes"
+)
+
+SERVER_LIMIT_ACCESSORS(
+    server_header_length_limit,
+    "headerLengthLimit",
+    LT_HTTPServer_header_length_limit,
+    LT_HTTPServer_set_header_length_limit,
+    "maximum individual header-line size in bytes"
+)
+
+SERVER_LIMIT_ACCESSORS(
+    server_headers_size_limit,
+    "headersSizeLimit",
+    LT_HTTPServer_headers_size_limit,
+    LT_HTTPServer_set_headers_size_limit,
+    "maximum combined headers size in bytes"
+)
+
+SERVER_LIMIT_ACCESSORS(
+    server_request_body_size_limit,
+    "requestBodySizeLimit",
+    LT_HTTPServer_request_body_size_limit,
+    LT_HTTPServer_set_request_body_size_limit,
+    "maximum request-body size in bytes"
+)
+
+#undef SERVER_LIMIT_ACCESSORS
 
 LT_DEFINE_PRIMITIVE(
     server_handle,
@@ -1313,6 +1500,14 @@ static LT_Method_Descriptor request_methods[] = {
 
 static LT_Method_Descriptor server_methods[] = {
     {"accept", &server_accept},
+    {"requestLineLengthLimit", &server_request_line_length_limit},
+    {"requestLineLengthLimit:", &server_request_line_length_limit_set},
+    {"headerLengthLimit", &server_header_length_limit},
+    {"headerLengthLimit:", &server_header_length_limit_set},
+    {"headersSizeLimit", &server_headers_size_limit},
+    {"headersSizeLimit:", &server_headers_size_limit_set},
+    {"requestBodySizeLimit", &server_request_body_size_limit},
+    {"requestBodySizeLimit:", &server_request_body_size_limit_set},
     {"handle:", &server_handle},
     {"serve:", &server_serve},
     {"close", &server_close},

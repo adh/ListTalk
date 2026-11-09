@@ -16,3 +16,24 @@
 (check (equal? [response body] "created") "Response retains its body")
 (check (= [[response headers] size] 0)
        "Response defaults to empty headers")
+
+(define server [ListTalk:HTTPD:Server newOn: "127.0.0.1" port: 0])
+(check (= [server requestLineLengthLimit] 8192)
+       "Server has a default request-line limit")
+(check (= [server headerLengthLimit] 8192)
+       "Server has a default header-line limit")
+(check (= [server headersSizeLimit] 65536)
+       "Server has a default combined headers limit")
+(check (= [server requestBodySizeLimit] (* 16 1024 1024))
+       "Server has a default request-body limit")
+(check (eq? [server requestLineLengthLimit: 101] server)
+       "Request-line limit setter returns the server")
+[server headerLengthLimit: 102]
+[server headersSizeLimit: 103]
+[server requestBodySizeLimit: 104]
+(check (and (= [server requestLineLengthLimit] 101)
+            (= [server headerLengthLimit] 102)
+            (= [server headersSizeLimit] 103)
+            (= [server requestBodySizeLimit] 104))
+       "Server request limits are configurable")
+[server close]

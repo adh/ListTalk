@@ -316,6 +316,17 @@ LT_Value LT_TCPSocket_readLine(LT_TCPSocket* socket){
         "Socket read failed"
     );
 }
+LT_Value LT_TCPSocket_readLineLimited(LT_TCPSocket* socket,
+                                      size_t maximum_length,
+                                      int* limit_exceeded){
+    return LT_socket_buffered_read_line_limited(
+        socket_fd((LT_IPSocket*)socket),
+        &socket->read_buffer,
+        maximum_length,
+        limit_exceeded,
+        "Socket read failed"
+    );
+}
 void LT_TCPSocket_write(LT_TCPSocket* socket,
                         const void* buffer,
                         size_t length){

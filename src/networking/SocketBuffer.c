@@ -124,13 +124,16 @@ static void append_bytes(uint8_t** result,
     *length += count;
 }
 
-LT_Value LT_socket_buffered_read_line(int fd,
-                                      LT_SocketReadBuffer* buffer,
-                                      const char* error_message){
+LT_Value LT_socket_buffered_read_line_limited(int fd,
+                                              LT_SocketReadBuffer* buffer,
+                                              size_t maximum_length,
+                                              int* limit_exceeded,
+                                              const char* error_message){
     uint8_t* result = NULL;
     size_t length = 0;
     size_t capacity = 0;
 
+    *limit_exceeded = 0;
     while (1){
         size_t available;
         uint8_t* delimiter;
@@ -148,6 +151,10 @@ LT_Value LT_socket_buffered_read_line(int fd,
         count = delimiter == NULL
             ? available
             : (size_t)(delimiter - (buffer->bytes + buffer->start)) + 1;
+        if (count > maximum_length - length){
+            *limit_exceeded = 1;
+            return LT_NIL;
+        }
         append_bytes(
             &result,
             &length,
@@ -160,4 +167,18 @@ LT_Value LT_socket_buffered_read_line(int fd,
             return (LT_Value)(uintptr_t)LT_ByteVector_new(result, length);
         }
     }
+}
+
+LT_Value LT_socket_buffered_read_line(int fd,
+                                      LT_SocketReadBuffer* buffer,
+                                      const char* error_message){
+    int limit_exceeded;
+
+    return LT_socket_buffered_read_line_limited(
+        fd,
+        buffer,
+        SIZE_MAX,
+        &limit_exceeded,
+        error_message
+    );
 }
