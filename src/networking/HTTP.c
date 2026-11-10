@@ -287,6 +287,24 @@ LT_ByteVector* LT_HTTPRequest_read_body(LT_HTTPRequest* request){
     bytes = GC_MALLOC_ATOMIC(
         request->content_length ? request->content_length : 1
     );
+    {
+        LT_Value expectation = LT_HTTPRequest_header(
+            request, LT_String_new_cstr("expect")
+        );
+        if (request->content_length && expectation != LT_NIL
+                && !strcasecmp(
+                    LT_String_value_cstr(LT_String_from_value(expectation)),
+                    "100-continue"
+                )){
+            static const char continue_response[] =
+                "HTTP/1.1 100 Continue\r\n\r\n";
+            LT_TCPSocket_write(
+                request->socket,
+                continue_response,
+                sizeof(continue_response) - 1
+            );
+        }
+    }
     count = LT_TCPSocket_read(request->socket, bytes, request->content_length);
     if (count != request->content_length){
         LT_error("Unexpected end of HTTP request body");
