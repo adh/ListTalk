@@ -6,6 +6,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdatomic.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/socket.h>
@@ -26,6 +27,7 @@ struct LT_HTTPServer_s {
     LT_Object base;
     LT_TCPServerSocket* socket;
     LT_HTTPRequestLimits limits;
+    atomic_size_t active_workers;
 };
 
 struct LT_HTTPResponse_s {
@@ -40,6 +42,7 @@ struct LT_HTTPStreamingResponse_s {
     LT_TCPSocket* socket;
     LT_Dictionary* headers;
     LT_String* content_type;
+    int suppress_body;
     unsigned status;
     int started;
     int closed;
@@ -99,6 +102,19 @@ int LT_HTTP_parse_header(LT_Dictionary* headers,
     }
     name = LT_HTTP_header_name((const char*)bytes, colon);
     value = LT_String_new((char*)bytes + start, end - start);
+    if (LT_String_byte_length(name) == 14
+            && !memcmp(LT_String_value_cstr(name), "content-length", 14)){
+        LT_Value previous;
+
+        if (LT_Dictionary_at(headers, (LT_Value)(uintptr_t)name, &previous)){
+            LT_String* previous_string = LT_String_from_value(previous);
+
+            if (LT_String_compare(previous_string, value) != 0){
+                return -1;
+            }
+            return 1;
+        }
+    }
     LT_Dictionary_atPut(headers, (LT_Value)(uintptr_t)name,
                         (LT_Value)(uintptr_t)value);
     return 1;
@@ -185,6 +201,10 @@ static size_t content_length(LT_Dictionary* headers){
     return (size_t)result;
 }
 
+static int bodyless_status(unsigned status){
+    return status < 200 || status == 204 || status == 304;
+}
+
 LT_HTTPRequest* LT_HTTPRequest_read_with_limits(
     LT_TCPSocket* socket,
     const LT_HTTPRequestLimits* limits
@@ -197,6 +217,10 @@ LT_HTTPRequest* LT_HTTPRequest_read_with_limits(
     int result;
     request->socket = socket;
     request->body_read = request->responded = 0;
+    LT_TCPSocket_set_read_timeout_ms(
+        socket,
+        LT_HTTP_DEFAULT_REQUEST_READ_TIMEOUT_MS
+    );
     parse_request_line(
         request,
         limited_line(
@@ -284,6 +308,10 @@ LT_ByteVector* LT_HTTPRequest_read_body(LT_HTTPRequest* request){
         LT_error("HTTP request body was already read");
     }
     request->body_read = 1;
+    LT_TCPSocket_set_read_timeout_ms(
+        request->socket,
+        LT_HTTP_DEFAULT_REQUEST_READ_TIMEOUT_MS
+    );
     bytes = GC_MALLOC_ATOMIC(
         request->content_length ? request->content_length : 1
     );
@@ -331,6 +359,11 @@ void LT_HTTPRequest_respond(LT_HTTPRequest* request, unsigned status,
     char first[96];
     char length_header[64];
     LT_Value entries;
+    int omit_body = bodyless_status(status);
+    int head_request = LT_String_compare(
+        request->method,
+        LT_String_new_cstr("HEAD")
+    ) == 0;
     int n;
 
     if (request->responded){
@@ -338,6 +371,9 @@ void LT_HTTPRequest_respond(LT_HTTPRequest* request, unsigned status,
     }
     if (status < 100 || status > 999){
         LT_error("Invalid HTTP response status");
+    }
+    if (omit_body){
+        body_length = 0;
     }
     request->responded = 1;
     n = snprintf(first, sizeof(first), "HTTP/1.1 %u %s\r\n", status,
@@ -388,10 +424,22 @@ void LT_HTTPRequest_respond(LT_HTTPRequest* request, unsigned status,
         LT_TCPSocket_write(request->socket, "\r\n", 2);
         entries = LT_cdr(entries);
     }
-    n = snprintf(length_header, sizeof(length_header),
-                 "Content-Length: %zu\r\nConnection: close\r\n\r\n", body_length);
+    if (omit_body){
+        n = snprintf(
+            length_header,
+            sizeof(length_header),
+            "Connection: close\r\n\r\n"
+        );
+    } else {
+        n = snprintf(
+            length_header,
+            sizeof(length_header),
+            "Content-Length: %zu\r\nConnection: close\r\n\r\n",
+            body_length
+        );
+    }
     LT_TCPSocket_write(request->socket, length_header, (size_t)n);
-    if (body_length){
+    if (!omit_body && !head_request && body_length){
         LT_TCPSocket_write(request->socket, body, body_length);
     }
     LT_IPSocket_close((LT_IPSocket*)request->socket);
@@ -524,9 +572,9 @@ void LT_HTTPStreamingResponse_header_at_put(
 
 static void streaming_response_start(LT_HTTPStreamingResponse* response,
                                      const char* default_content_type){
-    static const char framing_headers[] =
-        "Transfer-Encoding: chunked\r\n"
-        "Connection: close\r\n\r\n";
+    static const char chunked_headers[] =
+        "Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n";
+    static const char bodyless_headers[] = "Connection: close\r\n\r\n";
     char status_line[96];
     LT_Value entries;
     int length;
@@ -578,11 +626,19 @@ static void streaming_response_start(LT_HTTPStreamingResponse* response,
         LT_TCPSocket_write(response->socket, "\r\n", 2);
         entries = LT_cdr(entries);
     }
-    LT_TCPSocket_write(
-        response->socket,
-        framing_headers,
-        sizeof(framing_headers) - 1
-    );
+    if (response->suppress_body || bodyless_status(response->status)){
+        LT_TCPSocket_write(
+            response->socket,
+            bodyless_headers,
+            sizeof(bodyless_headers) - 1
+        );
+    } else {
+        LT_TCPSocket_write(
+            response->socket,
+            chunked_headers,
+            sizeof(chunked_headers) - 1
+        );
+    }
 }
 
 static void streaming_response_chunk(LT_HTTPStreamingResponse* response,
@@ -594,7 +650,8 @@ static void streaming_response_chunk(LT_HTTPStreamingResponse* response,
     if (response->closed){
         LT_error("Streaming response is closed");
     }
-    if (!length){
+    if (response->suppress_body || bodyless_status(response->status)
+            || !length){
         return;
     }
     prefix_length = snprintf(prefix, sizeof(prefix), "%zx\r\n", length);
@@ -641,11 +698,12 @@ static void streaming_response_sse_field(LT_StringBuilder* event,
     response_data(value, &bytes, &length);
     data = bytes;
     for (i = 0; i <= length; i++){
-        if (i == length || data[i] == '\n'){
+        if (i == length || data[i] == '\n' || data[i] == '\r'){
             size_t end = i;
 
-            if (end > start && data[end - 1] == '\r'){
-                end--;
+            if (i < length && data[i] == '\r'
+                    && i + 1 < length && data[i + 1] == '\n'){
+                i++;
             }
             LT_StringBuilder_append_bytes(
                 event,
@@ -736,7 +794,9 @@ static void streaming_response_finish(LT_HTTPStreamingResponse* response){
         return;
     }
     streaming_response_start(response, "text/html; charset=utf-8");
-    LT_TCPSocket_write(response->socket, "0\r\n\r\n", 5);
+    if (!response->suppress_body && !bodyless_status(response->status)){
+        LT_TCPSocket_write(response->socket, "0\r\n\r\n", 5);
+    }
     response->closed = 1;
     LT_IPSocket_close((LT_IPSocket*)response->socket);
 }
@@ -776,6 +836,10 @@ void LT_HTTPRequest_respond_with(LT_HTTPRequest* request, LT_Value result){
         response->socket = request->socket;
         response->headers = LT_Dictionary_new();
         response->content_type = NULL;
+        response->suppress_body = LT_String_compare(
+            request->method,
+            LT_String_new_cstr("HEAD")
+        ) == 0;
         response->status = 200;
         response->started = 0;
         response->closed = 0;
@@ -806,6 +870,7 @@ LT_HTTPServer* LT_HTTPServer_new(const char* host, uint16_t port, int backlog){
     result->limits.headers_size = LT_HTTP_DEFAULT_HEADERS_SIZE_LIMIT;
     result->limits.request_body_size =
         LT_HTTP_DEFAULT_REQUEST_BODY_SIZE_LIMIT;
+    atomic_init(&result->active_workers, 0);
     return result;
 }
 
@@ -869,45 +934,114 @@ LT_Value LT_HTTPServer_handle(LT_HTTPServer* server, LT_Value handler){
 }
 
 struct HTTPConnectionContext {
+    LT_HTTPServer* server;
     LT_TCPSocket* socket;
     LT_Value handler;
     LT_HTTPRequestLimits limits;
 };
 
+static LT_Value http_worker_error_tag(void){
+    return LT_Symbol_new_in(
+        LT_PACKAGE_LISTTALK_IMPLEMENTATION,
+        "http-worker-error"
+    );
+}
+
+LT_DEFINE_PRIMITIVE(
+    http_worker_error_handler,
+    "http-worker-error-handler",
+    "(condition)",
+    "Transfer an HTTP worker error to its recovery boundary."
+){
+    LT_Value cursor = arguments;
+    LT_Value condition;
+
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+    LT_OBJECT_ARG(cursor, condition);
+    LT_ARG_END(cursor);
+    LT_throw(http_worker_error_tag(), condition);
+}
+
+static void http_close_connection(LT_TCPSocket* socket){
+    LT_Value caught = LT_NIL;
+
+    LT_CATCH(http_worker_error_tag(), caught, {
+        LT_HANDLER_BIND(
+            LT_Primitive_from_static(&http_worker_error_handler),
+            {
+                LT_IPSocket_close((LT_IPSocket*)socket);
+            }
+        );
+    });
+    (void)caught;
+}
+
 static LT_Value http_connection_worker(void* opaque){
     struct HTTPConnectionContext* context = opaque;
-    LT_Value result;
+    LT_Value caught = LT_NIL;
     LT_HTTPRequest* request;
 
-    request = LT_HTTPRequest_read_with_limits(
-        context->socket,
-        &context->limits
-    );
-    result = LT_apply(
-        context->handler,
-        LT_cons((LT_Value)(uintptr_t)request, LT_NIL),
-        LT_NIL, LT_NIL, NULL
-    );
-    LT_HTTPRequest_respond_with(request, result);
-    return result;
+    LT_CATCH(http_worker_error_tag(), caught, {
+        LT_HANDLER_BIND(
+            LT_Primitive_from_static(&http_worker_error_handler),
+            {
+                LT_Value result;
+
+                request = LT_HTTPRequest_read_with_limits(
+                    context->socket,
+                    &context->limits
+                );
+                result = LT_apply(
+                    context->handler,
+                    LT_cons((LT_Value)(uintptr_t)request, LT_NIL),
+                    LT_NIL, LT_NIL, NULL
+                );
+                LT_HTTPRequest_respond_with(request, result);
+            }
+        );
+    });
+    (void)caught;
+    atomic_fetch_sub(&context->server->active_workers, 1);
+    http_close_connection(context->socket);
+    return LT_NIL;
 }
 
 static void LT_HTTPServer_dispatch(LT_HTTPServer* server, LT_Value handler){
-    struct HTTPConnectionContext* context = GC_NEW(
-        struct HTTPConnectionContext
-    );
-    LT_Thread* thread;
+    struct HTTPConnectionContext* context;
+    LT_TCPSocket* socket = LT_TCPServerSocket_accept(server->socket);
+    LT_Thread* volatile thread = NULL;
+    LT_Value caught = LT_NIL;
 
-    context->socket = LT_TCPServerSocket_accept(server->socket);
+    if (atomic_fetch_add(&server->active_workers, 1)
+            >= LT_HTTP_DEFAULT_MAX_WORKERS){
+        atomic_fetch_sub(&server->active_workers, 1);
+        http_close_connection(socket);
+        return;
+    }
+    context = GC_NEW(struct HTTPConnectionContext);
+    context->server = server;
+    context->socket = socket;
     context->handler = handler;
     context->limits = server->limits;
-    thread = LT_Thread_basicNew(
-        http_connection_worker,
-        context,
-        "http-connection"
-    );
-
-    LT_Thread_makeDetached(thread);
+    LT_CATCH(http_worker_error_tag(), caught, {
+        LT_HANDLER_BIND(
+            LT_Primitive_from_static(&http_worker_error_handler),
+            {
+                thread = LT_Thread_basicNew(
+                    http_connection_worker,
+                    context,
+                    "http-connection"
+                );
+                LT_Thread_makeDetached(thread);
+            }
+        );
+    });
+    if (caught != LT_NIL && thread == NULL){
+        atomic_fetch_sub(&server->active_workers, 1);
+        http_close_connection(socket);
+    }
 }
 
 void LT_HTTPServer_close(LT_HTTPServer* server){

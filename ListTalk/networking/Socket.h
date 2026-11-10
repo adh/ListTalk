@@ -41,6 +41,8 @@ LT_Value LT_TCPSocket_readLineLimited(LT_TCPSocket* socket,
 void LT_TCPSocket_write(LT_TCPSocket* socket,
                         const void* buffer, size_t length);
 void LT_TCPSocket_shutdown_write(LT_TCPSocket* socket);
+void LT_TCPSocket_set_read_timeout_ms(LT_TCPSocket* socket,
+                                      unsigned timeout_ms);
 
 LT_TCPServerSocket* LT_TCPServerSocket_new(const char* host,
                                            uint16_t port,

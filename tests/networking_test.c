@@ -90,6 +90,62 @@ static int request_fails_with(const char* request_bytes,
         );
 }
 
+static int request_parses(const char* request_bytes,
+                          const LT_HTTPRequestLimits* limits){
+    LT_TCPServerSocket* listener = LT_TCPServerSocket_new("127.0.0.1", 0, 1);
+    LT_TCPSocket* client = LT_TCPSocket_connect(
+        "127.0.0.1",
+        local_port((LT_IPSocket*)listener)
+    );
+    LT_TCPSocket* peer = LT_TCPServerSocket_accept(listener);
+    LT_Value caught = LT_NIL;
+
+    LT_TCPSocket_write(client, request_bytes, strlen(request_bytes));
+    http_error_tag = LT_Symbol_new("http-error-test-tag");
+    LT_CATCH(http_error_tag, caught, {
+        LT_HANDLER_BIND(
+            LT_Primitive_from_static(&catch_http_error),
+            {
+                (void)LT_HTTPRequest_read_with_limits(peer, limits);
+            }
+        );
+    });
+    LT_IPSocket_close((LT_IPSocket*)peer);
+    LT_IPSocket_close((LT_IPSocket*)client);
+    LT_IPSocket_close((LT_IPSocket*)listener);
+    return caught == LT_NIL;
+}
+
+static int tcp_read_times_out(void){
+    LT_TCPServerSocket* listener = LT_TCPServerSocket_new("127.0.0.1", 0, 1);
+    LT_TCPSocket* client = LT_TCPSocket_connect(
+        "127.0.0.1",
+        local_port((LT_IPSocket*)listener)
+    );
+    LT_TCPSocket* peer = LT_TCPServerSocket_accept(listener);
+    LT_Value caught = LT_NIL;
+    int limit_exceeded;
+
+    LT_TCPSocket_set_read_timeout_ms(peer, 1);
+    http_error_tag = LT_Symbol_new("http-timeout-test-tag");
+    LT_CATCH(http_error_tag, caught, {
+        LT_HANDLER_BIND(
+            LT_Primitive_from_static(&catch_http_error),
+            {
+                (void)LT_TCPSocket_readLineLimited(
+                    peer,
+                    64,
+                    &limit_exceeded
+                );
+            }
+        );
+    });
+    LT_IPSocket_close((LT_IPSocket*)peer);
+    LT_IPSocket_close((LT_IPSocket*)client);
+    LT_IPSocket_close((LT_IPSocket*)listener);
+    return caught != LT_NIL;
+}
+
 LT_DEFINE_PRIMITIVE(
     streaming_response_producer,
     "streaming-response-producer",
@@ -144,7 +200,34 @@ LT_DEFINE_PRIMITIVE(
     LT_HTTPStreamingResponse_send_event_data(
         response,
         LT_String_new_cstr("update"),
-        (LT_Value)(uintptr_t)LT_String_new_cstr("one\ntwo")
+        (LT_Value)(uintptr_t)LT_String_new_cstr("one\rtwo\r\nthree")
+    );
+    return LT_NIL;
+}
+
+LT_DEFINE_PRIMITIVE(
+    streaming_bodyless_producer,
+    "streaming-bodyless-producer",
+    "(response)",
+    "Write a body on a status that prohibits one."
+){
+    LT_Value cursor = arguments;
+    LT_HTTPStreamingResponse* response;
+
+    (void)invocation_context_kind;
+    (void)invocation_context_data;
+    (void)tail_call_unwind_marker;
+    LT_GENERIC_ARG(
+        cursor,
+        response,
+        LT_HTTPStreamingResponse*,
+        LT_HTTPStreamingResponse_from_value
+    );
+    LT_ARG_END(cursor);
+    LT_HTTPStreamingResponse_set_status(response, 204);
+    LT_HTTPStreamingResponse_write(
+        response,
+        (LT_Value)(uintptr_t)LT_String_new_cstr("not sent")
     );
     return LT_NIL;
 }
@@ -253,6 +336,25 @@ int main(void){
         ),
         "HTTP parser enforces request body size limit"
     );
+    limits = (LT_HTTPRequestLimits){64, 64, 128, 64};
+    check(
+        request_fails_with(
+            "POST / HTTP/1.1\r\nContent-Length: 4\r\n"
+            "Content-Length: 5\r\n\r\n",
+            &limits,
+            "Malformed HTTP header"
+        ),
+        "HTTP parser rejects conflicting Content-Length fields"
+    );
+    check(
+        request_parses(
+            "POST / HTTP/1.1\r\nContent-Length: 4\r\n"
+            "Content-Length: 4\r\n\r\n",
+            &limits
+        ),
+        "HTTP parser coalesces identical Content-Length fields"
+    );
+    check(tcp_read_times_out(), "TCP socket read deadline expires");
 
     headers = LT_Dictionary_new();
     check(
@@ -401,6 +503,32 @@ int main(void){
         local_port((LT_IPSocket*)server)
     );
     peer = LT_TCPServerSocket_accept(server);
+    LT_TCPSocket_write(client, "GET /empty HTTP/1.1\r\n\r\n", 23);
+    request = LT_HTTPRequest_read(peer);
+    LT_HTTPRequest_respond(
+        request,
+        204,
+        NULL,
+        "not sent",
+        sizeof("not sent") - 1
+    );
+    http_reply_length = LT_TCPSocket_read(client, http_reply, sizeof(http_reply));
+    if (http_reply_length < sizeof(http_reply)){
+        http_reply[http_reply_length] = '\0';
+    }
+    check(
+        strstr(http_reply, "HTTP/1.1 204 No Content\r\n") == http_reply
+            && strstr(http_reply, "Content-Length:") == NULL
+            && strstr(http_reply, "not sent") == NULL,
+        "HTTP response omits framing and body for bodyless statuses"
+    );
+    LT_IPSocket_close((LT_IPSocket*)client);
+
+    client = LT_TCPSocket_connect(
+        "127.0.0.1",
+        local_port((LT_IPSocket*)server)
+    );
+    peer = LT_TCPServerSocket_accept(server);
     LT_TCPSocket_write(client, "GET /stream HTTP/1.1\r\n\r\n", 24);
     request = LT_HTTPRequest_read(peer);
     LT_HTTPRequest_respond_with(
@@ -430,6 +558,52 @@ int main(void){
         local_port((LT_IPSocket*)server)
     );
     peer = LT_TCPServerSocket_accept(server);
+    LT_TCPSocket_write(client, "HEAD /stream HTTP/1.1\r\n\r\n", 25);
+    request = LT_HTTPRequest_read(peer);
+    LT_HTTPRequest_respond_with(
+        request,
+        LT_Primitive_from_static(&streaming_response_producer)
+    );
+    http_reply_length = LT_TCPSocket_read(client, http_reply, sizeof(http_reply));
+    if (http_reply_length < sizeof(http_reply)){
+        http_reply[http_reply_length] = '\0';
+    }
+    check(
+        strstr(http_reply, "HTTP/1.1 201 Created\r\n") == http_reply
+            && strstr(http_reply, "Transfer-Encoding:") == NULL
+            && strstr(http_reply, "hello") == NULL,
+        "StreamingResponse suppresses framing and body for HEAD"
+    );
+    LT_IPSocket_close((LT_IPSocket*)client);
+
+    client = LT_TCPSocket_connect(
+        "127.0.0.1",
+        local_port((LT_IPSocket*)server)
+    );
+    peer = LT_TCPServerSocket_accept(server);
+    LT_TCPSocket_write(client, "GET /empty-stream HTTP/1.1\r\n\r\n", 30);
+    request = LT_HTTPRequest_read(peer);
+    LT_HTTPRequest_respond_with(
+        request,
+        LT_Primitive_from_static(&streaming_bodyless_producer)
+    );
+    http_reply_length = LT_TCPSocket_read(client, http_reply, sizeof(http_reply));
+    if (http_reply_length < sizeof(http_reply)){
+        http_reply[http_reply_length] = '\0';
+    }
+    check(
+        strstr(http_reply, "HTTP/1.1 204 No Content\r\n") == http_reply
+            && strstr(http_reply, "Transfer-Encoding:") == NULL
+            && strstr(http_reply, "not sent") == NULL,
+        "StreamingResponse suppresses framing and body for bodyless statuses"
+    );
+    LT_IPSocket_close((LT_IPSocket*)client);
+
+    client = LT_TCPSocket_connect(
+        "127.0.0.1",
+        local_port((LT_IPSocket*)server)
+    );
+    peer = LT_TCPServerSocket_accept(server);
     LT_TCPSocket_write(client, "GET /events HTTP/1.1\r\n\r\n", 24);
     request = LT_HTTPRequest_read(peer);
     LT_HTTPRequest_respond_with(
@@ -446,7 +620,7 @@ int main(void){
                 != NULL
             && strstr(
                 http_reply,
-                "event: update\ndata: one\ndata: two\n\n"
+                "event: update\ndata: one\ndata: two\ndata: three\n\n"
             ) != NULL
             && strstr(http_reply, "\r\n0\r\n\r\n") != NULL,
         "StreamingResponse formats server-sent events as chunks"

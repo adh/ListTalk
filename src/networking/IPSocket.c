@@ -367,6 +367,13 @@ void LT_TCPSocket_shutdown_write(LT_TCPSocket* socket){
         LT_system_error("Socket shutdown failed", errno);
     }
 }
+void LT_TCPSocket_set_read_timeout_ms(LT_TCPSocket* socket,
+                                      unsigned timeout_ms){
+    LT_socket_read_buffer_set_timeout_ms(
+        &socket->read_buffer,
+        timeout_ms
+    );
+}
 
 LT_TCPServerSocket* LT_TCPServerSocket_new(const char* host,
                                            uint16_t port,
