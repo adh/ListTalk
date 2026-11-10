@@ -316,6 +316,17 @@ LT_Value LT_TCPSocket_readLine(LT_TCPSocket* socket){
         "Socket read failed"
     );
 }
+LT_Value LT_TCPSocket_readLineLimited(LT_TCPSocket* socket,
+                                      size_t maximum_length,
+                                      int* limit_exceeded){
+    return LT_socket_buffered_read_line_limited(
+        socket_fd((LT_IPSocket*)socket),
+        &socket->read_buffer,
+        maximum_length,
+        limit_exceeded,
+        "Socket read failed"
+    );
+}
 void LT_TCPSocket_write(LT_TCPSocket* socket,
                         const void* buffer,
                         size_t length){
@@ -355,6 +366,13 @@ void LT_TCPSocket_shutdown_write(LT_TCPSocket* socket){
     if (shutdown(socket_fd((LT_IPSocket*)socket), SHUT_WR) != 0){
         LT_system_error("Socket shutdown failed", errno);
     }
+}
+void LT_TCPSocket_set_read_timeout_ms(LT_TCPSocket* socket,
+                                      unsigned timeout_ms){
+    LT_socket_read_buffer_set_timeout_ms(
+        &socket->read_buffer,
+        timeout_ms
+    );
 }
 
 LT_TCPServerSocket* LT_TCPServerSocket_new(const char* host,
