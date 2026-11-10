@@ -226,6 +226,12 @@ LT_HTTPRequest* LT_HTTPRequest_read_with_limits(
         }
     }
     request->headers = (LT_ImmutableDictionary*)headers;
+    if (LT_HTTPRequest_header(
+            request,
+            LT_String_new_cstr("transfer-encoding")
+        ) != LT_NIL){
+        LT_error("HTTP Transfer-Encoding is not supported");
+    }
     request->content_length = content_length(headers);
     if (request->content_length > limits->request_body_size){
         LT_error("HTTP request body size limit exceeded");
